@@ -597,6 +597,10 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
     if args.plan_action == "list":
         return _plan_list(store)
+    if args.plan_action == "propose":
+        return _plan_propose(project, args)
+    if args.plan_action == "accept":
+        return _plan_accept(project, store, args)
     if args.plan_action == "add":
         return _plan_add(project, store, args)
     if args.plan_action == "order":
@@ -2037,6 +2041,90 @@ def _doc_tra_loi_brief(args: argparse.Namespace) -> dict[str, Any]:
     return {str(k): v for k, v in du_lieu.items()}
 
 
+def _plan_propose(project: Path, args: argparse.Namespace) -> int:
+    """N-040..N-043 — Agent đề xuất phân rã, người quyết."""
+    from eaa.decompose import PLAN_FILE, DecomposeError, LlmDecomposer
+
+    ctx = build_context(project)
+    muc_tieu = args.goal or _muc_tieu_tu_ho_so(project)
+
+    try:
+        ban = LlmDecomposer(llm=ctx.llm).propose(
+            muc_tieu, hardware=ctx.kb.hardware, constraints=ctx.kb.constraints
+        )
+    except DecomposeError as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de("Phân rã module — ĐỀ XUẤT")
+    print(ban.render())
+    ban.save(project / PLAN_FILE)
+    return EXIT_WAITING_GATE
+
+
+def _muc_tieu_tu_ho_so(project: Path) -> str:
+    """Lấy mục tiêu từ mô tả hồ sơ phần cứng, nếu người không nêu."""
+    import yaml as _yaml
+
+    duong_dan = project / HARDWARE_PROFILE_FILE
+    if not duong_dan.is_file():
+        return ""
+    du_lieu = _yaml.safe_load(duong_dan.read_text(encoding="utf-8")) or {}
+    return str(du_lieu.get("description", ""))
+
+
+def _plan_accept(project: Path, store: Any, args: argparse.Namespace) -> int:
+    """Người nhận bản phân rã — module vào backlog theo đúng thứ tự phụ thuộc."""
+    from eaa.decompose import PLAN_FILE, DecomposeError, DecompositionPlan
+    from eaa.state import BacklogItem
+
+    try:
+        ban = DecompositionPlan.load(project / PLAN_FILE)
+    except DecomposeError as exc:
+        raise CliError(str(exc)) from exc
+    if ban is None:
+        raise CliError("Chưa có bản phân rã nào đang chờ. Dựng bằng: eaa plan propose")
+
+    _in_tieu_de("Nhận bản phân rã")
+    print(ban.render())
+
+    if ban.overloaded and not args.du_biet_qua_tai:
+        raise CliError(
+            "Bản phân rã vượt trần tải CPU ước lượng — không nhận tự động.\n"
+            "    Sửa chu kỳ rồi đề xuất lại, hoặc nhận có chủ ý bằng "
+            "--du-biet-qua-tai nếu bạn cho rằng ước lượng quá thận trọng.",
+            EXIT_WAITING_GATE,
+        )
+
+    with store.with_lock():
+        state = store.load()
+        da_co = {m.id for m in state.backlog}
+        them_moi: list[str] = []
+        for ma in ban.order():
+            if ma in da_co:
+                continue
+            de_xuat = next(x for x in ban.modules if x.id == ma)
+            state.backlog.append(
+                BacklogItem(
+                    id=de_xuat.id,
+                    uses=list(de_xuat.uses),
+                    depends_on=list(de_xuat.depends_on),
+                )
+            )
+            them_moi.append(de_xuat.id)
+        store.save(state)
+
+    print()
+    if not them_moi:
+        print("  Mọi module trong bản này đã có trong backlog.")
+    else:
+        print(f"  Đã thêm {len(them_moi)} module theo đúng thứ tự phụ thuộc:")
+        for ma in them_moi:
+            print(f"    {ma}")
+    (project / PLAN_FILE).unlink(missing_ok=True)
+    print("\nBước kế tiếp: eaa resolve <module>  rồi  eaa gen <module>")
+    return EXIT_OK
+
+
 def cmd_resolve(args: argparse.Namespace) -> int:
     """Đi TÌM thứ bảng kiểm còn thiếu — P7 bước 3, thang ba bậc."""
     from eaa.gapsearch import SEARCH_LEDGER, GapResolver, GapSearchError, SearchLedger
@@ -2583,6 +2671,19 @@ def build_parser() -> argparse.ArgumentParser:
     # UC02 — backlog
     p_plan = sub.add_parser("plan", help="Quản lý backlog module (UC02)")
     plan_sub = p_plan.add_subparsers(dest="plan_action", required=True, metavar="<hành động>")
+    pp = plan_sub.add_parser(
+        "propose", help="Agent đề xuất phân rã module (N-040..N-043)"
+    )
+    pp.add_argument("--goal", default="", help="Mục tiêu; bỏ trống thì lấy từ hồ sơ")
+
+    pac = plan_sub.add_parser("accept", help="Nhận bản phân rã vào backlog")
+    pac.add_argument(
+        "--du-biet-qua-tai",
+        dest="du_biet_qua_tai",
+        action="store_true",
+        help="Nhận dù ước lượng tải CPU vượt trần",
+    )
+
     pa = plan_sub.add_parser(
         "add",
         help="Thêm module; kiểm xung đột tài nguyên ngay lúc khai báo (quy trình P2)",

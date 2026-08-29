@@ -589,6 +589,24 @@ Ba loại:
 
 ---
 
+## SL-43 · BỔ SUNG · `eaa/decompose.py` — Agent đề xuất phân rã module
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §3, quy trình P2; nghiệp vụ N-040..N-043 |
+| **Chỗ trống** | `eaa plan add` có từ Sprint 0, nhưng nó chỉ GHI LẠI thứ người đã nghĩ ra. Người dùng phải tự chia module, tự biết module nào chiếm ngoại vi nào, tự xếp thứ tự, tự chọn chu kỳ — bốn việc đòi đúng loại kiến thức Agent có sẵn |
+| **Code làm** | `ModuleProposal`, `DecompositionPlan` (sắp topo, nhóm song song, ước lượng tải), `LlmDecomposer`; lệnh `eaa plan propose` và `eaa plan accept` |
+| **Bốn thứ đề xuất CÙNG LÚC** | module · tài nguyên chiếm · phụ thuộc · chu kỳ. Tách ra bốn lượt hỏi thì lượt sau phá kết quả lượt trước — chọn chu kỳ 1 ms cho một module vừa được xếp phụ thuộc vào một module 100 ms là vô nghĩa |
+| **Ước lượng tải CPU** | Dùng để phát hiện phân rã bất khả thi NGAY TRÊN GIẤY: mười việc mỗi việc 3 ms trong chu kỳ 10 ms là không chạy được, và biết trước khi viết dòng mã nào thì rẻ hơn nhiều. Vượt trần 70% thì `plan accept` từ chối, phải nói rõ ý định bằng `--du-biet-qua-tai`. Luôn ghi rõ đây là ƯỚC LƯỢNG, số thật chỉ có khi đo trên thiết bị |
+| **Lỗi tự tạo, tìm ra ở lần chạy thật đầu tiên** | Bộ kiểm chu kỳ bản đầu cảnh báo MỌI module tầng logic có chu kỳ lớn hơn `control_loop_ms`. Chạy thật trên dự án STM32: nó báo động cả module gửi telemetry mỗi 100 ms và module nháy LED mỗi 500 ms — cả hai đều hoàn toàn đúng, vì trần ấy là trần của VÒNG ĐIỀU KHIỂN, không phải của mọi việc |
+| **Thay bằng ba phép kiểm nói lên thật** | ① một việc không chạy xong nổi trong chính chu kỳ của nó ② không việc nào chạy đủ nhanh để làm vòng điều khiển đã khai ③ chu kỳ không phải bội số của việc nhanh nhất (bộ định thời hợp tác chỉ chạy được bội số của nhịp). Một cơ chế báo động sai thì người ta học cách phớt lờ, và làm hỏng luôn những lần báo đúng |
+| **Không bịa tài nguyên** | Module chiếm ngoại vi không có trong hồ sơ phần cứng thì cảnh báo đích danh: hoặc mô hình bịa, hoặc hồ sơ còn thiếu — phải làm rõ trước khi nhận |
+| **Agent không tự thêm vào backlog** | Phân rã là quyết định kiến trúc; kiến trúc sai thì mọi module sau đều đúng quy trình mà sai chỗ |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/decompose.py`, lệnh `eaa plan propose/accept` |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 
