@@ -115,12 +115,16 @@ capabilities:
       - "{python}"
       - -m
       - eaa.tools.sim_runner
-      - --hal={hal_mock}
       - --model={sim_model}
+      - --scenarios={sim_scenarios}
+      - --controller={hal_mock}
+      - --profile={sim_profile}
       - --scenario={scenario}
+      - --params={sim_params}
     timeout_s: 300
     parse:
       success_exit_codes: [0]
       metric_regex:
-        max_angle_deg: "max_angle_deg=([\\d.-]+)"
-        settling_time_s: "settling_time_s=([\\d.]+)"
+        max_angle_deg: "max_angle_deg=([\\d.eE+-]+)"
+        settling_time_s: "settling_time_s=([\\d.eE+-]+)"
+        steady_state_deg: "steady_state_deg=([\\d.eE+-]+)"

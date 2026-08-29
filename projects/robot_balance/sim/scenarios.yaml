@@ -1,0 +1,88 @@
+# Kịch bản mô phỏng — dự án robot_balance.
+#
+# Ba kịch bản đầu khớp đúng ba kịch bản nghiệm thu vật lý ở Gate G4 (đề cương
+# mục 3.3.1, EAA-STP-04 §5): khởi động tĩnh, kháng nhiễu, hoạt động dài hạn.
+# Cố ý giữ nguyên bộ ba: một bộ tham số qua được mô phỏng nhưng trượt ở G4 thì
+# ta biết ngay khoảng cách sim-to-real nằm ở kịch bản nào, thay vì phải đoán.
+#
+# Ngưỡng ở đây NGHIÊM hơn ngưỡng nghiệm thu thật một chút. Mô phỏng không thấy
+# được nhiễu điện, rung cơ khí và sai số lắp ráp, nên để nguyên biên độ ±1° cho
+# cả hai nơi là tự lừa mình: qua mô phỏng sát nút gần như chắc chắn trượt trên
+# robot thật.
+
+control_period_ms: 10       # khớp ràng buộc control_loop_ms của dự án
+substeps: 10                # số bước tích phân trong mỗi chu kỳ điều khiển
+
+scenarios:
+
+  - name: khoi_dong_tinh
+    description: >-
+      Thả robot từ góc nghiêng ban đầu, không nhiễu. Kiểm bộ điều khiển kéo
+      được về thẳng đứng và giữ ở đó.
+    duration_s: 6.0
+    initial:
+      theta_deg: 5.0
+      theta_dot: 0.0
+    thresholds:
+      # max_angle_deg là đỉnh trong CẢ lượt chạy, mà lượt này khởi đầu ở 5° —
+      # nên ngưỡng ở đây là "được vọt lố bao nhiêu", không phải biên độ dao
+      # động. Biên độ dao động là steady_state_deg, và nó mới là đại lượng đối
+      # ứng với ngưỡng ±1° của G4.
+      max_angle_deg: 8.0
+      settling_time_s: 2.5
+      steady_state_deg: 0.5
+
+  - name: khang_nhieu
+    description: >-
+      Đang cân bằng thì bị một xung lực đẩy ngang. Kiểm khả năng phục hồi —
+      đây là kịch bản phân biệt bộ tham số "đứng yên được" với bộ tham số
+      "điều khiển được".
+    duration_s: 8.0
+    initial:
+      theta_deg: 0.0
+      theta_dot: 0.0
+    disturbances:
+      - at_s: 2.0
+        impulse_n: 1.8
+        duration_s: 0.15
+      - at_s: 5.0
+        impulse_n: -1.4
+        duration_s: 0.15
+    thresholds:
+      max_angle_deg: 6.0
+      settling_time_s: 3.0
+      steady_state_deg: 0.6
+
+  - name: hoat_dong_dai_han
+    description: >-
+      Chạy dài với trôi điểm không của con quay hồi chuyển. Kiểm bộ lọc bù và
+      thành phần tích phân không tích lũy sai lệch theo thời gian.
+    duration_s: 60.0
+    initial:
+      theta_deg: 2.0
+      theta_dot: 0.0
+    sensor:
+      gyro_drift_rad_s2: 0.0015
+    thresholds:
+      max_angle_deg: 3.0
+      settling_time_s: 4.0
+      # Trôi điểm không của con quay để lại một sai lệch tĩnh khoảng
+      # tau_lọc × trôi ≈ 0,9°. Ngưỡng đặt ngay trên mức đó: nới thêm nữa là bỏ
+      # qua đúng hiện tượng mà kịch bản này sinh ra để bắt.
+      steady_state_deg: 1.2
+      max_slips: 0
+
+# Dải quét tham số cho chế độ MIL (TC-13). Quét thô để khoanh vùng ổn định
+# trước, rồi mới tinh chỉnh bằng tay trên robot thật ở công đoạn E2 — máy khoanh
+# vùng, người chọn điểm.
+sweep:
+  kp: [30, 38, 46, 54]
+  ki: [60, 90, 120]
+  kd: [1.8, 2.6, 3.4]
+  # speed_gain phải nằm trong diện quét. Lần quét đầu chỉ có bộ ba PID cho ra
+  # sàn thời gian ổn định 2,79s trên cả 60 tổ hợp — không tổ hợp nào đạt ngưỡng
+  # 2,5s. Thêm tham số vòng ngoài vào thì thấy ngay: chính nó đặt sàn, và ở
+  # mức 0,25 thời gian ổn định xuống còn 1,3s. Quét thiếu một tham số quyết
+  # định sẽ dẫn tới kết luận "bài toán không giải được" thay vì "quét sai chỗ".
+  speed_gain: [0.07, 0.15, 0.25, 0.35]
+  scenario: khoi_dong_tinh

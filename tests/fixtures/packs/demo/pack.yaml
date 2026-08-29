@@ -48,6 +48,25 @@ capabilities:
       success_exit_codes: [0]
       error_regex: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<msg>.+)$"
 
+  sim:
+    command:
+      - "{python}"
+      - -m
+      - eaa.tools.sim_runner
+      - --model={sim_model}
+      - --scenarios={sim_scenarios}
+      - --controller={hal_mock}
+      - --profile={sim_profile}
+      - --scenario={scenario}
+      - --params={sim_params}
+    timeout_s: 300
+    parse:
+      success_exit_codes: [0]
+      metric_regex:
+        max_angle_deg: "max_angle_deg=([\\d.eE+-]+)"
+        settling_time_s: "settling_time_s=([\\d.eE+-]+)"
+        steady_state_deg: "steady_state_deg=([\\d.eE+-]+)"
+
   flash:
     requires_confirmation: true
     command: ["{python}", "{pack_dir}/tools/fake_flash.py", "{binary}"]
