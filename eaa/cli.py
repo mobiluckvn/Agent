@@ -109,21 +109,24 @@ def repo_root() -> Path:
     return Path(os.environ.get("EAA_HOME", Path(__file__).resolve().parent.parent))
 
 
-def resolve_project(duong_dan: str | None) -> Path:
+def resolve_project(duong_dan: str | None, *, phai_ton_tai: bool = True) -> Path:
     """Tìm thư mục dự án theo thứ tự: tham số → biến môi trường → duy nhất.
 
     FR-PLT-03 dự trù nhiều dự án song song; ở đây chỉ chọn dự án, chưa quản lý
     vòng đời ``eaa new/switch`` (Should, chưa thuộc MVP).
+
+    ``phai_ton_tai=False`` cho ``eaa brief``: lệnh ấy chạy TRƯỚC khi dự án tồn
+    tại — nó chính là thứ tạo ra dự án.
     """
     if duong_dan:
         goc = Path(duong_dan).expanduser().resolve()
-        if not goc.is_dir():
+        if not goc.is_dir() and phai_ton_tai:
             raise CliError(f"Không có thư mục dự án: {goc}")
         return goc
 
     tu_moi_truong = os.environ.get("EAA_PROJECT")
     if tu_moi_truong:
-        return resolve_project(tu_moi_truong)
+        return resolve_project(tu_moi_truong, phai_ton_tai=phai_ton_tai)
 
     thu_muc = repo_root() / "projects"
     ung_vien = (
@@ -1862,6 +1865,178 @@ def _hoi_tren_terminal(cau_hoi: str) -> str:
     return input("  > ").strip()
 
 
+def _llm_khong_can_du_an(project: Path) -> Any:
+    """Dựng adapter mô hình khi CHƯA có Project State.
+
+    ``eaa brief`` chạy trước ``eaa init``, nên nó không thể lấy cấu hình từ
+    Project State — cái đó chưa tồn tại. Lấy từ môi trường, đúng như Agent tự
+    làm ở N-001.
+    """
+    from eaa.llm.calllog import CallLog
+
+    provider, model, _ = chon_llm_theo_moi_truong()
+    if provider != "gemini":
+        return None
+    from eaa.llm.gemini import GeminiClient
+
+    return GeminiClient(model=model, call_log=CallLog(project / "llm_calls.jsonl"))
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    """N-001..N-006 — dò, nhận dạng, hỏi, rồi dựng hồ sơ dự án ở dạng nháp."""
+    from eaa.brief import (
+        BriefError,
+        ProjectDraft,
+        identify_board,
+        probe_hardware,
+        remaining_questions,
+    )
+
+    project = resolve_project(args.project, phai_ton_tai=False)
+
+    # --- bước 1: dò trước khi hỏi ---
+    _in_tieu_de("Máy tự dò phần cứng")
+    do_duoc = probe_hardware()
+    print(do_duoc.render())
+
+    # --- bước 2: nhận dạng ---
+    _in_tieu_de("Nhận dạng bo")
+    if args.board:
+        # Người đã nêu rõ bo thì KHÔNG hỏi mô hình nữa. Nhận dạng là để trả lời
+        # câu người chưa trả lời; hỏi lại thứ vừa được nói là tốn một lời gọi
+        # để xác nhận điều đã chắc chắn hơn mọi phỏng đoán.
+        ung_vien = []
+        print(f"  Bạn đã nêu rõ: {args.board} — bỏ qua bước nhận dạng.")
+    else:
+        try:
+            ung_vien = identify_board(
+                do_duoc,
+                _llm_khong_can_du_an(project),
+                platforms=discover_packs(repo_root() / "packs"),
+            )
+        except BriefError as exc:
+            raise CliError(str(exc)) from exc
+
+    if not ung_vien and not args.board:
+        print(
+            "  Chưa nhận dạng được bo từ dấu hiệu dò được.\n"
+            "  Nêu rõ bằng --board '<tên bo>' để đi tiếp."
+        )
+    for c in ung_vien:
+        print(c.render())
+
+    chon = None
+    if args.board:
+        chon = next((c for c in ung_vien if args.board.lower() in c.name.lower()), None)
+        if chon is None:
+            from eaa.brief import BoardCandidate
+
+            chon = BoardCandidate(
+                name=args.board, platform=args.platform or "", confidence="người nói"
+            )
+    elif len(ung_vien) == 1 and ung_vien[0].confidence == "high":
+        chon = ung_vien[0]
+        print(f"\n  Chỉ một ứng viên và tin cậy cao → chọn {chon.name}.")
+    elif ung_vien:
+        raise CliError(
+            f"Có {len(ung_vien)} ứng viên bo. Agent KHÔNG chọn hộ — chọn nhầm bo "
+            "là sai toàn bộ thanh ghi và bản đồ bộ nhớ.\n"
+            "    Xem phần 'phân biệt' ở trên rồi nêu rõ: eaa brief --board '<tên>'",
+            EXIT_WAITING_GATE,
+        )
+
+    if chon is None:
+        raise CliError("Chưa xác định được bo — dừng ở đây.", EXIT_WAITING_GATE)
+
+    # --- bước 3: hỏi đúng phần máy không biết ---
+    tra_loi = _doc_tra_loi_brief(args)
+    con_lai = remaining_questions(tra_loi)
+    bat_buoc = [q for q in con_lai if q.required]
+
+    if bat_buoc and args.ask and sys.stdin.isatty():
+        _in_tieu_de("Agent hỏi — những gì máy không tự biết được")
+        for q in con_lai:
+            print(q.render())
+            dap = input("      > ").strip()
+            if dap:
+                tra_loi[q.key] = dap
+        con_lai = remaining_questions(tra_loi)
+        bat_buoc = [q for q in con_lai if q.required]
+
+    if bat_buoc:
+        _in_tieu_de("Agent cần bạn trả lời")
+        for q in bat_buoc:
+            print(q.render())
+            print()
+        print(
+            "Trả lời bằng một trong hai cách:\n"
+            "    eaa brief --ask                      # hỏi ngay trên dòng lệnh\n"
+            "    eaa brief --answers <tệp.yaml>       # trả lời sẵn theo khóa ở trên\n\n"
+            "Agent KHÔNG tự trả lời hộ: chu kỳ điều khiển và chế độ an toàn là\n"
+            "quyết định vật lý, không suy được từ dấu hiệu nào trên máy."
+        )
+        return EXIT_WAITING_GATE
+
+    # --- bước 4: dựng bản nháp ---
+    ban_nhap = ProjectDraft(
+        project_dir=project, board=chon, answers=tra_loi, probe=do_duoc
+    )
+    if chon.confidence != "high":
+        ban_nhap.gia_dinh(
+            "board_identity",
+            f"Bo được nhận dạng là {chon.name} với mức tin cậy {chon.confidence}.",
+            chon.how_to_tell or "Đối chiếu mã in trên chip với datasheet.",
+            ["mọi thứ trong hồ sơ này"],
+        )
+    if not chon.clock_hz:
+        ban_nhap.gia_dinh(
+            "clock_hz",
+            "Tần số đồng hồ sau reset chưa xác định.",
+            "Đọc mục hệ thống đồng hồ trong datasheet, hoặc đo bằng chân xuất xung.",
+            ["mọi tính toán thời gian"],
+        )
+    ban_nhap.gia_dinh(
+        "so_do_chan",
+        "Sơ đồ chân của bo chưa nạp — mục pin_map còn trống.",
+        "Đọc sơ đồ nguyên lý của bo, hoặc dò từng chân và quan sát.",
+        ["mọi module chạm vào chân"],
+    )
+
+    try:
+        da_ghi = ban_nhap.write()
+    except BriefError as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de("Đã dựng bản nháp hồ sơ dự án")
+    for d in da_ghi:
+        print(f"  {d}")
+    print(
+        f"\n  Giả định chưa kiểm: {len(ban_nhap.assumptions)} mục — xem mục "
+        "'assumptions' trong hồ sơ phần cứng.\n"
+        "\nĐây là ĐỀ XUẤT, chưa phải quyết định. Đọc kỹ rồi:\n"
+        "    eaa init                 # khởi tạo dự án từ hồ sơ này\n"
+        "    eaa gate approve G1      # chốt ràng buộc và kiến trúc"
+    )
+    return EXIT_WAITING_GATE
+
+
+def _doc_tra_loi_brief(args: argparse.Namespace) -> dict[str, Any]:
+    import yaml as _yaml
+
+    if not args.answers:
+        return {}
+    duong_dan = Path(args.answers)
+    if not duong_dan.is_file():
+        raise CliError(f"Không tìm thấy tệp trả lời: {duong_dan}")
+    try:
+        du_lieu = _yaml.safe_load(duong_dan.read_text(encoding="utf-8")) or {}
+    except _yaml.YAMLError as exc:
+        raise CliError(f"{duong_dan}: YAML không hợp lệ — {exc}") from exc
+    if not isinstance(du_lieu, dict):
+        raise CliError(f"{duong_dan}: nội dung phải là ánh xạ khóa–giá trị")
+    return {str(k): v for k, v in du_lieu.items()}
+
+
 def cmd_resolve(args: argparse.Namespace) -> int:
     """Đi TÌM thứ bảng kiểm còn thiếu — P7 bước 3, thang ba bậc."""
     from eaa.gapsearch import SEARCH_LEDGER, GapResolver, GapSearchError, SearchLedger
@@ -2585,6 +2760,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_build.set_defaults(func=cmd_build)
+
+    # N-001..N-006 — khởi tạo dự án bằng hội thoại
+    p_brief = sub.add_parser(
+        "brief",
+        help="Dò phần cứng, hỏi, rồi dựng hồ sơ dự án ở dạng nháp",
+        description=(
+            "Chạy TRƯỚC 'eaa init'. Agent dò trước khi hỏi, chỉ hỏi những gì "
+            "máy không tự biết được, rồi dựng constraints.yaml và "
+            "hardware_profile.yaml ở dạng ĐỀ XUẤT để bạn duyệt tại G1."
+        ),
+    )
+    p_brief.add_argument("--board", default="", help="Nêu rõ tên bo, khi Agent chưa chắc")
+    p_brief.add_argument("--platform", default="", help="Tên Platform Pack, khi tự nêu bo")
+    p_brief.add_argument("--ask", action="store_true", help="Hỏi ngay trên dòng lệnh")
+    p_brief.add_argument("--answers", help="Tệp YAML trả lời sẵn theo khóa câu hỏi")
+    p_brief.set_defaults(func=cmd_brief)
 
     # P7 bước 3 — đi tìm thứ bảng kiểm còn thiếu
     p_resolve = sub.add_parser(

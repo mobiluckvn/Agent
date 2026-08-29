@@ -607,11 +607,11 @@ NGHIEP_VU: list[tuple[str, str, str, str, str, str, str, str, str]] = [
 DU, PHAN, CHUA, COY = "Đủ", "Một phần", "Chưa có", "Cố ý không làm"
 
 DOI_CHIEU = [
- ("N-001", CHUA, "—", "Không có lệnh nào tiếp nhận yêu cầu. Người tự viết constraints.yaml.", "T0"),
- ("N-002", PHAN, "eaa/serialport.py + eaa ports · TC-42a", "Chưa đọc ổ mass-storage của mạch nạp; chưa có danh mục bo để tra VID/PID.", "T4"),
- ("N-003", CHUA, "—", "Chỉ so với VID/PID mà DỰ ÁN tự khai. Không có danh mục bo, không đề xuất ứng viên, không hỏi.", "T0"),
+ ("N-001", DU, "eaa/brief.py QUESTIONS + eaa brief · TC-49c", "", "T1"),
+ ("N-002", DU, "eaa/brief.py probe_hardware · TC-49a", "", "T4"),
+ ("N-003", DU, "eaa/brief.py identify_board · TC-49b", "", "T1"),
  ("N-004", PHAN, "eaa/ingest.py (PdfIngestor, check_web_source) · TC-22", "Không liệt kê đích danh tài liệu cần; không hỏi rev silicon; không hỏi errata.", "T1"),
- ("N-005", PHAN, "eaa/ingest.py AssumptionLog · TC-22", "Có kho giả định, nhưng danh mục ban đầu do người viết tay (hồ sơ DISCO là tôi gõ).", "T0"),
+ ("N-005", DU, "eaa/brief.py ProjectDraft.gia_dinh · TC-49d", "", "T3"),
  ("N-006", CHUA, "—", "Không có bước chốt phạm vi và cái không làm.", "T0"),
  ("N-010", PHAN, "eaa/kb.py Constraints + G1 · TC-04", "Đọc/kiểm/duyệt được, nhưng Agent KHÔNG đề xuất bộ ràng buộc — người viết trước.", "T0"),
  ("N-011", PHAN, "eaa/acceptance.py · TC-45", "Đối chiếu tiêu chí thì đủ; Agent không đề xuất tiêu chí và không ép 'phải đo được'.", "T0"),

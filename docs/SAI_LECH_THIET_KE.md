@@ -570,6 +570,25 @@ Ba loại:
 
 ---
 
+## SL-42 · BỔ SUNG · `eaa/brief.py` — khởi tạo dự án bằng hội thoại
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1, quy trình P1; nghiệp vụ N-001..N-006 |
+| **Thiết kế nói** | Công đoạn A1 (ràng buộc cứng) và B2 (hồ sơ phần cứng) là "90% con người" |
+| **Chỗ trống** | Câu ấy được hiện thực thành: `eaa init` ĐÒI hai tệp đã có sẵn, và không lệnh nào giúp tạo ra chúng. "90% con người" khác hẳn "100% con người, không ai hỏi giúp một câu" — người dùng phải tự biết cần khai trường gì, tự tra tần số đồng hồ, tức là phải hiểu kiến trúc bên trong mới bắt đầu được |
+| **Bằng chứng khoảng trống có thật** | Ngay trong phiên dựng tính năng này, `constraints.yaml` và `hardware_profile.yaml` cho bo STM32F469I-DISCO là do **tôi gõ tay**. Người dùng chỉ ra hai lần rằng tôi đang làm thay Agent |
+| **Code làm** | `probe_hardware()` (cổng + VID/PID + ổ nạp), `identify_board()` (ứng viên kèm cách phân biệt), `QUESTIONS` (danh mục hỏi), `ProjectDraft` (sinh hai tệp ở dạng nháp); lệnh `eaa brief` chạy TRƯỚC `eaa init` |
+| **Thứ tự bốn bước là điểm chính** | ① dò trước khi hỏi — máy tự biết được gì thì không hỏi ② nhận dạng, không chắc thì đưa ứng viên KÈM CÁCH PHÂN BIỆT ③ hỏi đúng phần máy không biết ④ sinh hồ sơ ở dạng đề xuất |
+| **Ba loại dữ kiện không trộn** | ĐÃ KIỂM (máy tự đo trên máy này) · NGƯỜI NÓI · TRA CỨU. Thứ chưa kiểm xuống mục `assumptions` kèm cách kiểm, không nằm lẫn như sự thật — sáu tháng sau không ai nhớ con số nào đo được, con số nào đoán ra |
+| **Agent không đoán chỗ nào** | Tiêu chí nghiệm thu để TRỐNG: nó phải đo được và phải do người chốt TRƯỚC khi có số đo. Chu kỳ điều khiển và chế độ an toàn là câu hỏi bắt buộc, không có mặc định |
+| **Không ghi đè** | Hồ sơ đã có thì dừng: bản cũ có thể đã qua G1 và mã sinh ra đang dựa vào nó |
+| **Chốt mạng của bộ test bắt được một lãng phí** | Bản đầu gọi mô hình để nhận dạng bo NGAY CẢ KHI người đã nêu rõ `--board`. Hỏi lại thứ vừa được nói là tốn một lời gọi để xác nhận điều đã chắc chắn hơn mọi phỏng đoán. Nay bỏ qua bước nhận dạng khi bo được nêu rõ |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/brief.py`, lệnh `eaa brief`; EAA-AIS-05 §6.1 nói rõ A1/B2 có Agent dẫn dắt |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 
