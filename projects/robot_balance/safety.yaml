@@ -1,0 +1,104 @@
+# Phân tích hỏng hóc và chế độ an toàn — BẢN ĐỀ XUẤT do `eaa safety propose` dựng.
+#
+# Câu hỏi trung tâm của tệp này KHÔNG phải "cái gì có thể hỏng" — danh sách ấy
+# dài vô hạn — mà là HỎNG THÌ CÓ AI BIẾT KHÔNG. Hệ nhúng không có ai ngồi nhìn:
+# một cảm biến trả rác sẽ được xử lý như số thật cho tới khi có gì đó cháy.
+#
+# Mỗi mục thiếu `detection` là một kiểu hỏng sẽ lộ ra trên bàn thí nghiệm.
+# Đọc từng dòng rồi chốt tại G1.
+
+version: 1
+proposed_by: gemini-3.1-pro-preview
+proposed_at: '2026-08-29T16:15:59+00:00'
+failure_modes:
+- id: timer1_isr_freeze
+  resource: timer1
+  failure: Ngắt timer không kích hoạt do lỗi cấu hình hoặc hỏng thanh ghi
+  symptom: Vòng lặp điều khiển PID không được thực thi mỗi 10ms
+  effect: Robot không cập nhật lệnh cân bằng, mất thăng bằng và đổ ngã
+  detection: 'Đối chiếu hai nguồn: Dùng timer0 (system tick) để đếm thời gian. Nếu
+    timer0 đếm vượt quá 15ms mà cờ báo hoàn thành vòng lặp của timer1 chưa được set,
+    xác nhận lỗi'
+  mitigation: Ngắt kích hoạt động cơ, kích hoạt Watchdog để reset hệ thống
+  severity: nguy_hiem
+- id: timer0_pwm_stuck
+  resource: timer0
+  failure: Thanh ghi bộ đếm (TCNT0) bị kẹt, không tràn để tạo xung PWM
+  symptom: Tín hiệu PWM xuất ra động cơ bị giữ nguyên ở mức logic 1 (100%) hoặc 0
+    (0%)
+  effect: Một hoặc cả hai động cơ chạy hết tốc độ hoặc dừng đột ngột, robot văng mạnh
+  detection: 'Đối chiếu hai nguồn: Trong ngắt timer1 (mỗi 10ms), đọc thanh ghi TCNT0.
+    Nếu giá trị TCNT0 không thay đổi trong 2 chu kỳ ngắt timer1 liên tiếp, xác nhận
+    kẹt timer'
+  mitigation: Kéo chân Enable của cả hai motor driver xuống LOW, vào trạng thái an
+    toàn
+  severity: nguy_hiem
+- id: twi_bus_lockup
+  resource: twi
+  failure: Đường SDA bị kéo xuống LOW liên tục do nhiễu hoặc lỗi slave
+  symptom: Cờ ngắt TWI không bật, thanh ghi trạng thái báo bus bận liên tục
+  effect: Không đọc được dữ liệu góc nghiêng, vòng lặp điều khiển bị treo chờ dữ liệu
+  detection: 'Quá hạn chờ: Bộ đếm thời gian phần mềm vượt quá 2ms (trong giới hạn
+    vòng lặp 10ms) mà giao dịch TWI chưa hoàn tất'
+  mitigation: Reset ngoại vi TWI, khởi tạo lại bus. Nếu thất bại 3 lần liên tiếp,
+    vào trạng thái an toàn
+  severity: cao
+- id: usart0_rx_overrun
+  resource: usart0
+  failure: Tràn bộ đệm nhận do dữ liệu điều khiển từ xa đến quá nhanh
+  symptom: Cờ Data OverRun (DOR) hoặc Framing Error (FE) được set trong thanh ghi
+    trạng thái
+  effect: Mất gói tin điều khiển, tốn thời gian CPU xử lý ngắt rác làm trễ vòng lặp
+    10ms
+  detection: Kiểm tra trực tiếp cờ DOR và FE trong thanh ghi UCSR0A ngay khi vào ngắt
+    nhận RX
+  mitigation: Xóa cờ lỗi, xóa bộ đệm nhận (flush buffer), bỏ qua gói tin hiện tại
+    để bảo vệ thời gian vòng lặp
+  severity: trung_binh
+- id: imu_data_spike
+  resource: imu
+  failure: Cảm biến MEMS xuất dữ liệu rác do va đập cơ học hoặc rung động mạnh
+  symptom: Góc nghiêng (pitch) tính toán bị nhảy vọt bất thường
+  effect: Bộ PID xuất lệnh PWM tối đa sai lệch, robot phóng mạnh về một phía gây nguy
+    hiểm
+  detection: 'Giới hạn dải: Giá trị góc nghiêng thay đổi > 15 độ chỉ trong 1 chu kỳ
+    10ms (vượt quá giới hạn gia tốc vật lý của robot)'
+  mitigation: Bỏ qua giá trị lỗi, dùng giá trị hợp lệ trước đó trong tối đa 2 chu
+    kỳ. Nếu lỗi tiếp diễn > 3 chu kỳ, vào trạng thái an toàn
+  severity: nguy_hiem
+- id: md_left_thermal_shutdown
+  resource: motor_driver_left
+  failure: IC driver bị quá nhiệt và tự động ngắt đầu ra (Thermal Shutdown)
+  symptom: Lệnh PWM vẫn xuất bình thường nhưng bánh trái không quay
+  effect: Robot xoay vòng tròn tốc độ cao tại chỗ và ngã
+  detection: 'Đối chiếu hai nguồn: Lệnh PWM trái > 50% trong 100ms nhưng IMU báo tốc
+    độ góc Yaw xoay mạnh về bên trái (chứng tỏ bánh trái đứng im, bánh phải đẩy)'
+  mitigation: Tắt ngay PWM cả hai bánh để tránh xoay vòng, vào trạng thái an toàn
+  severity: cao
+- id: md_right_mosfet_short
+  resource: motor_driver_right
+  failure: MOSFET trong H-bridge bị chập, cấp điện áp tối đa liên tục ra động cơ
+  symptom: Bánh phải quay tối đa dù lệnh PWM từ vi điều khiển bằng 0
+  effect: Robot tăng tốc đột ngột không kiểm soát, nguy cơ đâm va cao
+  detection: 'Đối chiếu hai nguồn: Lệnh PWM phải < 10% nhưng IMU phát hiện gia tốc
+    tiến > 2g hoặc tốc độ góc Yaw > 200 deg/s duy trì trong 50ms'
+  mitigation: Kéo chân ENABLE của driver xuống mức LOW bằng phần cứng để cắt điện,
+    vào trạng thái an toàn
+  severity: nguy_hiem
+safe_state:
+  description: Trạng thái dừng khẩn cấp, vô hiệu hóa toàn bộ truyền động để tránh
+    robot chạy loạn hoặc gây tai nạn.
+  entry:
+  - Phát hiện lỗi nguy hiểm từ IMU (dữ liệu rác liên tục)
+  - Lỗi kẹt Timer1 hoặc Timer0
+  - Sự cố không khớp giữa lệnh PWM và phản hồi chuyển động từ IMU (hỏng motor driver)
+  exit:
+  - Chỉ thoát bằng cách Hard Reset (nhấn nút reset vật lý) hoặc tắt bật lại nguồn
+    điện
+  actions:
+  - Ghi 0 vào thanh ghi so sánh PWM của timer0 để dừng băm xung
+  - Kéo chân ENABLE của motor_driver_left và motor_driver_right xuống LOW để cắt điện
+    phần cứng
+  - Gửi mã lỗi khẩn cấp qua usart0
+  - Vô hiệu hóa ngắt timer1 để dừng hoàn toàn vòng lặp điều khiển PID
+  - Vào vòng lặp vô hạn (while(1)) chờ reset

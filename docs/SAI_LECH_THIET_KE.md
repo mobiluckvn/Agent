@@ -607,6 +607,23 @@ Ba loại:
 
 ---
 
+## SL-44 · BỔ SUNG · `eaa/safety.py` — phân tích hỏng hóc và chế độ an toàn
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-DIA-01; công đoạn B2; nghiệp vụ N-016, N-017 |
+| **Chỗ trống** | Thiết kế có chẩn đoán (tìm nguyên nhân SAU khi hỏng) nhưng không có phân tích hỏng hóc (liệt kê TRƯỚC những gì có thể hỏng và cách nhận ra). Hai việc khác nhau: cái sau quyết định firmware có phát hiện được sự cố hay không |
+| **Code làm** | `FailureMode`, `SafeState`, `SafetyAnalysis` (đo độ phủ và chỗ hở), `LlmSafetyAnalyst`; lệnh `eaa safety propose` và `eaa safety show`; tệp `safety.yaml` ở tầng dự án |
+| **Câu hỏi trung tâm** | KHÔNG phải "cái gì có thể hỏng" — danh sách ấy dài vô hạn — mà là **hỏng thì có ai biết không**. Hệ nhúng không có ai ngồi nhìn: một cảm biến trả rác sẽ được xử lý như số thật cho tới khi có gì đó cháy |
+| **Ba bất biến** | ① mỗi kiểu hỏng phải có CÁCH PHÁT HIỆN; thiếu thì nêu đích danh, và mức cao/nguy hiểm thì nhấn mạnh ② phủ hết tài nguyên trong hồ sơ; thứ chưa phủ được gọi tên ③ chế độ an toàn phải nói rõ điều kiện VÀO và RA — vào mà không ra được là một cục gạch, và nếu chủ ý chỉ thoát bằng reset thì phải viết ra |
+| **Sạch ranh giới** | Nhận biết "có cơ cấu chấp hành hay không" qua KHAI BÁO của dự án (`kind: actuator`), không qua tên linh kiện — engine không được biết tên một họ linh kiện nào |
+| **Chạy thật trên dự án mẫu** | Mô hình dựng 7 kiểu hỏng phủ đủ 7 tài nguyên, không mục nào thiếu cách phát hiện, và cách phát hiện là cụ thể chứ không chung chung: giới hạn tốc độ biến thiên góc, đối chiếu lệnh PWM với gia tốc đo được, dùng một bộ đếm giám sát bộ đếm kia. Chế độ an toàn nêu rõ chỉ thoát bằng khởi động lại nguồn |
+| **Mức tự chủ thấp có chủ ý** | Đây là nơi hậu quả của việc sai lớn nhất trong cả sản phẩm. Agent dựng bản đầy đủ và nêu chỗ còn hở; người đọc từng dòng rồi chốt tại G1. Không có đường nào để bản này tự có hiệu lực |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/safety.py`, `safety.yaml`, lệnh `eaa safety` |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

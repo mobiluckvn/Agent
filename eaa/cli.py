@@ -2125,6 +2125,53 @@ def _plan_accept(project: Path, store: Any, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_safety(args: argparse.Namespace) -> int:
+    """N-016, N-017 — phân tích hỏng hóc và chế độ an toàn."""
+    from eaa.safety import SAFETY_FILE, LlmSafetyAnalyst, SafetyAnalysis, SafetyError
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    duong_dan = project / SAFETY_FILE
+
+    if args.safety_action == "show":
+        try:
+            ban = SafetyAnalysis.load(duong_dan)
+        except SafetyError as exc:
+            raise CliError(str(exc)) from exc
+        if ban is None:
+            raise CliError(
+                "Chưa có phân tích an toàn. Dựng bằng: eaa safety propose"
+            )
+        _in_tieu_de("Phân tích hỏng hóc và chế độ an toàn")
+        print(ban.render(ctx.kb.hardware))
+        return EXIT_OK if not ban.gaps(ctx.kb.hardware) else EXIT_WAITING_GATE
+
+    if args.safety_action == "propose":
+        if duong_dan.is_file() and not args.force:
+            raise CliError(
+                f"{duong_dan} đã có. Agent KHÔNG ghi đè phân tích an toàn: bản cũ "
+                "có thể đã được chốt tại G1.\n"
+                "    Xem bản hiện có: eaa safety show\n"
+                "    Dựng lại có chủ ý: eaa safety propose --force"
+            )
+        try:
+            ban = LlmSafetyAnalyst(llm=ctx.llm).analyse(
+                hardware=ctx.kb.hardware,
+                constraints=ctx.kb.constraints,
+                goal=args.goal or _muc_tieu_tu_ho_so(project),
+            )
+        except SafetyError as exc:
+            raise CliError(str(exc)) from exc
+
+        _in_tieu_de("Phân tích hỏng hóc — ĐỀ XUẤT")
+        print(ban.render(ctx.kb.hardware))
+        ban.save(duong_dan)
+        print(f"\n  Đã ghi: {duong_dan}")
+        return EXIT_WAITING_GATE
+
+    raise CliError(f"Hành động không hợp lệ: {args.safety_action!r}")
+
+
 def cmd_resolve(args: argparse.Namespace) -> int:
     """Đi TÌM thứ bảng kiểm còn thiếu — P7 bước 3, thang ba bậc."""
     from eaa.gapsearch import SEARCH_LEDGER, GapResolver, GapSearchError, SearchLedger
@@ -2861,6 +2908,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_build.set_defaults(func=cmd_build)
+
+    # N-016, N-017 — phân tích hỏng hóc và chế độ an toàn
+    p_safety = sub.add_parser(
+        "safety",
+        help="Phân tích hỏng hóc và chế độ an toàn (N-016, N-017)",
+        description=(
+            "Câu hỏi trung tâm không phải 'cái gì có thể hỏng' mà là 'hỏng thì "
+            "có ai biết không'. Hệ nhúng không có ai ngồi nhìn."
+        ),
+    )
+    safety_sub = p_safety.add_subparsers(
+        dest="safety_action", required=True, metavar="<hành động>"
+    )
+    sp = safety_sub.add_parser("propose", help="Agent dựng bản phân tích")
+    sp.add_argument("--goal", default="", help="Mục tiêu hệ thống")
+    sp.add_argument("--force", action="store_true", help="Dựng lại dù đã có bản cũ")
+    safety_sub.add_parser("show", help="Xem bản hiện có và chỗ còn hở")
+    p_safety.set_defaults(func=cmd_safety)
 
     # N-001..N-006 — khởi tạo dự án bằng hội thoại
     p_brief = sub.add_parser(
