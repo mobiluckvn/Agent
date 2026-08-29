@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eaa"
+version = "0.1.0"
+description = "Embedded AIDD Agent — agent lập trình nhúng tổng quát (Engine / Platform Pack / Project)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "Vũ Trí Công", email = "congvt@mobiluck.vn" }]
+
+# Phụ thuộc engine giữ ở mức tối thiểu (NFR-04: chỉ Python 3.10+, toolchain, Git).
+dependencies = [
+    "pyyaml>=6.0",
+    "networkx>=3.1",   # Knowledge Graph — ADR-08, không dùng graph database
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+]
+
+[project.scripts]
+eaa = "eaa.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["eaa*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+markers = [
+    "tc: mã test case trong EAA-STP-04 / EAA-AIS-05 §11",
+]
+
+[tool.coverage.report]
+# EAA-STP-04 §2: độ phủ ≥ 80% cho orchestrator/gates/state.
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]

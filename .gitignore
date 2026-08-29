@@ -1,0 +1,35 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+.venv/
+venv/
+env/
+
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# NFR-06: khóa API chỉ đọc từ biến môi trường EAA_LLM_KEY, không bao giờ vào repo.
+.env
+*.key
+secrets.yaml
+
+# Phẩm xuất sinh ra khi chạy (bản thân registry.json thì theo dõi bằng Git).
+deliverables/**/*.pdf
+deliverables/**/*.docx
+
+# Sản phẩm biên dịch firmware
+*.elf
+*.hex
+*.o
+*.map

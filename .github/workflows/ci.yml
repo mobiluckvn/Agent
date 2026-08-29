@@ -1,0 +1,43 @@
+name: CI
+
+# Chạy trên cả Windows và Linux theo EAA-STP-04 §6 (rủi ro "khác biệt môi
+# trường Windows/Linux: test pass một nơi, fail nơi khác") và NFR-04.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: pytest (${{ matrix.os }} · py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cài phụ thuộc
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      # TC-38 chạy TRƯỚC toàn bộ test khác và chạy mỗi commit: engine chứa
+      # hằng số phần cứng là fail ngay, không cần đợi phần còn lại.
+      - name: TC-38 — engine sạch phần cứng (FR-PLT-01)
+        run: python -m pytest tests/test_tc38_engine_purity.py -v
+
+      - name: Toàn bộ test + độ phủ
+        run: >-
+          python -m pytest
+          --cov=eaa
+          --cov-report=term-missing
+          --cov-report=xml
