@@ -65,6 +65,44 @@ class CliError(Exception):
 # --------------------------------------------------------------------------
 
 
+ENV_FILE = ".env"
+
+
+def load_env_file(root: Path | None = None) -> list[str]:
+    """Nạp ``.env`` vào biến môi trường của tiến trình.
+
+    NFR-06 nói khóa chỉ đi qua biến môi trường. Tệp này KHÔNG phá quy tắc đó:
+    nó chỉ là chỗ nạp vào môi trường lúc khởi động, và adapter mô hình vẫn chỉ
+    đọc ``os.environ`` chứ không biết tệp nào tồn tại.
+
+    Hai luật:
+
+    * **Biến đã đặt trong shell luôn thắng.** Người gõ ``EAA_LLM_KEY=... eaa
+      gen`` phải nhận đúng khóa họ vừa gõ, không phải khóa cũ trong tệp.
+    * **Không bao giờ in nội dung tệp ra.** Trả về TÊN biến đã nạp, không trả
+      giá trị — danh sách này có thể đi vào log.
+    """
+    duong_dan = (root or repo_root()) / ENV_FILE
+    if not duong_dan.is_file():
+        return []
+
+    da_nap: list[str] = []
+    for dong in duong_dan.read_text(encoding="utf-8").splitlines():
+        dong = dong.strip()
+        if not dong or dong.startswith("#") or "=" not in dong:
+            continue
+        ten, gia_tri = dong.split("=", 1)
+        ten = ten.strip()
+        gia_tri = gia_tri.strip().strip('"').strip("'")
+        if not ten or not gia_tri:
+            continue
+        if os.environ.get(ten):
+            continue
+        os.environ[ten] = gia_tri
+        da_nap.append(ten)
+    return da_nap
+
+
 def repo_root() -> Path:
     """Gốc cài đặt EAA — nơi chứa ``packs/`` và ``projects/``."""
     return Path(os.environ.get("EAA_HOME", Path(__file__).resolve().parent.parent))
@@ -329,24 +367,39 @@ class AppContext:
     orchestrator: Any
 
 
-def _tao_llm(state: Any) -> Any:
+def _tao_llm(state: Any, project: Path) -> Any:
     """Chọn adapter mô hình theo cấu hình trong Project State (ADR-03).
 
-    Sprint 1–3 chạy hoàn toàn bằng MockLLM (MDD §5); adapter thật vào từ
-    Sprint 4. Hành vi Orchestrator không đổi khi hoán mô hình — đó là điều
-    TC-11 kiểm.
+    TC-11 đòi hỏi đổi nhà cung cấp không làm đổi hành vi Orchestrator, nên chỗ
+    duy nhất biết adapter nào đang chạy là hàm này.
+
+    Thứ tự quyết mã model: Project State → biến môi trường ``EAA_LLM_MODEL`` →
+    mặc định của adapter. Project State thắng vì nó đi cùng dự án và nằm trong
+    Git — mã model là một phần của điều kiện thí nghiệm, không phải một tùy
+    chọn của phiên làm việc.
     """
+    from eaa.llm.calllog import CallLog, ReplayClient
     from eaa.llm.mock import MockLLM
 
     provider = (state.llm or {}).get("provider", "mock")
-    model = (state.llm or {}).get("model", "mock-deterministic-1")
+    model = (state.llm or {}).get("model") or os.environ.get("EAA_LLM_MODEL", "")
+    nhat_ky = CallLog(project / "llm_calls.jsonl")
 
     if provider == "mock":
-        return MockLLM(model=model)
+        return MockLLM(model=model or "mock-deterministic-1")
+
+    if provider == "replay":
+        return ReplayClient(nhat_ky)
+
+    if provider == "gemini":
+        from eaa.llm.gemini import DEFAULT_MODEL, GeminiClient
+
+        return GeminiClient(model=model or DEFAULT_MODEL, call_log=nhat_ky)
 
     raise CliError(
-        f"Chưa có adapter cho nhà cung cấp {provider!r}. Sprint 1–3 chạy bằng "
-        "MockLLM; adapter mô hình thật thuộc Sprint 4."
+        f"Chưa có adapter cho nhà cung cấp {provider!r}. Đang hỗ trợ: "
+        "mock (tất định, không tốn API), replay (phát lại nhật ký đã ghi), "
+        "gemini (mô hình thật)."
     )
 
 
@@ -417,7 +470,7 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
     orchestrator = Orchestrator(
         state_store=store,
         composer=composer,
-        llm=llm or _tao_llm(state),
+        llm=llm or _tao_llm(state, project),
         gates=gates,
         repo=repo,
         graph=graph,
@@ -1397,6 +1450,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_env_file()
     parser = build_parser()
     args = parser.parse_args(argv)
 

@@ -218,6 +218,42 @@ Ba loại:
 | **Cần cập nhật** | EAA-SDD-03 §2 và §4; EAA-AIS-05 §9.1 ghi rõ chỗ giữ `{python}` |
 | **Sprint** | S3 |
 
+## SL-18 · LỆCH THẬT · Mã model trong AIS §2 không tồn tại; trần token thật nhỏ hơn
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §2, quyết định #1 của MDD |
+| **Thiết kế nói** | Model `gemini-pro-3.1`, ghim phiên bản, `max_output_tokens` 200.000 |
+| **Thực tế đo được** | Tra danh sách model của nhà cung cấp bằng khóa thật: **không có mã nào tên `gemini-pro-3.1`**, và cũng không có mã nào chứa `pro-3`. Model Pro 3.x duy nhất sinh được văn bản là **`gemini-3.1-pro-preview`** (Gemini 3.1 Pro Preview). Trần token đầu ra thật của nó là **65.536**, không phải 200.000 |
+| **Code làm** | Ghim `gemini-3.1-pro-preview`. Trần đầu ra được KẸP theo trần thật của model, tra một lần rồi nhớ |
+| **AIS đã lường trước một nửa** | §2 viết "hiệu lực = min(200.000, trần thực tế của model tại thời điểm gọi)" — hóa ra không phải phòng xa. Bản adapter đầu gửi thẳng 200.000, tức gửi một con số model không nhận; đã sửa |
+| **Rủi ro còn lại, cần ghi vào đề án** | `gemini-3.1-pro-preview` là bản **preview**. AIS §2 chốt ghim phiên bản để tránh rủi ro R1 (mô hình trôi phiên bản phá hỏng so sánh A/B), nhưng một bản preview vẫn có thể đổi hành vi dưới cùng một mã. Giảm thiểu đã có: mọi lời gọi được ghi vào `llm_calls.jsonl`, và `CallLog.drift()` phát hiện khi cùng một băm prompt cho hai phản hồi khác nhau. Nếu Hội đồng đòi tính tái lập chặt hơn, phương án thay thế là `gemini-2.5-pro` (bản chính thức) — đổi một dòng cấu hình |
+| **Cần cập nhật** | EAA-AIS-05 §2 và MDD quyết định #1: thay mã model, ghi trần đầu ra thật, và ghi rõ rủi ro của bản preview |
+| **Sprint** | S4 |
+
+## SL-19 · BỔ SUNG · `eaa/llm/calllog.py` — nhật ký lời gọi và bộ phát lại
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §12 ("lưu prompt hash → phản hồi làm bằng chứng"), EAA-STP-04 §6 rủi ro R1 |
+| **Thiết kế nói** | Nêu biện pháp giảm thiểu nhưng không cấp module |
+| **Code làm** | Thêm `eaa/llm/calllog.py`: ghi mọi lời gọi, phát hiện trôi hành vi, và `ReplayClient` phát lại đúng phản hồi đã ghi |
+| **Giá trị thêm** | Phát lại cho phép chạy lại trọn vòng lặp chuẩn mà không tốn lời gọi API, nên kiểm thử end-to-end chạy được cả trong CI không có khóa. Bộ phát lại KHÔNG bịa phản hồi khi thiếu bản ghi — một lượt phát lại tự sinh nội dung sẽ tạo bằng chứng giả cho Chương 3 |
+| **Giới hạn phải nói rõ** | Phát lại chứng minh *quy trình xử lý đúng phản hồi ấy*, không chứng minh *mô hình hôm nay vẫn trả lời như vậy*. Hai câu khác nhau; TC-15 với khóa thật mới chứng minh câu sau |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §4; EAA-AIS-05 §12 ghi rõ cơ chế |
+| **Sprint** | S4 |
+
+## SL-20 · BỔ SUNG · Nạp cấu hình từ `.env`
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 NFR-06 |
+| **Thiết kế nói** | "API key lưu qua biến môi trường; không ghi key ra log" |
+| **Code làm** | `eaa/cli.py::load_env_file()` nạp `.env` vào `os.environ` lúc khởi động |
+| **Vì sao không nới lỏng NFR-06** | Adapter mô hình vẫn chỉ đọc `os.environ` và không biết tệp nào tồn tại. `.env` nằm trong `.gitignore`, và có test đỏ nếu ai gỡ dòng ignore. Biến đã đặt trong shell luôn THẮNG giá trị trong tệp. Hàm nạp trả về TÊN biến, không trả giá trị — danh sách ấy có thể đi vào log |
+| **Cần cập nhật** | EAA-SRS-01 NFR-06: ghi nhận `.env` là chỗ nạp được phép, kèm ba điều kiện trên |
+| **Sprint** | S4 |
+
 ---
 
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
