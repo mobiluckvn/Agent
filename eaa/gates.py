@@ -101,6 +101,9 @@ class GatePayload:
     #: merge đúng X" bị đứt ở khớp nối, và mỗi bên chỉ tự chứng minh được nửa
     #: của mình.
     content_digest: str = ""
+    #: Tập phương án cần người chọn, nếu quyết định này không phải nhị phân.
+    #: Có nó thì ``approve`` ĐÒI một mã phương án — xem eaa/options.py.
+    options: Any = None
 
     def __post_init__(self) -> None:
         if self.gate_id not in GATE_ORDER:
@@ -119,6 +122,9 @@ class GatePayload:
                 "summary": list(self.summary),
                 "details": self.details,
                 "content_digest": self.content_digest,
+                # Băm phủ cả phương án: đổi tập phương án sau khi trình lên là
+                # đổi chính câu hỏi người đang trả lời.
+                "options": self.options.to_dict() if self.options else None,
             },
             ensure_ascii=False,
             sort_keys=True,
@@ -136,6 +142,9 @@ class GatePayload:
             dong.append("")
             dong.append("Checklist review (sinh từ đồ thị tri thức):")
             dong.extend(f"  [ ] {d}" for d in self.checklist)
+        if self.options is not None:
+            dong.append("")
+            dong.append(self.options.render())
         if self.details:
             dong.append("")
             dong.append(self.details)
@@ -160,6 +169,7 @@ class GateRequest:
             "details": self.payload.details,
             "checklist": list(self.payload.checklist),
             "content_digest": self.payload.content_digest,
+            "options": self.payload.options.to_dict() if self.payload.options else None,
             "digest": self.payload.digest,
             "requested_at": self.requested_at,
         }
@@ -175,6 +185,7 @@ class GateRequest:
                 details=data.get("details", ""),
                 checklist=tuple(data.get("checklist", ())),
                 content_digest=data.get("content_digest", ""),
+                options=_doc_phuong_an(data.get("options")),
             ),
             requested_at=data.get("requested_at", ""),
         )
@@ -199,6 +210,13 @@ class GateDecision:
     content_digest: str = ""
     module: str = ""
     reason: str = ""
+    #: Mã phương án người đã chọn, khi hồ sơ có nhiều phương án.
+    chosen_option: str = ""
+    #: TOÀN BỘ tập phương án đã cân nhắc, kể cả những cái bị loại.
+    #:
+    #: Sáu tháng sau, câu hỏi hữu ích không phải "ta đã chọn gì" — Git trả lời
+    #: được — mà là "ta đã cân nhắc những gì và vì sao loại chúng".
+    options: Any = None
 
     def __post_init__(self) -> None:
         if self.decision not in (APPROVED, REJECTED):
@@ -229,6 +247,8 @@ class GateDecision:
             "content_digest": self.content_digest,
             "module": self.module,
             "reason": self.reason,
+            "chosen_option": self.chosen_option,
+            "options": self.options.to_dict() if self.options else None,
         }
 
     @classmethod
@@ -242,7 +262,18 @@ class GateDecision:
             content_digest=data.get("content_digest", ""),
             module=data.get("module", ""),
             reason=data.get("reason", ""),
+            chosen_option=data.get("chosen_option", ""),
+            options=_doc_phuong_an(data.get("options")),
         )
+
+
+def _doc_phuong_an(du_lieu: Any) -> Any:
+    """Khôi phục tập phương án đã lưu; hồ sơ cũ không có thì trả None."""
+    if not du_lieu:
+        return None
+    from eaa.options import OptionSet
+
+    return OptionSet.from_dict(du_lieu)
 
 
 class HumanGate:
@@ -309,16 +340,51 @@ class HumanGate:
     # -- quyết định --------------------------------------------------------
 
     def approve(
-        self, gate_id: str, *, actor: str, expect_digest: str | None = None
+        self,
+        gate_id: str,
+        *,
+        actor: str,
+        expect_digest: str | None = None,
+        option: str = "",
     ) -> GateDecision:
         """Con người phê duyệt. Đây là hàm DUY NHẤT sinh ra quyết định duyệt.
 
         ``expect_digest`` cho phép người gọi khẳng định "tôi duyệt đúng nội dung
         có băm này". Lệch băm nghĩa là nội dung đã đổi kể từ lúc hồ sơ được đặt
         lên bàn — quyết định bị từ chối chứ không im lặng duyệt bản mới.
+
+        Hồ sơ có nhiều phương án thì ``option`` là BẮT BUỘC, và engine không tự
+        lấy phương án được gợi ý làm mặc định: "duyệt" mà không nói duyệt cái
+        nào thì ba tháng sau không ai biết đã chọn gì, kể cả người đã bấm.
         """
         yeu_cau = self._lay_pending(gate_id)
         digest = yeu_cau.payload.digest
+        phuong_an = yeu_cau.payload.options
+        da_chon = ""
+
+        if phuong_an is not None:
+            from eaa.options import OptionError
+
+            if not option.strip():
+                goi_y = phuong_an.recommended
+                raise GateError(
+                    f"{gate_id} có {len(phuong_an.options)} phương án nên phải nói "
+                    "rõ duyệt phương án nào:\n"
+                    f"    eaa gate approve {gate_id} --option <mã>\n"
+                    f"    mã đang có: {', '.join(o.id for o in phuong_an.options)}"
+                    + (f"\n    Agent gợi ý {goi_y.id!r}, nhưng gợi ý không phải "
+                       "quyết định — engine không lấy nó làm mặc định."
+                       if goi_y else "")
+                )
+            try:
+                da_chon = phuong_an.get(option).id
+            except OptionError as exc:
+                raise GateError(str(exc)) from exc
+        elif option.strip():
+            raise GateError(
+                f"{gate_id} không có phương án nào để chọn, nhưng nhận --option "
+                f"{option!r}. Nhầm gate?"
+            )
 
         if expect_digest and expect_digest != digest:
             raise GateError(
@@ -335,6 +401,8 @@ class HumanGate:
             payload_digest=digest,
             content_digest=yeu_cau.payload.content_digest,
             module=yeu_cau.payload.module,
+            chosen_option=da_chon,
+            options=phuong_an,
         )
         self._ghi_quyet_dinh(quyet_dinh)
         self._pending_path(gate_id).unlink(missing_ok=True)
@@ -353,6 +421,7 @@ class HumanGate:
             content_digest=yeu_cau.payload.content_digest,
             module=yeu_cau.payload.module,
             reason=reason,
+            options=yeu_cau.payload.options,
         )
         self._ghi_quyet_dinh(quyet_dinh)
         self._pending_path(gate_id).unlink(missing_ok=True)

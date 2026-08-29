@@ -251,14 +251,17 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "GateDecision đòi tên người, và đòi lý do khi từ chối",
      "eaa/gates.py", "TC-28", DA, ""),
     ("I. Tương tác", "Trình NHIỀU phương án để người chọn",
-     "Hiện gate chỉ nhị phân duyệt/từ chối — không có 'ba cách làm, chọn một'",
-     "—", "—", CHUA,
-     "Cần GatePayload dạng nhiều lựa chọn + GateDecision ghi phương án đã chọn; "
-     "đây là thứ gần nhất với điều bạn vừa nêu"),
+     "eaa decide dựng tập phương án; gate đòi --option, không lấy gợi ý làm mặc định",
+     "eaa/options.py + eaa decide", "TC-46 (32 test)", DA, ""),
+    ("I. Tương tác", "Mỗi phương án phải nói mặt trái",
+     "Thiếu cons là lỗi — danh sách toàn ưu điểm chỉ chuyển trách nhiệm sang người bấm",
+     "eaa/options.py", "TC-46b", DA, ""),
     ("I. Tương tác", "Agent tự giải thích 'vì sao chọn cách này'",
-     "Kèm lập luận thiết kế vào hồ sơ gate, không chỉ kèm mã",
-     "—", "—", CHUA,
-     "Phụ thuộc mục trên; cùng một lượt làm thì gọn hơn"),
+     "Mỗi phương án kèm rationale; gợi ý có lý do nhưng không thay quyết định",
+     "eaa/options.py", "TC-46", DA, ""),
+    ("I. Tương tác", "Phương án bị loại vẫn tra lại được",
+     "Quyết định mang cả tập, kể cả cái bị loại; từ chối cả tập cũng được lưu",
+     "eaa/gates.py", "TC-46d", DA, ""),
     ("I. Tương tác", "Giao diện hội thoại / TUI",
      "Hiện là CLI từng lệnh rời",
      "—", "—", CHUA,
@@ -378,11 +381,11 @@ LO_TRINH: list[tuple[str, str, str, str, str]] = [
      "hw-verified. Commit phong hạng phải là commit đang chạy trên thiết bị. TC-45",
      "Vòng đời ba hạng chất lượng khép kín, không còn nhập tay",
      "eaa/acceptance.py, eaa/cli.py"),
-    ("8", "Gate nhiều phương án",
-     "GatePayload trình N cách làm kèm đánh đổi; GateDecision ghi phương án đã chọn "
-     "và lý do; phương án bị loại vẫn lưu để tra lại",
+    ("8 ✔", "Gate nhiều phương án — XONG",
+     "eaa decide dựng N phương án kèm đánh đổi; approve ĐÒI --option và không lấy "
+     "gợi ý làm mặc định; cả tập (kể cả cái bị loại) vào quyết định. TC-46",
      "Đúng điều bạn nêu: 'tương tác với người dùng chọn giải pháp phù hợp'",
-     "eaa/gates.py, eaa/cli.py"),
+     "eaa/options.py, eaa/gates.py, eaa/cli.py"),
 ]
 
 # --------------------------------------------------------------------------
@@ -494,12 +497,12 @@ def dung_bang(dich: Path) -> Path:
     ws.append(["Số liệu nền"])
     ws[f"A{ws.max_row}"].font = Font(bold=True, size=12, color="2F5597")
     for nhan, gia_tri in [
-        ("Test tự động đang xanh", "868"),
+        ("Test tự động đang xanh", "900"),
         ("Dòng mã engine (eaa/)", "14.792"),
-        ("Lệnh CLI", "21"),
+        ("Lệnh CLI", "22"),
         ("Platform Pack", "1 (AVR 8-bit)"),
         ("Mô hình nền", "gemini-3.1-pro-preview (ghim phiên bản)"),
-        ("Sai lệch thiết kế đã ghi", "36 mục (SL-01..SL-36)"),
+        ("Sai lệch thiết kế đã ghi", "37 mục (SL-01..SL-37)"),
     ]:
         ws.append([nhan, gia_tri])
         ws[f"A{ws.max_row}"].font = DAM

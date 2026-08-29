@@ -668,6 +668,13 @@ def cmd_gate(args: argparse.Namespace) -> int:
     raise CliError(f"Hành động không hợp lệ: {args.gate_action!r}")
 
 
+def _phuong_an_dang_cho(project: Path, gate_id: str) -> Any:
+    """Tập phương án đang chờ người chọn tại gate này, nếu có."""
+    from eaa.options import OPTIONS_FILE, OptionSet
+
+    return OptionSet.load_all(project / OPTIONS_FILE).get(gate_id)
+
+
 def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
     """Dựng hồ sơ cho gate chưa có yêu cầu nào đang chờ.
 
@@ -679,9 +686,11 @@ def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
     from eaa.gates import GatePayload
 
     state = ctx.store.load()
+    phuong_an = _phuong_an_dang_cho(ctx.project, gate_id)
     if gate_id == "G1":
         return GatePayload(
             gate_id="G1",
+            options=phuong_an,
             title="Chốt ràng buộc cứng và kiến trúc",
             summary=(
                 f"constraints.yaml v{ctx.kb.constraints.version} "
@@ -715,6 +724,7 @@ def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
 
         return GatePayload(
             gate_id="G2",
+            options=phuong_an,
             title="Duyệt trích đoạn tài liệu và công cụ vào kho tri thức",
             summary=tuple(tom_tat),
             details="\n\n".join(chi_tiet) or
@@ -859,17 +869,30 @@ def _gate_approve(ctx: AppContext, args: argparse.Namespace) -> int:
 
     try:
         quyet_dinh = ctx.gates.approve(
-            args.gate, actor=nguoi, expect_digest=args.expect
+            args.gate, actor=nguoi, expect_digest=args.expect, option=args.option
         )
     except GateNotPending:
         payload = _ho_so_gate(ctx, args.gate)
         print(payload.render())
         ctx.gates.request(payload)
         quyet_dinh = ctx.gates.approve(
-            args.gate, actor=nguoi, expect_digest=args.expect
+            args.gate, actor=nguoi, expect_digest=args.expect, option=args.option
         )
 
     print(f"\n{args.gate} đã được {nguoi} phê duyệt lúc {quyet_dinh.decided_at}.")
+
+    if quyet_dinh.chosen_option:
+        from eaa.options import OPTIONS_FILE, OptionSet
+
+        da_chon = quyet_dinh.options.get(quyet_dinh.chosen_option)
+        print(f"Phương án đã chọn: [{da_chon.id}] {da_chon.title}")
+        bi_loai = [o.id for o in quyet_dinh.options.options if o.id != da_chon.id]
+        print(
+            f"Phương án bị loại đã lưu vào quyết định: {', '.join(bi_loai)}\n"
+            "  (sáu tháng sau, câu hỏi hữu ích là 'đã cân nhắc những gì', không "
+            "chỉ 'đã chọn gì')"
+        )
+        OptionSet.clear(ctx.project / OPTIONS_FILE, args.gate)
 
     if args.gate == MERGE_GATE:
         return _sau_khi_duyet_G3(ctx, quyet_dinh)
@@ -1744,6 +1767,47 @@ def _canh_bao_an_toan_cua_anh(image: Path) -> list[str]:
     return dong
 
 
+def cmd_decide(args: argparse.Namespace) -> int:
+    """Dựng tập phương án cho một quyết định, để người chọn tại gate."""
+    from eaa.options import OPTIONS_FILE, LlmOptionProposer, OptionError, OptionSet
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+
+    if args.show:
+        _in_tieu_de("Phương án đang chờ chọn")
+        tat_ca = OptionSet.load_all(project / OPTIONS_FILE)
+        if not tat_ca:
+            print("  Không có tập phương án nào đang chờ.")
+            return EXIT_OK
+        for gate_id, tap in sorted(tat_ca.items()):
+            print(f"── {gate_id} ──")
+            print(tap.render())
+        return EXIT_WAITING_GATE
+
+    if args.gate not in GATE_ORDER:
+        raise CliError(f"Gate không hợp lệ: {args.gate!r} (hợp lệ: {list(GATE_ORDER)})")
+
+    boi_canh = Path(args.context).read_text(encoding="utf-8") if args.context else ""
+    try:
+        tap = LlmOptionProposer(llm=ctx.llm).propose(
+            args.question, context=boi_canh, gate_id=args.gate, count=args.count
+        )
+    except OptionError as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de(f"Phương án cho {args.gate}")
+    print(tap.render())
+    tap.save(project / OPTIONS_FILE)
+
+    print(
+        f"Đã ghi lại {len(tap.options)} phương án, đang CHỜ NGƯỜI CHỌN.\n"
+        "Agent không tự chọn: gợi ý là gợi ý, quyết định là quyết định.\n"
+        f"  Xem lại rồi chọn: eaa gate approve {args.gate} --option <mã>"
+    )
+    return EXIT_WAITING_GATE
+
+
 def cmd_rollback(args: argparse.Namespace) -> int:
     from eaa.versions import NoKnownGood, VersionError
 
@@ -2224,6 +2288,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--expect",
         help="Băm nội dung bạn đã xem; lệch băm thì từ chối duyệt bản đã đổi",
     )
+    ga.add_argument(
+        "--option",
+        default="",
+        help="Mã phương án được chọn, bắt buộc khi hồ sơ có nhiều phương án",
+    )
     gr = gate_sub.add_parser("reject", help="Từ chối, bắt buộc kèm lý do")
     gr.add_argument("gate", choices=list(GATE_ORDER))
     gr.add_argument("--reason", required=True, help="Lý do từ chối — đi vào Error Ledger")
@@ -2360,6 +2429,23 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_build.set_defaults(func=cmd_build)
+
+    # Bước 8 — cổng quyết định, không chỉ cổng duyệt
+    p_decide = sub.add_parser(
+        "decide",
+        help="Dựng các phương án cho một quyết định, để người chọn tại gate",
+        description=(
+            "Ở những chỗ có nhiều cách làm đều đúng, một nút 'duyệt' buộc con "
+            "người duyệt cái Agent đã tự chọn — và lựa chọn thật sự đã xảy ra "
+            "trước đó, ở chỗ không ai nhìn thấy."
+        ),
+    )
+    p_decide.add_argument("question", nargs="?", default="", help="Câu hỏi cần quyết")
+    p_decide.add_argument("--gate", default="G1", help="Gate sẽ đặt quyết định này lên")
+    p_decide.add_argument("--context", help="Tệp bối cảnh gửi kèm cho mô hình")
+    p_decide.add_argument("--count", type=int, default=3, help="Số phương án cần nêu")
+    p_decide.add_argument("--show", action="store_true", help="Xem phương án đang chờ")
+    p_decide.set_defaults(func=cmd_decide)
 
     # Bước 5 — kênh máy đọc thẳng từ mạch
     p_tele = sub.add_parser(

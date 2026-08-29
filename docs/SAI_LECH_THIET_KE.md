@@ -489,6 +489,26 @@ Ba loại:
 
 ---
 
+## SL-37 · BỔ SUNG · `eaa/options.py` — cổng quyết định, không chỉ cổng duyệt
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-GATE-01, EAA-SAD-02 ADR-04, EAA-AIS-05 §3 |
+| **Thiết kế nói** | Năm Human Gate: con người phê duyệt hoặc từ chối |
+| **Chỗ trống** | Câu nhị phân ấy đúng cho G3 (review diff) và G4 (nghiệm thu) — ở đó có đúng một vật thể để chấp nhận hay bác bỏ. Nhưng ở chỗ có **nhiều cách làm đều đúng** (chọn kiến trúc tại G1, chọn hướng đi khi vòng tự sửa cạn N lần), một nút "duyệt" buộc con người duyệt cái Agent đã tự chọn — và lựa chọn thật sự đã xảy ra trước đó, ở chỗ không ai nhìn thấy |
+| **Code làm** | `Option`/`OptionSet`/`LlmOptionProposer` trong `eaa/options.py`; `GatePayload.options`, `GateDecision.chosen_option` + `.options`; `HumanGate.approve(..., option=)`; lệnh `eaa decide` và cờ `eaa gate approve --option` |
+| **Bất biến 1 — đủ hai phương án** | Một "lựa chọn" có đúng một mục là quyết định đã có sẵn, chỉ khoác áo lựa chọn. Nó tệ hơn không có lựa chọn, vì tạo cảm giác đã cân nhắc |
+| **Bất biến 2 — phải nói mặt trái** | Phương án thiếu `cons` bị từ chối ngay khi dựng. Danh sách chỉ toàn ưu điểm không giúp ai chọn được gì; nó chỉ chuyển trách nhiệm sang người bấm nút |
+| **Bất biến 3 — gợi ý không phải mặc định** | Có phương án thì `approve` ĐÒI một mã, và engine **không** lấy phương án được gợi ý làm mặc định. Nếu lấy, lựa chọn thật sự lại quay về chỗ không ai nhìn thấy — đúng vấn đề cả bước này dựng ra để tránh |
+| **Bất biến 4 — phương án bị loại vẫn lưu** | Quyết định mang cả tập, kể cả những cái bị loại và lý do. Sáu tháng sau, câu hỏi hữu ích không phải "ta đã chọn gì" — Git trả lời được — mà là "ta đã cân nhắc những gì và vì sao loại chúng". Từ chối cả tập cũng được lưu, để lần sau khỏi đề xuất lại y hệt |
+| **Bất biến 5 — băm phủ cả phương án** | Đổi tập phương án sau khi trình lên là đổi chính câu hỏi người đang trả lời, nên `payload.digest` tính cả chúng |
+| **Đề xuất của mô hình là proposed fact** | `LlmOptionProposer` đi qua **cùng cửa kiểm** với phương án viết tay. Prompt cấm mô hình tự quyết định và buộc nêu mặt trái thật sự; đề xuất thiếu `cons` hoặc chỉ có một phương án bị chặn ngay |
+| **Chạy thật** | Mô hình nêu ba cách đọc cảm biến khác nhau về bản chất (hỏi vòng / ngắt / DMA+timer), mỗi cách 2–3 mặt trái cụ thể, gợi ý một cách kèm lý do. `eaa gate approve G1` không kèm `--option` bị chặn đúng như thiết kế |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/options.py`, lệnh `eaa decide`, cờ `--option`; EAA-SAD-02 ADR-04 nói rõ gate có hai dạng — nhị phân và nhiều phương án |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 
