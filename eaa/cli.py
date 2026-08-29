@@ -359,6 +359,7 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
     from eaa.kpi import KpiLogger
     from eaa.ledger import ErrorLedger
     from eaa.orchestrator import Orchestrator, OrchestratorConfig
+    from eaa.readiness import ReadinessChecker
     from eaa.tools.compile import CompileGate, SizeGate
     from eaa.tools.runner import ToolRunner
     from eaa.tools.static import StaticGate
@@ -422,6 +423,7 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
         graph=graph,
         kpi=kpi,
         ledger=ledger,
+        readiness=ReadinessChecker(kb=kb, graph=graph),
         gate_chain=chain,
         config=OrchestratorConfig(actor=_nguoi_dung()),
         runs_dir=project / ".eaa" / "runs",

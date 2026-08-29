@@ -116,6 +116,7 @@ class Orchestrator:
         graph: Any,
         kpi: Any = None,
         ledger: Any = None,
+        readiness: Any = None,
         gate_chain: Sequence[Any] = (),
         config: OrchestratorConfig | None = None,
         runs_dir: Any = None,
@@ -128,6 +129,7 @@ class Orchestrator:
         self.graph = graph
         self.kpi = kpi
         self.ledger = ledger
+        self.readiness = readiness
         self.gate_chain = list(gate_chain)
         self.config = config or OrchestratorConfig()
         self.runs_dir = (
@@ -415,6 +417,18 @@ class Orchestrator:
                 "Xung đột tài nguyên phải do kỹ sư phân xử trước khi sinh mã "
                 "(FR-KG-02):\n" + "\n".join(f"  • {c.message}" for c in chan)
             )
+
+        # Readiness Check — quy trình P7, bước cuối cùng trước khi mở vòng sinh
+        # mã. Đặt SAU kiểm xung đột vì xung đột tài nguyên làm cả bảng kiểm vô
+        # nghĩa: không biết module rốt cuộc dùng tài nguyên nào thì không biết
+        # nó cần tài liệu gì.
+        if self.readiness is not None:
+            from eaa.readiness import NotReady
+
+            try:
+                self.readiness.check(module_id, uses=muc.uses)
+            except NotReady as exc:
+                raise PreconditionFailed(str(exc)) from exc
 
     def _gate_con_thieu(self, state: Any) -> str:
         for gate in ("G1", "G2"):
