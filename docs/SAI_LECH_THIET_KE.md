@@ -254,6 +254,65 @@ Ba loại:
 | **Cần cập nhật** | EAA-SRS-01 NFR-06: ghi nhận `.env` là chỗ nạp được phép, kèm ba điều kiện trên |
 | **Sprint** | S4 |
 
+## SL-21 · BỔ SUNG · `eaa/versions.py` — ba hạng chất lượng và bản known-good
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §8.4, FR-VER-01/02 |
+| **Thiết kế nói** | Ba hạng build-ok < sim-verified < hw-verified; `known_good.lock` chỉ cập nhật tại G4; `eaa rollback` một lệnh |
+| **Code làm** | Thêm `eaa/versions.py` |
+| **Bổ sung so với thiết kế** | Hạng `hw-verified` đòi CÓ SỐ ĐO đi kèm, không chỉ đòi chữ ký G4. Hạng này khẳng định một điều về thiết bị thật; một lần phong không kèm số đo là một khẳng định không có bằng chứng, và nó sẽ nằm trong `known_good.lock` như thể đã được chứng minh |
+| **Bổ sung thứ hai** | Tách `reject_acceptance` khỏi `rollback`. Ghi nhận thất bại và quay lui là hai việc: kỹ sư có thể quyết định sửa tiếp thay vì lùi, và bản ghi thất bại phải tồn tại trong cả hai trường hợp |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §4; EAA-AIS-05 §8.4 ghi rõ hai điều trên |
+| **Sprint** | S4 |
+
+## SL-22 · BỔ SUNG · `eaa/diagnostics.py` — chẩn đoán hai kênh
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7, quy trình P8, FR-DIA-01/02/03 |
+| **Thiết kế nói** | Hai kênh quan sát, thư viện DS-01..06, ma trận chẩn đoán, nạp bán tự động có xác nhận |
+| **Code làm** | Thêm `eaa/diagnostics.py` (khung tổng quát) + `projects/robot_balance/diagnostics.yaml` (dữ liệu dự án) |
+| **Bổ sung so với thiết kế** | Engine TỪ CHỐI kết luận khi kịch bản đòi quan sát của người mà chưa có. AIS mô tả phép giao hai kênh nhưng không nói rõ phải làm gì khi thiếu một kênh; im lặng kết luận trên nửa dữ liệu vẫn phát ra với vẻ chắc chắn y hệt, và sẽ dẫn kỹ sư đi sửa nhầm chỗ |
+| **Bổ sung thứ hai** | Tổ hợp hai kênh chưa có trong ma trận thì trả "chưa kết luận được" kèm đề nghị bổ sung một dòng — phiên chẩn đoán cũng là phiên nạp tri thức (AIS §7.3) |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §4; EAA-AIS-05 §7.4 ghi rõ hai điều trên |
+| **Sprint** | S4 |
+
+## SL-23 · LỆCH THẬT · Trần thời gian chờ mô hình 120s quá ngắn
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §6 |
+| **Thiết kế nói** | `LLMClient.generate`: timeout 120s |
+| **Đo được** | Model Pro lớp suy luận sinh một module ~250 dòng có lúc vượt 120s. Một lần quá hạn làm hỏng cả lượt chạy vốn sắp xong, và ba lần thử lại tốn 6 phút mà vẫn hỏng |
+| **Code làm** | Mặc định 300s, cấu hình qua `EAA_LLM_TIMEOUT_S` |
+| **Cần cập nhật** | EAA-SDD-03 §6: đổi trần và ghi rõ đây là tham số vận hành, không phải khẳng định thiết kế |
+| **Sprint** | S4 |
+
+## SL-24 · BỔ SUNG · Lỗi cấu hình không đi vào vòng tự sửa
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-GEN-01, EAA-AIS-05 §3.2 |
+| **Thiết kế nói** | Cổng kiểm chứng báo hỏng → mở vòng tự sửa, tối đa N lần |
+| **Phát hiện khi chạy thật** | Cổng phân tích tĩnh báo "constraints cấm X nhưng pack không có luật phát hiện". Đó là lỗi CẤU HÌNH, không phải lỗi mã — nhưng vòng tự sửa vẫn khởi động và mô hình trả về văn xuôi vì trong mã chẳng có gì để sửa |
+| **Code làm** | Báo cáo cổng gắn cờ `config_error`; Orchestrator dừng ngay như với `env_error`, không mở vòng vá |
+| **Vì sao đáng ghi** | Ba vòng vá cho một thứ mô hình không thể sửa vừa đốt lượt gọi vừa gần như chắc chắn làm hỏng mã đang đúng. Giới hạn N chặn được thiệt hại, nhưng tốt hơn là không bắt đầu |
+| **Cần cập nhật** | EAA-SRS-01 FR-GEN-01: phân biệt lỗi mã (vào vòng vá) với lỗi môi trường và lỗi cấu hình (dừng, chuyển người) |
+| **Sprint** | S4 |
+
+## SL-25 · BỔ SUNG · Ràng buộc `blocking_io` cho dự án mẫu
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §3.1 (`constraints.yaml`) |
+| **Thiết kế nói** | `forbidden` gồm bốn mục: `delay()`, `malloc/new`, `recursion`, `float_in_isr` |
+| **Phát hiện khi chạy thật** | Bản sinh đầu tiên của driver bus có ba vòng `while (!(REG & bit)) {}` không lối thoát. Mã ấy qua sạch cả bốn cổng — vì cổng static chỉ chặn được thứ nó ĐƯỢC BẢO là cấm. Pack AVR vốn đã có luật `blocking_io`, nhưng dự án không liệt kê nên luật không được áp; và mẫu nhận dạng của luật ấy cũng chỉ khớp dạng `);`, bỏ lọt đúng dạng `) {}` mà mô hình sinh ra |
+| **Code làm** | Thêm `blocking_io` vào `forbidden`; sửa mẫu nhận dạng bắt cả hai dạng thân rỗng; nâng mức từ cảnh báo lên lỗi |
+| **Kết quả quan sát được** | Sinh lại dưới ràng buộc đã siết, mô hình đổi hẳn kiến trúc: từ vòng chờ chặn sang máy trạng thái không chặn. Một dòng ràng buộc đổi kiến trúc mã sinh ra — đáng đưa vào Chương 3 |
+| **Cần cập nhật** | EAA-SDD-03 §3.1: bổ sung mục thứ năm vào ví dụ `forbidden` |
+| **Sprint** | S4 |
+
 ---
 
 ## Chưa lệch nhưng cần bổ sung tài liệu sau

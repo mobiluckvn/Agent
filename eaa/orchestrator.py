@@ -215,6 +215,21 @@ class Orchestrator:
                     nhat_ky=nhat_ky,
                 )
 
+            # Lỗi cấu hình cũng dừng ngay, không vào vòng tự sửa. Mô hình không
+            # sửa được một luật còn thiếu trong pack hay một ràng buộc khai báo
+            # sai; đưa nó vào vòng vá chỉ đốt lượt gọi và làm hỏng mã đang đúng.
+            if any(r.metrics.get("config_error") for r in hong):
+                return self._that_bai(
+                    module_id,
+                    "blocked",
+                    EXIT_ENV_ERROR,
+                    "Lỗi CẤU HÌNH, không phải lỗi mã — vòng tự sửa không mở.\n"
+                    + "\n".join(str(e) for r in hong for e in r.errors),
+                    bao_cao=bao_cao,
+                    repairs=so_lan_va,
+                    nhat_ky=nhat_ky,
+                )
+
             # Bước 7–8: vá, nếu còn lượt.
             if so_lan_va >= self.config.max_repairs:
                 return self._bàn_giao(module_id, bao_cao, so_lan_va, nhat_ky, branch)

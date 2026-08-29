@@ -707,9 +707,106 @@ def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
                 "|".join(sorted(c.id + c.status for c in ctx.kb.datasheets.all())).encode()
             ).hexdigest(),
         )
+    if gate_id == "G4":
+        return _ho_so_G4(ctx, state)
+    if gate_id == "G5":
+        return _ho_so_G5(ctx, state)
+
     raise CliError(
-        f"Gate {gate_id} chưa có hồ sơ nào đang chờ, và engine chưa biết cách dựng "
-        f"hồ sơ cho gate này. G4/G5 thuộc Sprint 4."
+        f"Gate {gate_id} chưa có hồ sơ nào đang chờ và engine chưa biết cách dựng "
+        "hồ sơ cho nó."
+    )
+
+
+def _ho_so_G4(ctx: AppContext, state: Any) -> Any:
+    """Hồ sơ nghiệm thu vật lý — thứ kỹ sư cầm theo khi ra chỗ thiết bị.
+
+    Cố ý liệt kê TIÊU CHÍ trước, số đo sau: G4 không phải chỗ xem lại mã, mà là
+    chỗ đối chiếu hành vi thật với ngưỡng đã chốt từ công đoạn A1. Nếu hồ sơ mở
+    đầu bằng diff thì người duyệt sẽ đọc mã, và đó đúng là việc của G3.
+    """
+    from eaa.gates import GatePayload
+
+    nghiem_thu = ctx.kb.constraints.acceptance
+    module = state.current_module or (
+        state.backlog[-1].id if state.backlog else "(không rõ module)"
+    )
+    commit = ctx.repo.head()
+
+    tieu_chi = [f"Dung sai góc: ±{nghiem_thu.get('tilt_tolerance_deg', '?')}°"]
+    tieu_chi += [f"Kịch bản: {k}" for k in (nghiem_thu.get("scenarios") or [])]
+    for ten, gia_tri in sorted(ctx.kb.constraints.limits.items()):
+        if ten.endswith(("_max", "_min")):
+            tieu_chi.append(f"{ten}: {gia_tri}")
+
+    return GatePayload(
+        gate_id="G4",
+        title=f"Nghiệm thu vật lý — {module}",
+        module=module,
+        summary=(
+            f"commit đưa lên thiết bị: {commit[:10]}",
+            f"môi trường công cụ: {state.env_hash or '(chưa khóa)'}",
+            *tieu_chi,
+        ),
+        details=(
+            "TIÊU CHÍ NGHIỆM THU (chốt từ công đoạn A1, không thương lượng tại đây)\n"
+            + "\n".join(f"  • {t}" for t in tieu_chi)
+            + "\n\nSau khi duyệt gate này, nhập số đo bằng:\n"
+            f"  eaa tune {module} --input measures.yaml\n\n"
+            "Không đạt thì ghi nhận và quay lui:\n"
+            f"  eaa tune {module} --reject '<lý do>'\n"
+            f"  eaa rollback {module} --reason '<lý do>'"
+        ),
+        checklist=(
+            "Robot đã kê an toàn trước khi cấp nguồn động lực",
+            "Firmware đang nạp đúng commit ghi ở trên",
+            "Đã chạy đủ ba kịch bản của đề cương, không bỏ kịch bản nào",
+            "Số đo ghi lại từ thiết bị đo, không ước lượng bằng mắt",
+        ),
+        content_digest=f"sha256:{commit}",
+    )
+
+
+def _ho_so_G5(ctx: AppContext, state: Any) -> Any:
+    """Hồ sơ duyệt kết luận — kết thúc dự án.
+
+    Gom số liệu để người viết kết luận nhìn thấy toàn cảnh: bao nhiêu module đã
+    nghiệm thu, bao nhiêu lần quay lui, chi phí token. Diễn giải kết quả vẫn là
+    trách nhiệm học thuật của tác giả (công đoạn F1) — engine chỉ bày số liệu.
+    """
+    from eaa.gates import GatePayload
+    from eaa.kpi import KpiLogger
+    from eaa.llm.calllog import CallLog
+
+    kpi = KpiLogger(ctx.project / "kpi_log.csv")
+    goi = CallLog(ctx.project / "llm_calls.jsonl")
+    kho_pb = _tao_versions(ctx.project, ctx.repo)
+
+    tom_tat_kpi = kpi.summary()
+    tom_tat_goi = goi.summary()
+
+    return GatePayload(
+        gate_id="G5",
+        title="Duyệt kết luận đề án",
+        summary=(
+            f"module đã merge: {len([m for m in state.backlog if m.status == 'merged'])}"
+            f"/{len(state.backlog)}",
+            f"dòng chỉ số: {tom_tat_kpi.get('rows', 0)}",
+            f"lời gọi mô hình: {tom_tat_goi.get('calls', 0)}"
+            f" ({tom_tat_goi.get('tokens_in_total', 0)} token vào)",
+            f"mô hình đã dùng: {', '.join(tom_tat_goi.get('models', [])) or '—'}",
+            f"prompt bị trôi hành vi: {tom_tat_goi.get('drifted_prompts', 0)}",
+        ),
+        details=kho_pb.report(),
+        checklist=(
+            "Số liệu Chương 3 xuất được từ kpi_log.csv",
+            "Mọi commit truy vết được về prompt, mô hình và phiên bản ràng buộc",
+            "Nhật ký gate chứng minh không gate nào bị vượt tự động",
+            "Sổ sai lệch thiết kế đã gom vào bản cập nhật tài liệu",
+        ),
+        content_digest="sha256:" + __import__("hashlib").sha256(
+            (kho_pb.report() + str(tom_tat_kpi)).encode("utf-8")
+        ).hexdigest(),
     )
 
 
@@ -1181,6 +1278,233 @@ def _docs_regen(kho: Any, project: Path, args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------
+# AIS §8.4 — phiên bản mã, known-good, quay lui
+# --------------------------------------------------------------------------
+
+
+def _tao_versions(project: Path, repo: Any = None) -> Any:
+    from eaa.versions import VersionRegistry
+
+    return VersionRegistry(
+        ledger_path=project / "build_ledger.jsonl",
+        lock_path=project / "known_good.lock",
+        repo=repo,
+    )
+
+
+def cmd_rollback(args: argparse.Namespace) -> int:
+    from eaa.versions import NoKnownGood, VersionError
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    kho = _tao_versions(project, ctx.repo)
+
+    if not (args.reason or "").strip():
+        raise CliError(
+            "Quay lui bắt buộc kèm --reason. Thất bại cũng là tri thức, và một "
+            "dòng 'không đạt' trống rỗng thì không dạy được gì (AIS §8.4)."
+        )
+
+    try:
+        ban_ghi = kho.rollback(
+            args.module_id, reason=args.reason, actor=args.actor or _nguoi_dung()
+        )
+    except (NoKnownGood, VersionError) as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de(f"Đã quay lui {args.module_id}")
+    print(f"  Về bản known-good: {ban_ghi.commit}")
+    print(f"  Lý do            : {ban_ghi.reason}")
+    print(
+        "\nknown_good.lock KHÔNG đổi — quay lui không phải một lần nghiệm thu; "
+        "bản vừa lùi về vốn đã là bản biết-là-tốt."
+    )
+    return EXIT_OK
+
+
+def cmd_tune(args: argparse.Namespace) -> int:
+    """UC07 — nhập số đo vật lý tại G4, phong hạng hoặc ghi nhận không đạt."""
+    from eaa.versions import Measurement, PromotionNotAuthorized, Tier, VersionError
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    kho = _tao_versions(project, ctx.repo)
+
+    so_do = _doc_so_do(Path(args.input)) if args.input else []
+
+    if args.reject:
+        ban_ghi = kho.reject_acceptance(
+            module=args.module_id,
+            commit=ctx.repo.head(),
+            reason=args.reject,
+            actor=args.actor or _nguoi_dung(),
+        )
+        _in_tieu_de(f"Ghi nhận KHÔNG ĐẠT nghiệm thu — {args.module_id}")
+        print(f"  Lý do: {ban_ghi.reason}")
+        print(
+            f"\nBản known-good vẫn là {kho.known_good_of(args.module_id) or '(chưa có)'}. "
+            f"Quay lui bằng: eaa rollback {args.module_id} --reason '...'"
+        )
+        return EXIT_WAITING_GATE
+
+    quyet_dinh = ctx.gates.latest("G4")
+    try:
+        ban_ghi = kho.promote(
+            module=args.module_id,
+            commit=ctx.repo.head(),
+            tier=Tier.HW_VERIFIED,
+            decision=quyet_dinh,
+            measurements=so_do,
+            env_hash=ctx.store.load().env_hash,
+            reason="nghiệm thu vật lý tại G4",
+        )
+    except (PromotionNotAuthorized, VersionError) as exc:
+        raise CliError(str(exc), EXIT_WAITING_GATE) from exc
+
+    _in_tieu_de(f"Đã nghiệm thu {args.module_id} — {Tier.HW_VERIFIED}")
+    for m in ban_ghi.measurements:
+        print(f"  {m}")
+    print(f"\nknown_good.lock cập nhật: {ban_ghi.commit}")
+    return EXIT_OK
+
+
+def _doc_so_do(path: Path) -> list[Any]:
+    """Đọc measures.yaml do kỹ sư nhập sau khi đo trên thiết bị thật."""
+    import yaml as _yaml
+
+    from eaa.versions import Measurement
+
+    if not path.is_file():
+        raise CliError(f"Không tìm thấy tệp số đo: {path}")
+    try:
+        du_lieu = _yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except _yaml.YAMLError as exc:
+        raise CliError(f"{path}: YAML không hợp lệ — {exc}") from exc
+
+    ket_qua = []
+    for m in du_lieu.get("measurements") or []:
+        if not isinstance(m, dict) or "name" not in m or "value" not in m:
+            raise CliError(f"{path}: mục số đo thiếu 'name' hoặc 'value': {m!r}")
+        ket_qua.append(
+            Measurement(
+                name=str(m["name"]),
+                value=float(m["value"]),
+                unit=str(m.get("unit", "")),
+                note=str(m.get("note", "")),
+            )
+        )
+    if not ket_qua:
+        raise CliError(
+            f"{path} không có số đo nào. Hạng hw-verified khẳng định một điều về "
+            "thiết bị thật nên phải kèm bằng chứng đo được."
+        )
+    return ket_qua
+
+
+# --------------------------------------------------------------------------
+# AIS §7 — chẩn đoán phần cứng
+# --------------------------------------------------------------------------
+
+
+def cmd_diagnose(args: argparse.Namespace) -> int:
+    from eaa.diagnostics import (
+        DiagnosticError,
+        DiagnosticSession,
+        SafetyChecklistNotConfirmed,
+        ScenarioLibrary,
+    )
+    from eaa.ledger import ErrorLedger
+
+    project = resolve_project(args.project)
+    try:
+        thu_vien = ScenarioLibrary.load(project / "diagnostics.yaml")
+    except DiagnosticError as exc:
+        raise CliError(str(exc)) from exc
+
+    phien = DiagnosticSession(
+        library=thu_vien,
+        records_path=project / "measurements.jsonl",
+        ledger=ErrorLedger(project / "error_ledger.jsonl"),
+    )
+
+    if args.diagnose_action == "list":
+        _in_tieu_de(f"Kịch bản chẩn đoán ({len(thu_vien.scenarios)})")
+        for s in thu_vien.scenarios:
+            nhan = "chuyển động" if s.motion else "tĩnh"
+            kenh = "tự động" if s.fully_automatic else f"{len(s.human)} mục người quan sát"
+            print(f"  {s.id:<8}{nhan:<13}{kenh:<26}{s.title}")
+        return EXIT_OK
+
+    if args.diagnose_action == "select":
+        chon = thu_vien.select(args.symptom)
+        if not chon:
+            raise CliError(
+                f"Không kịch bản nào khớp triệu chứng {args.symptom!r}. "
+                f"Xem danh sách: eaa diagnose list"
+            )
+        _in_tieu_de(f"Kịch bản gợi ý cho: {args.symptom}")
+        for s in chon:
+            print(f"  {s.id} — {s.title}")
+            if s.motion:
+                print("      ⚠ Có chuyển động. Checklist an toàn bắt buộc:")
+                for muc in s.safety_checklist:
+                    print(f"        [ ] {muc}")
+        return EXIT_OK
+
+    if args.diagnose_action == "run":
+        try:
+            kich_ban = phien.prepare(
+                args.scenario,
+                safety_confirmed=(args.confirm_safety or []),
+            )
+        except SafetyChecklistNotConfirmed as exc:
+            raise CliError(str(exc), EXIT_WAITING_GATE) from exc
+        except DiagnosticError as exc:
+            raise CliError(str(exc)) from exc
+
+        telemetry = Path(args.telemetry).read_text(encoding="utf-8") if args.telemetry else "{}"
+        tra_loi = _doc_tra_loi_nguoi(args.answer or [])
+
+        if kich_ban.human and not tra_loi:
+            _in_tieu_de(f"Cần quan sát của người — {kich_ban.id}")
+            for h in kich_ban.human:
+                print(f"  --answer {h.key}=<có|không>")
+                print(f"      {h.question}")
+            print(
+                "\nChẩn đoán là phép GIAO của hai kênh. Với nửa dữ liệu, kết luận "
+                "nào cũng có thể sai mà vẫn nghe chắc chắn."
+            )
+            return EXIT_WAITING_GATE
+
+        ket_luan = phien.diagnose(
+            args.scenario, telemetry=telemetry, human_answers=tra_loi
+        )
+        print()
+        print(ket_luan.render())
+        return EXIT_OK if ket_luan.verdict in ("không phát hiện lỗi",) else EXIT_WAITING_GATE
+
+    raise CliError(f"Hành động không hợp lệ: {args.diagnose_action!r}")
+
+
+def _doc_tra_loi_nguoi(cap: Sequence[str]) -> dict[str, bool]:
+    dung = {"co", "có", "yes", "y", "true", "1"}
+    sai = {"khong", "không", "no", "n", "false", "0"}
+    ket_qua: dict[str, bool] = {}
+    for muc in cap:
+        if "=" not in muc:
+            raise CliError(f"Câu trả lời phải có dạng khóa=giá_trị, nhận {muc!r}")
+        khoa, gia_tri = muc.split("=", 1)
+        gia_tri = gia_tri.strip().lower()
+        if gia_tri in dung:
+            ket_qua[khoa.strip()] = True
+        elif gia_tri in sai:
+            ket_qua[khoa.strip()] = False
+        else:
+            raise CliError(f"Không hiểu câu trả lời {gia_tri!r} cho {khoa!r}")
+    return ket_qua
+
+
+# --------------------------------------------------------------------------
 # UC08, UC09 — nhật ký lỗi và báo cáo KPI
 # --------------------------------------------------------------------------
 
@@ -1223,10 +1547,15 @@ def cmd_report(args: argparse.Namespace) -> int:
 
     project = resolve_project(args.project)
 
+    if args.report_kind == "versions":
+        ctx = build_context(project)
+        kho = _tao_versions(project, ctx.repo)
+        _in_tieu_de("Phiên bản mã theo hạng chất lượng")
+        print(kho.report())
+        return EXIT_OK
+
     if args.report_kind != "kpi":
-        raise CliError(
-            f"Báo cáo {args.report_kind!r} chưa có. 'eaa report versions' thuộc Sprint 4."
-        )
+        raise CliError(f"Chưa có loại báo cáo {args.report_kind!r}.")
 
     kpi = KpiLogger(project / "kpi_log.csv")
     dong = kpi.rows()
@@ -1437,10 +1766,52 @@ def build_parser() -> argparse.ArgumentParser:
     dr.add_argument("family", help="Họ phẩm xuất, ví dụ bao_cao_kpi")
     p_docs.set_defaults(func=cmd_docs)
 
-    khung: list[tuple[str, str, str, str]] = [
-        ("tune", "Nhập số đo vật lý, nhận gợi ý tinh chỉnh (UC07, G4)", "Sprint 4", ""),
-        ("rollback", "Đưa module về bản known-good gần nhất (AIS §8.4)", "Sprint 4", ""),
-    ]
+    # UC07 — nghiệm thu vật lý tại G4
+    p_tune = sub.add_parser(
+        "tune", help="Nhập số đo vật lý tại G4, phong hạng hoặc ghi không đạt (UC07)"
+    )
+    p_tune.add_argument("module_id")
+    p_tune.add_argument("--input", help="Tệp measures.yaml chứa số đo đã thực hiện")
+    p_tune.add_argument("--reject", help="Ghi nhận KHÔNG đạt nghiệm thu, kèm lý do")
+    p_tune.add_argument("--actor", help="Người nghiệm thu")
+    p_tune.set_defaults(func=cmd_tune)
+
+    # AIS §8.4 — quay lui
+    p_rb = sub.add_parser(
+        "rollback", help="Đưa module về bản known-good gần nhất (AIS §8.4)"
+    )
+    p_rb.add_argument("module_id")
+    p_rb.add_argument("--reason", required=True, help="Lý do quay lui — vào build ledger")
+    p_rb.add_argument("--actor")
+    p_rb.set_defaults(func=cmd_rollback)
+
+    # AIS §7 — chẩn đoán phần cứng
+    p_dg = sub.add_parser(
+        "diagnose",
+        help="Chẩn đoán phần cứng hai kênh (AIS §7)",
+        description=(
+            "Chẩn đoán là phép GIAO của kênh máy và kênh người. Kịch bản làm "
+            "thiết bị chuyển động luôn đòi xác nhận checklist an toàn trước."
+        ),
+    )
+    dg_sub = p_dg.add_subparsers(dest="diagnose_action", required=True, metavar="<hành động>")
+    dg_sub.add_parser("list", help="Liệt kê kịch bản chẩn đoán của dự án")
+    ds = dg_sub.add_parser("select", help="Chọn kịch bản từ mô tả triệu chứng")
+    ds.add_argument("symptom")
+    dr = dg_sub.add_parser("run", help="Chạy một kịch bản và kết luận")
+    dr.add_argument("scenario")
+    dr.add_argument("--telemetry", help="Tệp chứa telemetry JSON từng dòng")
+    dr.add_argument(
+        "--answer", action="append",
+        help="Quan sát của người, dạng khóa=có|không; lặp lại cho từng mục",
+    )
+    dr.add_argument(
+        "--confirm-safety", action="append", dest="confirm_safety",
+        help="Xác nhận một mục checklist an toàn, nguyên văn",
+    )
+    p_dg.set_defaults(func=cmd_diagnose)
+
+    khung: list[tuple[str, str, str, str]] = []
     for ten, tro_giup, sprint, ghi_chu in khung:
         p = sub.add_parser(ten, help=f"[{sprint}] {tro_giup}")
         p.add_argument("args", nargs="*", help=argparse.SUPPRESS)

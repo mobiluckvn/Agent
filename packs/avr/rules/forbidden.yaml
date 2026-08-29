@@ -58,11 +58,14 @@ rules:
 
   - id: blocking_io
     kind: regex
-    pattern: '\bwhile\s*\(\s*!\s*\(\s*\w+\s*&\s*\(\s*1\s*<<\s*\w+\s*\)\s*\)\s*\)\s*;'
+    # Bắt cả hai cách viết thân rỗng: `);` và `) {}` — kể cả có khoảng trắng
+    # hay xuống dòng ở giữa. Bản đầu chỉ khớp dạng `);` nên bỏ lọt đúng dạng mà
+    # mô hình sinh ra trên thực tế; phát hiện khi chạy thật ở Sprint 4.
+    pattern: '\bwhile\s*\([^;{)]*\([^)]*\)[^;{]*\)\s*(?:;|\{\s*\})'
     message: >-
       Vòng lặp chờ cờ không có lối thoát: thiếu điều kiện quá hạn thì một ngoại
-      vi không phản hồi sẽ treo toàn hệ thống.
-    severity: warning
+      vi không phản hồi sẽ treo toàn hệ thống. Thêm bộ đếm quá hạn và trả mã lỗi.
+    severity: error
     ref: Thực hành an toàn hệ nhúng
 
   - id: magic_delay_loop

@@ -32,6 +32,11 @@ forbidden:
   - malloc/new       # cấm cấp phát động
   - recursion        # cấm đệ quy
   - float_in_isr     # cấm số thực trong ngắt
+  # Bổ sung ở Sprint 4 sau khi chạy mô hình thật: bản sinh đầu tiên của driver
+  # bus có ba vòng `while (!(REG & bit)) {}` không lối thoát. Mã ấy qua sạch cả
+  # bốn cổng vì cổng static chỉ chặn được thứ nó ĐƯỢC BẢO là cấm — pack vốn có
+  # luật phát hiện, nhưng dự án chưa liệt kê nên luật không được áp.
+  - blocking_io      # cấm vòng chờ cờ không có điều kiện quá hạn
 
 style:
   arithmetic: integer   # số học số nguyên ở vòng điều khiển

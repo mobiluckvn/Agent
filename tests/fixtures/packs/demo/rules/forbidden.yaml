@@ -1,20 +1,78 @@
+# Luật phân tích tĩnh của Platform Pack AVR.
+#
+# Phân vai (xem eaa/tools/static.py): constraints.yaml của DỰ ÁN nói CÁI GÌ bị
+# cấm; tệp này nói PHÁT HIỆN THẾ NÀO trên họ AVR. Mã luật ('id') phải khớp
+# đúng tên điều cấm trong constraints.forbidden — engine ghép hai bên bằng mã
+# này, và một điều cấm không có luật khớp sẽ làm cổng static báo hỏng chứ
+# không im lặng bỏ qua.
+#
+# Biểu thức chạy trên mã đã gỡ chú thích, nên nhắc tên một hàm bị cấm trong
+# chú thích giải thích "vì sao không dùng" không bị tính là vi phạm.
+
 rules:
+
   - id: "delay()"
     kind: regex
+    # Bắt cả _delay_ms/_delay_us của avr-libc lẫn delay() kiểu thư viện ngoài.
     pattern: '\b_?delay(_ms|_us)?\s*\('
-    message: "Cấm hàm chặn"
+    message: >-
+      Cấm hàm chặn: hàm này khóa CPU nên phá vỡ ngân sách thời gian của vòng
+      điều khiển. Dùng bộ đếm không chặn hoặc máy trạng thái theo tick.
     severity: error
+    ref: constraints.yaml · forbidden · delay()
+
   - id: "malloc/new"
     kind: regex
     pattern: '\b(malloc|calloc|realloc|free|new|delete)\s*[\(\[]'
-    message: "Cấm cấp phát động"
+    message: >-
+      Cấm cấp phát động: phân mảnh heap trên thiết bị RAM vài KB dẫn tới hỏng
+      không tái lập được. Dùng bộ nhớ tĩnh hoặc bể đối tượng cấp phát trước.
     severity: error
+    ref: constraints.yaml · forbidden · malloc/new
+
   - id: recursion
+    # Không phải regex: đây là tính chất cấu trúc, engine tự kiểm (đệ quy trực
+    # tiếp). Đệ quy gián tiếp A→B→A không bắt được — giới hạn đã ghi rõ trong
+    # eaa/tools/static.py.
     kind: self_recursion
-    message: "Cấm đệ quy"
+    message: >-
+      Cấm đệ quy: độ sâu ngăn xếp không chặn trước được, và tràn ngăn xếp trên
+      vi điều khiển không có cơ chế bảo vệ nào.
     severity: error
+    ref: constraints.yaml · forbidden · recursion
+
   - id: float_in_isr
     kind: regex
+    # Khai báo số thực bên trong thân một trình phục vụ ngắt.
     pattern: 'ISR\s*\([^)]*\)\s*\{(?:[^{}]|\{[^{}]*\})*?\b(float|double)\b'
-    message: "Cấm số thực trong ngắt"
+    message: >-
+      Cấm số thực trong ngắt: phép toán dấu phẩy động được mô phỏng bằng phần
+      mềm trên lõi 8 bit, mất hàng trăm chu kỳ và làm trễ ngắt vọt lên không
+      lường trước. Dùng số học số nguyên hoặc dấu phẩy tĩnh.
     severity: error
+    ref: constraints.yaml · forbidden · float_in_isr
+
+  # Luật riêng của nền tảng, không đến từ constraints.forbidden. Chúng chỉ
+  # được áp khi dự án liệt kê mã tương ứng trong forbidden — giữ ở đây để dự
+  # án khác trên cùng pack bật lên khi cần.
+
+  - id: blocking_io
+    kind: regex
+    # Bắt cả hai cách viết thân rỗng: `);` và `) {}` — kể cả có khoảng trắng
+    # hay xuống dòng ở giữa. Bản đầu chỉ khớp dạng `);` nên bỏ lọt đúng dạng mà
+    # mô hình sinh ra trên thực tế; phát hiện khi chạy thật ở Sprint 4.
+    pattern: '\bwhile\s*\([^;{)]*\([^)]*\)[^;{]*\)\s*(?:;|\{\s*\})'
+    message: >-
+      Vòng lặp chờ cờ không có lối thoát: thiếu điều kiện quá hạn thì một ngoại
+      vi không phản hồi sẽ treo toàn hệ thống. Thêm bộ đếm quá hạn và trả mã lỗi.
+    severity: error
+    ref: Thực hành an toàn hệ nhúng
+
+  - id: magic_delay_loop
+    kind: regex
+    pattern: '\bfor\s*\(\s*(volatile\s+)?\w+\s+\w+\s*=\s*0\s*;\s*\w+\s*<\s*\d{4,}\s*;'
+    message: >-
+      Vòng lặp đếm rỗng để tạo trễ: thời gian phụ thuộc mức tối ưu hóa của
+      trình dịch nên không tái lập được.
+    severity: warning
+    ref: Thực hành an toàn hệ nhúng

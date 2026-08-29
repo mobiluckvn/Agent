@@ -107,7 +107,11 @@ class GeminiClient:
     #: Đặt cao để không bao giờ cắt cụt phản hồi; kỷ luật "module ≤ N dòng"
     #: được cưỡng chế ở cổng phân tích tĩnh, không dựa vào trần token (AIS §2).
     max_output_tokens: int = 200_000
-    timeout_s: float = 120.0
+    #: EAA-SDD-03 §6 chốt 120s. Đo thực tế ở Sprint 4: model Pro lớp suy luận
+    #: sinh một module ~250 dòng có lúc vượt 120s, và một lần quá hạn làm hỏng
+    #: cả lượt chạy vốn sắp xong. Nới lên 300s và cho cấu hình qua biến môi
+    #: trường — trần này là tham số vận hành, không phải một khẳng định thiết kế.
+    timeout_s: float = float(os.environ.get("EAA_LLM_TIMEOUT_S", "300"))
     #: SDD §6: retry 2 lần với backoff khi lỗi mạng.
     max_retries: int = 2
     backoff_s: float = 2.0

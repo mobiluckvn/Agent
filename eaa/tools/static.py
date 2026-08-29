@@ -156,6 +156,13 @@ class StaticGate:
             "rules_applied": len(self._luat_ap_dung()),
         }
 
+        # Thiếu luật kiểm là lỗi CẤU HÌNH, không phải lỗi mã. Đánh dấu để
+        # Orchestrator dừng thay vì mở vòng tự sửa: mô hình không thể sửa một
+        # luật còn thiếu trong Platform Pack, nên ba vòng vá ở đây chỉ đốt tiền
+        # và gần như chắc chắn làm hỏng mã đang đúng.
+        if any(e.rule_id == "missing-rule" for e in loi):
+            so_lieu["config_error"] = True
+
         # Công cụ phân tích tĩnh ngoài của pack (nếu có) chạy sau luật nội bộ:
         # luật nội bộ thi hành ràng buộc của đề án, công cụ ngoài bắt phần còn
         # lại. Cả hai đều phải đạt.

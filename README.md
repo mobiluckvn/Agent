@@ -75,7 +75,7 @@ Test được đặt tên theo mã test case trong `docs/md/EAA-STP-04` và
 | **S1** | Tri thức: 5 kho, graph, composer K1–K7, MockLLM | ✅ TC-04, TC-05, TC-10, TC-16, TC-18, TC-19, TC-21 xanh |
 | **S2** | Vòng lặp chuẩn 13 bước: tools, orchestrator, gates, git, KPI | ✅ TC-01, TC-02, TC-06, TC-07, TC-09, TC-17 xanh |
 | **S3** | Mô phỏng MIL/SIL, ingest, vòng đời tri thức, docs registry, doctor | ✅ TC-12, TC-13, TC-22, TC-24, TC-25, TC-26, TC-29, TC-32..37 xanh |
-| S4 | Mô hình thật, 2 module demo, chẩn đoán phần cứng | ⬜ |
+| **S4** | Mô hình thật, 2 module demo, chẩn đoán phần cứng, phiên bản mã | ✅ TC-11, TC-14, TC-15, TC-27, TC-28, TC-30, TC-31 xanh |
 
 ## Đọc hồ sơ thiết kế
 

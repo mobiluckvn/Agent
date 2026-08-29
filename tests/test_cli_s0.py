@@ -148,17 +148,45 @@ def test_init_ghi_dung_bam_rang_buoc_vao_state(du_an: Path) -> None:
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "lenh", ["tune", "rollback"]
-)
-def test_lenh_chua_lam_noi_ro_va_thoat_khac_0(
-    lenh: str, du_an: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    ma = main([lenh])
-    assert ma != EXIT_OK, f"'{lenh}' chưa làm mà lại báo thành công"
-    err = capsys.readouterr().err
-    assert "chưa được hiện thực hóa" in err
-    assert "Sprint" in err
+#: Bộ lệnh của EAA-SDD-03 §5, cộng các lệnh do EAA-AIS-05 v1.1/v1.2 thêm vào.
+LENH_THEO_THIET_KE = {
+    # SDD §5
+    "init", "plan", "datasheet", "gen", "gate", "sim", "tune", "ledger",
+    "report", "resume",
+    # AIS bổ sung
+    "doctor", "docs", "rollback", "diagnose",
+    # Tiện tra cứu, không thuộc thiết kế
+    "status", "policy", "packs",
+}
+
+
+def test_du_bo_lenh_theo_thiet_ke() -> None:
+    from eaa.cli import build_parser
+
+    parser = build_parser()
+    co_san = {
+        ten
+        for hanh_dong in parser._subparsers._group_actions  # type: ignore[union-attr]
+        for ten in hanh_dong.choices  # type: ignore[attr-defined]
+    }
+    thieu = LENH_THEO_THIET_KE - co_san
+    assert not thieu, f"thiếu lệnh so với thiết kế: {sorted(thieu)}"
+
+
+def test_khong_con_lenh_nao_la_khung_chua_hien_thuc(du_an: Path, capsys) -> None:
+    """Sprint 4 giao trọn bộ lệnh — không còn cái nào chỉ có mặt cho đẹp.
+
+    Test này thay cho bộ test cũ vốn liệt kê các lệnh chưa làm. Giữ nguyên tinh
+    thần ấy nhưng đảo chiều: trước kia canh "lệnh chưa làm phải nói ra"; giờ
+    canh "không còn lệnh nào chưa làm".
+    """
+    from eaa.cli import build_parser
+
+    parser = build_parser()
+    for hanh_dong in parser._subparsers._group_actions:  # type: ignore[union-attr]
+        for ten, sub in hanh_dong.choices.items():  # type: ignore[attr-defined]
+            tro_giup = sub.format_help()
+            assert "chưa được hiện thực hóa" not in tro_giup, f"{ten} vẫn là khung"
 
 
 def test_lenh_gate_noi_ro_khong_co_co_tu_duyet(du_an: Path) -> None:
