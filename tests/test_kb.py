@@ -319,7 +319,7 @@ def test_mau_khong_ton_tai_bao_loi_kem_danh_sach_dang_co(tmp_path: Path) -> None
 
 
 def test_nap_toan_bo_knowledge_base_cua_du_an_mau() -> None:
-    kb = KnowledgeBase.load(DU_AN, pack_prompts_dir=REPO / "packs" / "avr" / "prompts")
+    kb = KnowledgeBase.load(DU_AN, (REPO / "packs" / "avr" / "prompts"))
     assert kb.platform == "avr"
     assert kb.constraints.limits["control_loop_ms"] == 10
     assert len(kb.datasheets.active()) == 5

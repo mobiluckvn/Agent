@@ -520,7 +520,6 @@ class KnowledgeBase:
     def load(
         cls,
         project_dir: str | Path,
-        *,
         pack_prompts_dir: str | Path | None = None,
     ) -> "KnowledgeBase":
         project_dir = Path(project_dir)

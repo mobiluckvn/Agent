@@ -74,7 +74,8 @@ def _quyet_dinh(digest: str, *, decision: str = APPROVED, gate: str = MERGE_GATE
         decision=decision,
         actor="Vũ Trí Công",
         decided_at="2026-08-29T10:00:00+00:00",
-        payload_digest=digest,
+        payload_digest="sha256:payload",
+        content_digest=digest,
         module="drv_bus_sensor",
         reason="" if decision == APPROVED else "thiếu kiểm mã trạng thái",
     )
@@ -115,7 +116,7 @@ def test_du_dieu_kien_thi_dung_duoc_giay_phep() -> None:
         branch="feature/drv_bus_sensor",
         reports=_bao_cao_dat(),
         decision=_quyet_dinh("sha256:diff"),
-        payload_digest="sha256:diff",
+        content_digest="sha256:diff",
     )
     assert giay_phep.gates_passed == ("compile", "size", "static", "unittests")
     assert "G3 duyệt bởi Vũ Trí Công" in giay_phep.summary()
@@ -128,7 +129,7 @@ def test_khong_co_bao_cao_cong_nao_thi_khong_merge_duoc() -> None:
             branch="feature/m",
             reports=[],
             decision=_quyet_dinh("sha256:d"),
-            payload_digest="sha256:d",
+            content_digest="sha256:d",
         )
 
 
@@ -148,7 +149,7 @@ def test_chi_can_MOT_cong_chua_dat_la_khong_merge_duoc(cong_hong: str) -> None:
             branch="feature/m",
             reports=bao_cao,
             decision=_quyet_dinh("sha256:d"),
-            payload_digest="sha256:d",
+            content_digest="sha256:d",
         )
 
 
@@ -159,7 +160,7 @@ def test_chua_co_quyet_dinh_nao_tai_G3_thi_khong_merge_duoc() -> None:
             branch="feature/m",
             reports=_bao_cao_dat(),
             decision=None,
-            payload_digest="sha256:d",
+            content_digest="sha256:d",
         )
 
 
@@ -170,7 +171,7 @@ def test_G3_tu_choi_thi_khong_merge_duoc() -> None:
             branch="feature/m",
             reports=_bao_cao_dat(),
             decision=_quyet_dinh("sha256:d", decision=REJECTED),
-            payload_digest="sha256:d",
+            content_digest="sha256:d",
         )
 
 
@@ -183,7 +184,7 @@ def test_duyet_mot_gate_KHAC_khong_mo_duoc_merge(gate_khac: str) -> None:
             branch="feature/m",
             reports=_bao_cao_dat(),
             decision=_quyet_dinh("sha256:d", gate=gate_khac),
-            payload_digest="sha256:d",
+            content_digest="sha256:d",
         )
 
 
@@ -195,7 +196,7 @@ def test_duyet_ban_nay_roi_merge_ban_khac_bi_chan() -> None:
             branch="feature/m",
             reports=_bao_cao_dat(),
             decision=_quyet_dinh("sha256:ban_da_duyet"),
-            payload_digest="sha256:ban_khac_hoan_toan",
+            content_digest="sha256:ban_khac_hoan_toan",
         )
 
 
@@ -228,7 +229,7 @@ def test_merge_thanh_cong_khi_du_giay_phep(repo: GitRepo) -> None:
         branch=branch,
         reports=_bao_cao_dat(),
         decision=_quyet_dinh(digest),
-        payload_digest=digest,
+        content_digest=digest,
     )
     commit = repo.merge(giay_phep)
 
@@ -270,7 +271,7 @@ def test_sua_nhanh_sau_khi_duyet_thi_merge_bi_chan(repo: GitRepo) -> None:
         branch=branch,
         reports=_bao_cao_dat(),
         decision=_quyet_dinh(digest),
-        payload_digest=digest,
+        content_digest=digest,
     )
 
     (repo.root / "src" / "len_them.c").write_text("void x(void){}\n", encoding="utf-8")
@@ -289,7 +290,7 @@ def test_giay_phep_bi_sua_sau_khi_dung_van_bi_kiem_lai(repo: GitRepo) -> None:
         branch=branch,
         reports=_bao_cao_dat(),
         decision=_quyet_dinh(digest),
-        payload_digest=digest,
+        content_digest=digest,
     )
 
     gia_mao = MergeAuthorization.__new__(MergeAuthorization)
@@ -299,7 +300,7 @@ def test_giay_phep_bi_sua_sau_khi_dung_van_bi_kiem_lai(repo: GitRepo) -> None:
         gia_mao, "reports", (ToolReport(gate="compile", passed=False, errors=[ToolError("x")]),)
     )
     object.__setattr__(gia_mao, "decision", giay_phep.decision)
-    object.__setattr__(gia_mao, "payload_digest", digest)
+    object.__setattr__(gia_mao, "content_digest", digest)
     object.__setattr__(gia_mao, "issued_at", giay_phep.issued_at)
 
     with pytest.raises(MergeNotAuthorized, match="chưa đạt"):
@@ -442,6 +443,7 @@ def _payload(gate_id: str = MERGE_GATE, **ghi_de) -> GatePayload:
         summary=("4 cổng đạt", "Flash 31.2%"),
         details="diff --git a/src/m.c b/src/m.c\n+void m_init(void) {}\n",
         checklist=("Kiểm cấu hình bus khớp hồ sơ phần cứng",),
+        content_digest="sha256:noi_dung_nhanh",
     )
     mac_dinh.update(ghi_de)
     return GatePayload(**mac_dinh)
@@ -548,7 +550,7 @@ def test_tc02_tu_choi_roi_thi_khong_merge_duoc(repo: GitRepo, gate: HumanGate) -
             branch=branch,
             reports=_bao_cao_dat(),
             decision=gate.latest(MERGE_GATE),
-            payload_digest=digest,
+            content_digest=digest,
         )
     assert repo.current_branch() == branch
 

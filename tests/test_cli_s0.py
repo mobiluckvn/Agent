@@ -149,8 +149,7 @@ def test_init_ghi_dung_bam_rang_buoc_vao_state(du_an: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "lenh",
-    ["plan", "datasheet", "gen", "gate", "sim", "tune", "ledger", "report", "doctor", "docs", "rollback"],
+    "lenh", ["datasheet", "sim", "tune", "doctor", "docs", "rollback"]
 )
 def test_lenh_chua_lam_noi_ro_va_thoat_khac_0(
     lenh: str, du_an: Path, capsys: pytest.CaptureFixture[str]
@@ -162,11 +161,23 @@ def test_lenh_chua_lam_noi_ro_va_thoat_khac_0(
     assert "Sprint" in err
 
 
-def test_lenh_gate_noi_ro_khong_co_co_tu_duyet(du_an: Path, capsys) -> None:
-    """ADR-04: gate cưỡng chế bằng phần mềm — kể cả phần trợ giúp cũng phải
-    nói đúng điều đó, để không ai đi tìm một cờ như thế."""
-    main(["gate"])
-    assert "chỉ được duyệt bởi con người" in capsys.readouterr().err
+def test_lenh_gate_noi_ro_khong_co_co_tu_duyet(du_an: Path) -> None:
+    """ADR-04: gate cưỡng chế bằng phần mềm — phần trợ giúp cũng phải nói đúng
+    điều đó, để không ai đi tìm một cờ như thế."""
+    from eaa.cli import build_parser
+
+    parser = build_parser()
+    gate_parser = next(
+        sub
+        for hanh_dong in parser._subparsers._group_actions  # type: ignore[union-attr]
+        for ten, sub in hanh_dong.choices.items()  # type: ignore[attr-defined]
+        if ten == "gate"
+    )
+    # argparse tự ngắt dòng phần mô tả, nên gộp khoảng trắng trước khi đối chiếu.
+    tro_giup = " ".join(gate_parser.format_help().split())
+    assert "chỉ được mở bởi con người" in tro_giup
+    assert "Không có cờ nào tự duyệt" in tro_giup
+    assert "không có terminal cũng không được mặc định đồng ý" in tro_giup
 
 
 # --------------------------------------------------------------------------

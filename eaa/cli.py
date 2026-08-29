@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -44,7 +45,7 @@ from eaa.policy import (
     gate_for_transition,
     level,
 )
-from eaa.state import ProjectState, StateCorruptError, StateStore
+from eaa.state import BacklogItem, ProjectState, StateCorruptError, StateStore
 
 CONSTRAINTS_FILE = "constraints.yaml"
 HARDWARE_PROFILE_FILE = "hardware_profile.yaml"
@@ -291,10 +292,571 @@ def _chua_hien_thuc(ten: str, sprint: str, ghi_chu: str = "") -> Any:
         raise CliError(
             f"Lệnh '{ten}' thuộc {sprint} và chưa được hiện thực hóa.\n"
             + (f"{ghi_chu}\n" if ghi_chu else "")
-            + "Sprint 0 giao: init, resume, status, policy, packs.",
+            + "Đang có: init, resume, status, policy, packs, plan, gen, gate, "
+            "report, ledger.",
         )
 
     return handler
+
+
+# --------------------------------------------------------------------------
+# Lắp ráp ứng dụng — CLI là nơi ráp mọi thứ lại
+# --------------------------------------------------------------------------
+
+
+@dataclass
+class AppContext:
+    """Mọi thành phần của một dự án, đã nối dây sẵn.
+
+    CLI là composition root: nó là nơi duy nhất biết cách ráp Knowledge Base,
+    đồ thị, composer, adapter mô hình, gate, Git, KPI và chuỗi cổng lại với
+    nhau. Các module khác nhận phụ thuộc qua hàm dựng và không tự đi tìm nhau —
+    nhờ vậy mỗi module test được riêng, và việc thay MockLLM bằng mô hình thật
+    ở Sprint 4 chỉ là đổi một dòng ở đây.
+    """
+
+    project: Path
+    store: Any
+    kb: Any
+    graph: Any
+    ledger: Any
+    kpi: Any
+    composer: Any
+    llm: Any
+    gates: Any
+    repo: Any
+    runner: Any
+    orchestrator: Any
+
+
+def _tao_llm(state: Any) -> Any:
+    """Chọn adapter mô hình theo cấu hình trong Project State (ADR-03).
+
+    Sprint 1–3 chạy hoàn toàn bằng MockLLM (MDD §5); adapter thật vào từ
+    Sprint 4. Hành vi Orchestrator không đổi khi hoán mô hình — đó là điều
+    TC-11 kiểm.
+    """
+    from eaa.llm.mock import MockLLM
+
+    provider = (state.llm or {}).get("provider", "mock")
+    model = (state.llm or {}).get("model", "mock-deterministic-1")
+
+    if provider == "mock":
+        return MockLLM(model=model)
+
+    raise CliError(
+        f"Chưa có adapter cho nhà cung cấp {provider!r}. Sprint 1–3 chạy bằng "
+        "MockLLM; adapter mô hình thật thuộc Sprint 4."
+    )
+
+
+def build_context(project: Path, *, llm: Any = None) -> AppContext:
+    """Nối dây toàn bộ một dự án từ thư mục của nó."""
+    from eaa.composer import PromptComposer
+    from eaa.gates import HumanGate
+    from eaa.graph import KnowledgeGraph
+    from eaa.kb import KnowledgeBase
+    from eaa.kpi import KpiLogger
+    from eaa.ledger import ErrorLedger
+    from eaa.orchestrator import Orchestrator, OrchestratorConfig
+    from eaa.tools.compile import CompileGate, SizeGate
+    from eaa.tools.runner import ToolRunner
+    from eaa.tools.static import StaticGate
+    from eaa.tools.unittests import UnitTestGate
+    from eaa.vcs import GitRepo
+
+    store = StateStore(project / STATE_FILE)
+    if not store.exists():
+        raise CliError(
+            f"Chưa có Project State tại {store.path} — chạy 'eaa init' trước."
+        )
+    state = store.load()
+
+    manifest = _nap_pack(project)
+    kb = _nap_kho(KnowledgeBase.load, project, manifest.prompts_dir)
+
+    graph = KnowledgeGraph.build(kb.hardware, kb.datasheets, modules=state.backlog)
+    ledger = ErrorLedger(project / "error_ledger.jsonl")
+    kb.ledger = ledger
+    kpi = KpiLogger(project / "kpi_log.csv", env_hash=state.env_hash)
+    composer = PromptComposer(kb, graph, ledger)
+    gates = HumanGate(project / "gates", store, ledger)
+
+    firmware = project / "firmware"
+    repo = GitRepo(firmware)
+    repo.init()
+
+    runner = ToolRunner(
+        manifest=manifest,
+        work_dir=firmware,
+        base_params={
+            **kb.constraints.platform_params(),
+            "python": sys.executable,
+            "pack_dir": str(manifest.root),
+        },
+    )
+
+    module_hien_tai = state.current_module or (
+        state.backlog[0].id if state.backlog else ""
+    )
+    chain = [
+        CompileGate(runner),
+        SizeGate(runner, limits=kb.constraints.limits),
+        StaticGate(
+            runner=runner,
+            manifest=manifest,
+            forbidden=list(kb.constraints.forbidden),
+            limits=kb.constraints.limits,
+            registers=graph.registers_for(module_hien_tai) if module_hien_tai else [],
+            allowed_chunk_ids=[c.id for c in kb.datasheets.active()],
+        ),
+        UnitTestGate(tests_dir=project / "tests", work_dir=project),
+    ]
+
+    orchestrator = Orchestrator(
+        state_store=store,
+        composer=composer,
+        llm=llm or _tao_llm(state),
+        gates=gates,
+        repo=repo,
+        graph=graph,
+        kpi=kpi,
+        ledger=ledger,
+        gate_chain=chain,
+        config=OrchestratorConfig(actor=_nguoi_dung()),
+        runs_dir=project / ".eaa" / "runs",
+    )
+
+    return AppContext(
+        project=project,
+        store=store,
+        kb=kb,
+        graph=graph,
+        ledger=ledger,
+        kpi=kpi,
+        composer=composer,
+        llm=orchestrator.llm,
+        gates=gates,
+        repo=repo,
+        runner=runner,
+        orchestrator=orchestrator,
+    )
+
+
+def _nap_pack(project: Path) -> Any:
+    rang_buoc = _nap_kho(Constraints.load, project / CONSTRAINTS_FILE)
+    try:
+        return load_manifest(repo_root() / "packs" / rang_buoc.platform)
+    except PackError as exc:
+        raise CliError(str(exc)) from exc
+
+
+def _nguoi_dung() -> str:
+    for bien in ("EAA_ACTOR", "USER", "USERNAME", "LOGNAME"):
+        gia_tri = os.environ.get(bien)
+        if gia_tri:
+            return gia_tri
+    return "kỹ sư"
+
+
+# --------------------------------------------------------------------------
+# UC02 — quản lý backlog
+# --------------------------------------------------------------------------
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    project = resolve_project(args.project)
+    store = StateStore(project / STATE_FILE)
+    if not store.exists():
+        raise CliError(f"Chưa có Project State tại {store.path} — chạy 'eaa init'.")
+
+    if args.plan_action == "list":
+        return _plan_list(store)
+    if args.plan_action == "add":
+        return _plan_add(project, store, args)
+    if args.plan_action == "order":
+        return _plan_order(store, args)
+    raise CliError(f"Hành động không hợp lệ: {args.plan_action!r}")
+
+
+def _plan_list(store: StateStore) -> int:
+    state = store.load()
+    _in_tieu_de(f"Backlog ({len(state.backlog)} module)")
+    if not state.backlog:
+        print("  (trống — thêm bằng 'eaa plan add <module_id>')")
+        return EXIT_OK
+    for i, muc in enumerate(state.backlog, 1):
+        uses = f"  uses={','.join(muc.uses)}" if muc.uses else ""
+        pt = f"  depends_on={','.join(muc.depends_on)}" if muc.depends_on else ""
+        print(f"  {i:>2}. {muc.id:<28} {muc.status:<10} retries={muc.retries}{uses}{pt}")
+    return EXIT_OK
+
+
+def _plan_add(project: Path, store: StateStore, args: argparse.Namespace) -> int:
+    """Quy trình P2 — kiểm xung đột NGAY LÚC KHAI BÁO, trước khi vào backlog.
+
+    Đây là điểm "shift-left" của AIS §5.2: tranh chấp tài nguyên bị bắt ở giây
+    thứ nhất thay vì trên thiết bị thật. Module không vào backlog nếu còn xung
+    đột — kỹ sư phân xử trước.
+    """
+    from eaa.graph import KnowledgeGraph
+
+    uses = [u.strip() for u in (args.uses or "").split(",") if u.strip()]
+    depends = [d.strip() for d in (args.depends_on or "").split(",") if d.strip()]
+
+    state = store.load()
+    if state.module(args.module_id) is not None:
+        raise CliError(f"Module {args.module_id!r} đã có trong backlog.")
+
+    kb = _nap_kho(__import__("eaa.kb", fromlist=["KnowledgeBase"]).KnowledgeBase.load, project)
+    graph = KnowledgeGraph.build(kb.hardware, kb.datasheets, modules=state.backlog)
+
+    xung_dot = graph.check_module(args.module_id, uses=uses, depends_on=depends)
+    if xung_dot:
+        _in_tieu_de(f"Không thêm {args.module_id} — có xung đột cần phân xử")
+        for c in xung_dot:
+            print(f"  • {c.message}")
+            for bang_chung in c.evidence:
+                print(f"      {bang_chung}")
+        raise CliError(
+            "Xung đột tài nguyên phải do kỹ sư phân xử (FR-KG-02, quy trình P2). "
+            "Đổi tài nguyên của module, hoặc khai báo tài nguyên dùng chung được "
+            "trong hardware_profile.yaml."
+        )
+
+    with store.with_lock():
+        state = store.load()
+        state.backlog.append(
+            BacklogItem(id=args.module_id, status="todo", uses=uses, depends_on=depends)
+        )
+        store.save(state)
+
+    # Đưa module vào đồ thị rồi mới tra: ``check_module`` chạy trên bản sao nên
+    # không để lại dấu vết, và tra cứu trước khi thêm sẽ ra danh sách rỗng.
+    graph.add_module(args.module_id, uses=uses, depends_on=depends)
+
+    print(f"Đã thêm {args.module_id} vào backlog (không có xung đột tài nguyên).")
+    if uses:
+        thanh_ghi = graph.registers_for(args.module_id)
+        print(f"  Tài nguyên chiếm dụng: {', '.join(uses)}")
+        print(f"  Thanh ghi phải cấu hình: {', '.join(thanh_ghi) or '—'}")
+
+        # Nói ngay nếu có thanh ghi chưa được tài liệu hóa — đây là mục THIẾU
+        # của Bảng kiểm thông tin cần (AIS §6.2), và biết sớm thì kỹ sư còn kịp
+        # nạp tài liệu trước khi mở vòng sinh mã.
+        co_tai_lieu = kb.datasheets.registers()
+        thieu = [r for r in thanh_ghi if r not in co_tai_lieu]
+        if thieu:
+            print(
+                f"  ⚠ Chưa có trích đoạn tài liệu cho: {', '.join(thieu)} — "
+                "nạp và duyệt tại G2 trước khi sinh mã."
+            )
+    return EXIT_OK
+
+
+def _plan_order(store: StateStore, args: argparse.Namespace) -> int:
+    thu_tu = [m.strip() for m in args.order.split(",") if m.strip()]
+    with store.with_lock():
+        state = store.load()
+        co = {m.id for m in state.backlog}
+        la = [m for m in thu_tu if m not in co]
+        if la:
+            raise CliError(f"Không có trong backlog: {la}")
+        theo_id = {m.id: m for m in state.backlog}
+        state.backlog = [theo_id[m] for m in thu_tu] + [
+            m for m in state.backlog if m.id not in thu_tu
+        ]
+        store.save(state)
+    return _plan_list(store)
+
+
+# --------------------------------------------------------------------------
+# UC04 — vòng lặp sinh mã
+# --------------------------------------------------------------------------
+
+
+def cmd_gen(args: argparse.Namespace) -> int:
+    from eaa.orchestrator import PreconditionFailed
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+
+    try:
+        ket_qua = ctx.orchestrator.run_module(args.module_id)
+    except PreconditionFailed as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de(f"Vòng lặp chuẩn — {args.module_id}")
+    for dong in ket_qua.attempts_log:
+        print(dong)
+    print()
+    print(ket_qua.message)
+    return ket_qua.exit_code
+
+
+# --------------------------------------------------------------------------
+# UC05 — Human Gate
+# --------------------------------------------------------------------------
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+
+    if args.gate_action == "show":
+        return _gate_show(ctx, args)
+    if args.gate_action == "approve":
+        return _gate_approve(ctx, args)
+    if args.gate_action == "reject":
+        return _gate_reject(ctx, args)
+    raise CliError(f"Hành động không hợp lệ: {args.gate_action!r}")
+
+
+def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
+    """Dựng hồ sơ cho gate chưa có yêu cầu nào đang chờ.
+
+    G3 luôn có hồ sơ do Orchestrator đặt ở bước 10. Các gate còn lại được kỹ sư
+    chủ động mở, nên hồ sơ dựng từ dữ liệu hiện hành của dự án. Băm nội dung vì
+    thế phản ánh đúng thứ đang có trên đĩa lúc này — duyệt xong mà dữ liệu đổi
+    thì quyết định cũ không còn khớp.
+    """
+    from eaa.gates import GatePayload
+
+    state = ctx.store.load()
+    if gate_id == "G1":
+        return GatePayload(
+            gate_id="G1",
+            title="Chốt ràng buộc cứng và kiến trúc",
+            summary=(
+                f"constraints.yaml v{ctx.kb.constraints.version} "
+                f"({ctx.kb.constraints.content_version})",
+                f"hardware_profile.yaml v{ctx.kb.hardware.version}",
+                f"backlog: {len(state.backlog)} module",
+                f"điều cấm: {', '.join(ctx.kb.constraints.forbidden) or '—'}",
+            ),
+            details=ctx.kb.constraints.path.read_text(encoding="utf-8"),
+            content_digest=ctx.kb.constraints.content_version,
+        )
+    if gate_id == "G2":
+        de_xuat = [c for c in ctx.kb.datasheets.all() if not c.is_active]
+        return GatePayload(
+            gate_id="G2",
+            title="Duyệt trích đoạn tài liệu vào kho tri thức",
+            summary=tuple(
+                f"{c.id} · {c.device}/{c.peripheral} · {c.status} · {c.source}"
+                for c in ctx.kb.datasheets.all()
+            ),
+            details="\n\n".join(f"### {c.id}\n{c.body}" for c in de_xuat) or
+            "(không có chunk nào đang chờ duyệt)",
+            content_digest="sha256:" + __import__("hashlib").sha256(
+                "|".join(sorted(c.id + c.status for c in ctx.kb.datasheets.all())).encode()
+            ).hexdigest(),
+        )
+    raise CliError(
+        f"Gate {gate_id} chưa có hồ sơ nào đang chờ, và engine chưa biết cách dựng "
+        f"hồ sơ cho gate này. G4/G5 thuộc Sprint 4."
+    )
+
+
+def _gate_show(ctx: AppContext, args: argparse.Namespace) -> int:
+    cho_duyet = ctx.gates.pending(args.gate)
+    if cho_duyet:
+        for yeu_cau in cho_duyet:
+            _in_tieu_de(f"Đang chờ quyết định — {yeu_cau.payload.gate_id}")
+            print(yeu_cau.payload.render())
+        return EXIT_WAITING_GATE
+
+    if args.gate:
+        payload = _ho_so_gate(ctx, args.gate)
+        _in_tieu_de(f"Hồ sơ dựng từ dữ liệu hiện hành — {args.gate}")
+        print(payload.render())
+        return EXIT_WAITING_GATE
+
+    state = ctx.store.load()
+    _in_tieu_de("Trạng thái các Human Gate")
+    for gate in GATE_ORDER:
+        print("  " + _nhan_gate(state, gate))
+    print("\nKhông có hồ sơ nào đang chờ quyết định.")
+    return EXIT_OK
+
+
+def _gate_approve(ctx: AppContext, args: argparse.Namespace) -> int:
+    from eaa.gates import GateNotPending
+    from eaa.vcs import MERGE_GATE
+
+    nguoi = args.actor or _nguoi_dung()
+
+    try:
+        quyet_dinh = ctx.gates.approve(
+            args.gate, actor=nguoi, expect_digest=args.expect
+        )
+    except GateNotPending:
+        payload = _ho_so_gate(ctx, args.gate)
+        print(payload.render())
+        ctx.gates.request(payload)
+        quyet_dinh = ctx.gates.approve(
+            args.gate, actor=nguoi, expect_digest=args.expect
+        )
+
+    print(f"\n{args.gate} đã được {nguoi} phê duyệt lúc {quyet_dinh.decided_at}.")
+
+    if args.gate == MERGE_GATE:
+        return _sau_khi_duyet_G3(ctx, quyet_dinh)
+
+    return _thu_chuyen_pha(ctx)
+
+
+def _sau_khi_duyet_G3(ctx: AppContext, quyet_dinh: Any) -> int:
+    """Bước 11–13 — chạy ngay sau khi con người mở cổng."""
+    module_id = quyet_dinh.module or ctx.store.load().current_module
+    if not module_id:
+        raise CliError("Không rõ quyết định này thuộc module nào.")
+
+    bang_chung = ctx.orchestrator.load_evidence(module_id)
+    if not bang_chung:
+        raise CliError(
+            f"Không tìm thấy bằng chứng kiểm chứng cho {module_id!r}. Chạy lại "
+            "'eaa gen' để sinh và kiểm chứng trước khi merge — merge không bao "
+            "giờ xảy ra mà không có báo cáo cổng."
+        )
+
+    ket_qua = ctx.orchestrator.finalize_module(module_id, bang_chung)
+    print()
+    print(ket_qua.message)
+    return ket_qua.exit_code
+
+
+def _thu_chuyen_pha(ctx: AppContext) -> int:
+    """Duyệt gate xong thì cung chuyển pha tương ứng mở ra — đi tiếp cho gọn.
+
+    Đây không phải máy tự vượt gate: nó chỉ thi hành hệ quả của quyết định mà
+    con người vừa đưa ra, và vẫn đi qua ``policy.check_transition``.
+    """
+    from eaa.policy import PolicyViolation
+
+    # Đi hết những bước mà gate đã mở, không chỉ một bước. Cung B→C không có
+    # gate, nên duyệt G1 xong mà chỉ tiến một bước sẽ dừng lại giữa chừng ở B
+    # và người dùng phải gõ thêm một lệnh chẳng để làm gì.
+    da_chuyen = False
+    while True:
+        state = ctx.store.load()
+        chi_so = PHASE_ORDER.index(state.phase)
+        dich = PHASE_ORDER[chi_so + 1] if chi_so + 1 < len(PHASE_ORDER) else None
+        if dich is None:
+            break
+        try:
+            ctx.orchestrator.advance_phase(dich)
+        except PolicyViolation:
+            break
+        print(f"Dự án chuyển sang pha {dich} — {PHASE_NAMES[dich]}.")
+        da_chuyen = True
+
+    state = ctx.store.load()
+    thong_diep, ma_thoat = _buoc_ke_tiep(state)
+    print(f"Bước kế tiếp: {thong_diep}")
+    return ma_thoat if not da_chuyen else EXIT_OK
+
+
+def _gate_reject(ctx: AppContext, args: argparse.Namespace) -> int:
+    from eaa.gates import GateNotPending
+
+    if not (args.reason or "").strip():
+        raise CliError(
+            "Từ chối tại gate bắt buộc kèm --reason. Lý do là thứ vòng sinh lại "
+            "học được; thiếu nó thì lần sau AI nộp lại đúng cái vừa bị từ chối."
+        )
+
+    nguoi = args.actor or _nguoi_dung()
+    try:
+        quyet_dinh = ctx.gates.reject(args.gate, actor=nguoi, reason=args.reason)
+    except GateNotPending as exc:
+        raise CliError(str(exc)) from exc
+
+    print(f"{args.gate} bị {nguoi} từ chối: {quyet_dinh.reason}")
+    print("Lý do đã ghi vào Error Ledger và sẽ có mặt trong prompt lần sinh lại.")
+
+    if quyet_dinh.module:
+        ket_qua = ctx.orchestrator.finalize_module(
+            quyet_dinh.module, ctx.orchestrator.load_evidence(quyet_dinh.module)
+        )
+        print()
+        print(ket_qua.message)
+        return ket_qua.exit_code
+    return EXIT_WAITING_GATE
+
+
+# --------------------------------------------------------------------------
+# UC08, UC09 — nhật ký lỗi và báo cáo KPI
+# --------------------------------------------------------------------------
+
+
+def cmd_ledger(args: argparse.Namespace) -> int:
+    from eaa.ledger import CATEGORIES, ErrorLedger, LedgerError
+
+    project = resolve_project(args.project)
+    so = ErrorLedger(project / "error_ledger.jsonl")
+
+    if args.ledger_action == "list":
+        muc = so.entries(include_resolved=not args.open_only)
+        _in_tieu_de(f"Error Ledger ({len(muc)} mục)")
+        for e in muc:
+            print(f"  {e.id} [{e.status}] {e.module} · {e.category}")
+            print(f"      {e.as_rule}")
+        return EXIT_OK
+
+    if args.ledger_action == "add":
+        try:
+            e = so.add(
+                module=args.module,
+                category=args.category,
+                description=args.description,
+                evidence=args.evidence or "",
+                peripheral=args.peripheral or "",
+                registers=[r.strip() for r in (args.registers or "").split(",") if r.strip()],
+                rule=args.rule or "",
+            )
+        except LedgerError as exc:
+            raise CliError(str(exc)) from exc
+        print(f"Đã ghi {e.id}: {e.as_rule}")
+        return EXIT_OK
+
+    raise CliError(f"Hành động không hợp lệ: {args.ledger_action!r}")
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    from eaa.kpi import KpiLogger
+
+    project = resolve_project(args.project)
+
+    if args.report_kind != "kpi":
+        raise CliError(
+            f"Báo cáo {args.report_kind!r} chưa có. 'eaa report versions' thuộc Sprint 4."
+        )
+
+    kpi = KpiLogger(project / "kpi_log.csv")
+    dong = kpi.rows()
+    if not dong:
+        raise CliError(f"Chưa có số liệu KPI nào trong {kpi.path}.")
+
+    if args.csv:
+        dich = kpi.export(args.csv, module=args.module)
+        print(f"Đã xuất {len(dong)} dòng ra {dich}")
+        return EXIT_OK
+
+    tom_tat = kpi.summary(args.module)
+    _in_tieu_de("Tổng hợp KPI")
+    for khoa, gia_tri in tom_tat.items():
+        print(f"  {khoa:<20} {gia_tri}")
+
+    _in_tieu_de("Số liệu theo module")
+    print(f"  {'module':<24}{'merge':<8}{'vá':<6}{'tokens vào':<12}{'tokens ra':<12}")
+    for module in tom_tat.get("modules", []):
+        m = kpi.summary(module)
+        print(
+            f"  {module:<24}{m['merges']:<8}{m['repairs']:<6}"
+            f"{m['tokens_in_total']:<12}{m['tokens_out_total']:<12}"
+        )
+    return EXIT_OK
 
 
 # --------------------------------------------------------------------------
@@ -340,22 +902,81 @@ def build_parser() -> argparse.ArgumentParser:
     p_packs = sub.add_parser("packs", help="Liệt kê Platform Pack đã cài")
     p_packs.set_defaults(func=cmd_packs)
 
-    # Khung các lệnh còn lại của SDD §5 và AIS: có mặt trong trợ giúp để bộ
-    # lệnh nhìn thấy được ngay từ đầu, nhưng nói thẳng là chưa làm.
-    khung: list[tuple[str, str, str, str]] = [
-        ("plan", "Quản lý backlog module (UC02)", "Sprint 1", ""),
-        ("datasheet", "Nạp và duyệt trích đoạn tài liệu (UC03, G2)", "Sprint 1", ""),
-        ("gen", "Chạy vòng lặp sinh mã chuẩn cho module (UC04)", "Sprint 2", ""),
-        (
-            "gate",
-            "Xem diff và phê duyệt tại gate hiện hành (UC05)",
-            "Sprint 2",
-            "Gate chỉ được duyệt bởi con người — không có cờ nào tự duyệt.",
+    # UC02 — backlog
+    p_plan = sub.add_parser("plan", help="Quản lý backlog module (UC02)")
+    plan_sub = p_plan.add_subparsers(dest="plan_action", required=True, metavar="<hành động>")
+    pa = plan_sub.add_parser(
+        "add",
+        help="Thêm module; kiểm xung đột tài nguyên ngay lúc khai báo (quy trình P2)",
+    )
+    pa.add_argument("module_id")
+    pa.add_argument("--uses", help="Tài nguyên module chiếm dụng, phân cách bằng dấu phẩy")
+    pa.add_argument("--depends-on", dest="depends_on", help="Module phụ thuộc")
+    plan_sub.add_parser("list", help="Liệt kê backlog")
+    po = plan_sub.add_parser("order", help="Đặt lại thứ tự ưu tiên")
+    po.add_argument("order", help="Danh sách module theo thứ tự, phân cách bằng dấu phẩy")
+    p_plan.set_defaults(func=cmd_plan)
+
+    # UC04 — vòng lặp sinh mã
+    p_gen = sub.add_parser("gen", help="Chạy vòng lặp sinh mã chuẩn cho module (UC04)")
+    p_gen.add_argument("module_id")
+    p_gen.set_defaults(func=cmd_gen)
+
+    # UC05 — Human Gate
+    p_gate = sub.add_parser(
+        "gate",
+        help="Xem hồ sơ và quyết định tại Human Gate (UC05)",
+        description=(
+            "Gate chỉ được mở bởi con người. Không có cờ nào tự duyệt, và phiên "
+            "không có terminal cũng không được mặc định đồng ý (FR-GATE-01)."
         ),
+    )
+    gate_sub = p_gate.add_subparsers(dest="gate_action", required=True, metavar="<hành động>")
+    gs = gate_sub.add_parser("show", help="Xem hồ sơ đang chờ quyết định")
+    gs.add_argument("gate", nargs="?", choices=list(GATE_ORDER))
+    ga = gate_sub.add_parser("approve", help="Phê duyệt — hành động của con người")
+    ga.add_argument("gate", choices=list(GATE_ORDER))
+    ga.add_argument("--actor", help="Người quyết định (mặc định: người dùng hệ thống)")
+    ga.add_argument(
+        "--expect",
+        help="Băm nội dung bạn đã xem; lệch băm thì từ chối duyệt bản đã đổi",
+    )
+    gr = gate_sub.add_parser("reject", help="Từ chối, bắt buộc kèm lý do")
+    gr.add_argument("gate", choices=list(GATE_ORDER))
+    gr.add_argument("--reason", required=True, help="Lý do từ chối — đi vào Error Ledger")
+    gr.add_argument("--actor", help="Người quyết định")
+    p_gate.set_defaults(func=cmd_gate)
+
+    # UC08 — Error Ledger
+    p_ledger = sub.add_parser("ledger", help="Nhật ký lỗi ảo giác (UC08)")
+    ledger_sub = p_ledger.add_subparsers(
+        dest="ledger_action", required=True, metavar="<hành động>"
+    )
+    la = ledger_sub.add_parser("add", help="Ghi một lỗi mới")
+    la.add_argument("--module", required=True)
+    la.add_argument("--category", required=True)
+    la.add_argument("--description", required=True)
+    la.add_argument("--evidence")
+    la.add_argument("--peripheral")
+    la.add_argument("--registers", help="Thanh ghi liên quan, phân cách bằng dấu phẩy")
+    la.add_argument("--rule", help="Quy tắc một dòng để nạp vào prompt (K5)")
+    ll = ledger_sub.add_parser("list", help="Liệt kê các mục lỗi")
+    ll.add_argument("--open-only", action="store_true", help="Chỉ hiện lỗi chưa khép")
+    p_ledger.set_defaults(func=cmd_ledger)
+
+    # UC09 — báo cáo
+    p_report = sub.add_parser("report", help="Xuất báo cáo KPI (UC09)")
+    p_report.add_argument("report_kind", choices=["kpi", "versions"], nargs="?", default="kpi")
+    p_report.add_argument("--csv", help="Xuất ra tệp CSV")
+    p_report.add_argument("--module", help="Lọc theo module")
+    p_report.set_defaults(func=cmd_report)
+
+    # Các lệnh còn lại của SDD §5 và AIS: có mặt trong trợ giúp để bộ lệnh nhìn
+    # thấy được ngay từ đầu, nhưng nói thẳng là chưa làm.
+    khung: list[tuple[str, str, str, str]] = [
+        ("datasheet", "Nạp và duyệt trích đoạn tài liệu (UC03, G2)", "Sprint 3", ""),
         ("sim", "Chạy mô phỏng MIL/SIL, quét tham số (UC06)", "Sprint 3", ""),
         ("tune", "Nhập số đo vật lý, nhận gợi ý tinh chỉnh (UC07, G4)", "Sprint 4", ""),
-        ("ledger", "Ghi nhận lỗi ảo giác mới (UC08)", "Sprint 1", ""),
-        ("report", "Xuất báo cáo KPI và bảng phiên bản (UC09)", "Sprint 2", ""),
         ("doctor", "Quét, cài đặt công cụ và khóa môi trường (AIS §9)", "Sprint 3", ""),
         ("docs", "Kho phẩm xuất: list/get/regen (AIS §8.5)", "Sprint 3", ""),
         ("rollback", "Đưa module về bản known-good gần nhất (AIS §8.4)", "Sprint 4", ""),
@@ -376,13 +997,44 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return EXIT_OK
 
+    # Lỗi miền được đổi thành thông điệp + mã thoát, không phải traceback.
+    # Người dùng của công cụ này là kỹ sư đang giữa một quy trình có gate; một
+    # vết ngăn xếp Python không nói cho họ biết phải làm gì tiếp.
+    from eaa.gates import GateError, GateNotInteractive, GateNotPending
+    from eaa.kb import KbError
+    from eaa.kpi import KpiError
+    from eaa.ledger import LedgerError
+    from eaa.platform import PackError
+    from eaa.tools.runner import ConfirmationRequired, ToolExecutionError
+    from eaa.vcs import GitError, MergeNotAuthorized
+
+    #: Lỗi nghĩa là "đang chờ người", khác với "hỏng" — mã thoát 2.
+    CHO_NGUOI = (GateNotInteractive, GateNotPending, ConfirmationRequired)
+
     try:
         return args.func(args)
     except CliError as exc:
         print(f"Lỗi: {exc}", file=sys.stderr)
         return exc.exit_code
+    except CHO_NGUOI as exc:
+        print(f"Cần người quyết định: {exc}", file=sys.stderr)
+        return EXIT_WAITING_GATE
     except PolicyViolation as exc:
         print(f"Bị luật điều phối từ chối: {exc}", file=sys.stderr)
+        return EXIT_ENV_ERROR
+    except MergeNotAuthorized as exc:
+        print(f"Không được phép merge: {exc}", file=sys.stderr)
+        return EXIT_ENV_ERROR
+    except (
+        GateError,
+        KbError,
+        KpiError,
+        LedgerError,
+        PackError,
+        GitError,
+        ToolExecutionError,
+    ) as exc:
+        print(f"Lỗi: {exc}", file=sys.stderr)
         return EXIT_ENV_ERROR
 
 

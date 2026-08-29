@@ -91,6 +91,16 @@ class GatePayload:
     #: Checklist sinh từ Knowledge Graph (AIS §5.4) — biến review từ đọc tự do
     #: thành đối chiếu có hệ thống.
     checklist: tuple[str, ...] = ()
+    #: Băm của VẬT THỂ NGOÀI mà quyết định neo vào — với G3 là băm diff của
+    #: nhánh, do ``GitRepo.diff_digest`` tính.
+    #:
+    #: Vì sao cần một trường riêng thay vì dùng luôn ``digest``: hai bên phải
+    #: so được với nhau. ``digest`` băm cả tiêu đề, tóm tắt và checklist — tức
+    #: băm những gì con người NHÌN THẤY; còn lúc merge thì thứ duy nhất tính
+    #: lại được là nội dung nhánh. Không có trường này, chuỗi "người duyệt X →
+    #: merge đúng X" bị đứt ở khớp nối, và mỗi bên chỉ tự chứng minh được nửa
+    #: của mình.
+    content_digest: str = ""
 
     def __post_init__(self) -> None:
         if self.gate_id not in GATE_ORDER:
@@ -100,7 +110,7 @@ class GatePayload:
 
     @property
     def digest(self) -> str:
-        """Băm nội dung được duyệt — neo quyết định vào đúng thứ đã xem."""
+        """Băm những gì con người nhìn thấy — neo quyết định vào đúng thứ đã xem."""
         noi_dung = json.dumps(
             {
                 "gate": self.gate_id,
@@ -108,6 +118,7 @@ class GatePayload:
                 "title": self.title,
                 "summary": list(self.summary),
                 "details": self.details,
+                "content_digest": self.content_digest,
             },
             ensure_ascii=False,
             sort_keys=True,
@@ -148,6 +159,7 @@ class GateRequest:
             "summary": list(self.payload.summary),
             "details": self.payload.details,
             "checklist": list(self.payload.checklist),
+            "content_digest": self.payload.content_digest,
             "digest": self.payload.digest,
             "requested_at": self.requested_at,
         }
@@ -162,6 +174,7 @@ class GateRequest:
                 summary=tuple(data.get("summary", ())),
                 details=data.get("details", ""),
                 checklist=tuple(data.get("checklist", ())),
+                content_digest=data.get("content_digest", ""),
             ),
             requested_at=data.get("requested_at", ""),
         )
@@ -181,6 +194,9 @@ class GateDecision:
     actor: str
     decided_at: str
     payload_digest: str
+    #: Băm vật thể ngoài mà quyết định neo vào (với G3: nội dung nhánh).
+    #: Đây là đầu nối để lúc merge kiểm được "đúng thứ đã duyệt".
+    content_digest: str = ""
     module: str = ""
     reason: str = ""
 
@@ -210,6 +226,7 @@ class GateDecision:
             "actor": self.actor,
             "decided_at": self.decided_at,
             "payload_digest": self.payload_digest,
+            "content_digest": self.content_digest,
             "module": self.module,
             "reason": self.reason,
         }
@@ -222,6 +239,7 @@ class GateDecision:
             actor=data.get("actor", "?"),
             decided_at=data.get("decided_at", ""),
             payload_digest=data.get("payload_digest", ""),
+            content_digest=data.get("content_digest", ""),
             module=data.get("module", ""),
             reason=data.get("reason", ""),
         )
@@ -315,6 +333,7 @@ class HumanGate:
             actor=actor,
             decided_at=_now(),
             payload_digest=digest,
+            content_digest=yeu_cau.payload.content_digest,
             module=yeu_cau.payload.module,
         )
         self._ghi_quyet_dinh(quyet_dinh)
@@ -331,6 +350,7 @@ class HumanGate:
             actor=actor,
             decided_at=_now(),
             payload_digest=yeu_cau.payload.digest,
+            content_digest=yeu_cau.payload.content_digest,
             module=yeu_cau.payload.module,
             reason=reason,
         )

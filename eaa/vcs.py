@@ -78,7 +78,11 @@ class MergeAuthorization:
     branch: str
     reports: tuple[ToolReport, ...]
     decision: GateDecision
-    payload_digest: str
+    #: Băm nội dung nhánh (``GitRepo.diff_digest``) tại lúc xin phép. Chuỗi
+    #: chứng minh chạy qua đây: con người duyệt một payload mang băm này →
+    #: giấy phép đòi quyết định mang đúng băm ấy → ``merge`` đòi nhánh HIỆN
+    #: TẠI vẫn băm ra đúng như vậy.
+    content_digest: str
     issued_at: str = field(default_factory=_now)
 
     def __post_init__(self) -> None:
@@ -108,11 +112,18 @@ class MergeAuthorization:
                 f"{self.module_id!r} — chưa có phê duyệt của người."
             )
 
-        if self.decision.payload_digest != self.payload_digest:
+        if not self.content_digest:
+            raise MergeNotAuthorized(
+                f"Giấy phép merge cho {self.module_id!r} không neo vào nội dung "
+                "nào. Một giấy phép không nói rõ nó cho phép merge CÁI GÌ thì "
+                "cho phép merge bất cứ thứ gì."
+            )
+
+        if self.decision.content_digest != self.content_digest:
             raise MergeNotAuthorized(
                 f"Nội dung được duyệt tại {MERGE_GATE} không phải nội dung sắp "
-                f"merge (đã duyệt {self.decision.payload_digest}, sắp merge "
-                f"{self.payload_digest}). Duyệt bản này rồi merge bản khác là "
+                f"merge (đã duyệt {self.decision.content_digest}, sắp merge "
+                f"{self.content_digest}). Duyệt bản này rồi merge bản khác là "
                 "đúng thứ bất biến này sinh ra để ngăn."
             )
 
@@ -134,7 +145,7 @@ def authorize_merge(
     branch: str,
     reports: Sequence[ToolReport],
     decision: GateDecision | None,
-    payload_digest: str,
+    content_digest: str,
 ) -> MergeAuthorization:
     """Dựng giấy phép merge; ném :class:`MergeNotAuthorized` nếu chưa đủ điều kiện.
 
@@ -151,7 +162,7 @@ def authorize_merge(
         branch=branch,
         reports=tuple(reports),
         decision=decision,
-        payload_digest=payload_digest,
+        content_digest=content_digest,
     )
 
 
@@ -315,14 +326,14 @@ class GitRepo:
             branch=authorization.branch,
             reports=authorization.reports,
             decision=authorization.decision,
-            payload_digest=authorization.payload_digest,
+            content_digest=authorization.content_digest,
         )
 
         hien_tai = self.diff_digest(authorization.branch)
-        if hien_tai != authorization.payload_digest:
+        if hien_tai != authorization.content_digest:
             raise MergeNotAuthorized(
                 f"Nhánh {authorization.branch} đã thay đổi kể từ khi được duyệt tại "
-                f"{MERGE_GATE} (đã duyệt {authorization.payload_digest}, hiện "
+                f"{MERGE_GATE} (đã duyệt {authorization.content_digest}, hiện "
                 f"{hien_tai}). Đưa bản mới qua gate lại."
             )
 

@@ -91,6 +91,58 @@ class ToolReport:
             f"{self.duration_s:.2f}s)"
         )
 
+    # -- tuần tự hóa -------------------------------------------------------
+    #
+    # Vòng lặp chuẩn dừng lại chờ người ở bước 10 và chỉ merge ở bước 11 — có
+    # thể là hôm sau, trong một tiến trình khác. Bằng chứng kiểm chứng vì thế
+    # phải sống sót qua ranh giới tiến trình, nếu không thì tới lúc merge chẳng
+    # còn gì để chứng minh "toàn bộ cổng đã đạt".
+    #
+    # Bằng chứng ấy vẫn không tự đứng một mình: nó chỉ có giá trị khi băm nội
+    # dung nhánh không đổi (xem eaa/vcs.py). Lưu lại báo cáo mà bỏ phép kiểm
+    # băm sẽ thành "đã từng đạt", một câu hoàn toàn khác với "đang đạt".
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "gate": self.gate,
+            "passed": self.passed,
+            "errors": [_loi_to_dict(e) for e in self.errors],
+            "warnings": [_loi_to_dict(e) for e in self.warnings],
+            "metrics": dict(self.metrics),
+            "duration_s": self.duration_s,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ToolReport":
+        return cls(
+            gate=data["gate"],
+            passed=bool(data["passed"]),
+            errors=[_loi_from_dict(e) for e in data.get("errors", [])],
+            warnings=[_loi_from_dict(e) for e in data.get("warnings", [])],
+            metrics=dict(data.get("metrics", {})),
+            duration_s=float(data.get("duration_s", 0.0)),
+        )
+
+
+def _loi_to_dict(loi: ToolError) -> dict[str, Any]:
+    return {
+        "message": loi.message,
+        "severity": loi.severity,
+        "file": loi.file,
+        "line": loi.line,
+        "rule_id": loi.rule_id,
+    }
+
+
+def _loi_from_dict(data: dict[str, Any]) -> ToolError:
+    return ToolError(
+        message=data.get("message", ""),
+        severity=data.get("severity", Severity.ERROR),
+        file=data.get("file"),
+        line=data.get("line"),
+        rule_id=data.get("rule_id"),
+    )
+
 
 @dataclass
 class CodeArtifact:

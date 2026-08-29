@@ -36,12 +36,23 @@ Pack, không sửa một dòng engine (NFR-05).
 ```bash
 python3.12 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-
-.venv/bin/eaa init      # UC01 — tạo Project State
-.venv/bin/eaa resume    # UC10 — khôi phục phiên; thoát 2 nếu đang chờ gate
-.venv/bin/eaa policy    # bảng phân quyền và máy trạng thái
-.venv/bin/eaa packs     # Platform Pack đã cài
 ```
+
+Một module đi trọn vòng lặp chuẩn:
+
+```bash
+eaa init                                  # UC01 — tạo Project State
+eaa plan add drv_i2c --uses twi,imu       # UC02 — kiểm xung đột ngay lúc khai báo
+eaa gate approve G1                       # chốt ràng buộc và kiến trúc
+eaa gate approve G2                       # duyệt trích đoạn tài liệu vào kho
+eaa gen drv_i2c                           # UC04 — 13 bước, dừng ở G3 (thoát 2)
+eaa gate show G3                          # xem diff + checklist sinh từ đồ thị
+eaa gate approve G3                       # UC05 — con người mở cổng → merge
+eaa report kpi                            # UC09 — số liệu cho Chương 3
+```
+
+Các lệnh tra cứu: `eaa resume` · `eaa status` · `eaa policy` · `eaa packs` ·
+`eaa plan list` · `eaa ledger list`.
 
 Mã thoát (để script hóa thực nghiệm A/B): `0` thành công · `2` chờ gate ·
 `3` quá số lần tự sửa · `4` lỗi môi trường.
@@ -62,7 +73,7 @@ Test được đặt tên theo mã test case trong `docs/md/EAA-STP-04` và
 |---|---|---|
 | **S0** | Khung xương: state bền, policy, interface pack, khung CLI | ✅ TC-03, TC-08, TC-38 xanh |
 | **S1** | Tri thức: 5 kho, graph, composer K1–K7, MockLLM | ✅ TC-04, TC-05, TC-10, TC-16, TC-18, TC-19, TC-21 xanh |
-| S2 | Vòng lặp chuẩn 13 bước: tools, orchestrator, gates, git, KPI | ⬜ |
+| **S2** | Vòng lặp chuẩn 13 bước: tools, orchestrator, gates, git, KPI | ✅ TC-01, TC-02, TC-06, TC-07, TC-09, TC-17 xanh |
 | S3 | Mô phỏng MIL/SIL, ingest, vòng đời tri thức, docs registry | ⬜ |
 | S4 | Mô hình thật, 2 module demo, chẩn đoán phần cứng | ⬜ |
 

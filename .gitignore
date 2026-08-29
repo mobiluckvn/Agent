@@ -33,3 +33,13 @@ deliverables/**/*.docx
 *.hex
 *.o
 *.map
+
+# Sản phẩm sinh ra khi chạy dự án mẫu. Dữ liệu dự án THẬT thì nên theo dõi bằng
+# Git (ADR-06) — nhưng robot_balance ở đây là template đi kèm sản phẩm, nên
+# trạng thái từ một lần chạy thử của ai đó không thuộc về kho mã.
+projects/*/project_state.json
+projects/*/kpi_log.csv
+projects/*/error_ledger.jsonl
+projects/*/gates/
+projects/*/firmware/
+projects/*/.eaa/
