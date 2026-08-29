@@ -22,15 +22,20 @@ smoke_dir: smoke
 tool_requirements:
   avr-gcc: ">=12.0"
   avr-size: ">=2.38"
+  avr-objcopy: ">=2.38"
   avrdude: ">=7.0"
   cppcheck: ">=2.10"
 
 capabilities:
 
   compile:
-    description: Biên dịch một module firmware thành ảnh ELF.
+    description: >-
+      Dịch MỘT tệp nguồn thành tệp đối tượng. Không liên kết: một module driver
+      không có main() và không cần có — liên kết là năng lực 'link' bên dưới,
+      chạy ở công đoạn ráp firmware chứ không ở vòng kiểm từng module.
     command:
       - avr-gcc
+      - -c
       - -mmcu={mcu}
       - -DF_CPU={clock_hz}UL
       - -Os
@@ -40,16 +45,49 @@ capabilities:
       - -Werror
       - -ffunction-sections
       - -fdata-sections
-      - -Wl,--gc-sections
       - -I{include_dir}
       - -o
       - "{output}"
-      - "{sources}"
+      - "{source}"
     timeout_s: 120
     parse:
       success_exit_codes: [0]
       error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+error:\\s+(?P<msg>.+)$"
       warning_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+warning:\\s+(?P<msg>.+)$"
+
+  link:
+    description: >-
+      Gộp các tệp đối tượng thành ảnh ELF chạy được. Đây là nơi main() trở nên
+      bắt buộc, và là nơi --gc-sections thật sự cắt được mã chết — cờ ấy vô
+      nghĩa ở bước dịch từng tệp.
+    command:
+      - avr-gcc
+      - -mmcu={mcu}
+      - -Os
+      - -Wl,--gc-sections
+      - -Wl,-Map={map}
+      - -o
+      - "{output}"
+      - "{objects}"
+    timeout_s: 120
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?:.*:\\s+)?(?P<msg>undefined reference to .+|.*\\bld:.*)$"
+
+  hex:
+    description: Đổi ảnh ELF sang Intel HEX — định dạng công cụ nạp đọc được.
+    command:
+      - avr-objcopy
+      - -O
+      - ihex
+      - -R
+      - .eeprom
+      - "{input}"
+      - "{output}"
+    timeout_s: 60
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^avr-objcopy:\\s+(?P<msg>.+)$"
 
   size:
     description: >-

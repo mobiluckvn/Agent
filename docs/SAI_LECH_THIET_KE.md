@@ -358,6 +358,34 @@ Ba loại:
 
 ---
 
+## SL-29 · LỆCH THẬT · Lệnh dịch của pack liên kết luôn, nên mọi module đều trượt
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §2 (Tool Layer), EAA-SRS-01 FR-VER-01 |
+| **Thiết kế nói** | Chuỗi kiểm chứng bắt đầu bằng biên dịch → đo kích thước; pack khai báo năng lực `compile` |
+| **Code trước đó làm** | `packs/avr/pack.yaml` khai `compile` với `-o {output}` mà không có `-c`, kèm cả cờ `-Wl,--gc-sections` — tức là một lệnh **dịch và liên kết** |
+| **Phát hiện khi chạy thật** | Liên kết đòi `main()`, mà một module driver không có và không cần có. Mọi module sinh ra sẽ trượt cổng đầu tiên với *undefined reference to main* — trượt vì một lý do chẳng liên quan gì tới chất lượng mã. Lỗi này không lộ suốt bốn sprint vì máy phát triển chưa cài `avr-gcc`: cổng "không đạt vì thiếu công cụ" che mất "không đạt vì lắp lệnh sai" |
+| **Code làm** | Tách thành ba năng lực: `compile` (`-c`, một tệp nguồn → một tệp đối tượng), `link` (các tệp đối tượng + `main()` → ảnh ELF), `hex` (ELF → định dạng nạp được). `CompileGate` dịch từng nguồn rồi gộp báo cáo; thêm `LinkGate`; `SizeGate` đo được nhiều tệp và cộng số liệu |
+| **Hệ quả cho cổng đo kích thước** | Ở tầm module nó đo chiếm dụng của chính module ấy, số của cả firmware chỉ có sau khi liên kết. Báo cáo ghi `size_scope` để người đọc thấy trần "Flash < 50%" đang áp lên cái gì |
+| **Kết quả quan sát được** | `avr-objcopy` là chương trình mới, và `eaa doctor --discover` phát hiện ra nó ngay mà không ai khai báo — đúng điều SL-27 dựng ra: đổi pack thì nhu cầu công cụ tự đổi theo |
+| **Cần cập nhật** | EAA-SDD-03 §2: Tool Layer có `LinkGate`; danh sách năng lực của pack thêm `link`, `hex` |
+| **Sprint** | S4 |
+
+---
+
+## SL-30 · LỆCH THẬT · Gộp báo cáo đánh rơi cờ lỗi môi trường
+
+| | |
+|---|---|
+| **Tài liệu** | SL-24 (lỗi cấu hình không đi vào vòng tự sửa) |
+| **Phát hiện khi chạy thật** | Ngay khi tách cổng dịch: cổng dịch giờ chạy nhiều lượt và gộp kết quả, mà bản gộp đầu tiên dựng `ToolReport` mới **không mang theo `metrics`**. Cờ `env_error` biến mất, Orchestrator tưởng là lỗi mã, và gửi mô hình vá ba lần một thứ mô hình không sửa được. TC-15 bắt được ngay trong lượt chạy đầu |
+| **Code làm** | `_gop_bao_cao` gộp `metrics`; riêng `env_error` và `config_error` được **HỢP** qua các lượt chứ không lấy theo lượt cuối — một lượt hỏng vì môi trường là cả cổng hỏng vì môi trường |
+| **Điều rút ra** | Bất biến SL-24 nằm trong một trường dữ liệu, nên bất kỳ chỗ nào dựng lại `ToolReport` đều có thể lặng lẽ phá nó. Đã thêm test đơn vị riêng cho phép gộp thay vì chỉ dựa vào test end-to-end |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

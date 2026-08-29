@@ -148,3 +148,38 @@ tools:
   error_regex: ^\[(?P<file>[^:]+):(?P<line>\d+)\]:\s+(?P<msg>.*)$
   approved_by: vu-tri-cong
   approved_at: '2026-08-29T09:01:50+00:00'
+- name: avr-objcopy
+  check:
+  - avr-objcopy
+  - --version
+  min_version: '2.38'
+  level: Must
+  gates:
+  - hex
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - binutils-avr
+    macos:
+    - brew
+    - install
+    - avr-gcc
+    windows:
+    - choco
+    - install
+    - avr-gcc
+    - -y
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:avr
+  note: Công cụ GNU objcopy cho kiến trúc AVR, dùng để sao chép và chuyển đổi các
+    tệp đối tượng (ví dụ từ ELF sang HEX). — Cần thiết để trích xuất mã máy từ tệp
+    ELF và tạo tệp định dạng Intel HEX để nạp vào bộ nhớ flash của vi điều khiển AVR.
+  smoke:
+  - avr-objcopy
+  - --help
+  smoke_expect: 'Usage: avr-objcopy'
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T09:57:55+00:00'

@@ -132,9 +132,9 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "Không vào log, commit, repr, thông báo lỗi hay băm prompt",
      "eaa/llm/base.py", "TC-14", DA, ""),
     ("D. Sinh mã", "Ráp firmware hoàn chỉnh (main + scheduler)",
-     "Hiện sinh được từng module rời, chưa ráp thành một chương trình chạy được",
-     "—", "—", CHUA,
-     "Cần mẫu main() + bộ định thời hợp tác, và một cổng kiểm 'ráp xong có build không'"),
+     "Chuỗi dịch → liên kết → ảnh nạp được đã có; còn thiếu chính main() và bộ định thời",
+     "eaa/tools/compile.py", "TC-40c", PHAN,
+     "Cần mẫu main() + bộ định thời hợp tác gọi các module đã merge (bước 2 của lộ trình)"),
 
     # -- E. Kiểm chứng & cổng ----------------------------------------------
     ("E. Kiểm chứng & cổng", "Bốn cổng công cụ",
@@ -267,11 +267,15 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
     ("J. Mạch thật & chẩn đoán", "Checklist an toàn trước kịch bản gây chuyển động",
      "Kịch bản làm mạch chuyển động đòi xác nhận đủ checklist",
      "eaa/diagnostics.py", "TC-27", DA, ""),
-    ("J. Mạch thật & chẩn đoán", "Biên dịch từng module rồi link riêng",
-     "Lệnh compile của pack hiện có -o nên luôn link, mà link thì đòi main()",
-     "packs/avr/pack.yaml", "—", PHAN,
-     "Sửa lệnh compile thành -c, thêm năng lực link riêng. ĐÂY LÀ MẮT XÍCH CHẶN "
-     "ĐẦU TIÊN: chưa có nó thì không có tệp .hex để nạp"),
+    ("J. Mạch thật & chẩn đoán", "Biên dịch từng module rồi liên kết riêng",
+     "compile dùng -c sinh tệp đối tượng; link và hex là hai năng lực riêng của pack",
+     "eaa/tools/compile.py, packs/avr/pack.yaml", "TC-40 (19 test)", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Ráp ảnh nạp được (.elf → .hex)",
+     "LinkGate gộp tệp đối tượng thành ELF rồi đổi sang định dạng nạp được",
+     "eaa/tools/compile.py", "TC-40c", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Đo kích thước nói rõ đang đo tầm nào",
+     "size_scope phân biệt chiếm dụng của một module lẻ với của cả firmware",
+     "eaa/tools/compile.py", "TC-40d", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Nạp firmware xuống mạch qua USB",
      "avrdude đã vào manifest và biết cách cài, nhưng chưa nối vào lệnh CLI nào",
      "eaa/diagnostics.py (trường flasher chưa ai gán)", "—", PHAN,
@@ -300,11 +304,11 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
 # --------------------------------------------------------------------------
 
 LO_TRINH: list[tuple[str, str, str, str, str]] = [
-    ("1", "Tách biên dịch và liên kết",
-     "Sửa năng lực compile của pack thành -c cho từng module; thêm năng lực link "
-     "gộp các .o + main() thành .elf; thêm năng lực hex đổi .elf sang .hex",
+    ("1 ✔", "Tách biên dịch và liên kết — XONG",
+     "compile dùng -c cho từng tệp nguồn; link gộp tệp đối tượng + main() thành "
+     ".elf; hex đổi sang định dạng nạp được. TC-40, 19 test",
      "Chưa có bước này thì KHÔNG CÓ TỆP ĐỂ NẠP — mọi bước sau vô nghĩa",
-     "packs/avr/pack.yaml, eaa/tools/compile.py"),
+     "packs/avr/pack.yaml, eaa/tools/compile.py, eaa/platform.py"),
     ("2", "Ráp firmware hoàn chỉnh",
      "Mẫu main() + bộ định thời hợp tác gọi lần lượt các module đã merge; "
      "một cổng kiểm 'ráp xong có build sạch không'",
@@ -448,12 +452,12 @@ def dung_bang(dich: Path) -> Path:
     ws.append(["Số liệu nền"])
     ws[f"A{ws.max_row}"].font = Font(bold=True, size=12, color="2F5597")
     for nhan, gia_tri in [
-        ("Test tự động đang xanh", "729"),
+        ("Test tự động đang xanh", "748"),
         ("Dòng mã engine (eaa/)", "14.792"),
         ("Lệnh CLI", "17"),
         ("Platform Pack", "1 (AVR 8-bit)"),
         ("Mô hình nền", "gemini-3.1-pro-preview (ghim phiên bản)"),
-        ("Sai lệch thiết kế đã ghi", "28 mục (SL-01..SL-28)"),
+        ("Sai lệch thiết kế đã ghi", "30 mục (SL-01..SL-30)"),
     ]:
         ws.append([nhan, gia_tri])
         ws[f"A{ws.max_row}"].font = DAM

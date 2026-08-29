@@ -30,6 +30,27 @@ capabilities:
       error_regex: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<msg>.+)$"
       warning_regex: "^(?P<file>[^:\\s]+):(?P<line>\\d+): warning: (?P<msg>.+)$"
 
+  link:
+    command:
+      - "{python}"
+      - "{pack_dir}/tools/fake_link.py"
+      - --output
+      - "{output}"
+      - --map
+      - "{map}"
+      - "{objects}"
+    timeout_s: 60
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^ld: (?P<msg>.+)$"
+
+  hex:
+    command: ["{python}", "{pack_dir}/tools/fake_hex.py", "{input}", "{output}"]
+    timeout_s: 30
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^objcopy: (?P<msg>.+)$"
+
   size:
     command: ["{python}", "{pack_dir}/tools/fake_size.py", "{binary}"]
     timeout_s: 30

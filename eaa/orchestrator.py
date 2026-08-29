@@ -514,20 +514,30 @@ class Orchestrator:
     def _chay_mot_cong(
         cong: Any, artifact: CodeArtifact, truoc_do: Sequence[ToolReport]
     ) -> ToolReport:
-        """Cổng đo kích thước cần ảnh nhị phân của cổng dịch — nối bằng metrics."""
+        """Cổng đo kích thước cần sản phẩm của cổng dịch — nối bằng metrics.
+
+        Ưu tiên danh sách ``objects``: cổng dịch sinh một tệp đối tượng cho mỗi
+        đơn vị dịch, và chiếm dụng của module là tổng của chúng. Khóa ``binary``
+        giữ lại cho pack nào chỉ sinh một ảnh duy nhất.
+        """
         if getattr(cong, "name", "") == "size":
-            nhi_phan = next(
-                (r.metrics.get("binary") for r in reversed(truoc_do) if r.metrics.get("binary")),
+            nguon_so = next(
+                (
+                    r.metrics
+                    for r in reversed(truoc_do)
+                    if r.metrics.get("objects") or r.metrics.get("binary")
+                ),
                 None,
             )
-            if not nhi_phan:
+            if nguon_so is None:
                 return ToolReport(
                     gate="size",
                     passed=False,
                     errors=[],
                     metrics={"skipped": "không có ảnh nhị phân từ cổng dịch"},
                 )
-            return cong.run(nhi_phan)
+            muc_tieu = nguon_so.get("objects") or nguon_so["binary"]
+            return cong.run(muc_tieu, scope=nguon_so.get("size_scope", "module"))
         return cong.run(artifact)
 
     def _va_loi(

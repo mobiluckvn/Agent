@@ -31,6 +31,7 @@ from eaa.tools.base import CodeArtifact, ToolReport
 __all__ = [
     "CAPABILITIES",
     "REQUIRED_CAPABILITIES",
+    "ASSEMBLY_CAPABILITIES",
     "CONFIRM_REQUIRED_CAPABILITIES",
     "ParseSpec",
     "ToolInvocation",
@@ -44,17 +45,37 @@ __all__ = [
 
 #: Năng lực một Platform Pack có thể khai báo.
 #:
-#: * ``compile`` — dịch mã nguồn thành ảnh nhị phân.
+#: * ``compile`` — dịch MỘT tệp nguồn thành tệp đối tượng. Không liên kết.
+#: * ``link``    — gộp các tệp đối tượng thành ảnh chạy được.
+#: * ``hex``     — đổi ảnh liên kết sang định dạng công cụ nạp đọc được.
 #: * ``size``    — đo chiếm dụng bộ nhớ chương trình và bộ nhớ dữ liệu.
 #: * ``static``  — phân tích tĩnh theo bộ quy tắc của nền tảng.
 #: * ``flash``   — nạp ảnh nhị phân xuống thiết bị.
 #: * ``sim``     — cầu nối sang bộ mô phỏng để chạy cổng SIL.
-CAPABILITIES: tuple[str, ...] = ("compile", "size", "static", "flash", "sim")
+#:
+#: ``compile`` và ``link`` tách rời có chủ ý. Vòng lặp chuẩn kiểm từng module,
+#: mà một module driver không có ``main()``; pack nào để lệnh dịch liên kết
+#: luôn thì mọi module đều trượt vì *undefined reference to main* — trượt vì
+#: một lý do chẳng liên quan gì tới chất lượng mã. Xem eaa/tools/compile.py.
+CAPABILITIES: tuple[str, ...] = (
+    "compile",
+    "link",
+    "hex",
+    "size",
+    "static",
+    "flash",
+    "sim",
+)
 
 #: Không có ba năng lực này thì chuỗi kiểm chứng bắt buộc (FR-VER-01) đứt
-#: đoạn, nên pack không dùng được. ``flash`` và ``sim`` là tùy chọn: một pack
+#: đoạn, nên pack không dùng được. Các năng lực còn lại là tùy chọn: một pack
 #: có thể chưa hỗ trợ nạp, hoặc dự án chưa có mô hình mô phỏng.
 REQUIRED_CAPABILITIES: tuple[str, ...] = ("compile", "size", "static")
+
+#: Năng lực cần để ráp firmware hoàn chỉnh từ các module đã merge. Không bắt
+#: buộc để chạy vòng kiểm module, nhưng thiếu chúng thì không có tệp nào đem
+#: đi nạp được — nên ``eaa doctor`` nêu tên chúng thay vì để người tự đoán.
+ASSEMBLY_CAPABILITIES: tuple[str, ...] = ("link", "hex")
 
 #: Năng lực chạm vào thiết bị thật hoặc vào máy của kỹ sư — LUÔN phải khai báo
 #: cần người xác nhận (FR-DIA-02, AIS §7.3). Engine từ chối nạp một pack lách
