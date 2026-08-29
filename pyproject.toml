@@ -22,6 +22,8 @@ dependencies = [
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
+    # Chỉ dùng cho scripts/lam_bang_tinh_nang.py — engine không import openpyxl.
+    "openpyxl>=3.1",
 ]
 
 [project.scripts]
