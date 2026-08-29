@@ -1,0 +1,52 @@
+/* Bộ khung firmware chẩn đoán của pack giả lập — SINH TỰ ĐỘNG.
+ *
+ * Cùng hợp đồng với khuôn của pack thật (diag_run + eaa_emit), nhưng viết bằng
+ * C chuẩn không phụ thuộc nền tảng, để bài kiểm đưa được cho bộ dịch của chính
+ * máy chạy test.
+ */
+
+#include <stdio.h>
+#include <stdint.h>
+
+{checksum_define}
+
+#define EAA_SCENARIO "{scenario_id}"
+
+void diag_run(void);
+
+static uint8_t eaa_checksum(const char *s)
+{
+#if defined(EAA_CHECKSUM_XOR8)
+    uint8_t giatri = 0u;
+    while (*s != '\0') {
+        giatri ^= (uint8_t)*s++;
+    }
+    return giatri;
+#elif defined(EAA_CHECKSUM_SUM8)
+    uint8_t giatri = 0u;
+    while (*s != '\0') {
+        giatri = (uint8_t)(giatri + (uint8_t)*s++);
+    }
+    return giatri;
+#else
+    (void)s;
+    return 0u;
+#endif
+}
+
+void eaa_emit(const char *json)
+{
+#if defined(EAA_CHECKSUM_XOR8) || defined(EAA_CHECKSUM_SUM8)
+    printf("%s%s%02X\n", json, "{separator}", eaa_checksum(json));
+#else
+    printf("%s\n", json);
+#endif
+}
+
+int main(void)
+{
+    eaa_emit("{\"scenario\": \"" EAA_SCENARIO "\"}");
+    diag_run();
+    eaa_emit("{\"done\": true}");
+    return 0;
+}

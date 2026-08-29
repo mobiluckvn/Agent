@@ -29,6 +29,15 @@ firmware:
   init_line: '    {init}();'
   task_line: '    { {step}, {period_ms} },'
 
+# Bộ khung firmware chẩn đoán. Phần ĐO của từng kịch bản nằm ở tầng dự án
+# (diagnostics.yaml → firmware_template); khuôn này chỉ lo phần chung: bật
+# UART, đóng gói khung telemetry, gọi diag_run(). Hai tệp được LIÊN KẾT với
+# nhau chứ không dán chuỗi, nên bộ dịch kiểm được cả hai.
+diagnostics:
+  template: templates/diagnostic.c.tmpl
+  output: diag_{scenario}.c
+  image_name: diag_{scenario}
+
 # Phiên bản tối thiểu; eaa doctor đối chiếu và ghi vào env_lock.json (FR-ENV-01/04).
 tool_requirements:
   avr-gcc: ">=12.0"

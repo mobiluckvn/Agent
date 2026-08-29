@@ -31,6 +31,7 @@ không chạy định kỳ thì khai ``step: null`` — nói ra thì được, i
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -45,6 +46,7 @@ __all__ = [
     "ScheduledModule",
     "AssemblyPlan",
     "FirmwareAssembler",
+    "DiagnosticFirmwareBuilder",
     "ASSEMBLY_FILE",
 ]
 
@@ -391,3 +393,172 @@ class FirmwareAssembler:
             errors=[ToolError(thong_diep, severity=Severity.ERROR)],
             metrics={"config_error": True},
         )
+
+
+# --------------------------------------------------------------------------
+# Firmware chẩn đoán — AIS §7, lấp trường firmware_template của Scenario
+# --------------------------------------------------------------------------
+
+
+@dataclass
+class DiagnosticFirmwareBuilder:
+    """Dựng firmware đo cho một kịch bản chẩn đoán.
+
+    Ghép hai tệp bằng cách LIÊN KẾT chúng, không dán chuỗi: bộ khung của pack
+    (bật UART, đóng gói khung telemetry, gọi ``diag_run()``) và phần đo của dự
+    án (``firmware_template`` trong ``diagnostics.yaml``). Cả hai đều là mã C
+    thật nên bộ dịch kiểm được cả hai — thứ mà một bản chắp chuỗi không cho.
+
+    Kịch bản chưa khai phần đo thì DỪNG, không dựng một firmware rỗng: một ảnh
+    nạp được mà không đo gì sẽ chạy, sẽ im lặng, và sẽ bị đọc thành "mạch hỏng".
+    """
+
+    runner: Any
+    #: Nơi tìm tệp phần đo mà kịch bản trỏ tới.
+    project_dir: Path
+    build_dir: str = "build"
+    name: str = "diag-build"
+
+    def run(self, scenario: Any, frame_spec: Any = None) -> ToolReport:
+        pack = self.runner.manifest
+        khuon = getattr(pack, "diagnostics", None)
+        if khuon is None:
+            return self._loi_cau_hinh(
+                f"Pack {pack.name!r} không khai báo mục 'diagnostics' — không có "
+                "bộ khung firmware đo thì engine không tự viết ra được."
+            )
+        if not Path(khuon.template).is_file():
+            return self._loi_cau_hinh(f"Không tìm thấy bộ khung: {khuon.template}")
+
+        if not getattr(scenario, "firmware_template", ""):
+            return self._loi_cau_hinh(
+                f"Kịch bản {scenario.id} chưa khai 'firmware_template' trong "
+                "diagnostics.yaml, nên không có phần đo để dựng.\n"
+                "Engine KHÔNG dựng một firmware rỗng thay vào: một ảnh nạp được "
+                "mà không đo gì sẽ chạy, sẽ im lặng, và sự im lặng ấy sẽ bị đọc "
+                "thành 'mạch hỏng'."
+            )
+
+        phan_do = self.project_dir / scenario.firmware_template
+        if not phan_do.is_file():
+            return self._loi_cau_hinh(
+                f"Kịch bản {scenario.id} trỏ tới phần đo {phan_do} nhưng tệp không có."
+            )
+
+        goc = Path(self.runner.work_dir)
+        thu_muc_build = goc / self.build_dir
+        thu_muc_build.mkdir(parents=True, exist_ok=True)
+
+        bo_khung = self._sinh_bo_khung(khuon, scenario, frame_spec, thu_muc_build)
+
+        from eaa.tools.compile import _gop_bao_cao
+
+        bao_cao_dich: list[ToolReport] = []
+        doi_tuong: list[Path] = []
+        for tep in (bo_khung, phan_do):
+            dich = thu_muc_build / f"{tep.stem}.o"
+            r = self.runner.run(
+                "compile",
+                {
+                    "source": self._tuong_doi(tep, goc),
+                    "sources": [self._tuong_doi(tep, goc)],
+                    "output": self._tuong_doi(dich, goc),
+                    "include_dir": self._tuong_doi(phan_do.parent, goc),
+                },
+                gate_name=self.name,
+            )
+            bao_cao_dich.append(r)
+            if r.passed:
+                doi_tuong.append(dich)
+
+        gop = _gop_bao_cao(self.name, bao_cao_dich)
+        if not gop.passed:
+            gop.metrics["stage"] = "compile"
+            return gop
+
+        ten_anh = khuon.image_name.replace("{scenario}", _an_toan(scenario.id))
+        lien_ket = LinkGate(
+            self.runner, build_dir=self.build_dir, image_name=ten_anh
+        ).run(doi_tuong)
+        lien_ket.gate = self.name
+        if not lien_ket.passed:
+            lien_ket.metrics["stage"] = "link"
+            return lien_ket
+
+        lien_ket.metrics["scenario"] = scenario.id
+        lien_ket.metrics["motion"] = bool(getattr(scenario, "motion", False))
+        lien_ket.metrics["source"] = str(bo_khung)
+        if lien_ket.metrics.get("image"):
+            self._ghi_the_kem(Path(lien_ket.metrics["image"]), scenario)
+        return lien_ket
+
+    # -- sinh mã ------------------------------------------------------------
+
+    def _sinh_bo_khung(
+        self, khuon: Any, scenario: Any, frame_spec: Any, thu_muc_build: Path
+    ) -> Path:
+        van_ban = Path(khuon.template).read_text(encoding="utf-8")
+
+        # Tên phép kiểm tổng do dự án khai; engine chỉ đổi nó thành một macro
+        # theo quy tắc máy móc, không biết phép ấy tính ra sao trên chip.
+        ten_kiem = getattr(frame_spec, "checksum", "none") or "none"
+        dinh_nghia = (
+            f"#define EAA_CHECKSUM_{ten_kiem.upper()} 1" if ten_kiem != "none" else ""
+        )
+
+        thay_the = {
+            "{scenario_id}": scenario.id,
+            "{checksum_define}": dinh_nghia,
+            "{separator}": getattr(frame_spec, "separator", "*") or "*",
+            "{baud}": str(getattr(frame_spec, "baud", 115200)),
+        }
+        for cho_giu, gia_tri in thay_the.items():
+            van_ban = van_ban.replace(cho_giu, gia_tri)
+
+        ten = khuon.output.replace("{scenario}", _an_toan(scenario.id))
+        dich = thu_muc_build / ten
+        dich.write_text(van_ban, encoding="utf-8")
+        return dich
+
+    @staticmethod
+    def _ghi_the_kem(image: Path, scenario: Any) -> Path:
+        """Thẻ đi kèm ảnh: kịch bản nào, có chuyển động không, checklist gì.
+
+        ``eaa flash`` đọc thẻ này để đưa cảnh báo an toàn vào đúng lúc người
+        sắp bấm đồng ý. Không có nó, một ảnh chẩn đoán làm robot chuyển động
+        trông y hệt một ảnh đo tĩnh.
+        """
+        the = image.with_suffix(image.suffix + ".meta.json")
+        the.write_text(
+            json.dumps(
+                {
+                    "scenario": scenario.id,
+                    "title": getattr(scenario, "title", ""),
+                    "motion": bool(getattr(scenario, "motion", False)),
+                    "safety_checklist": list(getattr(scenario, "safety_checklist", ())),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return the
+
+    @staticmethod
+    def _tuong_doi(duong_dan: Path, goc: Path) -> str:
+        p = Path(duong_dan)
+        return str(p.relative_to(goc)) if p.is_absolute() and p.is_relative_to(goc) else str(p)
+
+    def _loi_cau_hinh(self, thong_diep: str) -> ToolReport:
+        return ToolReport(
+            gate=self.name,
+            passed=False,
+            errors=[ToolError(thong_diep, severity=Severity.ERROR)],
+            metrics={"config_error": True},
+        )
+
+
+def _an_toan(ma: str) -> str:
+    """Mã kịch bản thành phần tên tệp dùng được — chỉ giữ chữ, số, gạch."""
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in ma)

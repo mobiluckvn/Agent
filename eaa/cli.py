@@ -1649,6 +1649,7 @@ def cmd_flash(args: argparse.Namespace) -> int:
             actor=nguoi,
             params=tham_so,
             programmer=str(tham_so.get("programmer", "")),
+            extra_notes=_canh_bao_an_toan_cua_anh(anh),
         )
     except FlashError as exc:
         raise CliError(str(exc), EXIT_WAITING_GATE) from exc
@@ -1717,6 +1718,30 @@ def cmd_telemetry(args: argparse.Namespace) -> int:
     if not ban_thu.frames:
         return EXIT_ENV_ERROR
     return EXIT_OK if ban_thu.trustworthy else EXIT_REPAIR_LIMIT
+
+
+def _canh_bao_an_toan_cua_anh(image: Path) -> list[str]:
+    """Đọc thẻ đi kèm ảnh chẩn đoán, nếu có.
+
+    Một ảnh chẩn đoán làm robot chuyển động trông y hệt một ảnh đo tĩnh. Thẻ
+    này đưa checklist an toàn ra đúng lúc người sắp bấm đồng ý, chứ không phải
+    lúc dựng ảnh — giữa hai thời điểm ấy có thể là vài ngày.
+    """
+    import json as _json
+
+    the = Path(str(image) + ".meta.json")
+    if not the.is_file():
+        return []
+    try:
+        du_lieu = _json.loads(the.read_text(encoding="utf-8"))
+    except _json.JSONDecodeError:
+        return []
+
+    dong = [f"    kịch bản: {du_lieu.get('scenario', '?')} — {du_lieu.get('title', '')}"]
+    if du_lieu.get("motion"):
+        dong.append("    ⚠ ẢNH NÀY LÀM THIẾT BỊ CHUYỂN ĐỘNG. Checklist an toàn:")
+        dong += [f"        [ ] {m}" for m in du_lieu.get("safety_checklist", [])]
+    return dong
 
 
 def cmd_rollback(args: argparse.Namespace) -> int:
@@ -1876,6 +1901,40 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
                 print("      ⚠ Có chuyển động. Checklist an toàn bắt buộc:")
                 for muc in s.safety_checklist:
                     print(f"        [ ] {muc}")
+        return EXIT_OK
+
+    if args.diagnose_action == "build":
+        from eaa.firmware import DiagnosticFirmwareBuilder
+        from eaa.telemetry import load_frame_spec
+
+        ctx = build_context(project)
+        kich_ban = thu_vien.get(args.scenario)
+
+        _in_tieu_de(f"Dựng firmware chẩn đoán — {kich_ban.id}")
+        print(f"  {kich_ban.title}")
+        if kich_ban.motion:
+            print("\n  ⚠ Kịch bản này làm THIẾT BỊ CHUYỂN ĐỘNG. Checklist an toàn:")
+            for muc in kich_ban.safety_checklist:
+                print(f"      [ ] {muc}")
+
+        bao_cao = DiagnosticFirmwareBuilder(
+            runner=ctx.runner, project_dir=project
+        ).run(kich_ban, load_frame_spec(project / "diagnostics.yaml"))
+
+        print()
+        if not bao_cao.passed:
+            for loi in bao_cao.errors[:10]:
+                print(f"  {loi.message}")
+            thieu_moi_truong = bao_cao.metrics.get("config_error") or bao_cao.metrics.get("env_error")
+            return EXIT_ENV_ERROR if thieu_moi_truong else EXIT_REPAIR_LIMIT
+
+        print(f"  Bộ khung   : {bao_cao.metrics['source']}")
+        print(f"  Ảnh nạp được: {bao_cao.metrics.get('image', bao_cao.metrics['binary'])}")
+        print(
+            f"\nNạp nó: eaa flash --image {bao_cao.metrics.get('image', '')}\n"
+            "Thu số đo rồi kết luận: eaa diagnose run "
+            f"{kich_ban.id} --port <cổng>"
+        )
         return EXIT_OK
 
     if args.diagnose_action == "run":
@@ -2307,6 +2366,11 @@ def build_parser() -> argparse.ArgumentParser:
     dg_sub.add_parser("list", help="Liệt kê kịch bản chẩn đoán của dự án")
     ds = dg_sub.add_parser("select", help="Chọn kịch bản từ mô tả triệu chứng")
     ds.add_argument("symptom")
+    db = dg_sub.add_parser(
+        "build", help="Dựng firmware đo của một kịch bản (AIS §7)"
+    )
+    db.add_argument("scenario")
+
     dr = dg_sub.add_parser("run", help="Chạy một kịch bản và kết luận")
     dr.add_argument("scenario")
     dr.add_argument(

@@ -27,6 +27,11 @@ firmware:
   init_line: '    {init}();'
   task_line: '    { {step}, {period_ms} },'
 
+diagnostics:
+  template: templates/diagnostic.c.tmpl
+  output: diag_{scenario}.c
+  image_name: diag_{scenario}
+
 capabilities:
 
   compile:

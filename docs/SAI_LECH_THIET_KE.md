@@ -452,6 +452,24 @@ Ba loại:
 
 ---
 
+## SL-35 · BỔ SUNG · Sinh firmware chẩn đoán — lấp trường `firmware_template`
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7.2, FR-DIA-01 |
+| **Thiết kế nói** | Mỗi kịch bản chẩn đoán có `firmware_template` — mẫu firmware đo dùng để sinh |
+| **Chỗ trống** | Trường ấy được khai trong lược đồ `Scenario` và được nạp từ YAML từ Sprint 4, nhưng **chưa nơi nào dùng**. Kịch bản chẩn đoán vì thế chỉ chạy được nếu người tự viết lấy firmware đo |
+| **Code làm** | `DiagnosticFirmwareBuilder` trong `eaa/firmware.py`; `DiagnosticTemplates` trong `eaa/platform.py`; bộ khung `packs/avr/templates/diagnostic.c.tmpl`; phần đo `projects/robot_balance/diagnostics/DS-01.c` và `DS-04.c`; lệnh `eaa diagnose build` |
+| **Ba tầng** | **Pack** giữ bộ khung (bật UART, đóng gói khung telemetry, gọi `diag_run()`). **Dự án** giữ phần đo của từng kịch bản — nó biết bus nào, địa chỉ nào, thanh ghi nào. **Engine** ghép hai tệp bằng cách LIÊN KẾT, không dán chuỗi: cả hai đều là mã C thật nên bộ dịch kiểm được cả hai |
+| **Bất biến** | Kịch bản chưa khai phần đo thì DỪNG, không dựng một firmware rỗng. Một ảnh nạp được mà không đo gì sẽ chạy, sẽ im lặng, và sự im lặng ấy không phân biệt được với "mạch hỏng" — sinh bừa một ảnh để lệnh có vẻ thành công là cách nhanh nhất biến công cụ chẩn đoán thành nguồn kết luận sai |
+| **An toàn** | Ảnh chẩn đoán đi kèm một thẻ `.meta.json` ghi kịch bản, cờ `motion` và checklist an toàn. `eaa flash` đọc thẻ và đưa checklist ra **đúng lúc người sắp bấm đồng ý** — giữa lúc dựng ảnh và lúc nạp có thể là vài ngày, và một ảnh làm robot chuyển động trông y hệt một ảnh đo tĩnh |
+| **Vòng khép kín được kiểm bằng bộ dịch thật** | TC-44 dịch bộ khung + phần đo bằng `cc`, chạy nó, rồi cho chính `eaa/telemetry.py` bóc đầu ra. Bộ sinh mã và bộ đọc do hai tệp khác nhau giữ, nên chỉ chạy thật mới biết checksum bên này tính có khớp bên kia kiểm |
+| **Phạm vi đã làm** | 2/6 kịch bản có phần đo (DS-01 quét bus, DS-04 tự kiểm kênh telemetry). Bốn kịch bản còn lại vẫn báo rõ "chưa khai phần đo" thay vì im lặng |
+| **Cần cập nhật** | EAA-SDD-03: `DiagnosticFirmwareBuilder`, mục `diagnostics` của pack, thư mục `projects/*/diagnostics/`, lệnh `eaa diagnose build` |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

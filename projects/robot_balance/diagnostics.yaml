@@ -39,6 +39,10 @@ scenarios:
       nó đều vô nghĩa.
     motion: false
     symptoms: [không phản ứng, không đọc được cảm biến, treo, i2c]
+    # Phần ĐO của kịch bản này. Bộ khung (bật UART, đóng gói khung) do Platform
+    # Pack cấp; tệp dưới đây biết bus nào, địa chỉ nào — thứ engine không được
+    # biết. Hai tệp được LIÊN KẾT với nhau khi chạy 'eaa diagnose build DS-01'.
+    firmware_template: diagnostics/DS-01.c
     machine:
       - key: i2c_addresses
         description: Địa chỉ MPU6050 trả lời trên bus
@@ -113,6 +117,7 @@ scenarios:
     description: Vòng lặp lại và đo tốc độ khung thực tế.
     motion: false
     symptoms: [không nhận được log, telemetry, uart, mất kết nối]
+    firmware_template: diagnostics/DS-04.c
     machine:
       - key: loopback_ok
         description: Vòng lặp lại thành công

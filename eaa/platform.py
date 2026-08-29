@@ -37,6 +37,7 @@ __all__ = [
     "ToolInvocation",
     "StaticRule",
     "FirmwareTemplates",
+    "DiagnosticTemplates",
     "PackManifest",
     "PlatformPack",
     "PackError",
@@ -255,6 +256,43 @@ class FirmwareTemplates:
 
 
 @dataclass(frozen=True)
+class DiagnosticTemplates:
+    """Bộ khung firmware chẩn đoán do nền tảng cấp.
+
+    Chia việc y như khuôn firmware sản phẩm, nhưng chia làm ba chứ không hai:
+
+    * **Pack** giữ bộ khung — bật UART, đóng gói khung telemetry, gọi phần đo.
+    * **Dự án** giữ phần đo của từng kịch bản (``firmware_template`` trong
+      ``diagnostics.yaml``): quét bus nào, đọc thanh ghi nào, tính chỉ số gì.
+    * **Engine** ghép hai tệp lại bằng cách LIÊN KẾT chúng, không dán chuỗi.
+
+    Điểm cuối là chỗ đáng chú ý: cả khung lẫn phần đo đều là mã C thật, nên bộ
+    dịch kiểm được cả hai và không ai phải chắp mã C bằng Python.
+    """
+
+    template: Path
+    #: Tên tệp sinh ra; ``{scenario}`` được thay bằng mã kịch bản.
+    output: str = "diag_{scenario}.c"
+    #: Tên ảnh; cũng nhận ``{scenario}``.
+    image_name: str = "diag_{scenario}"
+
+    @classmethod
+    def from_dict(cls, du_lieu: Any, root: Path, path: Path) -> "DiagnosticTemplates":
+        if not isinstance(du_lieu, dict):
+            raise PackError(f"{path}: 'diagnostics' phải là ánh xạ khóa–giá trị")
+        khuon = du_lieu.get("template")
+        if not khuon:
+            raise PackError(
+                f"{path}: 'diagnostics' phải nêu 'template' — bộ khung firmware đo"
+            )
+        return cls(
+            template=root / str(khuon),
+            output=str(du_lieu.get("output", "diag_{scenario}.c")),
+            image_name=str(du_lieu.get("image_name", "diag_{scenario}")),
+        )
+
+
+@dataclass(frozen=True)
 class PackManifest:
     """Nội dung ``pack.yaml`` đã được kiểm tra lược đồ."""
 
@@ -272,6 +310,8 @@ class PackManifest:
     tool_requirements: dict[str, str] = field(default_factory=dict)
     #: Khuôn ráp firmware — xem :class:`FirmwareTemplates`.
     firmware: "FirmwareTemplates | None" = None
+    #: Bộ khung firmware chẩn đoán — xem :class:`DiagnosticTemplates`.
+    diagnostics: "DiagnosticTemplates | None" = None
 
     def has(self, capability: str) -> bool:
         return capability in self.capabilities
@@ -353,6 +393,11 @@ def load_manifest(path: str | Path) -> PackManifest:
         firmware=(
             FirmwareTemplates.from_dict(du_lieu["firmware"], root, path)
             if du_lieu.get("firmware")
+            else None
+        ),
+        diagnostics=(
+            DiagnosticTemplates.from_dict(du_lieu["diagnostics"], root, path)
+            if du_lieu.get("diagnostics")
             else None
         ),
         tool_requirements={

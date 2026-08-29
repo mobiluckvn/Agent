@@ -1,0 +1,114 @@
+/* Bộ khung firmware chẩn đoán — SINH TỰ ĐỘNG bởi `eaa diagnose build`.
+ *
+ * Khuôn này lo phần chung của MỌI kịch bản: bật UART, đóng gói khung telemetry
+ * đúng định dạng dự án khai, và gọi phần đo. Phần đo nằm ở tệp riêng của từng
+ * kịch bản (`firmware_template` trong diagnostics.yaml) và được LIÊN KẾT vào
+ * chứ không dán chuỗi vào đây — nhờ vậy cả hai đều là mã C thật, bộ dịch kiểm
+ * được cả hai, và không ai phải chắp văn bản C bằng Python.
+ *
+ * Hợp đồng với phần đo, đúng một hàm:
+ *
+ *     void diag_run(void);
+ *
+ * Phần đo gọi eaa_emit() bao nhiêu lần tùy nó. Khuôn không biết kịch bản đo
+ * gì — nó chỉ biết cách đưa một chuỗi JSON ra khỏi con chip.
+ */
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <avr/io.h>
+#include <util/setbaud.h>
+
+{checksum_define}
+
+#define EAA_SCENARIO "{scenario_id}"
+
+void diag_run(void);
+
+static void eaa_uart_init(void)
+{
+    UBRR0H = UBRRH_VALUE;
+    UBRR0L = UBRRL_VALUE;
+#if USE_2X
+    UCSR0A |= (1 << U2X0);
+#else
+    UCSR0A &= (uint8_t)~(1 << U2X0);
+#endif
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+    UCSR0B = (1 << TXEN0) | (1 << RXEN0);
+}
+
+static void eaa_putc(char c)
+{
+    /* Chờ có chỗ trong bộ đệm phát. Đây là vòng chờ CÓ ĐIỀU KIỆN THOÁT do phần
+     * cứng bảo đảm, và firmware chẩn đoán không chạy vòng điều khiển nào — nên
+     * nó không rơi vào điều cấm blocking_io của firmware sản phẩm. */
+    while (!(UCSR0A & (1 << UDRE0))) {
+    }
+    UDR0 = (uint8_t)c;
+}
+
+static void eaa_puts(const char *s)
+{
+    while (*s != '\0') {
+        eaa_putc(*s++);
+    }
+}
+
+static uint8_t eaa_checksum(const char *s)
+{
+#if defined(EAA_CHECKSUM_XOR8)
+    uint8_t giatri = 0u;
+    while (*s != '\0') {
+        giatri ^= (uint8_t)*s++;
+    }
+    return giatri;
+#elif defined(EAA_CHECKSUM_SUM8)
+    uint8_t giatri = 0u;
+    while (*s != '\0') {
+        giatri = (uint8_t)(giatri + (uint8_t)*s++);
+    }
+    return giatri;
+#else
+    (void)s;
+    return 0u;
+#endif
+}
+
+static void eaa_put_hex2(uint8_t gia_tri)
+{
+    static const char bang[] = "0123456789ABCDEF";
+    eaa_putc(bang[(gia_tri >> 4) & 0x0Fu]);
+    eaa_putc(bang[gia_tri & 0x0Fu]);
+}
+
+/* Gửi một khung telemetry. Chuỗi truyền vào phải là JSON hợp lệ; khuôn chỉ
+ * gắn thêm checksum và ký tự xuống dòng. */
+void eaa_emit(const char *json)
+{
+    eaa_puts(json);
+#if defined(EAA_CHECKSUM_XOR8) || defined(EAA_CHECKSUM_SUM8)
+    eaa_puts("{separator}");
+    eaa_put_hex2(eaa_checksum(json));
+#endif
+    eaa_puts("\r\n");
+}
+
+int main(void)
+{
+    eaa_uart_init();
+
+    /* Khung đầu tiên nói rõ đây là firmware chẩn đoán của kịch bản nào. Nếu
+     * người nạp nhầm bản, dòng này lộ ra ngay chứ không để cả phiên đo trôi
+     * qua rồi mới phát hiện số liệu thuộc về kịch bản khác. */
+    eaa_emit("{\"scenario\": \"" EAA_SCENARIO "\"}");
+
+    diag_run();
+
+    eaa_emit("{\"done\": true}");
+
+    for (;;) {
+    }
+
+    return 0;
+}

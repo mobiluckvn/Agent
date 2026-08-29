@@ -311,9 +311,16 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "Bản thô cạnh bản đã lọc; phân tích lại không cần mạch",
      "eaa telemetry --replay", "TC-43d", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Sinh firmware chẩn đoán từ mẫu",
-     "diagnostics.yaml đã có trường firmware_template nhưng chưa nơi nào dùng",
-     "eaa/diagnostics.py:156", "—", CHUA,
-     "Mỗi kịch bản DS-xx cần một firmware nhỏ tự in số đo ra UART"),
+     "Bộ khung ở pack + phần đo ở dự án, ghép bằng liên kết; eaa diagnose build",
+     "eaa/firmware.py", "TC-44 (18 test)", PHAN,
+     "2/6 kịch bản đã có phần đo (DS-01, DS-04); bốn kịch bản còn lại báo rõ "
+     "'chưa khai phần đo' thay vì im lặng"),
+    ("J. Mạch thật & chẩn đoán", "Không dựng firmware chẩn đoán rỗng",
+     "Kịch bản chưa khai phần đo thì dừng — ảnh im lặng không phân biệt được với mạch hỏng",
+     "eaa/firmware.py", "TC-44b", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Checklist an toàn theo ảnh tới lúc nạp",
+     "Thẻ .meta.json đi kèm ảnh; eaa flash đưa checklist ra đúng lúc người bấm đồng ý",
+     "eaa/firmware.py + eaa/cli.py", "TC-44d", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Chốt vòng: số đo thật → G4 → phong hạng",
      "Đường ống đã có ở hai đầu (diagnose, tune, versions) nhưng chưa nối liền",
      "eaa tune", "TC-30", PHAN,
@@ -355,10 +362,11 @@ LO_TRINH: list[tuple[str, str, str, str, str]] = [
      "không tin được. TC-43",
      "Kênh máy của chẩn đoán hai kênh chuyển từ 'đọc tệp' sang 'đọc mạch'",
      "eaa/telemetry.py, eaa/cli.py"),
-    ("6", "Sinh firmware chẩn đoán",
-     "Dùng firmware_template của từng kịch bản DS-xx để sinh firmware nhỏ tự in số đo",
+    ("6 ✔", "Sinh firmware chẩn đoán — XONG (2/6 kịch bản)",
+     "eaa diagnose build: bộ khung của pack + phần đo của dự án, ghép bằng liên "
+     "kết. Ảnh mang thẻ an toàn tới tận lúc nạp. TC-44",
      "Mỗi kịch bản chẩn đoán tự chạy được thay vì cần người viết mã đo",
-     "eaa/diagnostics.py"),
+     "eaa/firmware.py, packs/avr/templates/, projects/*/diagnostics/"),
     ("7", "Khép vòng số đo → G4",
      "Số đo từ UART chảy thẳng vào eaa tune; G4 duyệt thì phong hạng hw-verified",
      "Vòng đời ba hạng chất lượng khép kín, không còn nhập tay",
@@ -479,12 +487,12 @@ def dung_bang(dich: Path) -> Path:
     ws.append(["Số liệu nền"])
     ws[f"A{ws.max_row}"].font = Font(bold=True, size=12, color="2F5597")
     for nhan, gia_tri in [
-        ("Test tự động đang xanh", "827"),
+        ("Test tự động đang xanh", "845"),
         ("Dòng mã engine (eaa/)", "14.792"),
         ("Lệnh CLI", "21"),
         ("Platform Pack", "1 (AVR 8-bit)"),
         ("Mô hình nền", "gemini-3.1-pro-preview (ghim phiên bản)"),
-        ("Sai lệch thiết kế đã ghi", "34 mục (SL-01..SL-34)"),
+        ("Sai lệch thiết kế đã ghi", "35 mục (SL-01..SL-35)"),
     ]:
         ws.append([nhan, gia_tri])
         ws[f"A{ws.max_row}"].font = DAM

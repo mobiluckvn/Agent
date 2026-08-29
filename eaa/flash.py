@@ -229,6 +229,7 @@ class Flasher:
         actor: str,
         params: dict[str, Any] | None = None,
         programmer: str = "",
+        extra_notes: Sequence[str] = (),
     ) -> FlashRecord:
         kiem = self.preflight(image)
         if not kiem.ok:
@@ -250,6 +251,8 @@ class Flasher:
             f"    cổng   : {port}\n"
             f"    người  : {actor}"
         )
+        if extra_notes:
+            tom_tat += "\n" + "\n".join(extra_notes)
         if not self._hoi(tom_tat):
             raise FlashNotConfirmed(
                 "Chưa có xác nhận của người nên KHÔNG nạp (FR-DIA-02).\n"
