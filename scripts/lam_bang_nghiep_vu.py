@@ -594,6 +594,96 @@ NGHIEP_VU: list[tuple[str, str, str, str, str, str, str, str, str]] = [
 ]
 
 
+
+# --------------------------------------------------------------------------
+# Đối chiếu với mã hiện có — thêm sau khi bảng nghiệp vụ đã được review
+# --------------------------------------------------------------------------
+#
+# Cột đáng chú ý nhất KHÔNG phải "đã làm hay chưa" mà là khoảng cách giữa mức
+# tự chủ ĐỀ XUẤT và mức tự chủ ĐẠT ĐƯỢC. Rất nhiều việc "đã có" nhưng đang
+# chạy ở mức thấp hơn hẳn thiết kế: cơ chế thì đủ, phần chủ động thì thiếu.
+
+# (mã, trạng thái, bằng chứng, còn thiếu, tự chủ đạt)
+DU, PHAN, CHUA, COY = "Đủ", "Một phần", "Chưa có", "Cố ý không làm"
+
+DOI_CHIEU = [
+ ("N-001", CHUA, "—", "Không có lệnh nào tiếp nhận yêu cầu. Người tự viết constraints.yaml.", "T0"),
+ ("N-002", PHAN, "eaa/serialport.py + eaa ports · TC-42a", "Chưa đọc ổ mass-storage của mạch nạp; chưa có danh mục bo để tra VID/PID.", "T4"),
+ ("N-003", CHUA, "—", "Chỉ so với VID/PID mà DỰ ÁN tự khai. Không có danh mục bo, không đề xuất ứng viên, không hỏi.", "T0"),
+ ("N-004", PHAN, "eaa/ingest.py (PdfIngestor, check_web_source) · TC-22", "Không liệt kê đích danh tài liệu cần; không hỏi rev silicon; không hỏi errata.", "T1"),
+ ("N-005", PHAN, "eaa/ingest.py AssumptionLog · TC-22", "Có kho giả định, nhưng danh mục ban đầu do người viết tay (hồ sơ DISCO là tôi gõ).", "T0"),
+ ("N-006", CHUA, "—", "Không có bước chốt phạm vi và cái không làm.", "T0"),
+ ("N-010", PHAN, "eaa/kb.py Constraints + G1 · TC-04", "Đọc/kiểm/duyệt được, nhưng Agent KHÔNG đề xuất bộ ràng buộc — người viết trước.", "T0"),
+ ("N-011", PHAN, "eaa/acceptance.py · TC-45", "Đối chiếu tiêu chí thì đủ; Agent không đề xuất tiêu chí và không ép 'phải đo được'.", "T0"),
+ ("N-012", DU, "eaa/options.py + eaa decide · TC-46", "", "T1"),
+ ("N-013", DU, "eaa/graph.py check_module · TC-18", "", "T3"),
+ ("N-014", PHAN, "hardware_profile.yaml → graph · TC-18", "Đọc được pin_map; không trích từ schematic, không đề xuất, không kiểm chân có hỗ trợ chức năng cần.", "T0"),
+ ("N-015", PHAN, "constraints.limits + SizeGate · TC-40d", "Kiểm được TỔNG; không chia ngân sách theo module, không cảnh báo module ăn quá phần.", "T3"),
+ ("N-016", CHUA, "—", "Không có phân tích hỏng hóc–hệ quả.", "T0"),
+ ("N-017", CHUA, "—", "Không có định nghĩa chế độ an toàn. (safety_checklist chỉ dành cho kịch bản chẩn đoán, khác việc này.)", "T0"),
+ ("N-020", DU, "eaa/doctor.py + toolsearch.derive_requirements · TC-34, TC-39", "", "T4"),
+ ("N-021", DU, "eaa/toolsearch.py · TC-39", "", "T1"),
+ ("N-022", DU, "eaa doctor --fix · TC-34, TC-37", "", "T2"),
+ ("N-023", DU, "eaa/doctor.py EnvLock · TC-36", "", "T3"),
+ ("N-024", DU, "eaa/vcs.py · TC-01", "", "T3"),
+ ("N-030", PHAN, "eaa datasheet ingest · TC-22", "Người chọn trang (đúng thiết kế), nhưng Agent không nêu ĐÍCH DANH trang cần trích.", "T0"),
+ ("N-031", DU, "eaa/ingest.py → G2 · TC-22", "", "T2"),
+ ("N-032", DU, "eaa/graph.py · TC-18", "", "T4"),
+ ("N-033", DU, "eaa/readiness.py conflict + chuẩn hóa số · TC-26", "", "T1"),
+ ("N-034", DU, "eaa/readiness.py · TC-24", "", "T3"),
+ ("N-035", PHAN, "eaa/gapsearch.py (WIP, chưa nối CLI, chưa test)", "Hiện hành: chỉ IN GỢI Ý ba bậc rồi dừng. search_rounds không ai tăng. Chưa đi tìm thật.", "T0"),
+ ("N-036", DU, "eaa/lifecycle.py (3 đường truy ngược) · TC-29", "", "T3"),
+ ("N-037", CHUA, "—", "Không hỏi rev silicon, không tra errata, không đối chiếu với ngoại vi đang dùng.", "T0"),
+ ("N-040", CHUA, "eaa plan add (thủ công)", "Agent không đề xuất phân rã. Người tự liệt kê module.", "T0"),
+ ("N-041", PHAN, "eaa/composer.py lớp K3", "Đọc được tệp tiêu đề module đã merge; KHÔNG sinh interface trước khi sinh thân.", "T0"),
+ ("N-042", PHAN, "state.BacklogItem.depends_on · TC-18", "Dùng để nạp interface và kiểm xung đột; không sắp thứ tự topo, không tự chọn module kế tiếp.", "T0"),
+ ("N-043", PHAN, "projects/*/firmware.yaml · TC-41a", "Kiểm được chu kỳ hợp lệ; Agent không đề xuất chu kỳ, không ước lượng tải CPU, không cảnh báo quá tải.", "T0"),
+ ("N-050", DU, "eaa/composer.py + orchestrator · TC-04, TC-17", "", "T2"),
+ ("N-051", DU, "eaa/tools/compile.py CompileGate · TC-40", "", "T4"),
+ ("N-052", DU, "eaa/tools/static.py · TC-07", "", "T4"),
+ ("N-053", PHAN, "eaa/tools/unittests.py · TC-07", "Chạy được; không nêu rõ phần nào KHÔNG kiểm được trên máy chủ.", "T4"),
+ ("N-054", DU, "eaa/tools/compile.py SizeGate + size_scope · TC-40d", "", "T4"),
+ ("N-055", DU, "eaa/orchestrator.py · TC-06, TC-19", "", "T3"),
+ ("N-056", DU, "eaa/gates.py + vcs.py content_digest · TC-01", "", "T2"),
+ ("N-057", DU, "eaa/ledger.py · TC-10", "", "T3"),
+ ("N-060", PHAN, "projects/robot_balance/sim/", "Dự án mẫu có mô hình con lắc; Agent không đề xuất mô hình cho đối tượng mới.", "T0"),
+ ("N-061", DU, "eaa/tools/sim.py, sim_runner.py · TC-12", "", "T4"),
+ ("N-062", DU, "eaa sim --sweep · TC-12", "", "T1"),
+ ("N-063", CHUA, "—", "Không tiêm lỗi trong mô phỏng.", "T0"),
+ ("N-064", COY, "—", "Cố ý để ngoài chuỗi tự động: nối vào mà không thật sự chạy artifact thì cổng sẽ 'đạt' mà chẳng kiểm gì.", "T0"),
+ ("N-070", DU, "eaa/firmware.py + eaa build · TC-41", "", "T2"),
+ ("N-071", PHAN, "SizeGate scope=firmware · TC-41e", "Đo được flash/RAM ở tầm firmware; KHÔNG kiểm khoảng trống ngăn xếp còn lại.", "T4"),
+ ("N-072", DU, "eaa/flash.py preflight · TC-42b", "", "T2"),
+ ("N-073", DU, "eaa/serialport.py match_confirmed · TC-47d", "", "T3"),
+ ("N-074", DU, "eaa/flash.py + FlashLog · TC-42d", "", "T2"),
+ ("N-075", CHUA, "—", "Không đọc ngược/so kiểm tổng sau khi nạp. 'Nạp không báo lỗi' đang bị ngầm hiểu là 'nạp đúng'.", "T0"),
+ ("N-080", DU, "eaa/telemetry.py + eaa telemetry · TC-43", "", "T3"),
+ ("N-081", PHAN, "eaa/firmware.py DiagnosticFirmwareBuilder · TC-44", "Cơ chế đủ; mới 2/6 kịch bản có phần đo (DS-01, DS-04).", "T2"),
+ ("N-082", DU, "eaa/diagnostics.py · TC-27", "", "T1"),
+ ("N-083", PHAN, "acceptance loop_period_ms + telemetry", "Có kênh và có tiêu chí; CHƯA có firmware đo dao động chu kỳ và tải CPU, chưa báo trường hợp xấu nhất.", "T0"),
+ ("N-084", CHUA, "diagnostics.yaml DS-05 (mới khai, chưa có phần đo)", "Không có hướng dẫn đo đích danh, không có chỗ nhập số đo tay.", "T0"),
+ ("N-085", CHUA, "—", "Ngoài phạm vi đề án (đã ghi từ trước).", "T0"),
+ ("N-086", PHAN, "acceptance uptime_s ≥ 600 · TC-45", "Có tiêu chí; không có cơ chế chạy dài, không phát hiện reset qua bộ đếm thời gian chạy.", "T0"),
+ ("N-090", DU, "eaa/acceptance.py · TC-45", "", "T2"),
+ ("N-091", DU, "eaa/versions.py + check_device_commit · TC-30, TC-45a", "", "T2"),
+ ("N-092", DU, "eaa/versions.py + eaa rollback · TC-30", "", "T3"),
+ ("N-093", DU, "eaa/kpi.py + llm/calllog.py + registry.py · TC-09, TC-15", "", "T3"),
+ ("N-094", PHAN, "eaa/registry.py (kho phẩm xuất) · TC-32", "Lưu/gửi lại phẩm xuất được; KHÔNG sinh tài liệu vận hành từ dữ liệu dự án.", "T0"),
+ ("N-100", DU, "eaa/lifecycle.py · TC-29", "", "T1"),
+ ("N-101", CHUA, "—", "Không so sánh linh kiện thay thế.", "T0"),
+ ("N-102", PHAN, "eaa diagnose select + hai kênh · TC-27", "Chọn kịch bản từ triệu chứng được; không dựng lại điều kiện sự cố, không xử lý ca không tái hiện.", "T1"),
+ ("N-103", CHUA, "—", "Không có cập nhật firmware cho thiết bị đã triển khai.", "T0"),
+ ("N-900", DU, "TC-38 (quét mỗi commit) + TC-47a (không rẽ nhánh theo pack)", "", "T4"),
+ ("N-901", DU, "eaa/llm/base.py mask_secrets · TC-14 + tests/conftest.py", "", "T4"),
+ ("N-902", DU, "eaa/gates.py, doctor, flash — không cờ bỏ qua · TC-01, TC-42c", "", "T2"),
+ ("N-903", PHAN, "serialport.match_confirmed, telemetry.bad_ratio, AssumptionLog", "Có ở vài chỗ; CHƯA nhất quán toàn hệ — nhiều đầu ra không nói mức tin cậy.", "T3"),
+ ("N-904", PHAN, "eaa/kpi.py (tokens_in/out) · TC-09", "Ghi được token; không có trần theo module, không quy ra chi phí, không cảnh báo.", "T3"),
+ ("N-905", PHAN, "docs/SAI_LECH_THIET_KE.md (40 mục)", "Nhật ký đầy đủ, nhưng do TÔI ghi tay — Agent không tự phát hiện và không tự ghi.", "T0"),
+ ("N-906", PHAN, "eaa report + kpi.summary · TC-09", "Tổng hợp được chỉ số; không chỉ ra khâu hay hỏng, không đề xuất sửa prompt/quy tắc.", "T0"),
+ ("N-907", DU, "eaa/state.py ghi nguyên tử + eaa resume · TC-03", "", "T4"),
+]
+
+
 # --------------------------------------------------------------------------
 # Câu hỏi Agent phải biết hỏi — danh mục khai thác yêu cầu
 # --------------------------------------------------------------------------
@@ -632,6 +722,12 @@ CAU_HOI: list[tuple[str, str, str, str]] = [
 # Kiểu dáng
 # --------------------------------------------------------------------------
 
+MAU_TRANG_THAI = {
+    "Đủ": "C6EFCE", "Một phần": "FFEB9C", "Chưa có": "FFC7CE", "Cố ý không làm": "D9E1F2"
+}
+MAU_CHU_TT = {
+    "Đủ": "006100", "Một phần": "9C5700", "Chưa có": "9C0006", "Cố ý không làm": "1F4E79"
+}
 MAU_TU_CHU = {"T0": "F4B183", "T1": "FFE699", "T2": "C6E0B4", "T3": "BDD7EE", "T4": "D9D9D9"}
 NEN_TIEU_DE = PatternFill("solid", fgColor="2F5597")
 TRANG_DAM = Font(bold=True, color="FFFFFF")
@@ -771,6 +867,68 @@ def dung_bang(dich: Path) -> Path:
         for o in hang:
             o.border = VIEN
             o.alignment = Alignment(vertical="center", wrap_text=True)
+
+    # ---- Sheet 5: Đối chiếu với mã hiện có ----
+    tra = {r[0]: r for r in DOI_CHIEU}
+    ws5 = wb.create_sheet("Đối chiếu")
+    _tieu_de(
+        ws5,
+        ["Mã", "Giai đoạn", "Nghiệp vụ", "Trạng thái", "Tự chủ\nĐỀ XUẤT",
+         "Tự chủ\nĐẠT", "Khoảng\ncách", "Bằng chứng trong mã", "Còn thiếu gì"],
+        [8, 26, 34, 14, 10, 9, 9, 52, 66],
+    )
+    bac = {"T0": 0, "T1": 1, "T2": 2, "T3": 3, "T4": 4}
+    for nv in NGHIEP_VU:
+        d = tra[nv[0]]
+        khoang = bac[nv[6]] - bac[d[4]]
+        ws5.append([nv[0], nv[1], nv[2], d[1], nv[6], d[4],
+                    f"−{khoang}" if khoang > 0 else "—", d[2], d[3]])
+    for hang in ws5.iter_rows(min_row=2):
+        for o in hang:
+            o.alignment = TREN_TRAI
+            o.border = VIEN
+        hang[0].font = Font(bold=True)
+        tt = hang[3]
+        if tt.value in MAU_TRANG_THAI:
+            tt.fill = PatternFill("solid", fgColor=MAU_TRANG_THAI[tt.value])
+            tt.font = Font(bold=True, color=MAU_CHU_TT[tt.value])
+            tt.alignment = Alignment(vertical="center", horizontal="center", wrap_text=True)
+        for i in (4, 5):
+            o = hang[i]
+            if o.value in MAU_TU_CHU:
+                o.fill = PatternFill("solid", fgColor=MAU_TU_CHU[o.value])
+                o.alignment = Alignment(vertical="center", horizontal="center")
+        kc = hang[6]
+        kc.alignment = Alignment(vertical="center", horizontal="center")
+        if kc.value != "—":
+            kc.font = Font(bold=True, color="9C0006")
+    ws5.auto_filter.ref = f"A1:I{ws5.max_row}"
+
+    # ---- Thống kê: thêm phần đối chiếu ----
+    ws4.append([])
+    ws4.append(["Đối chiếu với mã hiện có"])
+    ws4[f"A{ws4.max_row}"].font = Font(bold=True, size=12, color="2F5597")
+    ws4.append(["Giai đoạn", "Việc", "Đủ", "Một phần", "Chưa có", "Cố ý không", "Có khoảng cách tự chủ"])
+    for o in ws4[ws4.max_row]:
+        o.font = TRANG_DAM
+        o.fill = NEN_TIEU_DE
+        o.border = VIEN
+    for gd in thu_tu:
+        hang = [r for r in NGHIEP_VU if r[1] == gd]
+        d = [tra[r[0]] for r in hang]
+        lech = sum(1 for r in hang if bac[r[6]] > bac[tra[r[0]][4]])
+        ws4.append([gd, len(hang)] + [sum(1 for x in d if x[1] == t) for t in
+                    ("Đủ", "Một phần", "Chưa có", "Cố ý không làm")] + [lech])
+    tat_ca = [tra[r[0]] for r in NGHIEP_VU]
+    lech_tong = sum(1 for r in NGHIEP_VU if bac[r[6]] > bac[tra[r[0]][4]])
+    ws4.append(["TỔNG", len(NGHIEP_VU)] + [sum(1 for x in tat_ca if x[1] == t) for t in
+                ("Đủ", "Một phần", "Chưa có", "Cố ý không làm")] + [lech_tong])
+    for o in ws4[ws4.max_row]:
+        o.font = Font(bold=True)
+        o.fill = PatternFill("solid", fgColor="EDEDED")
+    for hang in ws4.iter_rows(min_row=2):
+        for o in hang:
+            o.border = VIEN
 
     dich.parent.mkdir(parents=True, exist_ok=True)
     wb.save(dich)
