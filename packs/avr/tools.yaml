@@ -1,0 +1,47 @@
+# Tool Manifest — phần theo Platform Pack AVR (AIS §9.1).
+#
+# Chỉ được quét khi dự án dùng pack này. Pack STM32 sau đây mang toolchain
+# riêng của nó, và engine không phải biết gì thêm.
+
+scope: "pack:avr"
+
+tools:
+
+  - name: avr-gcc
+    check: ["avr-gcc", "--version"]
+    min_version: "12.0"
+    level: Must
+    gates: [compile]
+    install:
+      macos: ["brew", "install", "osx-cross/avr/avr-gcc"]
+      linux: ["sudo", "apt-get", "install", "-y", "gcc-avr", "avr-libc"]
+      windows: ["winget", "install", "-e", "--id", "ZakKemble.avr-gcc"]
+    smoke: ["avr-gcc", "--version"]
+    smoke_expect: "avr-gcc"
+    error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+: error: (?P<msg>.+)$"
+
+  - name: avr-size
+    check: ["avr-size", "--version"]
+    min_version: "2.38"
+    level: Must
+    gates: [size]
+    install:
+      macos: ["brew", "install", "osx-cross/avr/avr-binutils"]
+      linux: ["sudo", "apt-get", "install", "-y", "binutils-avr"]
+    smoke: ["avr-size", "--version"]
+    smoke_expect: "GNU size"
+
+  - name: avrdude
+    check: ["avrdude", "-?"]
+    min_version: "7.0"
+    level: Must
+    gates: [flash]
+    install:
+      macos: ["brew", "install", "avrdude"]
+      linux: ["sudo", "apt-get", "install", "-y", "avrdude"]
+      windows: ["winget", "install", "-e", "--id", "avrdudes.AVRDUDE"]
+    smoke: ["avrdude", "-?"]
+    smoke_expect: "avrdude"
+    note: >-
+      Nạp firmware. Năng lực này LUÔN cần người xác nhận trước khi chạy
+      (FR-DIA-02) — xem khai báo requires_confirmation trong pack.yaml.

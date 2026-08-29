@@ -1,0 +1,57 @@
+# Tool Manifest — phần CHUNG thuộc engine (AIS §9.1).
+#
+# Manifest là DỮ LIỆU, không phải mã cứng. Nó tuân vòng đời tri thức của AIS §8
+# như mọi kho khác: thêm một công cụ mới phải qua gate, và lịch sử thay đổi nằm
+# trong Git.
+#
+# Phần theo Platform Pack nằm ở packs/<tên>/tools.yaml — cài pack nào thì
+# doctor quét thêm phần của pack đó.
+
+scope: engine
+
+tools:
+
+  - name: python
+    # {python} là trình thông dịch ĐANG CHẠY engine — chính cái mà cổng
+    # kiểm thử đơn vị và bộ chạy mô phỏng sẽ dùng. Kiểm "python3" trong
+    # PATH là kiểm nhầm thứ khác.
+    check: ["{python}", "--version"]
+    min_version: "3.10"
+    level: Must
+    gates: [unittests, sim]
+    install:
+      macos: ["brew", "install", "python@3.12"]
+      linux: ["sudo", "apt-get", "install", "-y", "python3"]
+      windows: ["winget", "install", "-e", "--id", "Python.Python.3.12"]
+    smoke: ["{python}", "-c", "print('eaa-smoke-ok')"]
+    smoke_expect: "eaa-smoke-ok"
+    note: Trình thông dịch chạy chính engine và cổng kiểm thử đơn vị.
+
+  - name: git
+    check: ["git", "--version"]
+    min_version: "2.30"
+    level: Must
+    gates: [commit, merge]
+    install:
+      macos: ["brew", "install", "git"]
+      linux: ["sudo", "apt-get", "install", "-y", "git"]
+      windows: ["winget", "install", "-e", "--id", "Git.Git"]
+    smoke: ["git", "--version"]
+    smoke_expect: "git version"
+    note: >-
+      Nguồn sự thật duy nhất về phiên bản mã (AIS §8.4). Thiếu Git thì không có
+      nhánh, không có commit truy vết, và bất biến merge mất chỗ đứng.
+
+  - name: cppcheck
+    check: ["cppcheck", "--version"]
+    min_version: "2.10"
+    level: Must
+    gates: [static]
+    install:
+      macos: ["brew", "install", "cppcheck"]
+      linux: ["sudo", "apt-get", "install", "-y", "cppcheck"]
+      windows: ["winget", "install", "-e", "--id", "Cppcheck.Cppcheck"]
+    smoke: ["cppcheck", "--version"]
+    smoke_expect: "Cppcheck"
+    error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+: (?:error|warning): (?P<msg>.+)$"
+    note: Phân tích tĩnh — mắt xích thứ ba của chuỗi kiểm chứng FR-VER-01.

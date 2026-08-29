@@ -908,6 +908,226 @@ def _doc_dai_quet(mo_ta: str, project: Path) -> dict[str, list[float]]:
 
 
 # --------------------------------------------------------------------------
+# AIS §9 — môi trường công cụ
+# --------------------------------------------------------------------------
+
+
+def _tao_doctor(project: Path) -> Any:
+    from eaa.doctor import Doctor, EnvLock, ToolManifest
+
+    rang_buoc = _nap_kho(Constraints.load, project / CONSTRAINTS_FILE)
+    goc = repo_root()
+    manifest = ToolManifest.load(
+        goc / "tools.yaml",
+        goc / "packs" / rang_buoc.platform / "tools.yaml",
+        pack=rang_buoc.platform,
+    )
+    return Doctor(
+        manifest=manifest,
+        tools_kb=project / "tools_kb",
+        env_lock=EnvLock(project / "env_lock.json"),
+        confirm=_hoi_xac_nhan_cai,
+    )
+
+
+def _hoi_xac_nhan_cai(ten: str, lenh: str) -> bool:
+    """Hỏi người trước mỗi lệnh cài. Không có terminal thì KHÔNG đồng ý.
+
+    Cùng nguyên tắc với Human Gate: một phiên không có người không được diễn
+    giải thành một người đã đồng ý (FR-ENV-02, §9.4).
+    """
+    if not sys.stdin.isatty():
+        return False
+    print(f"\n  Sắp chạy để cài {ten}:\n    {lenh}")
+    return input("  Đồng ý chạy lệnh này? [y/N]: ").strip().lower() in ("y", "yes", "c", "có")
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from eaa.doctor import DoctorError, InstallNotConfirmed, ToolStatus
+
+    project = resolve_project(args.project)
+    doctor = _tao_doctor(project)
+
+    bao_cao = doctor.scan()
+    _in_tieu_de("Môi trường công cụ")
+    print(doctor.render_scan(bao_cao))
+
+    # Trôi phiên bản so với bản khóa — FR-ENV-04.
+    lech = doctor.check_drift(bao_cao)
+    if lech:
+        _in_tieu_de("Cảnh báo trôi môi trường")
+        for ten, (cu, moi) in sorted(lech.items()):
+            print(f"  {ten}: khóa ghi {cu}, hiện tại {moi}")
+        print(
+            "\nToolchain trôi phiên bản phá hỏng so sánh A/B y như mô hình trôi "
+            "phiên bản.\nChấp nhận và cập nhật khóa: eaa doctor --accept-drift"
+        )
+
+    if args.accept_drift:
+        khoa = doctor.lock(bao_cao)
+        print(f"\nĐã cập nhật env_lock.json — env_hash mới: {khoa['env_hash']}")
+        _ghi_env_hash_vao_state(project, khoa["env_hash"])
+        return EXIT_OK
+
+    chan = [r for r in bao_cao if r.blocking]
+
+    if args.fix:
+        _in_tieu_de("Chuẩn bị công cụ")
+        if not chan:
+            print("  Không có gì phải cài.")
+        else:
+            try:
+                for dong in doctor.fix(bao_cao):
+                    print(f"  {dong}")
+            except InstallNotConfirmed as exc:
+                raise CliError(str(exc), EXIT_WAITING_GATE) from exc
+            except DoctorError as exc:
+                raise CliError(str(exc)) from exc
+        bao_cao = doctor.scan()
+        chan = [r for r in bao_cao if r.blocking]
+
+    if not chan:
+        khoa = doctor.lock(bao_cao)
+        print(f"\nenv_hash: {khoa['env_hash']}")
+        _ghi_env_hash_vao_state(project, khoa["env_hash"])
+        # Ghi Thẻ công cụ cho những công cụ đã sẵn sàng (AIS §9.5).
+        da_ghi = []
+        for r in bao_cao:
+            if r.status == ToolStatus.OK:
+                try:
+                    da_ghi.append(doctor.write_tool_card(r).name)
+                except DoctorError:
+                    pass
+        if da_ghi:
+            print(f"Thẻ công cụ đã cập nhật: {', '.join(da_ghi)}")
+        return EXIT_OK
+
+    return EXIT_ENV_ERROR
+
+
+def _ghi_env_hash_vao_state(project: Path, env_hash: str) -> None:
+    """Gắn env_hash vào Project State để mọi dòng chỉ số mang theo nó."""
+    store = StateStore(project / STATE_FILE)
+    if not store.exists():
+        return
+    with store.with_lock():
+        state = store.load()
+        if state.env_hash != env_hash:
+            state.env_hash = env_hash
+            store.save(state)
+
+
+# --------------------------------------------------------------------------
+# AIS §8.5 — kho phẩm xuất
+# --------------------------------------------------------------------------
+
+
+def cmd_docs(args: argparse.Namespace) -> int:
+    from eaa.registry import (
+        ArtifactNotFound,
+        ArtifactRegistry,
+        RegistryError,
+        RequestKind,
+        interpret_request,
+    )
+
+    project = resolve_project(args.project)
+    kho = ArtifactRegistry(project / "deliverables")
+
+    if args.docs_action == "list":
+        _in_tieu_de("Kho phẩm xuất")
+        print(kho.render_list(kho.find(kind=args.type) if args.type else None))
+        return EXIT_OK
+
+    try:
+        if args.docs_action == "get":
+            return _docs_get(kho, args)
+        if args.docs_action == "regen":
+            return _docs_regen(kho, project, args)
+    except (ArtifactNotFound, RegistryError) as exc:
+        raise CliError(str(exc)) from exc
+
+    raise CliError(f"Hành động không hợp lệ: {args.docs_action!r}")
+
+
+def _docs_get(kho: Any, args: argparse.Namespace) -> int:
+    """UC "gửi lại" — trả ĐÚNG bản đã phát hành (AIS §8.5, TC-32)."""
+    from eaa.registry import RequestKind, interpret_request
+
+    # Nếu người dùng gõ cả một câu, kiểm xem ý họ có rõ không (FR-DOC-02).
+    if " " in args.what:
+        y_dinh = interpret_request(args.what)
+        if y_dinh == RequestKind.REGEN:
+            raise CliError(
+                "Cách nói của bạn nghiêng về LÀM MỚI (tái sinh từ dữ liệu hiện "
+                "hành), nhưng 'docs get' là GỬI LẠI bản đã phát hành. "
+                "Dùng 'eaa docs regen' nếu muốn bản mới."
+            )
+        if y_dinh == RequestKind.AMBIGUOUS:
+            raise CliError(
+                "Chưa rõ bạn muốn GỬI LẠI bản đã phát hành hay LÀM MỚI từ dữ liệu "
+                "hiện hành — hai thứ này khác số liệu.\n"
+                "  Gửi lại : eaa docs get <id>\n"
+                "  Làm mới : eaa docs regen <family>\n"
+                "Hỏi lại thay vì đoán, để không ai cầm bản làm mới mà tưởng là "
+                "bản đã nộp (FR-DOC-02).",
+                EXIT_WAITING_GATE,
+            )
+
+    ung_vien = [a for a in kho.all() if a.id == args.what] or kho.find(
+        args.what, kind=args.type or None, on_date=args.date or ""
+    )
+    if not ung_vien:
+        raise CliError(f"Không tìm thấy phẩm xuất khớp {args.what!r}.")
+    if len(ung_vien) > 1 and not args.what.count("@v"):
+        _in_tieu_de(f"Có {len(ung_vien)} bản khớp — chọn một mã cụ thể")
+        print(kho.render_list(ung_vien))
+        return EXIT_WAITING_GATE
+
+    duong_dan = kho.resend(ung_vien[0].id, fmt=args.format or "")
+    print(f"{ung_vien[0].id} → {duong_dan}")
+    print(f"  băm bản phát hành: {ung_vien[0].content_hash}")
+    return EXIT_OK
+
+
+def _docs_regen(kho: Any, project: Path, args: argparse.Namespace) -> int:
+    """UC "làm mới" — tái sinh từ dữ liệu hiện hành (AIS §8.5, TC-33)."""
+    from eaa.kpi import KpiLogger
+
+    if args.family != "bao_cao_kpi":
+        raise CliError(
+            f"Chưa biết cách tái sinh {args.family!r}. Hiện chỉ có 'bao_cao_kpi'; "
+            "tài liệu là hàm của dữ liệu, nên mỗi loại cần một hàm sinh riêng."
+        )
+
+    kpi = KpiLogger(project / "kpi_log.csv")
+    if not kpi.rows():
+        raise CliError(f"Chưa có số liệu nào trong {kpi.path}.")
+
+    def sinh() -> tuple[str, dict[str, Any]]:
+        noi_dung = kpi.path.read_text(encoding="utf-8")
+        state = StateStore(project / STATE_FILE)
+        lineage: dict[str, Any] = {"rows": len(kpi.rows())}
+        if state.exists():
+            s = state.load()
+            lineage.update(
+                constraints_version=s.constraints_version, env_hash=s.env_hash
+            )
+        return noi_dung, lineage
+
+    moi = kho.regen(
+        args.family, sinh, kind="csv", title="Báo cáo chỉ số dự án"
+    )
+    print(f"Đã tái sinh {moi.id} (phiên bản {moi.version}) từ dữ liệu hiện hành.")
+    if moi.supersedes:
+        print(
+            f"  Thay thế {moi.supersedes} — bản cũ vẫn tra được nguyên vẹn bằng "
+            f"'eaa docs get {moi.supersedes}'."
+        )
+    return EXIT_OK
+
+
+# --------------------------------------------------------------------------
 # UC08, UC09 — nhật ký lỗi và báo cáo KPI
 # --------------------------------------------------------------------------
 
@@ -1126,10 +1346,46 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_sim.set_defaults(func=cmd_sim)
 
+    # AIS §9 — môi trường công cụ
+    p_doctor = sub.add_parser(
+        "doctor",
+        help="Quét, chuẩn bị công cụ và khóa môi trường (AIS §9)",
+        description=(
+            "Chế độ quét chỉ ĐỌC, không đổi gì trên máy. --fix sinh lệnh cài và "
+            "LUÔN hỏi trước từng lệnh; phiên không có terminal thì không cài."
+        ),
+    )
+    p_doctor.add_argument(
+        "--fix", action="store_true", help="Sinh lệnh cài cho công cụ thiếu, hỏi từng lệnh"
+    )
+    p_doctor.add_argument(
+        "--accept-drift",
+        action="store_true",
+        dest="accept_drift",
+        help="Chấp nhận môi trường hiện tại và cập nhật env_lock.json",
+    )
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    # AIS §8.5 — kho phẩm xuất
+    p_docs = sub.add_parser("docs", help="Kho phẩm xuất: list/get/regen (AIS §8.5)")
+    docs_sub = p_docs.add_subparsers(dest="docs_action", required=True, metavar="<hành động>")
+    dl = docs_sub.add_parser("list", help="Liệt kê phẩm xuất kèm trạng thái và dòng dõi")
+    dl.add_argument("--type", choices=["docx", "pdf", "code", "image", "csv", "md", "html"])
+    dg = docs_sub.add_parser(
+        "get", help="GỬI LẠI đúng bản đã phát hành, bất biến, khớp băm"
+    )
+    dg.add_argument("what", help="Mã phẩm xuất, hoặc mô tả để tìm")
+    dg.add_argument("--format", help="Chuyển đổi TỪ CHÍNH BẢN ẤY sang định dạng khác")
+    dg.add_argument("--type", help="Lọc theo loại khi tìm bằng mô tả")
+    dg.add_argument("--date", help="Lọc theo ngày phát hành, dạng YYYY-MM-DD")
+    dr = docs_sub.add_parser(
+        "regen", help="LÀM MỚI: tái sinh từ dữ liệu hiện hành thành phiên bản mới"
+    )
+    dr.add_argument("family", help="Họ phẩm xuất, ví dụ bao_cao_kpi")
+    p_docs.set_defaults(func=cmd_docs)
+
     khung: list[tuple[str, str, str, str]] = [
         ("tune", "Nhập số đo vật lý, nhận gợi ý tinh chỉnh (UC07, G4)", "Sprint 4", ""),
-        ("doctor", "Quét, cài đặt công cụ và khóa môi trường (AIS §9)", "Sprint 3", ""),
-        ("docs", "Kho phẩm xuất: list/get/regen (AIS §8.5)", "Sprint 3", ""),
         ("rollback", "Đưa module về bản known-good gần nhất (AIS §8.4)", "Sprint 4", ""),
     ]
     for ten, tro_giup, sprint, ghi_chu in khung:
