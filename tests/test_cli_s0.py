@@ -18,7 +18,8 @@ from pathlib import Path
 import pytest
 
 from eaa import EXIT_ENV_ERROR, EXIT_OK, EXIT_WAITING_GATE
-from eaa.cli import constraints_version, main, resolve_project
+from eaa.cli import main, resolve_project
+from eaa.kb import content_hash as constraints_version
 from eaa.state import StateStore
 
 REPO = Path(__file__).resolve().parent.parent

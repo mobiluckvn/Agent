@@ -34,6 +34,10 @@ peripherals:
     kind: i2c
     configured_by: [TWBR, TWCR, TWSR, TWDR]
     clock_hz: 400000        # fast-mode
+    # Bus nhiều thiết bị: nhiều module được phép cùng dùng. Mặc định của engine
+    # là ĐỘC CHIẾM, nên chia sẻ phải khai báo tường minh — thiếu khai báo thì bị
+    # chặn (an toàn), chứ không phải lọt (nguy hiểm).
+    shareable: true
   - id: usart0
     kind: uart
     configured_by: [UBRR0H, UBRR0L, UCSR0A, UCSR0B, UCSR0C]

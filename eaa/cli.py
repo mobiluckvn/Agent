@@ -13,22 +13,16 @@ Mã thoát (SDD §6) — để script hóa thực nghiệm A/B:
 * ``3`` quá N lần tự sửa (bàn giao người)
 * ``4`` lỗi môi trường (thiếu toolchain, thiếu cấu hình dự án)
 
-Ghi chú sai lệch có chủ đích so với EAA-SDD-03 §2: hàm đọc ``constraints.yaml``
-và ``hardware_profile.yaml`` tạm đặt ở đây vì Sprint 0 cần chúng cho ``init``
-trong khi bộ nạp 5 kho tri thức mới thuộc Sprint 1 (MDD §6). Khi S1 dựng bộ
-nạp, phần này chuyển sang đó và ``cli.py`` chỉ còn gọi.
+Việc đọc các kho tri thức thuộc ``eaa/kb.py``; ``cli.py`` chỉ gọi và trình bày.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import os
 import sys
 from pathlib import Path
 from typing import Any, Sequence
-
-import yaml
 
 from eaa import (
     EXIT_ENV_ERROR,
@@ -36,6 +30,7 @@ from eaa import (
     EXIT_WAITING_GATE,
     __version__,
 )
+from eaa.kb import Constraints, HardwareProfile, KbError
 from eaa.platform import PackError, discover_packs, load_manifest
 from eaa.policy import (
     GATE_ORDER,
@@ -109,26 +104,12 @@ def resolve_project(duong_dan: str | None) -> Path:
     return ung_vien[0]
 
 
-def _load_yaml(path: Path, nhan: str) -> dict[str, Any]:
-    if not path.is_file():
-        raise CliError(f"Thiếu {nhan}: {path}")
+def _nap_kho(nap, *args):  # type: ignore[no-untyped-def]
+    """Gọi một bộ nạp của Knowledge Base, đổi lỗi kho thành lỗi CLI có mã thoát."""
     try:
-        du_lieu = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError as exc:
-        raise CliError(f"{path}: YAML không hợp lệ — {exc}") from exc
-    if not isinstance(du_lieu, dict):
-        raise CliError(f"{path}: nội dung phải là ánh xạ khóa–giá trị")
-    return du_lieu
-
-
-def constraints_version(path: Path) -> str:
-    """Băm nội dung ràng buộc — đi vào state và mọi commit message (NFR-07).
-
-    Băm chính BYTE của tệp chứ không băm cấu trúc đã phân tích: mục tiêu là trả
-    lời được "mã này sinh ra dưới đúng văn bản ràng buộc nào", kể cả khi thay
-    đổi chỉ là một dòng chú thích làm người đọc hiểu khác đi.
-    """
-    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+        return nap(*args)
+    except KbError as exc:
+        raise CliError(str(exc)) from exc
 
 
 # --------------------------------------------------------------------------
@@ -216,21 +197,13 @@ def cmd_init(args: argparse.Namespace) -> int:
             "hoặc 'eaa init --force' nếu thật sự muốn khởi tạo lại."
         )
 
-    duong_dan_rang_buoc = project / CONSTRAINTS_FILE
-    rang_buoc = _load_yaml(duong_dan_rang_buoc, "constraints.yaml (công đoạn A1)")
-    ho_so = _load_yaml(
-        project / HARDWARE_PROFILE_FILE, "hardware_profile.yaml (công đoạn B2)"
+    rang_buoc: Constraints = _nap_kho(Constraints.load, project / CONSTRAINTS_FILE)
+    ho_so: HardwareProfile = _nap_kho(
+        HardwareProfile.load, project / HARDWARE_PROFILE_FILE
     )
 
-    ten_pack = rang_buoc.get("platform")
-    if not ten_pack:
-        raise CliError(
-            f"{duong_dan_rang_buoc}: thiếu trường 'platform' — dự án phải chỉ rõ "
-            "dùng Platform Pack nào."
-        )
-
     try:
-        manifest = load_manifest(repo_root() / "packs" / str(ten_pack))
+        manifest = load_manifest(repo_root() / "packs" / rang_buoc.platform)
     except PackError as exc:
         raise CliError(str(exc)) from exc
 
@@ -238,7 +211,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         phase="A",
         gates={gate: "pending" for gate in GATE_ORDER},
         backlog=[],
-        constraints_version=constraints_version(duong_dan_rang_buoc),
+        constraints_version=rang_buoc.content_version,
         llm={"provider": args.provider, "model": args.model},
     )
     store.save(state)
@@ -247,10 +220,10 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(f"  Thư mục       : {project}")
     print(f"  Project State : {store.path}")
     print(f"  Platform Pack : {manifest.name} v{manifest.version}")
-    print(f"  Ràng buộc     : {state.constraints_version}")
-    print(f"  Hồ sơ phần cứng: {len(ho_so.get('peripherals', []))} ngoại vi, "
-          f"{len(ho_so.get('components', []))} linh kiện, "
-          f"{len(ho_so.get('pin_map', {}))} chân")
+    print(f"  Ràng buộc     : v{rang_buoc.version} {state.constraints_version}")
+    print(f"  Hồ sơ phần cứng: {len(ho_so.peripherals)} ngoại vi, "
+          f"{len(ho_so.components)} linh kiện, "
+          f"{len(ho_so.pin_map)} chân")
     print(f"  Mô hình       : {args.provider}/{args.model}")
     print(
         f"\nDự án bắt đầu ở pha A ({PHASE_NAMES['A']}), toàn bộ gate ở trạng thái "
