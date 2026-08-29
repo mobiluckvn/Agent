@@ -1,0 +1,85 @@
+/* Bộ khung firmware chẩn đoán — SINH TỰ ĐỘNG bởi `eaa diagnose build`.
+ *
+ * Hợp đồng với phần đo giống hệt pack AVR — đúng một hàm `void diag_run(void)`
+ * và một hàm `eaa_emit()` do khung cấp. Nhờ hợp đồng giống nhau, phần đo của
+ * một kịch bản có thể viết lại cho nền tảng khác mà không đổi cấu trúc.
+ *
+ * Khác biệt nằm ở đường ra: bo này đưa telemetry qua cổng COM ảo của mạch nạp,
+ * nối vào một USART của chip. Chân và số hiệu USART là thuộc tính của BO, nên
+ * chúng tới từ dự án qua các chỗ giữ bên dưới, không nằm cứng ở đây.
+ */
+
+#include <stdint.h>
+
+{checksum_define}
+
+#define EAA_SCENARIO "{scenario_id}"
+
+void diag_run(void);
+/* Do phần đo của dự án cấp: đẩy một ký tự ra kênh telemetry của bo. */
+void eaa_board_putc(char c);
+/* Do phần đo của dự án cấp: bật kênh telemetry. */
+void eaa_board_uart_init(void);
+
+static void eaa_puts(const char *s)
+{
+    while (*s != '\0') {
+        eaa_board_putc(*s++);
+    }
+}
+
+static uint8_t eaa_checksum(const char *s)
+{
+#if defined(EAA_CHECKSUM_XOR8)
+    uint8_t giatri = 0u;
+    while (*s != '\0') {
+        giatri ^= (uint8_t)*s++;
+    }
+    return giatri;
+#elif defined(EAA_CHECKSUM_SUM8)
+    uint8_t giatri = 0u;
+    while (*s != '\0') {
+        giatri = (uint8_t)(giatri + (uint8_t)*s++);
+    }
+    return giatri;
+#else
+    (void)s;
+    return 0u;
+#endif
+}
+
+static void eaa_put_hex2(uint8_t gia_tri)
+{
+    static const char bang[] = "0123456789ABCDEF";
+    eaa_board_putc(bang[(gia_tri >> 4) & 0x0Fu]);
+    eaa_board_putc(bang[gia_tri & 0x0Fu]);
+}
+
+void eaa_emit(const char *json)
+{
+    eaa_puts(json);
+#if defined(EAA_CHECKSUM_XOR8) || defined(EAA_CHECKSUM_SUM8)
+    eaa_puts("{separator}");
+    eaa_put_hex2(eaa_checksum(json));
+#endif
+    eaa_puts("\r\n");
+}
+
+int main(void)
+{
+    eaa_board_uart_init();
+
+    /* Khung đầu nói rõ đây là firmware của kịch bản nào. Nạp nhầm bản thì dòng
+     * này lộ ra ngay, chứ không để cả phiên đo trôi qua rồi mới phát hiện số
+     * liệu thuộc về kịch bản khác. */
+    eaa_emit("{\"scenario\": \"" EAA_SCENARIO "\"}");
+
+    diag_run();
+
+    eaa_emit("{\"done\": true}");
+
+    for (;;) {
+    }
+
+    return 0;
+}

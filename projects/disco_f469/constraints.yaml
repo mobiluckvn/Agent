@@ -1,0 +1,69 @@
+# Hard Constraints Spec — dự án kiểm chứng trên bo STM32F469I-DISCO.
+#
+# Mục đích của dự án này KHÁC dự án robot_balance: nó không nhằm dựng một sản
+# phẩm, mà nhằm trả lời câu hỏi NFR-05 bằng thực nghiệm — "thêm một họ vi điều
+# khiển có phải sửa engine không?" — và để chạy vòng lặp đầy đủ trên phần cứng
+# thật có sẵn trên bàn.
+
+version: 1
+changelog:
+  - version: 1
+    date: 2026-08-29
+    author: Vũ Trí Công
+    note: Khởi tạo cùng Platform Pack thứ hai.
+
+platform: stm32
+mcu: stm32f469ni
+
+# Tham số kiến trúc — chuyển thẳng xuống chỗ giữ của pack, engine không diễn giải.
+cpu: cortex-m4
+fpu: fpv4-sp-d16
+float_abi: hard
+linker_script: stm32f469ni.ld
+flash_origin: "0x08000000"
+
+# 16 MHz là tần số HSI sau khi reset. Mã khởi động của pack CỐ Ý không dựng
+# PLL: mỗi dòng cấu hình đồng hồ là một chỗ có thể sai âm thầm, và vòng lặp
+# chuẩn không cần tốc độ cao. Muốn 180 MHz thì đó là một module có tên, đi qua
+# đủ cổng như mọi module khác — không phải một dòng lén trong mã khởi động.
+clock_hz: 16000000
+
+limits:
+  control_loop_ms: 10
+  # Pack STM32 đo bằng BYTE chứ không phần trăm: arm-none-eabi-size không biết
+  # dung lượng con chip nên không tính được phần trăm. Ngưỡng vì thế đặt bằng
+  # byte, và con số dưới đây là mức trần cho firmware kiểm chứng, không phải
+  # giới hạn của chip (chip có 2 MB Flash, 256 KB RAM dùng được).
+  text_bytes_max: 65536
+  bss_bytes_max: 32768
+  max_module_lines: 300
+
+forbidden:
+  - delay()
+  - malloc/new
+  - float_in_isr
+  - blocking_io
+
+style:
+  arithmetic: integer
+  io: direct_port
+  naming: snake_case
+  isr_policy: >-
+    Chỉ đọc/ghi biến volatile đã khai báo; mọi xử lý dài đẩy sang vòng lặp
+    chính. Lõi 32 bit nên biến 32 bit đọc nguyên tử sẵn.
+
+acceptance:
+  scenarios:
+    - kênh telemetry thông
+    - nhịp bộ định thời đúng
+  measurements:
+    - name: frame_rate_hz
+      key: frame_rate_hz
+      unit: Hz
+      min: 10
+      note: Tốc độ khung telemetry thực tế đo trên bo
+    - name: tick_error_pct
+      key: tick_error_pct
+      unit: "%"
+      max: 5
+      note: Sai lệch nhịp SysTick so với danh nghĩa

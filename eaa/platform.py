@@ -235,6 +235,19 @@ class FirmwareTemplates:
     task_line: str = "    { {step}, {period_ms} },"
     #: Tên tệp nguồn sinh ra, đặt trong thư mục build.
     output: str = "main.c"
+    #: Đuôi ảnh NẠP ĐƯỢC mà năng lực 'hex' sinh ra.
+    #:
+    #: Pack đầu tiên dùng Intel HEX nên đuôi này từng là hằng số trong engine.
+    #: Pack thứ hai nạp bằng ảnh nhị phân thô — và đó là dấu hiệu interface
+    #: thiếu một tham số, không phải dấu hiệu cần thêm một nhánh rẽ.
+    image_suffix: str = ".hex"
+    #: Tệp nguồn do PACK cung cấp, dịch và liên kết cùng firmware. Đường dẫn
+    #: tương đối so với gốc pack.
+    #:
+    #: Có nền tảng không cần mục này (bộ dịch đã kèm sẵn mã khởi động và bảng
+    #: vector); có nền tảng thì cần. Khai ở pack vì đó đúng là thứ thuộc về
+    #: nền tảng.
+    sources: tuple[str, ...] = ()
 
     @classmethod
     def from_dict(cls, du_lieu: Any, root: Path, path: Path) -> "FirmwareTemplates":
@@ -252,6 +265,8 @@ class FirmwareTemplates:
             init_line=str(du_lieu.get("init_line", mac_dinh.init_line)),
             task_line=str(du_lieu.get("task_line", mac_dinh.task_line)),
             output=str(du_lieu.get("output", mac_dinh.output)),
+            image_suffix=str(du_lieu.get("image_suffix", mac_dinh.image_suffix)),
+            sources=tuple(str(root / x) for x in (du_lieu.get("sources") or [])),
         )
 
 
@@ -275,6 +290,10 @@ class DiagnosticTemplates:
     output: str = "diag_{scenario}.c"
     #: Tên ảnh; cũng nhận ``{scenario}``.
     image_name: str = "diag_{scenario}"
+    #: Đuôi ảnh nạp được — xem :class:`FirmwareTemplates`.
+    image_suffix: str = ".hex"
+    #: Tệp nguồn do pack cung cấp, liên kết cùng firmware đo.
+    sources: tuple[str, ...] = ()
 
     @classmethod
     def from_dict(cls, du_lieu: Any, root: Path, path: Path) -> "DiagnosticTemplates":
@@ -289,6 +308,8 @@ class DiagnosticTemplates:
             template=root / str(khuon),
             output=str(du_lieu.get("output", "diag_{scenario}.c")),
             image_name=str(du_lieu.get("image_name", "diag_{scenario}")),
+            image_suffix=str(du_lieu.get("image_suffix", ".hex")),
+            sources=tuple(str(root / x) for x in (du_lieu.get("sources") or [])),
         )
 
 

@@ -82,7 +82,12 @@ programmer:
       note: Bo tương thích, cầu USB rời
   # Dùng khi máy không đọc được VID/PID: khớp theo tên cổng, kém chắc chắn hơn
   # hẳn nên kết quả được ghi rõ là "chưa xác nhận".
-  port_hint: usbmodem
+  #
+  # Sửa 2026-08-29 sau khi cắm bo thật: bo trên bàn dùng cầu CH340, hệ điều
+  # hành đặt tên cổng là /dev/cu.usbserial-*. Giá trị cũ 'usbmodem' bắt trúng
+  # cổng ST-LINK của một bo STM32 cắm cùng lúc — một gợi ý tên sai không báo
+  # lỗi, nó chỉ trỏ sang nhầm thiết bị.
+  port_hint: usbserial
 
 pin_map:
   PB0: {net: MOTOR_EN, direction: out, note: Chung cho cả hai driver, mức thấp là bật}

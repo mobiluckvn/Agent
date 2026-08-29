@@ -33,6 +33,7 @@ from typing import Any, Protocol, runtime_checkable
 from eaa.tools.base import CodeArtifact
 
 __all__ = [
+    "KEY_ENV",
     "LLMError",
     "LLMTimeout",
     "BudgetExceeded",
@@ -112,10 +113,16 @@ def estimate_tokens(text: str) -> int:
     return max(1, math.ceil(len(tu) * 1.3))
 
 
+#: Tên biến môi trường chứa khóa API — NFR-06 nói khóa CHỈ đi qua đường này.
+#: Một hằng số vì tên ấy xuất hiện ở adapter, ở doctor, ở CLI; ba bản sao của
+#: cùng một chuỗi là ba chỗ có thể lệch nhau.
+KEY_ENV = "EAA_LLM_KEY"
+
+
 def mask_secrets(text: str) -> str:
     """Che khóa và token trong bất cứ thứ gì sắp được ghi ra (NFR-06, TC-14)."""
     ket_qua = text
-    khoa = os.environ.get("EAA_LLM_KEY")
+    khoa = os.environ.get(KEY_ENV)
     if khoa and len(khoa) >= 8:
         ket_qua = ket_qua.replace(khoa, "***")
     for mau in _SECRET_PATTERNS:

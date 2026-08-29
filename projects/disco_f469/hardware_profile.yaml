@@ -1,0 +1,78 @@
+# Hardware Profile — STM32F469I-DISCO.
+#
+# QUAN TRỌNG: tệp này phân biệt rõ ĐIỀU ĐÃ KIỂM và ĐIỀU CÒN GIẢ ĐỊNH.
+#
+# Điều đã kiểm được ghi thẳng. Điều chưa kiểm nằm trong mục `assumptions` với
+# cách kiểm kèm theo — đúng tinh thần AIS §8.1: tri thức thực chứng luôn thắng
+# giả định, và giả định phải nói rõ nó là giả định.
+
+version: 1
+project: disco_f469
+description: >-
+  Bo phát triển STM32F469I-DISCO. Dùng để kiểm chứng NFR-05 và chạy vòng lặp
+  chuẩn trên phần cứng thật.
+
+mcu:
+  part: stm32f469ni
+  core: cortex-m4f
+  clock_hz: 16000000        # HSI sau reset; pack không dựng PLL
+  flash_bytes: 2097152
+  sram_bytes: 262144        # khối liền dùng trong kịch bản liên kết
+
+# ĐÃ KIỂM trên máy này, ngày 2026-08-29, bằng ioreg và ls:
+#   idVendor  = 1155   (0x0483, STMicroelectronics)
+#   idProduct = 14155  (0x374B, ST-LINK/V2-1)
+#   USB Serial Number = 0668FF323239524257252251
+#   cổng COM ảo       = /dev/cu.usbmodem1434103
+#   ổ nạp thả-tệp     = /Volumes/DIS_F469NI (DETAILS.TXT: Version 0221)
+programmer:
+  tool: st-flash
+  baud: 115200
+  usb:
+    - vid: "0483"
+      pid: "374b"
+      note: ST-LINK/V2-1 tích hợp trên bo Discovery
+  port_hint: usbmodem
+  # Đường nạp thứ hai, không cần cài gì: chép ảnh .bin vào ổ này. Ghi lại ở đây
+  # để người dùng biết mình có lối thoát khi chưa cài được st-flash.
+  mass_storage: /Volumes/DIS_F469NI
+
+peripherals:
+  - id: systick
+    kind: timer
+    width_bits: 24
+    note: Bộ đếm nằm trong lõi Cortex-M, nguồn nhịp của bộ định thời hợp tác.
+
+# CHƯA KIỂM. Không viết vào `peripherals` để không ai đọc nhầm thành sự thật.
+#
+# Vì sao để trống thay vì tra trên mạng rồi điền: một số hiệu USART sai sẽ làm
+# firmware chạy, im lặng, và không ai biết vì sao — đúng loại lỗi tốn nhiều
+# giờ nhất. Kịch bản DS-01 sinh ra để trả lời chính câu này bằng đo đạc.
+assumptions:
+  - id: uart_vcp
+    statement: >-
+      Cổng COM ảo của ST-LINK nối vào một USART của chip, nhưng CHƯA XÁC ĐỊNH
+      là USART nào và trên chân nào.
+    status: proposed
+    how_to_verify: >-
+      Đọc sơ đồ nguyên lý của bo (UM ST cung cấp), hoặc chạy DS-01 với từng ứng
+      viên USART cho tới khi máy tính nhận được khung telemetry.
+    blocks: [DS-01, telemetry]
+
+  - id: led_pins
+    statement: Chân của bốn LED người dùng trên bo chưa xác định.
+    status: proposed
+    how_to_verify: Đọc sơ đồ nguyên lý, hoặc thử lần lượt và quan sát.
+    blocks: [module nháy LED đầu tiên]
+
+  - id: lcd_stack
+    statement: >-
+      Màn hình LCD 4" 800x480 nối qua giao diện DSI. Điều khiển nó bare-metal
+      cần chuỗi khởi tạo DSI/LTDC dài, thực tế phải dựa vào thư viện BSP của
+      hãng.
+    status: proposed
+    how_to_verify: >-
+      Quyết định ở G1 xem có đưa BSP của hãng vào phạm vi hay không. Đây là một
+      quyết định KIẾN TRÚC, không phải một chi tiết kỹ thuật — nên nó thuộc về
+      'eaa decide', không thuộc về một dòng trong tệp này.
+    blocks: [mọi module dùng màn hình]

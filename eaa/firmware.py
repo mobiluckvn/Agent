@@ -235,6 +235,15 @@ class FirmwareAssembler:
         except FirmwareError as exc:
             return self._loi_cau_hinh(str(exc))
 
+        # Nguồn do pack cấp (mã khởi động, bảng vector…) đi cùng mọi firmware
+        # của nền tảng ấy, nên chúng được dịch chung chứ không phải module.
+        nguon_pack = [Path(x) for x in getattr(khuon, "sources", ())]
+        thieu_pack = [str(p) for p in nguon_pack if not p.is_file()]
+        if thieu_pack:
+            return self._loi_cau_hinh(
+                f"Pack khai nguồn không tìm thấy: {thieu_pack}"
+            )
+
         nguon, thieu = self._nguon_module(plan)
         if thieu:
             return self._loi_cau_hinh(
@@ -251,7 +260,7 @@ class FirmwareAssembler:
 
         bao_cao_dich: list[ToolReport] = []
         doi_tuong: list[Path] = []
-        for tep in [*nguon, chinh]:
+        for tep in [*nguon_pack, *nguon, chinh]:
             dich = thu_muc_build / f"{tep.stem}.o"
             r = self.runner.run(
                 "compile",
@@ -273,7 +282,10 @@ class FirmwareAssembler:
             return gop
 
         lien_ket = LinkGate(
-            self.runner, build_dir=self.build_dir, image_name=plan.image_name
+            self.runner,
+            build_dir=self.build_dir,
+            image_name=plan.image_name,
+            hex_suffix=getattr(khuon, "image_suffix", ".hex"),
         ).run(doi_tuong)
         lien_ket.gate = self.name
         if not lien_ket.passed:
@@ -453,9 +465,14 @@ class DiagnosticFirmwareBuilder:
 
         from eaa.tools.compile import _gop_bao_cao
 
+        nguon_pack = [Path(x) for x in getattr(khuon, "sources", ())]
+        thieu_pack = [str(p) for p in nguon_pack if not p.is_file()]
+        if thieu_pack:
+            return self._loi_cau_hinh(f"Pack khai nguồn không tìm thấy: {thieu_pack}")
+
         bao_cao_dich: list[ToolReport] = []
         doi_tuong: list[Path] = []
-        for tep in (bo_khung, phan_do):
+        for tep in (*nguon_pack, bo_khung, phan_do):
             dich = thu_muc_build / f"{tep.stem}.o"
             r = self.runner.run(
                 "compile",
@@ -478,7 +495,10 @@ class DiagnosticFirmwareBuilder:
 
         ten_anh = khuon.image_name.replace("{scenario}", _an_toan(scenario.id))
         lien_ket = LinkGate(
-            self.runner, build_dir=self.build_dir, image_name=ten_anh
+            self.runner,
+            build_dir=self.build_dir,
+            image_name=ten_anh,
+            hex_suffix=getattr(khuon, "image_suffix", ".hex"),
         ).run(doi_tuong)
         lien_ket.gate = self.name
         if not lien_ket.passed:

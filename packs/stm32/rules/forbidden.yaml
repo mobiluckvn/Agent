@@ -1,0 +1,31 @@
+# Quy tắc phân tích tĩnh riêng cho nền tảng — EAA-SRS-01 FR-VER-02.
+#
+# Phần phụ thuộc NỀN TẢNG nằm ở đây; phần phụ thuộc DỰ ÁN đến từ
+# constraints.yaml. Engine chỉ hợp nhất hai nguồn và thi hành.
+#
+# Tên quy tắc trùng với pack AVR có chủ ý: dự án khai `forbidden: [delay()]` là
+# khai một Ý ĐỊNH, còn cách phát hiện ý định ấy trên từng nền tảng thì mỗi pack
+# tự lo. Nhờ vậy đổi pack không phải viết lại constraints.yaml.
+
+rules:
+  - id: delay()
+    description: Cấm hàm chặn — vòng điều khiển không được đứng chờ.
+    pattern: '\b(HAL_Delay|osDelay|delay_ms|_delay_ms)\s*\('
+    severity: error
+
+  - id: malloc/new
+    description: Cấm cấp phát động — bộ nhớ phải tĩnh và biết trước.
+    pattern: '\b(malloc|calloc|realloc|strdup)\s*\('
+    severity: error
+
+  - id: float_in_isr
+    description: Số thực trong ngắt — tốn chu kỳ và có thể tràn ngăn xếp FPU.
+    pattern: '(?s)void\s+\w*(_IRQHandler|_Handler)\s*\([^)]*\)\s*\{[^}]*\b(float|double)\b'
+    severity: error
+
+  - id: blocking_io
+    description: >-
+      Vòng chờ cờ phần cứng không có điều kiện quá hạn. Một ngoại vi không trả
+      lời sẽ treo cả firmware, và firmware treo thì không báo được là nó treo.
+    pattern: 'while\s*\(\s*!?\s*\(?[A-Za-z_][\w\->\.]*\s*&\s*[^)]*\)?\s*\)\s*(;|\{\s*\})'
+    severity: error

@@ -509,6 +509,50 @@ Ba loại:
 
 ---
 
+## SL-38 · BỔ SUNG · `packs/stm32/` — pack thứ hai, và NFR-05 từ lập luận thành bằng chứng
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 NFR-05, EAA-SAD-02 ADR-09 |
+| **Thiết kế nói** | Thêm một họ MCU = thêm `packs/<tên>/`, KHÔNG sửa engine |
+| **Chỗ trống** | Với đúng một pack, câu ấy không kiểm được: "engine tổng quát" và "engine viết riêng cho pack ấy" trông giống hệt nhau |
+| **Code làm** | `packs/stm32/` (Cortex-M4F, toolchain `arm-none-eabi-*`, nạp qua `st-flash`), gồm mã khởi động + bảng vector + kịch bản liên kết + hai khuôn; `projects/disco_f469/` cho bo STM32F469I-DISCO trên bàn |
+| **Kết quả** | Thêm pack KHÔNG thêm một nhánh rẽ nào trong `eaa/` — TC-47a quét và khóa điều này. Nhưng nó LÀM LỘ RA hai tham số interface còn thiếu, và đó mới là phát hiện đáng giá |
+| **Tham số thứ nhất** | **Đuôi ảnh nạp được.** AVR dùng Intel HEX, STM32 dùng ảnh nhị phân thô. Đuôi `.hex` từng là hằng số trong engine |
+| **Tham số thứ hai** | **Tệp nguồn do pack cấp.** ARM bare-metal cần mã khởi động và bảng vector; AVR thì bộ dịch kèm sẵn. Engine trước đó giả định firmware chỉ gồm module của dự án cộng `main.c` |
+| **Điều rút ra** | Cả hai đi vào INTERFACE, không đi vào engine dưới dạng `if pack.name == ...` — đúng điều `eaa/platform.py` dặn ngay ở đầu tệp. Một pack thứ hai là cách rẻ nhất để tìm ra chỗ interface còn thiếu |
+| **Cần cập nhật** | EAA-SDD-03: `FirmwareTemplates.image_suffix`, `.sources`; EAA-SRS-01 NFR-05 dẫn TC-47 làm bằng chứng |
+| **Sprint** | S4 |
+
+---
+
+## SL-39 · LỆCH THẬT · Khớp cổng theo TÊN được coi ngang với khớp theo VID/PID
+
+| | |
+|---|---|
+| **Tài liệu** | SL-32 (`eaa/serialport.py`), FR-DIA-02 |
+| **Phát hiện khi chạy thật** | Cắm cùng lúc bo STM32F469I-DISCO và một bo AVR dùng cầu CH340. Dự án AVR khai `port_hint: usbmodem` — gợi ý ấy khớp trúng cổng ST-LINK của bo STM32, và vì "đúng một cổng khớp" nên `_chon_cong` **TỰ CHỌN** nó. Engine khi ấy sẵn sàng nạp firmware AVR vào một bo ARM |
+| **Vì sao không test nào bắt được** | Lỗi chỉ tồn tại khi có HAI thiết bị thật trên bàn. Mọi test trước đó dựng một bo |
+| **Code làm** | `SerialPort.match_confirmed` phân biệt khớp bằng VID/PID (chắc chắn) với khớp bằng tên cổng (phỏng đoán). `_chon_cong` chỉ tự chọn khi danh tính ĐÃ XÁC NHẬN; khớp theo tên thì dừng và đòi `--port`, kèm gợi ý cài `pyserial` để đọc được VID/PID |
+| **Sửa thêm** | `port_hint` của dự án mẫu đổi từ `usbmodem` sang `usbserial` — bo AVR thật trên bàn dùng cầu CH340 nên hệ điều hành đặt tên khác. Một gợi ý tên sai không báo lỗi, nó chỉ trỏ sang nhầm thiết bị |
+| **Điều rút ra** | Bản báo cáo vốn đã ghi rõ "chưa xác nhận VID/PID" — tức là phần TRUNG THỰC đã đúng, nhưng phần HÀNH ĐỘNG vẫn đối xử với phỏng đoán như với sự thật. Nói đúng chưa đủ; phải hành động theo đúng mức tin cậy mình vừa nói |
+| **Sprint** | S4 |
+
+---
+
+## SL-40 · LỆCH THẬT · Mặc định `mock` đứng yên sau khi Sprint 4 có khóa thật
+
+| | |
+|---|---|
+| **Tài liệu** | MDD §5 ("Sprint 1–3 chạy hoàn toàn bằng MockLLM; Gemini thật chỉ vào từ Sprint 4") |
+| **Phát hiện khi chạy thật** | Tạo dự án thứ hai cho bo STM32: `eaa init` chọn `mock`, rồi `eaa doctor --discover --propose` chết với thông báo *"chọn provider gemini trong Project State"* — một câu mô tả NỘI TÌNH engine, không phải một lệnh gõ được. Người dùng phải biết Project State có trường tên `llm.provider` mới dùng tiếp được |
+| **Code làm** | `chon_llm_theo_moi_truong()`: thấy `EAA_LLM_KEY` thì chọn mô hình thật và NÓI RA vì sao; không thấy thì dùng giả lập, kèm lệnh để chuyển. `--provider` người nêu vẫn thắng. `canh_bao_lech_cau_hinh()` báo khi Project State và môi trường nói khác nhau — báo chứ không tự sửa, vì Project State nằm trong Git và là một phần điều kiện thí nghiệm |
+| **Rủi ro tự tạo, và cách chặn** | Đổi mặc định làm bộ test có thể vô tình gọi API thật: máy phát triển có `.env`, mà 20 bài test gọi `eaa init` trần. Thêm `tests/conftest.py` với hai chốt — xóa khóa khỏi môi trường mọi bài test, VÀ chặn `urlopen`. Chốt thứ hai cần vì chốt thứ nhất chỉ đúng khi bài test đặt `EAA_HOME` sang thư mục tạm, và một chốt an toàn phụ thuộc điều kiện ngầm sẽ hỏng lặng lẽ |
+| **Điều rút ra** | Thông báo lỗi tốt là một LỆNH GÕ ĐƯỢC. Mô tả trạng thái bên trong bắt người dùng phải hiểu kiến trúc mới dùng được sản phẩm — và họ không có nghĩa vụ ấy |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

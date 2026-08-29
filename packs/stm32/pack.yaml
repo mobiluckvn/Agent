@@ -1,0 +1,167 @@
+# Platform Pack: STM32 Cortex-M4F — pack THỨ HAI, và là bằng chứng cho NFR-05.
+#
+# Pack này tồn tại để trả lời một câu hỏi mà một pack duy nhất không trả lời
+# được: "thêm một họ vi điều khiển có thật sự không phải sửa engine không?"
+#
+# Câu trả lời quan sát được: thêm pack này KHÔNG thêm một nhánh rẽ nào trong
+# eaa/, nhưng có LÀM LỘ RA hai tham số interface còn thiếu — đuôi ảnh nạp được
+# (.hex với AVR, .bin ở đây) và tệp nguồn do pack cấp (ARM bare-metal cần mã
+# khởi động + bảng vector, AVR thì bộ dịch kèm sẵn). Cả hai được thêm vào
+# interface, không thêm vào engine dưới dạng "if pack.name == ...".
+#
+# Đó đúng là điều eaa/platform.py dặn: thiếu năng lực thì mở rộng interface.
+
+pack: stm32
+version: 0.1.0
+description: >-
+  Toolchain, quy tắc phân tích tĩnh và quy ước cho STM32 Cortex-M4F.
+  Kiểm chứng trên bo STM32F469I-DISCO.
+
+targets:
+  - stm32f469ni
+
+rules_dir: rules
+prompts_dir: prompts
+smoke_dir: smoke
+
+firmware:
+  template: templates/main.c.tmpl
+  output: main.c
+  # Nạp bằng ảnh nhị phân thô, không phải Intel HEX.
+  image_suffix: .bin
+  # ARM bare-metal: bộ dịch không kèm bảng vector và mã khởi động, nên pack cấp.
+  sources:
+    - templates/startup.c
+  include_line: '#include "{module}.h"'
+  init_line: '    {init}();'
+  task_line: '    { {step}, {period_ms} },'
+
+diagnostics:
+  template: templates/diagnostic.c.tmpl
+  output: diag_{scenario}.c
+  image_name: diag_{scenario}
+  image_suffix: .bin
+  sources:
+    - templates/startup.c
+
+tool_requirements:
+  arm-none-eabi-gcc: ">=10.3"
+  arm-none-eabi-objcopy: ">=2.36"
+  arm-none-eabi-size: ">=2.36"
+  st-flash: ">=1.7"
+  cppcheck: ">=2.10"
+
+capabilities:
+
+  compile:
+    description: >-
+      Dịch MỘT tệp nguồn thành tệp đối tượng. Cờ kiến trúc lấy từ
+      constraints.yaml của dự án ({cpu}, {fpu}, {float_abi}) — pack không ghim
+      một con chip cụ thể nào.
+    command:
+      - arm-none-eabi-gcc
+      - -c
+      - -mcpu={cpu}
+      - -mthumb
+      - -mfpu={fpu}
+      - -mfloat-abi={float_abi}
+      - -DF_CPU={clock_hz}UL
+      - -Os
+      - -std=gnu11
+      - -Wall
+      - -Wextra
+      - -Werror
+      - -ffunction-sections
+      - -fdata-sections
+      - -I{include_dir}
+      - -o
+      - "{output}"
+      - "{source}"
+    timeout_s: 120
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+error:\\s+(?P<msg>.+)$"
+      warning_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+warning:\\s+(?P<msg>.+)$"
+
+  link:
+    description: >-
+      Gộp tệp đối tượng thành ảnh ELF. Kịch bản liên kết nằm trong pack vì bản
+      đồ bộ nhớ là thuộc tính của họ chip, không phải của dự án.
+    command:
+      - arm-none-eabi-gcc
+      - -mcpu={cpu}
+      - -mthumb
+      - -mfpu={fpu}
+      - -mfloat-abi={float_abi}
+      - -T{pack_dir}/templates/{linker_script}
+      - -nostartfiles
+      - -Wl,--gc-sections
+      - -Wl,-Map={map}
+      - --specs=nano.specs
+      - -o
+      - "{output}"
+      - "{objects}"
+    timeout_s: 120
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?:.*:\\s+)?(?P<msg>undefined reference to .+|.*\\bld:.*)$"
+
+  hex:
+    description: Đổi ảnh ELF sang ảnh nhị phân thô — thứ công cụ nạp ghi thẳng vào Flash.
+    command:
+      - arm-none-eabi-objcopy
+      - -O
+      - binary
+      - "{input}"
+      - "{output}"
+    timeout_s: 60
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^arm-none-eabi-objcopy:\\s+(?P<msg>.+)$"
+
+  size:
+    description: >-
+      Đo chiếm dụng bộ nhớ. Công cụ này KHÔNG tính phần trăm — nó không biết
+      dung lượng con chip — nên pack chỉ khai số byte, và dự án đặt ngưỡng bằng
+      byte. Tên khóa là hợp đồng giữa pack và constraints.yaml; engine chỉ so số.
+    command:
+      - arm-none-eabi-size
+      - "{binary}"
+    timeout_s: 30
+    parse:
+      success_exit_codes: [0]
+      metric_regex:
+        text_bytes: "^\\s*(\\d+)\\s+\\d+\\s+\\d+\\s+\\d+"
+        data_bytes: "^\\s*\\d+\\s+(\\d+)\\s+\\d+\\s+\\d+"
+        bss_bytes: "^\\s*\\d+\\s+\\d+\\s+(\\d+)\\s+\\d+"
+
+  static:
+    description: Phân tích tĩnh theo bộ quy tắc trong rules/.
+    command:
+      - cppcheck
+      - --enable=warning,style,performance,portability
+      - --error-exitcode=1
+      - --inline-suppr
+      - --platform=unix32
+      - --std=c11
+      - "{source}"
+    timeout_s: 120
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+(?:error|warning):\\s+(?P<msg>.+)$"
+
+  flash:
+    description: >-
+      Nạp qua ST-LINK. LUÔN cần người xác nhận — engine từ chối nạp pack nào
+      khai báo năng lực này mà thiếu requires_confirmation (FR-DIA-02).
+    requires_confirmation: true
+    command:
+      - st-flash
+      - --reset
+      - write
+      - "{binary}"
+      - "{flash_origin}"
+    timeout_s: 180
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?:.*)\\b(?:ERROR|Error)\\b[:\\s]+(?P<msg>.+)$"

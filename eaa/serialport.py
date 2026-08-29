@@ -109,6 +109,12 @@ class SerialPort:
     source: str = "glob"
     #: Ghi chú của dự án nếu cổng này khớp một mục đã khai.
     matched: str = ""
+    #: Khớp bằng VID/PID (chắc chắn) hay chỉ bằng tên cổng (phỏng đoán).
+    #:
+    #: Phân biệt này KHÔNG thừa: cắm hai bo cùng lúc thì một gợi ý tên như
+    #: 'usbmodem' có thể trúng đúng cái bo kia. Đã xảy ra thật, ngay lần đầu
+    #: chạy với hai bo trên bàn.
+    match_confirmed: bool = False
 
     @property
     def identifiable(self) -> bool:
@@ -201,10 +207,12 @@ def match_declared(
     khai = list(declared)
     for cong in ports:
         cong.matched = ""
+        cong.match_confirmed = False
         if cong.identifiable:
             for muc in khai:
                 if muc.matches(cong.vid, cong.pid):
                     cong.matched = muc.note or f"khai trong hồ sơ ({muc.vid}:{muc.pid})"
+                    cong.match_confirmed = True
                     break
         elif port_hint and port_hint.lower() in cong.device.lower():
             cong.matched = f"khớp theo TÊN CỔNG ({port_hint!r}), chưa xác nhận VID/PID"
@@ -223,8 +231,14 @@ def render_ports(ports: Sequence[SerialPort]) -> str:
     dong = [c.render() for c in ports]
     khop = [c for c in ports if c.matched]
 
+    chac_chan = [c for c in khop if c.match_confirmed]
     if khop:
         dong += ["", f"{len(khop)} cổng khớp bo đã khai trong hồ sơ phần cứng."]
+        if not chac_chan:
+            dong += [
+                "  Nhưng khớp CHỈ theo tên cổng, chưa xác nhận VID/PID — cắm hai",
+                "  bo cùng lúc thì một gợi ý tên rất dễ trúng nhầm cái bo kia.",
+            ]
     else:
         dong += ["", "Không cổng nào khớp bo đã khai trong hồ sơ phần cứng."]
 

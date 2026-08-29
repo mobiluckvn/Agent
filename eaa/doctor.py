@@ -449,10 +449,26 @@ class Doctor:
         from eaa.toolsearch import ToolSearchError, validate_proposal
 
         if self.researcher is None:
+            # Thông báo phải là LỆNH GÕ ĐƯỢC. Mô tả nội tình engine ("chọn
+            # provider trong Project State") bắt người dùng phải biết kiến trúc
+            # bên trong mới dùng được sản phẩm — và họ không có nghĩa vụ ấy.
+            from eaa.llm.base import KEY_ENV
+
+            import os as _os
+
+            if _os.environ.get(KEY_ENV, "").strip():
+                huong_dan = (
+                    f"Máy CÓ {KEY_ENV}, nhưng dự án này đang chạy adapter giả lập.\n"
+                    "    Chuyển sang mô hình thật:  eaa init --force"
+                )
+            else:
+                huong_dan = (
+                    f"Chưa có {KEY_ENV}. Đặt khóa vào tệp .env ở gốc kho, rồi:\n"
+                    "        eaa init --force"
+                )
             raise DoctorError(
-                f"Cần tra cứu {requirement.program!r} nhưng chưa cấu hình bộ tra "
-                "cứu. Chế độ tìm công cụ mới dùng mô hình nền — đặt EAA_LLM_KEY "
-                "và chọn provider gemini trong Project State."
+                f"Cần tra cứu {requirement.program!r} nhưng dự án chưa nối với mô "
+                f"hình nền.\n    {huong_dan}"
             )
         return validate_proposal(self.researcher.propose(requirement, os_key=_os_key()))
 
@@ -465,10 +481,13 @@ class Doctor:
             f"{len(requirements)} chương trình pack sẽ gọi mà manifest CHƯA BIẾT:",
             "",
         ]
+        # Bề rộng cột theo tên DÀI NHẤT thay vì một hằng số: pack thứ hai có
+        # tên công cụ dài gấp đôi pack thứ nhất, và một cột cứng thì dính chữ.
+        rong = max(14, *(len(yc.program) for yc in requirements)) + 2
         for yc in requirements:
             trang_thai = "đã có trên máy" if yc.present else "chưa có trên máy"
             dong.append(
-                f"  {yc.program:<14}{trang_thai:<20}phục vụ: {', '.join(yc.capabilities)}"
+                f"  {yc.program:<{rong}}{trang_thai:<20}phục vụ: {', '.join(yc.capabilities)}"
             )
         dong += [
             "",

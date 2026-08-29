@@ -1,0 +1,79 @@
+/* Vòng lặp chính — SINH TỰ ĐỘNG bởi `eaa build`. Đừng sửa tay tệp này.
+ *
+ * Cùng CẤU TRÚC với khuôn của pack AVR (bộ định thời hợp tác, bảng việc định
+ * kỳ), nhưng nguồn nhịp khác hẳn: Cortex-M dùng SysTick, một bộ đếm nằm trong
+ * chính lõi CPU chứ không phải một ngoại vi của hãng. Đây là lý do khuôn thuộc
+ * về pack — engine không có chỗ nào để biết chuyện này.
+ */
+
+#include <stdint.h>
+
+{includes}
+
+/* Thanh ghi SysTick — thuộc lõi Cortex-M, chung cho mọi hãng dùng lõi này. */
+#define EAA_SYST_CSR (*(volatile uint32_t *)0xE000E010UL)
+#define EAA_SYST_RVR (*(volatile uint32_t *)0xE000E014UL)
+#define EAA_SYST_CVR (*(volatile uint32_t *)0xE000E018UL)
+
+static volatile uint32_t eaa_tick_ms;
+
+void SysTick_Handler(void)
+{
+    eaa_tick_ms++;
+}
+
+/* Đọc bộ đếm 32 bit trên lõi 32 bit là thao tác nguyên tử sẵn, nên ở đây không
+ * cần khối bảo vệ như bên AVR 8 bit. Cùng một bài toán, hai câu trả lời khác
+ * nhau tùy lõi — và đó là thứ chỉ pack mới biết. */
+static uint32_t eaa_now_ms(void)
+{
+    return eaa_tick_ms;
+}
+
+static void eaa_tick_init(void)
+{
+    /* Ngắt mỗi {tick_ms} ms. Chu kỳ tính từ F_CPU nên khuôn không ghim tần số. */
+    EAA_SYST_RVR = (uint32_t)((F_CPU / 1000UL) * {tick_ms}UL) - 1UL;
+    EAA_SYST_CVR = 0UL;
+    EAA_SYST_CSR = 0x7UL;   /* dùng đồng hồ lõi, bật ngắt, chạy */
+}
+
+typedef struct {
+    void (*step)(void);
+    uint16_t period_ms;
+} eaa_task_t;
+
+static const eaa_task_t eaa_tasks[] = {
+{tasks}
+};
+
+#define EAA_TASK_COUNT (sizeof(eaa_tasks) / sizeof(eaa_tasks[0]))
+
+static uint32_t eaa_last_run[EAA_TASK_COUNT];
+
+int main(void)
+{
+    uint8_t i;
+
+    eaa_tick_init();
+
+{init_calls}
+
+    for (i = 0u; i < (uint8_t)EAA_TASK_COUNT; i++) {
+        eaa_last_run[i] = 0UL;
+    }
+
+    for (;;) {
+        uint32_t bay_gio = eaa_now_ms();
+
+        for (i = 0u; i < (uint8_t)EAA_TASK_COUNT; i++) {
+            /* Trừ số không dấu nên bộ đếm quay vòng vẫn ra khoảng đúng. */
+            if ((uint32_t)(bay_gio - eaa_last_run[i]) >= (uint32_t)eaa_tasks[i].period_ms) {
+                eaa_last_run[i] = bay_gio;
+                eaa_tasks[i].step();
+            }
+        }
+    }
+
+    return 0;
+}

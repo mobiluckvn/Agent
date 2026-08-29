@@ -226,6 +226,64 @@ def _in_tom_tat(state: ProjectState, project: Path) -> int:
 # --------------------------------------------------------------------------
 
 
+#: Nhắc lại từ eaa.llm.base để CLI không tự đặt tên biến môi trường lần nữa.
+from eaa.llm.base import KEY_ENV as LLM_KEY_ENV  # noqa: E402
+
+
+def chon_llm_theo_moi_truong() -> tuple[str, str, str]:
+    """Agent tự nhìn môi trường của chính nó để chọn adapter mô hình.
+
+    Trả về ``(provider, model, lý do)``. Lý do được IN RA, vì một lựa chọn tự
+    động mà không nói mình đã chọn gì thì cũng là một lựa chọn giấu.
+
+    Vì sao đây là việc của Agent chứ không của người dùng: mặc định ``mock`` là
+    di sản của Sprint 1–3, lúc chưa có khóa nào. Sang Sprint 4 khóa đã có, mà
+    mặc định thì đứng yên — nên mọi dự án mới đều khởi tạo ở chế độ giả lập,
+    rồi chết ở lần đầu cần mô hình thật với một thông báo nói về nội tình của
+    engine thay vì nói phải gõ lệnh gì. Người dùng không có nghĩa vụ biết
+    trường ``llm.provider`` trong Project State tên là gì.
+
+    KHÔNG bao giờ đọc hay in giá trị khóa — chỉ hỏi nó có tồn tại không (NFR-06).
+    """
+    from eaa.llm.gemini import DEFAULT_MODEL
+
+    if os.environ.get(LLM_KEY_ENV, "").strip():
+        return (
+            "gemini",
+            os.environ.get("EAA_LLM_MODEL", "") or DEFAULT_MODEL,
+            f"thấy {LLM_KEY_ENV} trong môi trường",
+        )
+    return (
+        "mock",
+        "mock-deterministic-1",
+        f"chưa có {LLM_KEY_ENV} nên dùng adapter giả lập; "
+        "đặt khóa rồi 'eaa init --force' để chuyển sang mô hình thật",
+    )
+
+
+def canh_bao_lech_cau_hinh(state: Any) -> str:
+    """Project State nói một đằng, môi trường nói một nẻo.
+
+    Không tự sửa: Project State đi cùng dự án và nằm trong Git — nó là một
+    phần điều kiện thí nghiệm, nên chỉ người mới được đổi. Nhưng im lặng thì
+    người dùng sẽ gặp một lỗi khó hiểu ở tận đâu đó phía sau.
+    """
+    provider = (getattr(state, "llm", None) or {}).get("provider", "mock")
+    co_khoa = bool(os.environ.get(LLM_KEY_ENV, "").strip())
+    if provider == "mock" and co_khoa:
+        return (
+            f"Project State đang dùng adapter giả lập, nhưng máy CÓ {LLM_KEY_ENV}.\n"
+            "  Mọi lệnh cần mô hình thật sẽ không chạy. Chuyển sang mô hình thật:\n"
+            "      eaa init --force"
+        )
+    if provider == "gemini" and not co_khoa:
+        return (
+            f"Project State đang dùng mô hình thật, nhưng KHÔNG thấy {LLM_KEY_ENV}.\n"
+            f"  Đặt khóa vào .env hoặc export {LLM_KEY_ENV}=... trước khi chạy."
+        )
+    return ""
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """UC01 — khởi tạo dự án: đọc ràng buộc, hồ sơ phần cứng, tạo Project State."""
     project = resolve_project(args.project)
@@ -242,6 +300,12 @@ def cmd_init(args: argparse.Namespace) -> int:
         HardwareProfile.load, project / HARDWARE_PROFILE_FILE
     )
 
+    # Người nêu rõ thì người thắng; không nêu thì Agent tự nhìn môi trường.
+    tu_chon = chon_llm_theo_moi_truong()
+    provider = args.provider or tu_chon[0]
+    model = args.model or (tu_chon[1] if not args.provider else "")
+    ly_do = "" if args.provider else tu_chon[2]
+
     try:
         manifest = load_manifest(repo_root() / "packs" / rang_buoc.platform)
     except PackError as exc:
@@ -252,11 +316,13 @@ def cmd_init(args: argparse.Namespace) -> int:
         gates={gate: "pending" for gate in GATE_ORDER},
         backlog=[],
         constraints_version=rang_buoc.content_version,
-        llm={"provider": args.provider, "model": args.model},
+        llm={"provider": provider, "model": model},
     )
     store.save(state)
 
     _in_tieu_de("Đã khởi tạo dự án")
+    if ly_do:
+        print(f"  Chọn mô hình tự động: {ly_do}")
     print(f"  Thư mục       : {project}")
     print(f"  Project State : {store.path}")
     print(f"  Platform Pack : {manifest.name} v{manifest.version}")
@@ -264,7 +330,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(f"  Hồ sơ phần cứng: {len(ho_so.peripherals)} ngoại vi, "
           f"{len(ho_so.components)} linh kiện, "
           f"{len(ho_so.pin_map)} chân")
-    print(f"  Mô hình       : {args.provider}/{args.model}")
+    print(f"  Mô hình       : {state.llm['provider']}/{state.llm['model'] or '(mặc định của adapter)'}")
     print(
         f"\nDự án bắt đầu ở pha A ({PHASE_NAMES['A']}), toàn bộ gate ở trạng thái "
         "pending.\nBước kế tiếp: chốt ràng buộc & kiến trúc rồi duyệt G1."
@@ -1593,10 +1659,24 @@ def _chon_cong(project: Path, hardware: Any, chi_dinh: str) -> str:
     khai, goi_y = declared_usb_ids(hardware)
     cong = match_declared(list_ports(), khai, port_hint=goi_y)
     khop = [c for c in cong if c.matched]
+    chac_chan = [c for c in khop if c.match_confirmed]
 
-    if len(khop) == 1:
-        print(f"  Tự chọn cổng: {khop[0].device} ({khop[0].matched})")
-        return khop[0].device
+    # Tự chọn CHỈ khi danh tính đã xác nhận bằng VID/PID. Khớp theo tên cổng là
+    # phỏng đoán, và một phỏng đoán đủ để nạp nhầm bo thì không được phép thành
+    # mặc định — cắm hai bo cùng lúc là chuyện bình thường trên bàn thí nghiệm.
+    if len(chac_chan) == 1:
+        print(f"  Tự chọn cổng: {chac_chan[0].device} ({chac_chan[0].matched})")
+        return chac_chan[0].device
+
+    if khop and not chac_chan:
+        ten = ", ".join(c.device for c in khop)
+        raise CliError(
+            f"Có cổng khớp theo TÊN ({ten}) nhưng chưa xác nhận được VID/PID, "
+            "nên engine KHÔNG tự chọn.\n"
+            "    Một gợi ý tên có thể trúng đúng cái bo khác đang cắm cùng lúc.\n"
+            "    Chỉ rõ bằng --port, hoặc cài pyserial để đọc được VID/PID:\n"
+            "        pip install pyserial"
+        )
 
     if not khop:
         raise CliError(
@@ -1606,9 +1686,9 @@ def _chon_cong(project: Path, hardware: Any, chi_dinh: str) -> str:
             "không phải một lượt chạy lại."
         )
 
-    ten = ", ".join(c.device for c in khop)
+    ten = ", ".join(c.device for c in chac_chan)
     raise CliError(
-        f"Có {len(khop)} cổng cùng khớp bo đã khai ({ten}). Chỉ rõ bằng --port."
+        f"Có {len(chac_chan)} cổng cùng khớp bo đã khai ({ten}). Chỉ rõ bằng --port."
     )
 
 
@@ -1645,7 +1725,9 @@ def cmd_flash(args: argparse.Namespace) -> int:
             ten_anh = plan.image_name
         except FirmwareError:
             ten_anh = "firmware"
-        anh = project / "firmware" / "build" / f"{ten_anh}.hex"
+        khuon = getattr(ctx.runner.manifest, "firmware", None)
+        duoi = getattr(khuon, "image_suffix", ".hex") if khuon else ".hex"
+        anh = project / "firmware" / "build" / f"{ten_anh}{duoi}"
 
     nguoi = args.actor or _nguoi_dung()
     _in_tieu_de("Nạp firmware")
@@ -2229,11 +2311,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_init = sub.add_parser("init", help="Khởi tạo dự án và Project State (UC01)")
     p_init.add_argument("--force", action="store_true", help="Khởi tạo lại dù đã có state")
-    p_init.add_argument("--provider", default="mock", help="Nhà cung cấp LLM (mặc định: mock)")
+    p_init.add_argument(
+        "--provider",
+        default="",
+        help="Nhà cung cấp LLM; bỏ trống thì Agent tự chọn theo môi trường",
+    )
     p_init.add_argument(
         "--model",
-        default="mock-deterministic-1",
-        help="Mã mô hình, ghim phiên bản đầy đủ (Sprint 1–3 dùng MockLLM)",
+        default="",
+        help="Mã mô hình, ghim phiên bản đầy đủ; bỏ trống thì lấy mặc định của adapter",
     )
     p_init.set_defaults(func=cmd_init)
 

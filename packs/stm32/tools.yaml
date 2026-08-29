@@ -1,0 +1,191 @@
+# Tool Manifest — bồi dần qua gate, KHÔNG chép sẵn.
+#
+# Mỗi mục ở đây là một công cụ đã được người duyệt: biết tên, biết cách
+# kiểm phiên bản, biết cách cài. Nhu cầu công cụ thì suy ra từ pack.yaml
+# chứ không khai báo ở đây (AIS §9.1, §9.2).
+
+scope: pack:stm32
+tools:
+- name: arm-none-eabi-gcc
+  check:
+  - arm-none-eabi-gcc
+  - --version
+  min_version: '10.3'
+  level: Must
+  gates:
+  - compile
+  - link
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - gcc-arm-none-eabi
+    macos:
+    - brew
+    - install
+    - arm-none-eabi-gcc
+    windows:
+    - winget
+    - install
+    - -e
+    - --id
+    - Arm.GnuArmEmbeddedToolchain
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:stm32
+  note: Trình biên dịch GNU C/C++ dành cho các vi xử lý nhúng ARM Cortex-M và Cortex-R
+    (bare-metal). — Được sử dụng bởi Platform Pack 'stm32' để biên dịch (compile)
+    và liên kết (link) mã nguồn C/C++ thành firmware chạy trên vi điều khiển STM32.
+  smoke:
+  - arm-none-eabi-gcc
+  - --version
+  smoke_expect: Free Software Foundation
+  error_regex: ^(?P<file>[^:]+):(?P<line>\d+):\d+:\s+(?:fatal )?error:\s+(?P<msg>.*)$
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T13:54:52+00:00'
+- name: arm-none-eabi-objcopy
+  check:
+  - arm-none-eabi-objcopy
+  - --version
+  min_version: '2.36'
+  level: Must
+  gates:
+  - hex
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - binutils-arm-none-eabi
+    macos:
+    - brew
+    - install
+    - arm-none-eabi-binutils
+    windows:
+    - winget
+    - install
+    - -e
+    - --id
+    - Arm.GnuArmEmbeddedToolchain
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:stm32
+  note: Công cụ thuộc GNU Binutils dùng để sao chép và chuyển đổi định dạng các tệp
+    object/thực thi cho kiến trúc ARM. — Cần thiết để trích xuất và chuyển đổi tệp
+    thực thi (thường là ELF) sang định dạng Intel HEX (.hex) để nạp vào bộ nhớ flash
+    của vi điều khiển STM32.
+  smoke:
+  - arm-none-eabi-objcopy
+  - --help
+  smoke_expect: 'Usage: arm-none-eabi-objcopy'
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T13:54:52+00:00'
+- name: arm-none-eabi-size
+  check:
+  - arm-none-eabi-size
+  - --version
+  min_version: '2.36'
+  level: Must
+  gates:
+  - size
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - gcc-arm-none-eabi
+    macos:
+    - brew
+    - install
+    - arm-none-eabi-gcc
+    windows:
+    - winget
+    - install
+    - -e
+    - --id
+    - Arm.GnuToolchain
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:stm32
+  note: Công cụ hiển thị kích thước các section (text, data, bss) của file nhị phân
+    ARM. — Được sử dụng để kiểm tra dung lượng RAM và Flash mà firmware STM32 chiếm
+    dụng sau khi biên dịch.
+  smoke:
+  - arm-none-eabi-size
+  - --help
+  smoke_expect: 'Usage: arm-none-eabi-size'
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T13:54:52+00:00'
+- name: cppcheck
+  check:
+  - cppcheck
+  - --version
+  min_version: '2.10'
+  level: Must
+  gates:
+  - static
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - cppcheck
+    macos:
+    - brew
+    - install
+    - cppcheck
+    windows:
+    - winget
+    - install
+    - -e
+    - --id
+    - DanMar.cppcheck
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:stm32
+  note: Công cụ phân tích tĩnh mã nguồn C/C++ giúp phát hiện lỗi, rò rỉ bộ nhớ và
+    các vấn đề tiềm ẩn. — Thực hiện phân tích tĩnh (static analysis) để đảm bảo chất
+    lượng và độ tin cậy của mã nguồn nhúng trên vi điều khiển STM32.
+  smoke:
+  - cppcheck
+  - --version
+  smoke_expect: Cppcheck
+  error_regex: ^(?<file>[^:]+):(?<line>\d+):\d+:\s+(?:error|warning|style|performance|portability|information):\s+(?<msg>.*)$
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T13:54:52+00:00'
+- name: st-flash
+  check:
+  - st-flash
+  - --version
+  min_version: '1.7'
+  level: Must
+  gates:
+  - flash
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - stlink-tools
+    macos:
+    - brew
+    - install
+    - stlink
+    windows:
+    - choco
+    - install
+    - stlink
+    - -y
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:stm32
+  note: Công cụ mã nguồn mở để nạp firmware cho vi điều khiển STM32 thông qua mạch
+    nạp ST-LINK. — Được Platform Pack 'stm32' gọi để thực hiện quá trình nạp (flash)
+    firmware xuống vi điều khiển.
+  smoke:
+  - st-flash
+  - --version
+  smoke_expect: '1.'
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T13:54:52+00:00'
