@@ -499,11 +499,15 @@ class Doctor:
         return "\n".join(dong)
 
     def render_scan(self, reports: Sequence[ToolReport]) -> str:
-        dong = [f"{'công cụ':<16}{'trạng thái':<12}{'phiên bản':<12}chi tiết"]
-        dong.append("─" * 78)
+        # Bề rộng cột theo tên dài nhất — cùng lý do với render_discovery: tên
+        # công cụ của pack thứ hai dài gấp đôi pack thứ nhất, và một cột cứng
+        # thì dính chữ ngay ở dòng đầu.
+        rong = max(16, *(len(r.spec.name) for r in reports)) + 2 if reports else 16
+        dong = [f"{'công cụ':<{rong}}{'trạng thái':<12}{'phiên bản':<12}chi tiết"]
+        dong.append("─" * max(78, rong + 40))
         for r in reports:
             dong.append(
-                f"{r.spec.name:<16}{r.status:<12}{r.version or '—':<12}{r.detail}"
+                f"{r.spec.name:<{rong}}{r.status:<12}{r.version or '—':<12}{r.detail}"
             )
             if r.blocking and r.spec.gates:
                 dong.append(f"    → chặn cổng: {', '.join(r.spec.gates)}")
