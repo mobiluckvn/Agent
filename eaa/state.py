@@ -94,14 +94,21 @@ def _process_alive(pid: int) -> bool:
         import ctypes
 
         SYNCHRONIZE = 0x00100000
-        handle = ctypes.windll.kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+        ERROR_ACCESS_DENIED = 5
+        WAIT_TIMEOUT = 258
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
         if not handle:
-            return False
+            # Mở thất bại KHÔNG đồng nghĩa tiến trình đã chết: bị từ chối quyền
+            # nghĩa là nó đang sống và thuộc về người dùng khác. Nhầm hai thứ
+            # này sẽ thu hồi khóa của một tiến trình còn đang ghi.
+            return kernel32.GetLastError() == ERROR_ACCESS_DENIED
         try:
-            # WAIT_TIMEOUT (258) = còn chạy; WAIT_OBJECT_0 (0) = đã kết thúc.
-            return ctypes.windll.kernel32.WaitForSingleObject(handle, 0) == 258
+            # WAIT_TIMEOUT = còn chạy; WAIT_OBJECT_0 (0) = đã kết thúc.
+            return kernel32.WaitForSingleObject(handle, 0) == WAIT_TIMEOUT
         finally:
-            ctypes.windll.kernel32.CloseHandle(handle)
+            kernel32.CloseHandle(handle)
 
     try:
         os.kill(pid, 0)

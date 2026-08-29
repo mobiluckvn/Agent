@@ -254,7 +254,7 @@ def test_lock_mo_coi_do_tien_trinh_chet_khong_khoa_vinh_vien(
     )
 
     proc = subprocess.Popen(
-        [sys.executable, str(kich_ban)], stdout=subprocess.PIPE, text=True
+        [sys.executable, str(kich_ban)], stdout=subprocess.PIPE, text=True, encoding="utf-8"
     )
     try:
         assert proc.stdout is not None
@@ -310,7 +310,7 @@ def test_tc03_kill_9_giua_vong_lap_state_van_doc_duoc(
     )
 
     proc = subprocess.Popen(
-        [sys.executable, str(kich_ban)], stdout=subprocess.PIPE, text=True
+        [sys.executable, str(kich_ban)], stdout=subprocess.PIPE, text=True, encoding="utf-8"
     )
     try:
         assert proc.stdout is not None
