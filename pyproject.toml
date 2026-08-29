@@ -15,6 +15,7 @@ authors = [{ name = "Vũ Trí Công", email = "congvt@mobiluck.vn" }]
 dependencies = [
     "pyyaml>=6.0",
     "networkx>=3.1",   # Knowledge Graph — ADR-08, không dùng graph database
+    "pypdf>=4.0",      # trích văn bản từ trang PDF người chọn — AIS §4.1 bước 1
 ]
 
 [project.optional-dependencies]

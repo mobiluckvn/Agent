@@ -788,6 +788,126 @@ def _gate_reject(ctx: AppContext, args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------
+# UC03 — nạp và duyệt trích đoạn tài liệu (Gate G2)
+# --------------------------------------------------------------------------
+
+
+def cmd_datasheet(args: argparse.Namespace) -> int:
+    from eaa.ingest import IngestError, PdfIngestor, SourceRegistry
+    from eaa.kb import DatasheetStore
+
+    project = resolve_project(args.project)
+
+    if args.datasheet_action == "list":
+        kho = DatasheetStore(project / "datasheets")
+        muc = kho.all()
+        _in_tieu_de(f"Datasheet Store ({len(muc)} chunk)")
+        for c in sorted(muc, key=lambda x: x.id):
+            danh_dau = "✓" if c.is_active else ("…" if c.status == "proposed" else "✗")
+            print(f"  {danh_dau} {c.id:<24}{c.status:<12}{c.device}/{c.peripheral}")
+            if c.registers:
+                print(f"      thanh ghi: {', '.join(c.registers)}")
+            if c.source:
+                print(f"      nguồn: {c.source}")
+        cho_duyet = [c for c in muc if c.status == "proposed"]
+        if cho_duyet:
+            print(
+                f"\n{len(cho_duyet)} chunk đang chờ duyệt tại G2 — chưa truy xuất "
+                "được. Xem 'eaa gate show G2' rồi 'eaa gate approve G2'."
+            )
+        return EXIT_WAITING_GATE if cho_duyet else EXIT_OK
+
+    if args.datasheet_action == "add":
+        try:
+            de_xuat = PdfIngestor(
+                datasheets_dir=project / "datasheets",
+                registry=SourceRegistry(project / "sources.jsonl"),
+            ).ingest(
+                args.file,
+                device=args.device,
+                peripheral=args.peripheral,
+                pages=args.pages or "",
+                topic=args.topic or "",
+                chunk_id=args.id or "",
+            )
+        except IngestError as exc:
+            raise CliError(str(exc)) from exc
+
+        _in_tieu_de(f"Đã tạo chunk ĐỀ XUẤT {de_xuat.id}")
+        print(f"  Nguồn      : {de_xuat.source}")
+        print(f"  Băm tài liệu: {de_xuat.source_hash}")
+        print(f"  Thanh ghi đoán được: {', '.join(de_xuat.registers) or '—'}")
+        print(
+            "\nChunk đang ở trạng thái 'proposed' nên CHƯA truy xuất được vào "
+            "prompt nào.\nKỹ sư đối chiếu từng bit với bản gốc, sửa lại phần chưa "
+            "chưng cất, rồi duyệt:\n  eaa gate show G2\n  eaa gate approve G2"
+        )
+        return EXIT_WAITING_GATE
+
+    raise CliError(f"Hành động không hợp lệ: {args.datasheet_action!r}")
+
+
+# --------------------------------------------------------------------------
+# UC06 — mô phỏng
+# --------------------------------------------------------------------------
+
+
+def cmd_sim(args: argparse.Namespace) -> int:
+    from eaa.tools.sim import SimBindings, SimGate
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    cong = SimGate(
+        runner=ctx.runner,
+        bindings=SimBindings.from_project(project, scenario=args.scenario or ""),
+    )
+
+    if args.sweep:
+        dai = _doc_dai_quet(args.sweep, project)
+        _in_tieu_de("Quét tham số (MIL)")
+        bang = cong.sweep(dai, scenario=args.scenario or "")
+        print(SimGate.format_sweep(bang))
+        return EXIT_OK if any(r["stable"] for r in bang) else EXIT_ENV_ERROR
+
+    bao_cao = cong.run()
+    _in_tieu_de("Mô phỏng")
+    print(bao_cao.raw_output.strip() or "(không có đầu ra)")
+    print()
+    print(bao_cao.summary)
+    for e in bao_cao.errors:
+        print(f"  {e}")
+    return EXIT_OK if bao_cao.passed else EXIT_ENV_ERROR
+
+
+def _doc_dai_quet(mo_ta: str, project: Path) -> dict[str, list[float]]:
+    """Đọc dải quét: ``kp,ki,kd`` lấy dải từ scenarios.yaml, hoặc ``kp=1:2:3``."""
+    import yaml as _yaml
+
+    if "=" in mo_ta:
+        dai: dict[str, list[float]] = {}
+        for phan in mo_ta.split(","):
+            if "=" not in phan:
+                continue
+            ten, gia_tri = phan.split("=", 1)
+            dai[ten.strip()] = [float(v) for v in gia_tri.split(":") if v.strip()]
+        return dai
+
+    kich_ban = project / "sim" / "scenarios.yaml"
+    if not kich_ban.is_file():
+        raise CliError(f"Không có {kich_ban} để lấy dải quét mặc định.")
+    cau_hinh = _yaml.safe_load(kich_ban.read_text(encoding="utf-8")) or {}
+    khai_bao = cau_hinh.get("sweep") or {}
+    ten_can = [t.strip() for t in mo_ta.split(",") if t.strip()]
+    thieu = [t for t in ten_can if t not in khai_bao]
+    if thieu:
+        raise CliError(
+            f"scenarios.yaml không khai báo dải quét cho {thieu}. "
+            f"Đang có: {sorted(k for k in khai_bao if k != 'scenario')}"
+        )
+    return {t: [float(v) for v in khai_bao[t]] for t in ten_can}
+
+
+# --------------------------------------------------------------------------
 # UC08, UC09 — nhật ký lỗi và báo cáo KPI
 # --------------------------------------------------------------------------
 
@@ -975,9 +1095,38 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Các lệnh còn lại của SDD §5 và AIS: có mặt trong trợ giúp để bộ lệnh nhìn
     # thấy được ngay từ đầu, nhưng nói thẳng là chưa làm.
+    # UC03 — nạp và duyệt trích đoạn tài liệu
+    p_ds = sub.add_parser("datasheet", help="Nạp và duyệt trích đoạn tài liệu (UC03, G2)")
+    ds_sub = p_ds.add_subparsers(dest="datasheet_action", required=True, metavar="<hành động>")
+    da = ds_sub.add_parser(
+        "add", help="Nạp trích đoạn PDF thành chunk ĐỀ XUẤT, chờ duyệt tại G2"
+    )
+    da.add_argument("file", help="Tệp PDF nguồn")
+    da.add_argument("--device", required=True, help="Thiết bị, ví dụ tên chip hay mã linh kiện")
+    da.add_argument("--peripheral", required=True, help="Ngoại vi trong hồ sơ phần cứng")
+    da.add_argument(
+        "--pages",
+        help="Trang cần trích, ví dụ '222-224'. Bỏ trống là lấy cả tài liệu — "
+        "nên chỉ rõ, vì việc chọn trang là việc của kỹ sư (AIS §4.1)",
+    )
+    da.add_argument("--topic", help="Chủ đề ngắn gọn của trích đoạn")
+    da.add_argument("--id", help="Mã chunk; bỏ trống thì tự sinh")
+    ds_sub.add_parser("list", help="Liệt kê chunk trong kho kèm trạng thái")
+    p_ds.set_defaults(func=cmd_datasheet)
+
+    # UC06 — mô phỏng
+    p_sim = sub.add_parser("sim", help="Chạy mô phỏng MIL/SIL, quét tham số (UC06)")
+    sim_sub = p_sim.add_subparsers(dest="sim_action", required=True, metavar="<hành động>")
+    sr = sim_sub.add_parser("run", help="Chạy kịch bản mô phỏng")
+    sr.add_argument("--scenario", help="Tên kịch bản; bỏ trống thì chạy tất cả")
+    sr.add_argument(
+        "--sweep",
+        help="Quét tham số: 'kp,ki,kd' lấy dải từ scenarios.yaml, "
+        "hoặc 'kp=30:38:46,kd=2.6:3.4'",
+    )
+    p_sim.set_defaults(func=cmd_sim)
+
     khung: list[tuple[str, str, str, str]] = [
-        ("datasheet", "Nạp và duyệt trích đoạn tài liệu (UC03, G2)", "Sprint 3", ""),
-        ("sim", "Chạy mô phỏng MIL/SIL, quét tham số (UC06)", "Sprint 3", ""),
         ("tune", "Nhập số đo vật lý, nhận gợi ý tinh chỉnh (UC07, G4)", "Sprint 4", ""),
         ("doctor", "Quét, cài đặt công cụ và khóa môi trường (AIS §9)", "Sprint 3", ""),
         ("docs", "Kho phẩm xuất: list/get/regen (AIS §8.5)", "Sprint 3", ""),

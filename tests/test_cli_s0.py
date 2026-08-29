@@ -149,7 +149,7 @@ def test_init_ghi_dung_bam_rang_buoc_vao_state(du_an: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "lenh", ["datasheet", "sim", "tune", "doctor", "docs", "rollback"]
+    "lenh", ["tune", "doctor", "docs", "rollback"]
 )
 def test_lenh_chua_lam_noi_ro_va_thoat_khac_0(
     lenh: str, du_an: Path, capsys: pytest.CaptureFixture[str]
