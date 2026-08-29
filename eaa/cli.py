@@ -1849,6 +1849,76 @@ def _canh_bao_an_toan_cua_anh(image: Path) -> list[str]:
     return dong
 
 
+def _hoi_tren_terminal(cau_hoi: str) -> str:
+    """Bậc 2 của thang tìm kiếm — hỏi người ngay trên dòng lệnh.
+
+    Không có terminal thì trả rỗng: một phiên không có người không được diễn
+    giải thành một người đã trả lời. Cùng nguyên tắc với mọi cổng khác.
+    """
+    if not sys.stdin.isatty():
+        return ""
+    print(f"\n  {cau_hoi}")
+    print("  Dán nội dung (bảng thanh ghi–bit), hoặc Enter để bỏ qua:")
+    return input("  > ").strip()
+
+
+def cmd_resolve(args: argparse.Namespace) -> int:
+    """Đi TÌM thứ bảng kiểm còn thiếu — P7 bước 3, thang ba bậc."""
+    from eaa.gapsearch import SEARCH_LEDGER, GapResolver, GapSearchError, SearchLedger
+    from eaa.readiness import ReadinessChecker
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    state = ctx.store.load()
+
+    muc = next((m for m in state.backlog if m.id == args.module_id), None)
+    if muc is None:
+        raise CliError(
+            f"Không có module {args.module_id!r} trong backlog. "
+            f"Thêm bằng: eaa plan add {args.module_id}"
+        )
+
+    bang_kiem = ReadinessChecker(kb=ctx.kb, graph=ctx.graph).build_ric(
+        args.module_id, uses=muc.uses
+    )
+    _in_tieu_de(f"Bảng kiểm thông tin cần — {args.module_id}")
+    print(bang_kiem.render())
+
+    if bang_kiem.ready:
+        print("\nĐủ điều kiện mở vòng sinh mã: eaa gen " + args.module_id)
+        return EXIT_OK
+
+    if bang_kiem.conflicts:
+        raise CliError(
+            f"{len(bang_kiem.conflicts)} mục MÂU THUẪN — thang tìm kiếm KHÔNG chạy "
+            "khi kho tri thức đang tự mâu thuẫn.\n"
+            "  Hai nguồn nói khác nhau thì người phân xử, máy không chọn hộ "
+            "(AIS §8.2).",
+            EXIT_WAITING_GATE,
+        )
+
+    _in_tieu_de("Đi tìm thứ còn thiếu")
+    try:
+        bao_cao = GapResolver(
+            kb=ctx.kb,
+            graph=ctx.graph,
+            ledger=SearchLedger(project / SEARCH_LEDGER),
+            llm=ctx.llm,
+            ask=_hoi_tren_terminal if args.ask else None,
+            allow_web=args.web,
+        ).resolve(bang_kiem)
+    except GapSearchError as exc:
+        raise CliError(str(exc)) from exc
+
+    print(bao_cao.render())
+
+    if bao_cao.found_any:
+        return EXIT_WAITING_GATE
+    if bao_cao.handed_off:
+        return EXIT_REPAIR_LIMIT
+    return EXIT_WAITING_GATE
+
+
 def cmd_decide(args: argparse.Namespace) -> int:
     """Dựng tập phương án cho một quyết định, để người chọn tại gate."""
     from eaa.options import OPTIONS_FILE, LlmOptionProposer, OptionError, OptionSet
@@ -2515,6 +2585,25 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_build.set_defaults(func=cmd_build)
+
+    # P7 bước 3 — đi tìm thứ bảng kiểm còn thiếu
+    p_resolve = sub.add_parser(
+        "resolve",
+        help="Đi tìm tri thức còn thiếu của một module (thang ba bậc)",
+        description=(
+            "Bảng kiểm nói THIẾU thì Agent đi tìm, thay vì đứng im. Bậc 1 lục "
+            "lại tài liệu đã nạp; bậc 2 hỏi bạn đích danh; bậc 3 tra miền nhà "
+            "sản xuất. Thứ tìm được luôn là đề xuất, phải qua G2."
+        ),
+    )
+    p_resolve.add_argument("module_id")
+    p_resolve.add_argument(
+        "--ask", action="store_true", help="Bật bậc 2: hỏi ngay trên dòng lệnh"
+    )
+    p_resolve.add_argument(
+        "--web", action="store_true", help="Bật bậc 3: tra nguồn cho phép trên web"
+    )
+    p_resolve.set_defaults(func=cmd_resolve)
 
     # Bước 8 — cổng quyết định, không chỉ cổng duyệt
     p_decide = sub.add_parser(

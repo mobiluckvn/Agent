@@ -553,6 +553,23 @@ Ba loại:
 
 ---
 
+## SL-41 · BỔ SUNG · `eaa/gapsearch.py` — bậc thang tìm kiếm, P7 bước 3
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.2 bước 3, FR-GAP-02; quy trình P7 |
+| **Thiết kế nói** | Mục THIẾU được tìm bổ sung theo thang ba bậc: ① lục tài liệu người dùng đã đưa mà chưa trích hết ② hỏi người ĐÍCH DANH ③ tra miền nhà sản xuất cho phép. Tối đa 2 vòng mỗi mục rồi chuyển người |
+| **Chỗ trống** | Bước 1, 2 và 4 của P7 đã làm từ Sprint 3; **bước 3 thì chưa**. Dấu vết nằm ngay trong mã: `RicItem.search_rounds` tồn tại, `MAX_SEARCH_ROUNDS` tồn tại, dòng chặn "đã tìm N vòng" tồn tại — mà **không chỗ nào tăng bộ đếm**, vì không ai đi tìm. Agent nói "thiếu thanh ghi X" rồi đứng đó |
+| **Code làm** | `GapResolver` (ba bậc), `SearchLedger` (bộ đếm sống qua nhiều phiên), lệnh `eaa resolve <module> [--ask] [--web]`; thông báo `NotReady` nay chỉ đúng lệnh thay vì chỉ mô tả tình trạng |
+| **Bậc 1 rẻ và đáng tin nhất** | Tìm cả chunk ở trạng thái `proposed`. Chạy thật trên dự án mẫu: hạ một chunk xuống `proposed` rồi gọi `eaa resolve` → Agent trả lời *"đã có trong kho nhưng CHƯA DUYỆT: ds-021 — duyệt tại G2 là đủ, không cần tìm thêm ở đâu"*. Đó là câu trả lời tôn trọng công sức người đã bỏ ra |
+| **Bậc 3 buộc kèm nguồn** | Một câu trả lời trôi chảy của mô hình trông y hệt một trích đoạn tra được từ tài liệu gốc. Nên: `found=false` thì tôn trọng; không có nguồn thì BỎ kết quả (không hạ xuống thành "tham khảo"); nguồn phải qua bộ lọc miền của `ingest.check_web_source` |
+| **Lỗi tìm ra khi chạy thật** | Bản đầu trừ lượt TRƯỚC khi tìm, nên một vòng tìm **thành công** cũng tiêu một lượt — mục tra được ngay từ bậc 1 vẫn cạn ngân sách sau hai lần gõ lệnh. Ngân sách hai vòng sinh ra để chặn việc tìm mãi không thấy, không phải để phạt việc tìm thấy. Nay chỉ trừ khi tìm không ra |
+| **Bất biến giữ nguyên** | Mọi bậc chỉ sinh ĐỀ XUẤT (`status: proposed`), phải qua G2. Mâu thuẫn thì thang KHÔNG chạy — kho đang tự mâu thuẫn thì tìm thêm chỉ làm rối. Agent vẫn cấm đoán giá trị (FR-GAP-03) |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/gapsearch.py`, lệnh `eaa resolve` |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

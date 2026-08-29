@@ -293,7 +293,13 @@ class ReadinessChecker:
             "hay tham số điện để lấp chỗ trống (FR-GAP-03).\n\n"
             + ric.render()
             + "\n\n"
-            + ric.guidance(),
+            + ric.guidance()
+            + (
+                "\n\nAgent ĐI TÌM được ba bậc này thay vì để bạn tự làm:\n"
+                f"    eaa resolve {module_id}            # bậc 1: lục tài liệu đã nạp\n"
+                f"    eaa resolve {module_id} --ask      # bậc 2: hỏi bạn đích danh\n"
+                f"    eaa resolve {module_id} --ask --web  # bậc 3: tra nguồn cho phép"
+            ),
             ric,
         )
 

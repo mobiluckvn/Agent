@@ -631,7 +631,7 @@ DOI_CHIEU = [
  ("N-032", DU, "eaa/graph.py · TC-18", "", "T4"),
  ("N-033", DU, "eaa/readiness.py conflict + chuẩn hóa số · TC-26", "", "T1"),
  ("N-034", DU, "eaa/readiness.py · TC-24", "", "T3"),
- ("N-035", PHAN, "eaa/gapsearch.py (WIP, chưa nối CLI, chưa test)", "Hiện hành: chỉ IN GỢI Ý ba bậc rồi dừng. search_rounds không ai tăng. Chưa đi tìm thật.", "T0"),
+ ("N-035", DU, "eaa/gapsearch.py + eaa resolve · TC-48 (26 test)", "", "T2"),
  ("N-036", DU, "eaa/lifecycle.py (3 đường truy ngược) · TC-29", "", "T3"),
  ("N-037", CHUA, "—", "Không hỏi rev silicon, không tra errata, không đối chiếu với ngoại vi đang dùng.", "T0"),
  ("N-040", CHUA, "eaa plan add (thủ công)", "Agent không đề xuất phân rã. Người tự liệt kê module.", "T0"),

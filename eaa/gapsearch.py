@@ -21,8 +21,8 @@ Ba bậc, rẻ và đáng tin trước
    này trong đồ thị. Tìm ở đây trước là tôn trọng công sức người đã bỏ ra.
 
 2. **Hỏi người dùng ĐÍCH DANH.** Không phải "thiếu thông tin, bạn bổ sung đi",
-   mà "cần trang tài liệu mô tả thanh ghi TCCR1A ở chế độ CTC". Câu hỏi mơ hồ
-   đẩy việc chẩn đoán ngược lại cho người, và đó đúng là việc Agent phải làm.
+   mà nêu tên đúng thứ còn thiếu và chế độ đang cần. Câu hỏi mơ hồ đẩy việc
+   chẩn đoán ngược lại cho người, và đó đúng là việc Agent vừa làm xong.
 
 3. **Tra nguồn cho phép trên web.** Chỉ trong miền của nhà sản xuất, dùng đúng
    bộ lọc mà ``ingest.check_web_source`` đã dựng.
@@ -244,17 +244,25 @@ class GapResolver:
                 )
                 continue
 
-            so.bump(ric.module_id, muc.key)
-            self._mot_muc(muc, bao_cao)
+            tim_duoc = self._mot_muc(muc, bao_cao)
+            if not tim_duoc:
+                # Chỉ trừ lượt khi tìm KHÔNG RA. Ngân sách hai vòng sinh ra để
+                # chặn việc tìm mãi không thấy, không phải để phạt việc tìm
+                # thấy — trừ lượt cả khi thành công thì một mục tra được ngay
+                # từ bậc 1 vẫn cạn lượt sau hai lần chạy lệnh.
+                so.bump(ric.module_id, muc.key)
 
         return bao_cao
 
-    def _mot_muc(self, muc: RicItem, bao_cao: ResolutionReport) -> None:
-        """Leo thang cho một mục; dừng ngay khi một bậc tìm được."""
+    def _mot_muc(self, muc: RicItem, bao_cao: ResolutionReport) -> bool:
+        """Leo thang cho một mục; dừng ngay khi một bậc tìm được.
+
+        Trả về True nếu có bậc nào tìm ra thứ dùng được.
+        """
         bac1 = self._bac1_kho_san_co(muc)
         bao_cao.results.append(bac1)
         if bac1.outcome == FOUND:
-            return
+            return True
 
         bac2 = self._bac2_hoi_nguoi(muc)
         bao_cao.results.append(bac2)
@@ -262,12 +270,15 @@ class GapResolver:
             bao_cao.questions.append(bac2.question)
         if bac2.outcome == FOUND and bac2.proposal is not None:
             bao_cao.proposals.append(bac2.proposal)
-            return
+            return True
 
         bac3 = self._bac3_tra_web(muc)
         bao_cao.results.append(bac3)
         if bac3.outcome == FOUND and bac3.proposal is not None:
             bao_cao.proposals.append(bac3.proposal)
+            return True
+
+        return False
 
     # -- bậc 1 -------------------------------------------------------------
 
@@ -445,17 +456,17 @@ class GapResolver:
         return de_xuat
 
     def _ngoai_vi(self, muc: RicItem) -> str:
-        """Ngoại vi của mục, tra ngược từ đồ thị tri thức.
+        """Ngoại vi sở hữu thanh ghi này, tra từ hồ sơ phần cứng của dự án.
 
         Không tra được thì để TRỐNG, và người điền lúc duyệt G2. Đoán một cái
-        tên ngoại vi ở đây là đưa một dữ kiện bịa vào kho tri thức qua cửa sau
-        — đúng thứ mà cả vòng RIC dựng ra để chặn.
+        tên ngoại vi ở đây là đưa dữ kiện bịa vào kho tri thức qua cửa sau —
+        đúng thứ mà cả vòng RIC dựng ra để chặn.
         """
-        if self.graph is None:
-            return ""
-        for ngoai_vi in getattr(self.graph, "peripherals", lambda: [])():
-            if muc.key.upper() in {r.upper() for r in getattr(ngoai_vi, "registers", ())}:
-                return str(getattr(ngoai_vi, "id", ""))
+        khoa = muc.key.upper()
+        for ngoai_vi in getattr(self.kb.hardware, "peripherals", []):
+            thanh_ghi = {str(r).upper() for r in (ngoai_vi.get("configured_by") or [])}
+            if khoa in thanh_ghi:
+                return str(ngoai_vi.get("id", ""))
         return ""
 
 
