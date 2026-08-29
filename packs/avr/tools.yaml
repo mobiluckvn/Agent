@@ -1,47 +1,150 @@
-# Tool Manifest — phần theo Platform Pack AVR (AIS §9.1).
+# Tool Manifest — bồi dần qua gate, KHÔNG chép sẵn.
 #
-# Chỉ được quét khi dự án dùng pack này. Pack STM32 sau đây mang toolchain
-# riêng của nó, và engine không phải biết gì thêm.
+# Mỗi mục ở đây là một công cụ đã được người duyệt: biết tên, biết cách
+# kiểm phiên bản, biết cách cài. Nhu cầu công cụ thì suy ra từ pack.yaml
+# chứ không khai báo ở đây (AIS §9.1, §9.2).
 
-scope: "pack:avr"
-
+scope: pack:avr
 tools:
-
-  - name: avr-gcc
-    check: ["avr-gcc", "--version"]
-    min_version: "12.0"
-    level: Must
-    gates: [compile]
-    install:
-      macos: ["brew", "install", "osx-cross/avr/avr-gcc"]
-      linux: ["sudo", "apt-get", "install", "-y", "gcc-avr", "avr-libc"]
-      windows: ["winget", "install", "-e", "--id", "ZakKemble.avr-gcc"]
-    smoke: ["avr-gcc", "--version"]
-    smoke_expect: "avr-gcc"
-    error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+: error: (?P<msg>.+)$"
-
-  - name: avr-size
-    check: ["avr-size", "--version"]
-    min_version: "2.38"
-    level: Must
-    gates: [size]
-    install:
-      macos: ["brew", "install", "osx-cross/avr/avr-binutils"]
-      linux: ["sudo", "apt-get", "install", "-y", "binutils-avr"]
-    smoke: ["avr-size", "--version"]
-    smoke_expect: "GNU size"
-
-  - name: avrdude
-    check: ["avrdude", "-?"]
-    min_version: "7.0"
-    level: Must
-    gates: [flash]
-    install:
-      macos: ["brew", "install", "avrdude"]
-      linux: ["sudo", "apt-get", "install", "-y", "avrdude"]
-      windows: ["winget", "install", "-e", "--id", "avrdudes.AVRDUDE"]
-    smoke: ["avrdude", "-?"]
-    smoke_expect: "avrdude"
-    note: >-
-      Nạp firmware. Năng lực này LUÔN cần người xác nhận trước khi chạy
-      (FR-DIA-02) — xem khai báo requires_confirmation trong pack.yaml.
+- name: avr-gcc
+  check:
+  - avr-gcc
+  - -dumpversion
+  min_version: '12.0'
+  level: Must
+  gates:
+  - compile
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - gcc-avr
+    macos:
+    - brew
+    - install
+    - avr-gcc
+    windows:
+    - choco
+    - install
+    - avr-gcc
+    - -y
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:avr
+  note: Trình biên dịch GNU C/C++ dành cho vi điều khiển họ Atmel AVR. — Được gọi
+    bởi Platform Pack 'avr' để biên dịch mã nguồn C/C++ thành mã thực thi cho vi điều
+    khiển AVR.
+  smoke:
+  - avr-gcc
+  - --version
+  smoke_expect: avr-gcc
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T08:59:56+00:00'
+- name: avr-size
+  check:
+  - avr-size
+  - --version
+  min_version: '2.38'
+  level: Must
+  gates:
+  - size
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - binutils-avr
+    macos:
+    - brew
+    - install
+    - avr-binutils
+    windows:
+    - choco
+    - install
+    - avr-gcc
+    - -y
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:avr
+  note: Công cụ hiển thị kích thước các section (Flash, RAM, EEPROM) của file thực
+    thi hoặc object file cho vi điều khiển AVR. — Cần thiết để tính toán và kiểm tra
+    dung lượng bộ nhớ mà firmware sẽ chiếm dụng trên vi điều khiển AVR trước khi nạp.
+  smoke:
+  - avr-size
+  - --help
+  smoke_expect: 'Usage: avr-size'
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T08:59:56+00:00'
+- name: avrdude
+  check:
+  - avrdude
+  - -?
+  min_version: '7.0'
+  level: Must
+  gates:
+  - flash
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - avrdude
+    macos:
+    - brew
+    - install
+    - avrdude
+    windows:
+    - choco
+    - install
+    - avrdude
+    - -y
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:avr
+  note: Công cụ dòng lệnh để đọc, ghi và thao tác với bộ nhớ của vi điều khiển Atmel
+    AVR. — Được Platform Pack 'avr' gọi để thực hiện quá trình nạp (flash) firmware
+    xuống vi điều khiển.
+  smoke:
+  - avrdude
+  - -?
+  smoke_expect: avrdude version
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T08:59:56+00:00'
+- name: cppcheck
+  check:
+  - cppcheck
+  - --version
+  min_version: '2.10'
+  level: Must
+  gates:
+  - static
+  install:
+    linux:
+    - sudo
+    - apt-get
+    - install
+    - -y
+    - cppcheck
+    macos:
+    - brew
+    - install
+    - cppcheck
+    windows:
+    - winget
+    - install
+    - -e
+    - --id
+    - cppcheck.cppcheck
+  version_regex: (\d+\.\d+(?:\.\d+)?)
+  scope: pack:avr
+  note: Công cụ phân tích tĩnh (static analysis) mã nguồn C/C++ giúp phát hiện lỗi
+    và các hành vi không xác định. — Cung cấp năng lực phân tích tĩnh (static analysis)
+    để đảm bảo chất lượng và độ tin cậy của mã nguồn C/C++ cho vi điều khiển AVR.
+  smoke:
+  - cppcheck
+  - --version
+  smoke_expect: Cppcheck
+  error_regex: ^\[(?P<file>[^:]+):(?P<line>\d+)\]:\s+(?P<msg>.*)$
+  approved_by: vu-tri-cong
+  approved_at: '2026-08-29T09:01:50+00:00'

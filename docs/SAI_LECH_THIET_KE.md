@@ -315,6 +315,49 @@ Ba loại:
 
 ---
 
+## SL-26 · BỔ SUNG · `eaa/toolsearch.py` — tự tìm công cụ chưa biết
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.2 (chế độ "Tìm công cụ mới"), §9.1, §9.4; FR-ENV-03 |
+| **Thiết kế nói** | `eaa doctor` có ba chế độ; chế độ ba đề xuất công cụ mới, đề xuất qua gate rồi mới vào manifest, nguồn cài giới hạn ở trình quản lý gói chính thống hoặc miền cho phép kèm checksum |
+| **SDD nói** | EAA-SDD-03 v1.0 không có module nào cho chế độ ba — `eaa/doctor.py` chỉ phủ hai chế độ đầu |
+| **Code làm** | Thêm `eaa/toolsearch.py`: `derive_requirements()` suy nhu cầu từ `pack.yaml`; `LlmToolResearcher` tra cứu bằng mô hình nền; `validate_proposal()` kiểm nguồn cài; `append_to_manifest()` ghi append + supersede. `Doctor.discover()/research()`, cờ `--discover/--propose`, và nhánh ghi manifest sau khi duyệt G2 |
+| **Lý do** | Nhu cầu công cụ đã nằm sẵn trong `pack.yaml` — phần tử đầu của mỗi `command`. Chép lại danh sách ấy vào manifest là dựng nguồn sự thật thứ hai, và nó lệch ngay lần đầu pack đổi lệnh, theo hướng nguy hiểm: doctor báo "đủ công cụ" trong khi cổng kiểm chứng sắp gọi một chương trình không có |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/toolsearch.py` vào cây module và mô tả đường đi phát hiện → tra cứu → G2 → manifest |
+| **Sprint** | S4 |
+
+---
+
+## SL-27 · LỆCH THẬT · Manifest công cụ bị chép sẵn bằng tay
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.1 ("Tool Manifest là một kho tri thức, mọi thay đổi qua gate"), §9.2 |
+| **Thiết kế nói** | Manifest ghi những công cụ đã được duyệt; nhu cầu thì suy từ pack |
+| **Code trước đó làm** | `packs/avr/tools.yaml` được viết tay sẵn ba mục `avr-gcc`, `avr-size`, `avrdude`; `tools.yaml` của engine viết tay thêm `cppcheck` |
+| **Phát hiện khi chạy thật** | Không có gì hỏng — và đó chính là vấn đề: manifest viết tay trông y hệt manifest đã qua gate. Không có cách nào phân biệt "công cụ này đã được xác nhận cách kiểm và cách cài" với "ai đó gõ vào đây". `cppcheck` còn nằm sai tầng: pack AVR gọi nó kèm `--platform=avr8`, nhưng nó được khai ở manifest engine, nên mọi dự án đều bị đòi nó kể cả dự án dùng nền khác |
+| **Code làm** | Xóa cả bốn mục viết tay; chúng đi lại đường chính quy `--discover --propose` → G2 → manifest, và mang theo `approved_by`/`approved_at`. Một test khóa lại: mục nào trong manifest của pack không có dấu vết người duyệt thì hỏng |
+| **Kết quả quan sát được** | Mô hình đề xuất `avr-gcc ≥7.3`, còn `pack.yaml` khai `>=12.0`. Hai con số khác nhau, và nếu lấy theo mô hình thì doctor sẽ chấp nhận một toolchain mà pack không chạy nổi. `derive_requirements()` vì thế lấy ràng buộc phiên bản theo pack — pack là tài liệu đã qua G1, đề xuất của mô hình chỉ là tri thức tra cứu |
+| **Cần cập nhật** | EAA-AIS-05 §9.1: nói rõ mục manifest bắt buộc mang `approved_by`/`approved_at`, và ràng buộc phiên bản của pack đè lên đề xuất |
+| **Sprint** | S4 |
+
+---
+
+## SL-28 · LỆCH THẬT · Adapter mô hình chỉ có một lối gọi, và nó đòi khối `file:`
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §5 (giao diện `LLMClient`) |
+| **Thiết kế nói** | `LLMClient.generate(prompt) -> CodeArtifact` |
+| **Phát hiện khi chạy thật** | `eaa doctor --discover --propose` hỏng cho cả ba công cụ: *"Phản hồi không chứa khối ```file:<đường dẫn> nào"*. Mô hình trả lời đúng — một khối JSON như prompt yêu cầu — nhưng `generate()` luôn chạy `parse_file_blocks()`, nên mọi phản hồi đúng đắn của một câu hỏi KHÔNG PHẢI sinh mã đều bị tính là hỏng định dạng |
+| **Code làm** | Thêm `complete(prompt) -> str` cho cả ba adapter (`GeminiClient`, `MockLLM`, `ReplayClient`); `generate()` và `complete()` dùng chung một đường gọi, chỉ khác ở chỗ có bóc khối tệp hay không |
+| **Lý do** | Không phải mọi lời gọi mô hình đều là sinh mã. Tra cứu công cụ, và sau này phân loại lỗi hay phân tích số đo tại G4, đều là câu hỏi văn xuôi. Một giao diện chỉ có `generate()` buộc chúng phải giả trang thành sinh mã |
+| **Cần cập nhật** | EAA-SDD-03 §5: giao diện `LLMClient` có hai phương thức |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

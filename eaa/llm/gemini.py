@@ -287,8 +287,33 @@ class GeminiClient:
         except (GeminiError, MissingApiKey, LLMTimeout):
             return estimate_tokens(text)
 
+    def complete(self, prompt: Prompt) -> str:
+        """Gọi mô hình và trả VĂN BẢN THÔ, không đòi khối ```file:.
+
+        Không phải mọi lời gọi đều là sinh mã. Tra cứu công cụ, phân loại lỗi,
+        phân tích số đo tại G4 — đều là câu hỏi văn xuôi, và bắt chúng trả về
+        khối tệp thì mọi phản hồi đúng đắn đều bị tính là hỏng định dạng.
+        """
+        van_ban, _, _ = self._goi_mo_hinh(prompt)
+        return van_ban
+
     def generate(self, prompt: Prompt) -> CodeArtifact:
         """Gọi mô hình và bóc tách phản hồi thành artifact mã nguồn."""
+        van_ban, tokens_in, tokens_out = self._goi_mo_hinh(prompt)
+        files = parse_file_blocks(van_ban)
+        return CodeArtifact(
+            files=files,
+            prompt_hash=prompt.hash,
+            model=self.model,
+            constraints_version=prompt.constraints_version,
+            chunk_ids=list(prompt.chunk_ids),
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            raw_response=van_ban,
+        )
+
+    def _goi_mo_hinh(self, prompt: Prompt) -> tuple[str, int, int]:
+        """Phần dùng chung của ``complete`` và ``generate``."""
         prompt.check_budget(self.count_tokens)
 
         payload: dict[str, Any] = {
@@ -330,17 +355,7 @@ class GeminiClient:
                 duration_s=thoi_gian,
             )
 
-        files = parse_file_blocks(van_ban)
-        return CodeArtifact(
-            files=files,
-            prompt_hash=prompt.hash,
-            model=self.model,
-            constraints_version=prompt.constraints_version,
-            chunk_ids=list(prompt.chunk_ids),
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
-            raw_response=van_ban,
-        )
+        return van_ban, tokens_in, tokens_out
 
     @staticmethod
     def _lay_van_ban(phan_hoi: dict[str, Any]) -> str:

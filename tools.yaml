@@ -42,16 +42,9 @@ tools:
       Nguồn sự thật duy nhất về phiên bản mã (AIS §8.4). Thiếu Git thì không có
       nhánh, không có commit truy vết, và bất biến merge mất chỗ đứng.
 
-  - name: cppcheck
-    check: ["cppcheck", "--version"]
-    min_version: "2.10"
-    level: Must
-    gates: [static]
-    install:
-      macos: ["brew", "install", "cppcheck"]
-      linux: ["sudo", "apt-get", "install", "-y", "cppcheck"]
-      windows: ["winget", "install", "-e", "--id", "Cppcheck.Cppcheck"]
-    smoke: ["cppcheck", "--version"]
-    smoke_expect: "Cppcheck"
-    error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+: (?:error|warning): (?P<msg>.+)$"
-    note: Phân tích tĩnh — mắt xích thứ ba của chuỗi kiểm chứng FR-VER-01.
+  # Bộ phân tích tĩnh KHÔNG nằm ở đây. Nó do Platform Pack gọi (pack AVR gọi
+  # cppcheck kèm --platform=avr8), nên nó là nhu cầu của pack chứ không phải
+  # của engine. Để ở manifest engine thì mọi dự án đều bị đòi nó, kể cả dự án
+  # dùng nền khác với bộ phân tích khác — trái đúng điều kiến trúc ba tầng
+  # dựng ra để tránh. Nó vào manifest của pack qua:
+  #   eaa doctor --discover --propose  →  eaa gate approve G2

@@ -183,6 +183,21 @@ class MockLLM:
 
     # -- interface LLMClient ----------------------------------------------
 
+    def complete(self, prompt: Prompt) -> str:
+        """Văn bản thô, không đòi khối ```file: — xem GeminiClient.complete."""
+        if self.enforce_budget:
+            prompt.check_budget(self.count_tokens)
+        van_ban = self._response_for(prompt)
+        self.calls.append(
+            MockCall(
+                prompt=prompt,
+                rendered=prompt.full_text(),
+                response=van_ban,
+                tokens_in=self.count_tokens(prompt.full_text()),
+            )
+        )
+        return van_ban
+
     def generate(self, prompt: Prompt) -> CodeArtifact:
         if self.enforce_budget:
             prompt.check_budget(self.count_tokens)

@@ -83,8 +83,42 @@ def doctor(tmp_path: Path) -> Doctor:
 def test_manifest_that_cua_du_an_nap_duoc() -> None:
     m = ToolManifest.load(REPO / "tools.yaml", REPO / "packs" / "avr" / "tools.yaml", pack="avr")
     ten = {s.name for s in m.specs}
-    assert {"python", "git", "cppcheck"} <= ten, "thiếu phần chung của engine"
-    assert {"avr-gcc", "avr-size", "avrdude"} <= ten, "thiếu phần của pack"
+    # Engine chỉ khai những gì CHÍNH NÓ chạy trên đó — Python và Git. Bộ phân
+    # tích tĩnh do pack gọi, nên nó thuộc manifest của pack (AIS §9.1).
+    assert {"python", "git"} <= ten, "thiếu phần chung của engine"
+    assert "cppcheck" not in {
+        s_.name for s_ in ToolManifest.load(REPO / "tools.yaml").specs
+    }, "công cụ của pack bị khai ở manifest engine"
+
+
+def test_manifest_cua_pack_khong_chep_san_nhu_cau() -> None:
+    """AIS §9.1–9.2: manifest ghi thứ ĐÃ DUYỆT, nhu cầu thì suy từ pack.
+
+    Chép sẵn ``avr-gcc`` vào manifest là khai nhu cầu ở sai chỗ: nó lệch khỏi
+    ``pack.yaml`` ngay lần đầu pack đổi lệnh, và lệch theo hướng nguy hiểm —
+    doctor báo "đủ công cụ" trong khi cổng kiểm chứng sắp gọi một chương trình
+    không có. Nhu cầu nằm ở pack; hiểu biết nằm ở manifest.
+    """
+    from eaa.platform import load_manifest
+    from eaa.toolsearch import derive_requirements
+
+    can = {r.program for r in derive_requirements(load_manifest(REPO / "packs" / "avr"))}
+    assert {"avr-gcc", "avr-size", "avrdude"} <= can, "nhu cầu phải suy được từ pack"
+
+    # Manifest của pack được phép có mục — nhưng chỉ những mục đã đi qua G2.
+    # Một mục không có dấu vết người duyệt nghĩa là ai đó viết tay vào đây.
+    import yaml
+
+    du_lieu = yaml.safe_load(
+        (REPO / "packs" / "avr" / "tools.yaml").read_text(encoding="utf-8")
+    ) or {}
+    khong_dau_vet = [
+        m["name"] for m in (du_lieu.get("tools") or []) if not m.get("approved_by")
+    ]
+    assert not khong_dau_vet, (
+        f"Mục viết tay trong manifest của pack: {khong_dau_vet}. Công cụ vào "
+        "manifest qua G2 và mang theo approved_by/approved_at (AIS §9.1)."
+    )
 
 
 def test_khong_cai_pack_thi_khong_quet_cong_cu_cua_pack() -> None:

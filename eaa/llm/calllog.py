@@ -211,6 +211,17 @@ class ReplayClient:
     def count_tokens(self, text: str) -> int:
         return estimate_tokens(text)
 
+    def complete(self, prompt: Prompt) -> str:
+        """Phát lại văn bản thô — xem GeminiClient.complete."""
+        prompt.check_budget(self.count_tokens)
+        ban_ghi = self.log.latest(prompt.hash)
+        if ban_ghi is None:
+            raise ReplayMiss(
+                f"Không có bản ghi cho prompt {prompt.hash} trong {self.log.path}."
+            )
+        self.calls.append(prompt)
+        return ban_ghi.response
+
     def generate(self, prompt: Prompt) -> CodeArtifact:
         prompt.check_budget(self.count_tokens)
         ban_ghi = self.log.latest(prompt.hash)

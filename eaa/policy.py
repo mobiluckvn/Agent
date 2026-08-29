@@ -106,7 +106,10 @@ GATE_ORDER: tuple[str, ...] = ("G1", "G2", "G3", "G4", "G5")
 
 GATE_PURPOSE: dict[str, str] = {
     "G1": "chốt ràng buộc cứng & kiến trúc",
-    "G2": "duyệt trích đoạn tài liệu vào kho tri thức",
+    # Trích đoạn tài liệu và công cụ đều là tri thức trong hệ thống này: AIS
+    # §9.1 nói Tool Manifest cũng là một kho tri thức và mọi thay đổi của nó
+    # phải qua gate. Nên G2 duyệt cả hai, không riêng tài liệu.
+    "G2": "duyệt trích đoạn tài liệu và công cụ vào kho tri thức",
     "G3": "review diff từng module trước khi merge",
     "G4": "nghiệm thu trên thiết bị thật",
     "G5": "duyệt kết luận",

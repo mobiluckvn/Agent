@@ -354,6 +354,12 @@ class Doctor:
     #: Hàm hỏi người: nhận mô tả lệnh, trả True nếu người đồng ý.
     #: Mặc định ``None`` nghĩa là KHÔNG CÓ AI — và không có ai thì không cài.
     confirm: Any = None
+    #: Manifest của Platform Pack — NGUỒN của nhu cầu công cụ (AIS §9.2 chế độ 3).
+    #: Không có nó thì doctor chỉ kiểm được những gì đã biết, và không bao giờ
+    #: phát hiện ra thứ nó chưa biết.
+    pack_manifest: Any = None
+    #: Bộ tra cứu công cụ chưa biết; ``None`` thì chỉ phát hiện chứ không đề xuất.
+    researcher: Any = None
 
     def __post_init__(self) -> None:
         self.tools_kb = Path(self.tools_kb)
@@ -414,6 +420,64 @@ class Doctor:
             path=duong_dan,
             detail="" if phien_ban else "không đọc được phiên bản từ đầu ra",
         )
+
+    # ----------------------------------------------------------------------
+    # Chế độ 3 — phát hiện và tra cứu công cụ chưa biết (AIS §9.2)
+    # ----------------------------------------------------------------------
+
+    def discover(self) -> list[Any]:
+        """Công cụ pack SẼ GỌI mà manifest chưa biết gì.
+
+        Nhu cầu suy từ ``pack.yaml``, không từ một danh sách chép tay. Một danh
+        sách chép tay lệch khỏi pack ngay lần đầu pack đổi lệnh, và lệch theo
+        hướng nguy hiểm: doctor báo "đủ công cụ" trong khi cổng kiểm chứng sắp
+        gọi một chương trình không có trên máy.
+        """
+        from eaa.toolsearch import derive_requirements
+
+        if self.pack_manifest is None:
+            return []
+        da_biet = {s.name for s in self.manifest.specs}
+        return [
+            yc
+            for yc in derive_requirements(self.pack_manifest)
+            if yc.program not in da_biet
+        ]
+
+    def research(self, requirement: Any) -> Any:
+        """Tra cứu một công cụ chưa biết và trả về đề xuất ĐÃ QUA KIỂM AN TOÀN."""
+        from eaa.toolsearch import ToolSearchError, validate_proposal
+
+        if self.researcher is None:
+            raise DoctorError(
+                f"Cần tra cứu {requirement.program!r} nhưng chưa cấu hình bộ tra "
+                "cứu. Chế độ tìm công cụ mới dùng mô hình nền — đặt EAA_LLM_KEY "
+                "và chọn provider gemini trong Project State."
+            )
+        return validate_proposal(self.researcher.propose(requirement, os_key=_os_key()))
+
+    def render_discovery(self, requirements: Sequence[Any]) -> str:
+        if not requirements:
+            return (
+                "Mọi chương trình mà Platform Pack sẽ gọi đều đã có trong manifest."
+            )
+        dong = [
+            f"{len(requirements)} chương trình pack sẽ gọi mà manifest CHƯA BIẾT:",
+            "",
+        ]
+        for yc in requirements:
+            trang_thai = "đã có trên máy" if yc.present else "chưa có trên máy"
+            dong.append(
+                f"  {yc.program:<14}{trang_thai:<20}phục vụ: {', '.join(yc.capabilities)}"
+            )
+        dong += [
+            "",
+            "Manifest chỉ ghi những công cụ ĐÃ được người duyệt, nên chưa biết ở",
+            "đây không có nghĩa là thiếu — nghĩa là chưa ai xác nhận cách kiểm và",
+            "cách cài nó. Tra cứu và đề xuất:",
+            "  eaa doctor --discover --propose",
+        ]
+        return "\n".join(dong)
 
     def render_scan(self, reports: Sequence[ToolReport]) -> str:
         dong = [f"{'công cụ':<16}{'trạng thái':<12}{'phiên bản':<12}chi tiết"]

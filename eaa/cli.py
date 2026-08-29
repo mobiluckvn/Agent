@@ -693,18 +693,36 @@ def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
             content_digest=ctx.kb.constraints.content_version,
         )
     if gate_id == "G2":
+        # G2 duyệt tri thức. Trích đoạn tài liệu và công cụ đều là tri thức
+        # trong hệ thống này (AIS §9.1: manifest là một kho tri thức), nên cả
+        # hai cùng lên một hồ sơ — người duyệt thấy đủ thứ sắp được ghi vào.
         de_xuat = [c for c in ctx.kb.datasheets.all() if not c.is_active]
+        cong_cu = _doc_de_xuat(ctx.project)
+
+        tom_tat = [
+            f"{c.id} · {c.device}/{c.peripheral} · {c.status} · {c.source}"
+            for c in ctx.kb.datasheets.all()
+        ]
+        tom_tat += [
+            f"công cụ {dx.name} ≥{dx.min_version or '?'} · {dx.scope} · "
+            f"phục vụ {', '.join(dx.gates) or '—'}"
+            for dx in cong_cu
+        ]
+
+        chi_tiet = [f"### {c.id}\n{c.body}" for c in de_xuat]
+        chi_tiet += [dx.render() for dx in cong_cu]
+
         return GatePayload(
             gate_id="G2",
-            title="Duyệt trích đoạn tài liệu vào kho tri thức",
-            summary=tuple(
-                f"{c.id} · {c.device}/{c.peripheral} · {c.status} · {c.source}"
-                for c in ctx.kb.datasheets.all()
-            ),
-            details="\n\n".join(f"### {c.id}\n{c.body}" for c in de_xuat) or
-            "(không có chunk nào đang chờ duyệt)",
+            title="Duyệt trích đoạn tài liệu và công cụ vào kho tri thức",
+            summary=tuple(tom_tat),
+            details="\n\n".join(chi_tiet) or
+            "(không có chunk hay công cụ nào đang chờ duyệt)",
             content_digest="sha256:" + __import__("hashlib").sha256(
-                "|".join(sorted(c.id + c.status for c in ctx.kb.datasheets.all())).encode()
+                "|".join(
+                    sorted(c.id + c.status for c in ctx.kb.datasheets.all())
+                    + sorted(dx.digest_line for dx in cong_cu)
+                ).encode()
             ).hexdigest(),
         )
     if gate_id == "G4":
@@ -854,6 +872,15 @@ def _gate_approve(ctx: AppContext, args: argparse.Namespace) -> int:
 
     if args.gate == MERGE_GATE:
         return _sau_khi_duyet_G3(ctx, quyet_dinh)
+
+    if args.gate == "G2":
+        cong_cu = _doc_de_xuat(ctx.project)
+        if cong_cu:
+            da_ghi = _ghi_de_xuat_vao_manifest(ctx.project, cong_cu, actor=nguoi)
+            print("\nCông cụ đã vào manifest:")
+            for dong in da_ghi:
+                print(f"  {dong}")
+            print("Cài được rồi: eaa doctor --fix")
 
     return _thu_chuyen_pha(ctx)
 
@@ -1072,11 +1099,28 @@ def _tao_doctor(project: Path) -> Any:
         goc / "packs" / rang_buoc.platform / "tools.yaml",
         pack=rang_buoc.platform,
     )
+    # Nhu cầu công cụ SUY TỪ pack; manifest chỉ ghi thứ đã được người duyệt.
+    pack = load_manifest(goc / "packs" / rang_buoc.platform)
+
+    researcher = None
+    store = StateStore(project / STATE_FILE)
+    if store.exists():
+        try:
+            llm = _tao_llm(store.load(), project)
+            if getattr(llm, "provider", "") not in ("mock", "replay"):
+                from eaa.toolsearch import LlmToolResearcher
+
+                researcher = LlmToolResearcher(llm=llm)
+        except CliError:
+            researcher = None
+
     return Doctor(
         manifest=manifest,
         tools_kb=project / "tools_kb",
         env_lock=EnvLock(project / "env_lock.json"),
         confirm=_hoi_xac_nhan_cai,
+        pack_manifest=pack,
+        researcher=researcher,
     )
 
 
@@ -1098,9 +1142,17 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     project = resolve_project(args.project)
     doctor = _tao_doctor(project)
 
+    if args.discover:
+        return _doctor_discover(project, doctor, args)
+
     bao_cao = doctor.scan()
     _in_tieu_de("Môi trường công cụ")
     print(doctor.render_scan(bao_cao))
+
+    chua_biet = doctor.discover()
+    if chua_biet:
+        _in_tieu_de("Công cụ pack sẽ gọi mà manifest chưa biết")
+        print(doctor.render_discovery(chua_biet))
 
     # Trôi phiên bản so với bản khóa — FR-ENV-04.
     lech = doctor.check_drift(bao_cao)
@@ -1153,6 +1205,115 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     return EXIT_ENV_ERROR
+
+
+def _doctor_discover(project: Path, doctor: Any, args: argparse.Namespace) -> int:
+    """Chế độ 3 của AIS §9.2 — phát hiện, tra cứu, đề xuất qua gate."""
+    from eaa.doctor import DoctorError
+    from eaa.toolsearch import ToolSearchError, UnsafeInstallSource
+
+    chua_biet = doctor.discover()
+    _in_tieu_de("Phát hiện nhu cầu công cụ")
+    print(doctor.render_discovery(chua_biet))
+
+    if not chua_biet or not args.propose:
+        return EXIT_OK if not chua_biet else EXIT_WAITING_GATE
+
+    de_xuat: list[Any] = []
+    for yc in chua_biet:
+        _in_tieu_de(f"Tra cứu {yc.program}")
+        try:
+            dx = doctor.research(yc)
+        except UnsafeInstallSource as exc:
+            print(f"  ĐỀ XUẤT BỊ TỪ CHỐI — {exc}")
+            continue
+        except (ToolSearchError, DoctorError) as exc:
+            print(f"  Không tra cứu được: {exc}")
+            continue
+        print(dx.render())
+        de_xuat.append(dx)
+
+    if not de_xuat:
+        raise CliError(
+            "Không có đề xuất nào qua được kiểm an toàn. Cài tay theo hướng dẫn "
+            "của nhà phát hành, rồi chạy lại 'eaa doctor'."
+        )
+
+    _luu_de_xuat(project, de_xuat)
+    print()
+    print(
+        f"{len(de_xuat)} đề xuất đã ghi lại và đang CHỜ DUYỆT. Đề xuất là "
+        "proposed fact — chưa vào manifest, nên chưa cài được.\n"
+        "  Xem lại rồi duyệt: eaa gate approve G2"
+    )
+    return EXIT_WAITING_GATE
+
+
+def _duong_dan_de_xuat(project: Path) -> Path:
+    return project / ".eaa" / "tool_proposals.json"
+
+
+def _luu_de_xuat(project: Path, de_xuat: Sequence[Any]) -> None:
+    """Ghi đề xuất đang chờ duyệt — dạng đầy đủ, khôi phục lại được.
+
+    Đề xuất phải sống qua khoảng giữa lúc tra cứu và lúc người duyệt, và thứ
+    được ghi vào manifest phải đúng thứ đã trình lên. Vì vậy lưu nguyên đề
+    xuất chứ không lưu bản rút gọn cho người đọc.
+    """
+    import json as _json
+
+    path = _duong_dan_de_xuat(project)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        _json.dumps([dx.to_dict() for dx in de_xuat], ensure_ascii=False, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _doc_de_xuat(project: Path) -> list[Any]:
+    """Đề xuất công cụ đang chờ duyệt, nếu có."""
+    import json as _json
+
+    from eaa.toolsearch import ToolProposal
+
+    path = _duong_dan_de_xuat(project)
+    if not path.is_file():
+        return []
+    try:
+        du_lieu = _json.loads(path.read_text(encoding="utf-8"))
+    except _json.JSONDecodeError as exc:
+        raise CliError(f"{path}: hồ sơ đề xuất công cụ hỏng — {exc}") from exc
+    return [ToolProposal.from_dict(d) for d in du_lieu]
+
+
+def _ghi_de_xuat_vao_manifest(
+    project: Path, de_xuat: Sequence[Any], *, actor: str
+) -> list[str]:
+    """Sau khi người duyệt: đề xuất vào manifest, append + supersede.
+
+    Manifest của pack và của engine là hai tệp khác nhau; ``scope`` của đề xuất
+    quyết định nó thuộc bên nào. Một công cụ chỉ pack AVR mới gọi mà nằm ở
+    manifest engine sẽ thành điều kiện bắt buộc cho mọi dự án, kể cả dự án
+    dùng nền khác — đúng thứ kiến trúc ba tầng dựng ra để tránh.
+    """
+    from eaa.toolsearch import append_to_manifest
+
+    goc = repo_root()
+    da_ghi: list[str] = []
+    for dx in de_xuat:
+        if dx.scope.startswith("pack:"):
+            duong_dan = goc / "packs" / dx.scope.split(":", 1)[1] / "tools.yaml"
+        else:
+            duong_dan = goc / "tools.yaml"
+        append_to_manifest(duong_dan, dx, actor=actor)
+        da_ghi.append(f"{dx.name} → {duong_dan.relative_to(goc)}")
+
+    # Đã vào manifest thì không còn là đề xuất chờ duyệt. Bản ghi không mất:
+    # mục manifest mang theo approved_by/approved_at, và mục cũ trùng tên được
+    # đánh dấu superseded_by chứ không bị xóa.
+    _duong_dan_de_xuat(project).unlink(missing_ok=True)
+    return da_ghi
 
 
 def _ghi_env_hash_vao_state(project: Path, env_hash: str) -> None:
@@ -1739,6 +1900,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_doctor.add_argument(
         "--fix", action="store_true", help="Sinh lệnh cài cho công cụ thiếu, hỏi từng lệnh"
+    )
+    p_doctor.add_argument(
+        "--discover",
+        action="store_true",
+        help="Phát hiện công cụ pack sẽ gọi mà manifest chưa biết (AIS §9.2)",
+    )
+    p_doctor.add_argument(
+        "--propose",
+        action="store_true",
+        help="Tra cứu và đề xuất công cụ chưa biết; đề xuất phải qua gate mới vào manifest",
     )
     p_doctor.add_argument(
         "--accept-drift",
