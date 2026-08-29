@@ -132,14 +132,34 @@ class ToolInvocation:
         }
 
     def resolve(self, params: dict[str, Any]) -> list[str]:
-        """Dựng argv thật từ mẫu; thiếu tham số là lỗi, không im lặng bỏ qua."""
+        """Dựng argv thật từ mẫu; thiếu tham số là lỗi, không im lặng bỏ qua.
+
+        Một phần tử argv đúng bằng một chỗ giữ (``"{sources}"``) và nhận giá
+        trị là danh sách thì được TRẢI RA thành nhiều phần tử. Không có luật
+        này, một danh sách tệp sẽ bị nối bằng dấu cách thành MỘT tham số duy
+        nhất — trình biên dịch nhận được một tên tệp chứa dấu cách và báo
+        "không tìm thấy", một lỗi trông như lỗi môi trường mà thực ra là lỗi
+        lắp lệnh.
+        """
         thieu = self.placeholders() - set(params)
         if thieu:
             raise PackError(
                 f"Thiếu tham số cho lời gọi công cụ: {sorted(thieu)} "
                 f"(mẫu: {' '.join(self.command)})"
             )
-        return [phan.format(**params) for phan in self.command]
+
+        argv: list[str] = []
+        for phan in self.command:
+            khop = re.fullmatch(r"\{(\w+)\}", phan)
+            if khop:
+                gia_tri = params[khop.group(1)]
+                if isinstance(gia_tri, (list, tuple, set)):
+                    argv.extend(str(x) for x in gia_tri)
+                    continue
+                argv.append(str(gia_tri))
+                continue
+            argv.append(phan.format(**params))
+        return argv
 
 
 @dataclass(frozen=True)

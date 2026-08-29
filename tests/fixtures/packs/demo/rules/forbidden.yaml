@@ -1,0 +1,20 @@
+rules:
+  - id: "delay()"
+    kind: regex
+    pattern: '\b_?delay(_ms|_us)?\s*\('
+    message: "Cấm hàm chặn"
+    severity: error
+  - id: "malloc/new"
+    kind: regex
+    pattern: '\b(malloc|calloc|realloc|free|new|delete)\s*[\(\[]'
+    message: "Cấm cấp phát động"
+    severity: error
+  - id: recursion
+    kind: self_recursion
+    message: "Cấm đệ quy"
+    severity: error
+  - id: float_in_isr
+    kind: regex
+    pattern: 'ISR\s*\([^)]*\)\s*\{(?:[^{}]|\{[^{}]*\})*?\b(float|double)\b'
+    message: "Cấm số thực trong ngắt"
+    severity: error

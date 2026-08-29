@@ -1,0 +1,54 @@
+# Platform Pack giả lập dùng cho kiểm thử Tool Layer.
+#
+# Vì sao cần: kiểm thử tích hợp phải chạy tiến trình THẬT để chứng minh bộ chạy
+# công cụ dựng đúng argv, đọc đúng mã thoát và parse đúng đầu ra. Nhưng nó
+# không được đòi máy chạy test phải cài sẵn toolchain của một họ vi điều khiển
+# — CI sẽ đỏ vì lý do chẳng liên quan gì tới thứ đang kiểm.
+#
+# Giải pháp: mọi "công cụ" ở đây là trình thông dịch Python đang chạy, nhận
+# đường dẫn tới một kịch bản trong thư mục này. Cơ chế được kiểm là thật; chỉ
+# có công cụ là giả.
+
+pack: demo
+version: 0.1.0
+description: Pack giả lập cho kiểm thử — công cụ là kịch bản Python.
+
+targets:
+  - demo-target
+
+rules_dir: rules
+prompts_dir: prompts
+smoke_dir: smoke
+
+capabilities:
+
+  compile:
+    command: ["{python}", "{pack_dir}/tools/fake_compile.py", "--output", "{output}", "{sources}"]
+    timeout_s: 60
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<msg>.+)$"
+      warning_regex: "^(?P<file>[^:\\s]+):(?P<line>\\d+): warning: (?P<msg>.+)$"
+
+  size:
+    command: ["{python}", "{pack_dir}/tools/fake_size.py", "{binary}"]
+    timeout_s: 30
+    parse:
+      success_exit_codes: [0]
+      metric_regex:
+        flash_bytes: "flash_bytes=(\\d+)"
+        flash_pct: "flash_pct=([\\d.]+)"
+        sram_bytes: "sram_bytes=(\\d+)"
+        sram_pct: "sram_pct=([\\d.]+)"
+
+  static:
+    command: ["{python}", "{pack_dir}/tools/fake_static.py", "{source}"]
+    timeout_s: 60
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?P<file>[^:\\s]+):(?P<line>\\d+): error: (?P<msg>.+)$"
+
+  flash:
+    requires_confirmation: true
+    command: ["{python}", "{pack_dir}/tools/fake_flash.py", "{binary}"]
+    timeout_s: 60
