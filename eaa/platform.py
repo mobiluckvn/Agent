@@ -36,6 +36,7 @@ __all__ = [
     "ParseSpec",
     "ToolInvocation",
     "StaticRule",
+    "FirmwareTemplates",
     "PackManifest",
     "PlatformPack",
     "PackError",
@@ -205,6 +206,55 @@ class StaticRule:
 
 
 @dataclass(frozen=True)
+class FirmwareTemplates:
+    """Khuôn để ráp các module đã merge thành một chương trình chạy được.
+
+    Engine biết *module nào, gọi hàm nào, mỗi bao nhiêu mili giây* — đó là dữ
+    liệu của dự án. Nó KHÔNG biết viết một vòng lặp chính bằng C cho một họ vi
+    điều khiển: nguồn xung nhịp, cú pháp ngắt, cách bật bộ định thời đều là
+    chuyện của nền tảng.
+
+    Nên phần chữ nằm hết ở pack, còn engine chỉ thay chỗ giữ. Ba dòng mẫu
+    (``include_line``, ``init_line``, ``task_line``) tồn tại đúng vì lý do ấy:
+    không có chúng thì engine phải tự sinh câu lệnh C, và cái ranh giới mà
+    TC-38 canh sẽ mờ dần từ chỗ đó.
+    """
+
+    #: Tệp khuôn của vòng lặp chính, tương đối so với gốc pack.
+    template: Path
+    #: Mẫu một dòng nạp tiêu đề module. Chỗ giữ: ``{module}``.
+    include_line: str = '#include "{module}.h"'
+    #: Mẫu một dòng gọi hàm khởi tạo. Chỗ giữ: ``{init}``, ``{module}``.
+    init_line: str = "    {init}();"
+    #: Mẫu một dòng khai một việc định kỳ. Chỗ giữ: ``{step}``, ``{period_ms}``.
+    #:
+    #: Chỗ giữ được thay bằng ``str.replace``, KHÔNG bằng ``str.format``: khuôn
+    #: là mã C và mã C đầy dấu ngoặc nhọn, nên ``format`` sẽ vấp ngay dòng đầu
+    #: tiên có một khối lệnh.
+    task_line: str = "    { {step}, {period_ms} },"
+    #: Tên tệp nguồn sinh ra, đặt trong thư mục build.
+    output: str = "main.c"
+
+    @classmethod
+    def from_dict(cls, du_lieu: Any, root: Path, path: Path) -> "FirmwareTemplates":
+        if not isinstance(du_lieu, dict):
+            raise PackError(f"{path}: 'firmware' phải là ánh xạ khóa–giá trị")
+        khuon = du_lieu.get("template")
+        if not khuon:
+            raise PackError(
+                f"{path}: 'firmware' phải nêu 'template' — tệp khuôn vòng lặp chính"
+            )
+        mac_dinh = cls(template=root / str(khuon))
+        return cls(
+            template=root / str(khuon),
+            include_line=str(du_lieu.get("include_line", mac_dinh.include_line)),
+            init_line=str(du_lieu.get("init_line", mac_dinh.init_line)),
+            task_line=str(du_lieu.get("task_line", mac_dinh.task_line)),
+            output=str(du_lieu.get("output", mac_dinh.output)),
+        )
+
+
+@dataclass(frozen=True)
 class PackManifest:
     """Nội dung ``pack.yaml`` đã được kiểm tra lược đồ."""
 
@@ -220,6 +270,8 @@ class PackManifest:
     smoke_dir: Path
     #: Phiên bản tối thiểu của từng công cụ, đối chiếu với env_lock (FR-ENV-04).
     tool_requirements: dict[str, str] = field(default_factory=dict)
+    #: Khuôn ráp firmware — xem :class:`FirmwareTemplates`.
+    firmware: "FirmwareTemplates | None" = None
 
     def has(self, capability: str) -> bool:
         return capability in self.capabilities
@@ -298,6 +350,11 @@ def load_manifest(path: str | Path) -> PackManifest:
         rules_dir=root / str(du_lieu.get("rules_dir", "rules")),
         prompts_dir=root / str(du_lieu.get("prompts_dir", "prompts")),
         smoke_dir=root / str(du_lieu.get("smoke_dir", "smoke")),
+        firmware=(
+            FirmwareTemplates.from_dict(du_lieu["firmware"], root, path)
+            if du_lieu.get("firmware")
+            else None
+        ),
         tool_requirements={
             str(k): str(v) for k, v in (du_lieu.get("tool_requirements") or {}).items()
         },

@@ -1,0 +1,56 @@
+/* Khuôn vòng lặp chính của pack giả lập — SINH TỰ ĐỘNG bởi `eaa build`.
+ *
+ * Cùng cấu trúc với khuôn của pack thật (bộ định thời hợp tác, bảng việc định
+ * kỳ), nhưng viết bằng C chuẩn không phụ thuộc nền tảng: nhờ vậy bài kiểm có
+ * thể đưa tệp sinh ra cho bộ dịch của chính máy chạy test, và chứng minh thứ
+ * engine sinh ra là mã C hợp lệ và liên kết được — chứ không chỉ là một chuỗi
+ * ký tự trông giống mã.
+ */
+
+#include <stdint.h>
+
+{includes}
+
+static uint32_t eaa_tick_ms;
+
+static uint32_t eaa_now_ms(void)
+{
+    return eaa_tick_ms;
+}
+
+typedef struct {
+    void (*step)(void);
+    uint16_t period_ms;
+} eaa_task_t;
+
+static const eaa_task_t eaa_tasks[] = {
+{tasks}
+};
+
+#define EAA_TASK_COUNT (sizeof(eaa_tasks) / sizeof(eaa_tasks[0]))
+
+static uint32_t eaa_last_run[EAA_TASK_COUNT];
+
+int main(void)
+{
+    uint8_t i;
+
+{init_calls}
+
+    for (i = 0u; i < (uint8_t)EAA_TASK_COUNT; i++) {
+        eaa_last_run[i] = 0UL;
+    }
+
+    for (;;) {
+        uint32_t bay_gio = eaa_now_ms();
+
+        for (i = 0u; i < (uint8_t)EAA_TASK_COUNT; i++) {
+            if ((uint32_t)(bay_gio - eaa_last_run[i]) >= (uint32_t)eaa_tasks[i].period_ms) {
+                eaa_last_run[i] = bay_gio;
+                eaa_tasks[i].step();
+            }
+        }
+    }
+
+    return 0;
+}

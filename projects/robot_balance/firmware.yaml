@@ -1,0 +1,40 @@
+# Bản thiết kế ráp firmware — công đoạn E, sản phẩm của người chứ không của máy.
+#
+# Vòng lặp chuẩn kiểm TỪNG module: dịch được, sạch phân tích tĩnh, qua unit
+# test, vừa ngân sách bộ nhớ. Bốn câu ấy đúng cho từng mảnh, và không câu nào
+# nói rằng các mảnh ghép lại thì chạy. Tệp này khai phần còn thiếu: module nào
+# vào firmware, gọi hàm khởi tạo nào, chạy định kỳ mỗi bao nhiêu mili giây.
+#
+# Vì sao KHAI BÁO chứ không suy đoán: chu kỳ của một vòng điều khiển là một
+# quyết định vật lý — nó đến từ động lực học của đối tượng, không đến từ mã
+# nguồn. Máy đọc được tên hàm trong tệp tiêu đề, nhưng không đọc được rằng con
+# lắc ngược cần 10 ms.
+#
+# Luật: MỌI module đã merge phải có mặt ở đây. Module chỉ để module khác gọi
+# chứ không chạy định kỳ thì khai `step: null` — nói ra thì được, im lặng thì
+# không. Bỏ quên một module đã qua G3 nghĩa là firmware nạp xuống mạch thiếu
+# một phần mà mọi bằng chứng đều nói là có.
+
+version: 1
+
+# Độ phân giải bộ đếm thời gian của vòng lặp chính, đơn vị mili giây.
+tick_ms: 1
+
+# Tên ảnh sinh ra: build/firmware.elf, build/firmware.hex
+image_name: firmware
+
+# Chưa module nào được merge, nên danh sách này còn trống. Mỗi lần `eaa gate
+# approve G3` đưa thêm một module vào firmware/, thêm một mục tương ứng ở đây.
+#
+# Mẫu một mục:
+#
+#   - id: drv_bus_sensor        # trùng id trong backlog
+#     init: drv_bus_sensor_init # gọi một lần lúc khởi động
+#     step: drv_bus_sensor_step # chạy định kỳ; chữ ký phải là void f(void)
+#     period_ms: 10             # lấy từ limits.control_loop_ms
+#
+#   - id: lib_fixed_point       # không chạy định kỳ
+#     init: null
+#     step: null
+#     note: chỉ cung cấp hàm cho module khác gọi
+modules: []

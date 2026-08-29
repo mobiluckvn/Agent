@@ -26,9 +26,12 @@ PACK_DEMO = REPO / "tests" / "fixtures" / "packs" / "demo"
 DU_AN_MAU = REPO / "projects" / "robot_balance"
 
 
-@pytest.fixture()
-def moi_truong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Một cài đặt EAA hoàn chỉnh trong thư mục tạm."""
+def dung_moi_truong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Một cài đặt EAA hoàn chỉnh trong thư mục tạm.
+
+    Tách khỏi fixture để bộ test khác dùng lại được — TC-41 cần đúng môi trường
+    này để chạy `eaa build` trên một module đã thật sự đi qua G3.
+    """
     home = tmp_path / "eaa_home"
     (home / "packs").mkdir(parents=True)
     shutil.copytree(PACK_DEMO, home / "packs" / "demo")
@@ -59,6 +62,11 @@ def moi_truong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("EAA_PROJECT", str(project))
     monkeypatch.setenv("EAA_ACTOR", "Vũ Trí Công")
     return project
+
+
+@pytest.fixture()
+def moi_truong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    return dung_moi_truong(tmp_path, monkeypatch)
 
 
 def _den_pha_D(capsys) -> None:

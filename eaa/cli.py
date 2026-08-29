@@ -28,6 +28,7 @@ from typing import Any, Sequence
 from eaa import (
     EXIT_ENV_ERROR,
     EXIT_OK,
+    EXIT_REPAIR_LIMIT,
     EXIT_WAITING_GATE,
     __version__,
 )
@@ -1453,6 +1454,72 @@ def _tao_versions(project: Path, repo: Any = None) -> Any:
     )
 
 
+def cmd_build(args: argparse.Namespace) -> int:
+    """Ráp các module đã merge thành firmware nạp được — công đoạn E."""
+    from eaa.firmware import ASSEMBLY_FILE, AssemblyPlan, FirmwareAssembler, FirmwareError
+    from eaa.tools.compile import SizeGate
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    state = ctx.store.load()
+
+    try:
+        plan = AssemblyPlan.load(project / ASSEMBLY_FILE)
+    except FirmwareError as exc:
+        raise CliError(str(exc)) from exc
+
+    da_merge = [m.id for m in state.backlog if m.status == "merged"]
+    if not da_merge:
+        raise CliError(
+            "Chưa module nào được merge, nên chưa có gì để ráp.\n"
+            "Firmware chỉ gồm mã đã qua đủ cổng và đã được duyệt tại G3 — "
+            "không có đường nào khác đưa mã vào ảnh nạp xuống thiết bị.",
+            EXIT_WAITING_GATE,
+        )
+
+    try:
+        plan.check_against_merged(da_merge)
+    except FirmwareError as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de("Ráp firmware")
+    print(f"  Bản thiết kế : {plan.path}")
+    print(f"  Module        : {len(plan.modules)} ({len(plan.scheduled)} chạy định kỳ)")
+    for m in plan.modules:
+        nhip = f"mỗi {m.period_ms} ms" if m.scheduled else "không chạy định kỳ"
+        print(f"    {m.id:<24} {nhip}")
+
+    bao_cao = FirmwareAssembler(
+        runner=ctx.runner,
+        source_dir=project / "firmware",
+        size_gate=SizeGate(ctx.runner, limits=ctx.kb.constraints.limits),
+    ).run(plan)
+
+    print()
+    if not bao_cao.passed:
+        cong_doan = bao_cao.metrics.get("stage", "ráp")
+        print(f"KHÔNG RÁP ĐƯỢC — dừng ở công đoạn {cong_doan}.")
+        for loi in bao_cao.errors[:20]:
+            vi_tri = f"{loi.file}:{loi.line}: " if loi.file else ""
+            print(f"  {vi_tri}{loi.message}")
+        if bao_cao.metrics.get("config_error"):
+            return EXIT_ENV_ERROR
+        return EXIT_REPAIR_LIMIT
+
+    print(f"  Vòng lặp chính: {bao_cao.metrics['main_source']}")
+    print(f"  Ảnh liên kết  : {bao_cao.metrics['binary']}")
+    if bao_cao.metrics.get("image"):
+        print(f"  Ảnh nạp được  : {bao_cao.metrics['image']}")
+    for khoa in sorted(bao_cao.metrics):
+        if khoa.endswith(("_bytes", "_pct")):
+            print(f"  {khoa:<14}: {bao_cao.metrics[khoa]}")
+    print(
+        "\nĐây là lần đầu ngưỡng bộ nhớ được đo trên CẢ firmware chứ không trên\n"
+        "từng module lẻ — con số ở vòng kiểm module luôn dễ dãi hơn con số này."
+    )
+    return EXIT_OK
+
+
 def cmd_rollback(args: argparse.Namespace) -> int:
     from eaa.versions import NoKnownGood, VersionError
 
@@ -1946,6 +2013,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_tune.add_argument("--reject", help="Ghi nhận KHÔNG đạt nghiệm thu, kèm lý do")
     p_tune.add_argument("--actor", help="Người nghiệm thu")
     p_tune.set_defaults(func=cmd_tune)
+
+    # Công đoạn E — ráp firmware
+    p_build = sub.add_parser(
+        "build",
+        help="Ráp các module đã merge thành firmware nạp được",
+        description=(
+            "Vòng lặp chuẩn kiểm từng module. Lệnh này kiểm điều còn lại: các "
+            "module ghép lại có dịch, liên kết và vừa bộ nhớ hay không."
+        ),
+    )
+    p_build.set_defaults(func=cmd_build)
 
     # AIS §8.4 — quay lui
     p_rb = sub.add_parser(

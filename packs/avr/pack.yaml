@@ -18,6 +18,17 @@ rules_dir: rules
 prompts_dir: prompts
 smoke_dir: smoke
 
+# Khuôn ráp firmware. Engine biết module nào chạy mỗi bao nhiêu mili giây; nó
+# KHÔNG biết viết vòng lặp chính cho một họ vi điều khiển. Phần chữ nằm ở đây,
+# engine chỉ thay chỗ giữ — nếu engine phải tự sinh câu lệnh C thì ranh giới mà
+# TC-38 canh sẽ mờ dần từ đúng chỗ đó.
+firmware:
+  template: templates/main.c.tmpl
+  output: main.c
+  include_line: '#include "{module}.h"'
+  init_line: '    {init}();'
+  task_line: '    { {step}, {period_ms} },'
+
 # Phiên bản tối thiểu; eaa doctor đối chiếu và ghi vào env_lock.json (FR-ENV-01/04).
 tool_requirements:
   avr-gcc: ">=12.0"

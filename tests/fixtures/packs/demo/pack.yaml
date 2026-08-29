@@ -20,6 +20,13 @@ rules_dir: rules
 prompts_dir: prompts
 smoke_dir: smoke
 
+firmware:
+  template: templates/main.c.tmpl
+  output: main.c
+  include_line: '#include "{module}.h"'
+  init_line: '    {init}();'
+  task_line: '    { {step}, {period_ms} },'
+
 capabilities:
 
   compile:

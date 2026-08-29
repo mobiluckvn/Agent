@@ -1,0 +1,91 @@
+/* Vòng lặp chính — SINH TỰ ĐỘNG bởi `eaa build`. Đừng sửa tay tệp này.
+ *
+ * Khuôn nằm ở Platform Pack chứ không ở engine: nguồn xung nhịp, cú pháp ngắt
+ * và cách bật bộ định thời đều là chuyện của họ vi điều khiển. Engine chỉ biết
+ * module nào, gọi hàm nào, mỗi bao nhiêu mili giây — và thay vào các chỗ giữ
+ * bên dưới.
+ *
+ * Bộ định thời ở đây là loại HỢP TÁC: mỗi việc chạy tới khi xong rồi mới trả
+ * quyền, không có ưu tiên, không có ngăn xếp riêng. Đổi lại nó không cần cấp
+ * phát động và không có tranh chấp — hai thứ mà ràng buộc cứng của dự án cấm.
+ * Giá phải trả: một việc chạy lâu sẽ làm trễ mọi việc sau nó, nên mã trong
+ * từng bước phải ngắn và không chặn.
+ */
+
+#include <stdint.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/atomic.h>
+
+{includes}
+
+/* Bộ đếm mili giây. Ngắt chỉ tăng một biến volatile và không làm gì khác —
+ * đúng isr_policy của constraints.yaml. */
+static volatile uint32_t eaa_tick_ms;
+
+ISR(TIMER0_COMPA_vect)
+{
+    eaa_tick_ms++;
+}
+
+/* Đọc bộ đếm nhiều byte phải nguyên tử: ngắt có thể chen vào giữa hai byte và
+ * cho ra một giá trị chưa bao giờ tồn tại. */
+static uint32_t eaa_now_ms(void)
+{
+    uint32_t bay_gio;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        bay_gio = eaa_tick_ms;
+    }
+    return bay_gio;
+}
+
+static void eaa_tick_init(void)
+{
+    /* CTC, chia tần 64. OCR0A tính từ F_CPU nên khuôn không ghim tần số nào. */
+    TCCR0A = (1 << WGM01);
+    TCCR0B = (1 << CS01) | (1 << CS00);
+    OCR0A  = (uint8_t)((F_CPU / 64UL / 1000UL) - 1UL);
+    TIMSK0 = (1 << OCIE0A);
+}
+
+typedef struct {
+    void (*step)(void);
+    uint16_t period_ms;
+} eaa_task_t;
+
+static const eaa_task_t eaa_tasks[] = {
+{tasks}
+};
+
+#define EAA_TASK_COUNT (sizeof(eaa_tasks) / sizeof(eaa_tasks[0]))
+
+static uint32_t eaa_last_run[EAA_TASK_COUNT];
+
+int main(void)
+{
+    uint8_t i;
+
+    eaa_tick_init();
+
+{init_calls}
+
+    sei();
+
+    for (i = 0u; i < (uint8_t)EAA_TASK_COUNT; i++) {
+        eaa_last_run[i] = 0UL;
+    }
+
+    for (;;) {
+        uint32_t bay_gio = eaa_now_ms();
+
+        for (i = 0u; i < (uint8_t)EAA_TASK_COUNT; i++) {
+            /* Trừ số không dấu nên bộ đếm quay vòng vẫn ra khoảng đúng. */
+            if ((uint32_t)(bay_gio - eaa_last_run[i]) >= (uint32_t)eaa_tasks[i].period_ms) {
+                eaa_last_run[i] = bay_gio;
+                eaa_tasks[i].step();
+            }
+        }
+    }
+
+    return 0;
+}

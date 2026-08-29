@@ -386,6 +386,23 @@ Ba loại:
 
 ---
 
+## SL-31 · BỔ SUNG · `eaa/firmware.py` — ráp module đã merge thành firmware
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-VER-01, EAA-SDD-03 §2, công đoạn E của máy trạng thái |
+| **Thiết kế nói** | Vòng lặp chuẩn kiểm từng module qua bốn cổng, rồi merge |
+| **Chỗ trống** | Bốn cổng nói *từng mảnh* đúng. Không cổng nào nói rằng các mảnh ghép lại thì chạy — mà thứ nạp xuống mạch là bản đã ghép. SDD v1.0 không có module nào cho công đoạn ráp |
+| **Code làm** | Thêm `eaa/firmware.py`: `AssemblyPlan` (đọc `firmware.yaml` ở tầng dự án), `FirmwareAssembler` (sinh vòng lặp chính từ khuôn của pack → dịch mọi module + main → liên kết → ảnh nạp được → đo lại kích thước). Thêm lệnh `eaa build`. `PackManifest` thêm mục `firmware` (`FirmwareTemplates`) |
+| **Ranh giới ba tầng** | Khuôn vòng lặp chính nằm ở **pack**, không ở engine: nguồn xung nhịp, cú pháp ngắt, cách bật bộ định thời đều là chuyện của nền tảng. Engine chỉ thay chỗ giữ, và ngay cả ba dòng mẫu (`include_line`, `init_line`, `task_line`) cũng do pack cấp — nếu engine tự sinh câu lệnh C thì ranh giới TC-38 canh sẽ mờ dần từ đúng chỗ đó |
+| **Bất biến mới** | Module đã merge mà vắng mặt trong bản thiết kế ráp là **lỗi**, không phải cảnh báo. Merge nghĩa là mã ấy đã qua đủ cổng và đã được duyệt tại G3; bỏ quên nó thì firmware thiếu một phần mà mọi bằng chứng đều nói là có. Module chỉ để module khác gọi thì khai `step: null` — nói ra thì được, im lặng thì không |
+| **Hệ quả cho ngưỡng bộ nhớ** | Đây là lần đầu `flash_pct_max` được đo trên **cả firmware**. Ở vòng kiểm module, một module chiếm 20% thì "dưới 50%" nghe như đạt, trong khi mười module như thế thì không — con số ở tầm module luôn dễ dãi hơn |
+| **Điểm còn hở** | Chu kỳ chạy của mỗi module là quyết định vật lý (đến từ động lực học của đối tượng), nên nó được KHAI BÁO trong `firmware.yaml` chứ không suy từ mã. Máy đọc được tên hàm trong tệp tiêu đề, không đọc được rằng con lắc ngược cần 10 ms |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/firmware.py` và `firmware.yaml` vào cây thư mục; §2 mô tả công đoạn ráp; danh sách lệnh CLI thêm `eaa build` |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 
