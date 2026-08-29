@@ -1,0 +1,354 @@
+"""Interface PlatformPack — ranh giới giữa engine tổng quát và một họ MCU.
+
+EAA-SRS-01 FR-PLT-02, EAA-SDD-03 §2 (``platform.py`` — interface
+compile/size/flash/rules/sim), EAA-SAD-02 ADR-09, NFR-05.
+
+Đây là module quyết định sản phẩm có thật sự tổng quát hay không. Luật của nó
+gói trong một câu: **engine không bao giờ gọi thẳng một công cụ nào của một họ
+vi điều khiển; nó chỉ gọi các năng lực được khai báo trong ``pack.yaml``.**
+
+Hệ quả thực hành khi lập trình: "code cho một nền tảng, nhưng KHÔNG code vào
+nền tảng đó" (MDD §6). Thêm một họ MCU mới = thêm một thư mục ``packs/<tên>/``
+gồm dữ liệu và quy tắc, KHÔNG sửa một dòng engine. Nếu có lúc nào bạn thấy
+mình muốn viết ``if pack.name == ...`` trong ``eaa/``, đó là dấu hiệu interface
+này thiếu một năng lực — hãy thêm năng lực vào interface, đừng thêm nhánh rẽ.
+
+Sprint 0 chốt LƯỢC ĐỒ và phần nạp/kiểm tra manifest. Bộ chạy lệnh thật (đọc
+cú pháp gọi từ Tool Card theo AIS §9.5, FR-ENV-05) thuộc Sprint 2.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Protocol, runtime_checkable
+
+import yaml
+
+from eaa.tools.base import CodeArtifact, ToolReport
+
+__all__ = [
+    "CAPABILITIES",
+    "REQUIRED_CAPABILITIES",
+    "CONFIRM_REQUIRED_CAPABILITIES",
+    "ParseSpec",
+    "ToolInvocation",
+    "StaticRule",
+    "PackManifest",
+    "PlatformPack",
+    "PackError",
+    "load_manifest",
+    "discover_packs",
+]
+
+#: Năng lực một Platform Pack có thể khai báo.
+#:
+#: * ``compile`` — dịch mã nguồn thành ảnh nhị phân.
+#: * ``size``    — đo chiếm dụng bộ nhớ chương trình và bộ nhớ dữ liệu.
+#: * ``static``  — phân tích tĩnh theo bộ quy tắc của nền tảng.
+#: * ``flash``   — nạp ảnh nhị phân xuống thiết bị.
+#: * ``sim``     — cầu nối sang bộ mô phỏng để chạy cổng SIL.
+CAPABILITIES: tuple[str, ...] = ("compile", "size", "static", "flash", "sim")
+
+#: Không có ba năng lực này thì chuỗi kiểm chứng bắt buộc (FR-VER-01) đứt
+#: đoạn, nên pack không dùng được. ``flash`` và ``sim`` là tùy chọn: một pack
+#: có thể chưa hỗ trợ nạp, hoặc dự án chưa có mô hình mô phỏng.
+REQUIRED_CAPABILITIES: tuple[str, ...] = ("compile", "size", "static")
+
+#: Năng lực chạm vào thiết bị thật hoặc vào máy của kỹ sư — LUÔN phải khai báo
+#: cần người xác nhận (FR-DIA-02, AIS §7.3). Engine từ chối nạp một pack lách
+#: điều này, nên không thể có pack nào "tiện tay" bỏ qua xác nhận.
+CONFIRM_REQUIRED_CAPABILITIES: frozenset[str] = frozenset({"flash"})
+
+
+class PackError(Exception):
+    """Manifest của Platform Pack sai lược đồ hoặc thiếu năng lực bắt buộc."""
+
+
+@dataclass(frozen=True)
+class ParseSpec:
+    """Cách đọc kết quả một công cụ: mã thoát, biểu thức bắt lỗi và số liệu.
+
+    Quy tắc parse là DỮ LIỆU của pack, không phải hằng số trong adapter — đúng
+    tinh thần Tool Card ở AIS §9.5: đổi phiên bản công cụ chỉ là cập nhật khai
+    báo, adapter không phải sửa.
+    """
+
+    success_exit_codes: tuple[int, ...] = (0,)
+    error_regex: str | None = None
+    warning_regex: str | None = None
+    #: tên số liệu → regex có đúng một nhóm bắt số. Ví dụ khóa: ``flash_bytes``.
+    metric_regex: dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for ten, mau in [("error_regex", self.error_regex), ("warning_regex", self.warning_regex)]:
+            if mau is not None:
+                _compile_regex(mau, f"{ten}")
+        for ten_so_lieu, mau in self.metric_regex.items():
+            bien_dich = _compile_regex(mau, f"metric_regex[{ten_so_lieu}]")
+            if bien_dich.groups != 1:
+                raise PackError(
+                    f"metric_regex[{ten_so_lieu}] phải có đúng 1 nhóm bắt giá trị, "
+                    f"đang có {bien_dich.groups}"
+                )
+
+
+def _compile_regex(mau: str, nhan: str) -> re.Pattern[str]:
+    try:
+        return re.compile(mau)
+    except re.error as exc:
+        raise PackError(f"{nhan} không phải biểu thức chính quy hợp lệ: {exc}") from exc
+
+
+@dataclass(frozen=True)
+class ToolInvocation:
+    """Một lời gọi công cụ do pack khai báo.
+
+    ``command`` là mẫu argv; engine thay các chỗ giữ ``{tên}`` bằng tham số
+    được truyền vào lúc chạy. Cố ý dùng danh sách argv chứ không dùng chuỗi
+    shell: không có shell thì không có chèn lệnh, và mẫu vẫn chạy giống nhau
+    trên Windows lẫn Linux (NFR-04, STP-04 §6).
+    """
+
+    command: tuple[str, ...]
+    parse: ParseSpec = field(default_factory=ParseSpec)
+    requires_confirmation: bool = False
+    timeout_s: float = 120.0
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.command:
+            raise PackError("command rỗng — phải có ít nhất tên chương trình")
+        if self.timeout_s <= 0:
+            raise PackError(f"timeout_s phải dương, nhận {self.timeout_s}")
+
+    def placeholders(self) -> set[str]:
+        """Các chỗ giữ ``{tên}`` xuất hiện trong mẫu argv."""
+        return {
+            m.group(1)
+            for phan in self.command
+            for m in re.finditer(r"\{(\w+)\}", phan)
+        }
+
+    def resolve(self, params: dict[str, Any]) -> list[str]:
+        """Dựng argv thật từ mẫu; thiếu tham số là lỗi, không im lặng bỏ qua."""
+        thieu = self.placeholders() - set(params)
+        if thieu:
+            raise PackError(
+                f"Thiếu tham số cho lời gọi công cụ: {sorted(thieu)} "
+                f"(mẫu: {' '.join(self.command)})"
+            )
+        return [phan.format(**params) for phan in self.command]
+
+
+@dataclass(frozen=True)
+class StaticRule:
+    """Một quy tắc phân tích tĩnh do pack cung cấp.
+
+    Quy tắc cấm (``delay()``, cấp phát động, đệ quy, số thực trong ngắt…) đến
+    TỪ ĐÂU là điều đáng chú ý: phần phụ thuộc nền tảng nằm trong pack, phần
+    phụ thuộc dự án đến từ ``constraints.yaml`` — engine chỉ hợp nhất và thi
+    hành, không tự biết cái gì bị cấm ở đâu (FR-VER-02).
+    """
+
+    id: str
+    pattern: str
+    message: str
+    severity: str = "error"
+    #: Trích dẫn nguồn của quy tắc (trang tài liệu, chuẩn mã hóa…).
+    ref: str = ""
+
+    def __post_init__(self) -> None:
+        _compile_regex(self.pattern, f"quy tắc {self.id}")
+
+
+@dataclass(frozen=True)
+class PackManifest:
+    """Nội dung ``pack.yaml`` đã được kiểm tra lược đồ."""
+
+    name: str
+    version: str
+    description: str
+    #: Các đích/họ chip pack phục vụ — chuỗi mờ đối với engine.
+    targets: tuple[str, ...]
+    capabilities: dict[str, ToolInvocation]
+    root: Path
+    rules_dir: Path
+    prompts_dir: Path
+    smoke_dir: Path
+    #: Phiên bản tối thiểu của từng công cụ, đối chiếu với env_lock (FR-ENV-04).
+    tool_requirements: dict[str, str] = field(default_factory=dict)
+
+    def has(self, capability: str) -> bool:
+        return capability in self.capabilities
+
+    def invocation(self, capability: str) -> ToolInvocation:
+        try:
+            return self.capabilities[capability]
+        except KeyError:
+            raise PackError(
+                f"Pack {self.name!r} không khai báo năng lực {capability!r} "
+                f"(đang có: {sorted(self.capabilities)})"
+            ) from None
+
+
+def load_manifest(path: str | Path) -> PackManifest:
+    """Nạp và kiểm tra một ``pack.yaml``.
+
+    Kiểm tra chặt ngay lúc nạp thay vì để lỗi lộ ra giữa một vòng sinh mã: một
+    pack khai báo sai chỉ làm hỏng phiên làm việc nếu nó được phát hiện muộn.
+    """
+    path = Path(path)
+    if path.is_dir():
+        path = path / "pack.yaml"
+    if not path.is_file():
+        raise PackError(f"Không tìm thấy manifest Platform Pack: {path}")
+
+    try:
+        du_lieu = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise PackError(f"{path}: YAML không hợp lệ — {exc}") from exc
+
+    if not isinstance(du_lieu, dict):
+        raise PackError(f"{path}: nội dung phải là một ánh xạ khóa–giá trị")
+
+    for truong in ("pack", "version"):
+        if not du_lieu.get(truong):
+            raise PackError(f"{path}: thiếu trường bắt buộc {truong!r}")
+
+    root = path.parent
+    kha_nang_raw = du_lieu.get("capabilities") or {}
+    if not isinstance(kha_nang_raw, dict):
+        raise PackError(f"{path}: 'capabilities' phải là ánh xạ")
+
+    la = set(kha_nang_raw) - set(CAPABILITIES)
+    if la:
+        raise PackError(
+            f"{path}: năng lực không nhận biết {sorted(la)} "
+            f"(hợp lệ: {list(CAPABILITIES)}). Muốn thêm năng lực mới thì mở "
+            "rộng interface eaa/platform.py, đừng khai báo lén trong pack."
+        )
+
+    kha_nang = {ten: _parse_invocation(ten, than, path) for ten, than in kha_nang_raw.items()}
+
+    thieu = [c for c in REQUIRED_CAPABILITIES if c not in kha_nang]
+    if thieu:
+        raise PackError(
+            f"{path}: thiếu năng lực bắt buộc {thieu} — không có chúng thì "
+            "chuỗi kiểm chứng FR-VER-01 bị đứt đoạn."
+        )
+
+    for ten in CONFIRM_REQUIRED_CAPABILITIES & set(kha_nang):
+        if not kha_nang[ten].requires_confirmation:
+            raise PackError(
+                f"{path}: năng lực {ten!r} phải khai báo "
+                "requires_confirmation: true — thao tác chạm vào thiết bị thật "
+                "luôn cần người xác nhận (FR-DIA-02)."
+            )
+
+    return PackManifest(
+        name=str(du_lieu["pack"]),
+        version=str(du_lieu["version"]),
+        description=str(du_lieu.get("description", "")),
+        targets=tuple(str(t) for t in du_lieu.get("targets", [])),
+        capabilities=kha_nang,
+        root=root,
+        rules_dir=root / str(du_lieu.get("rules_dir", "rules")),
+        prompts_dir=root / str(du_lieu.get("prompts_dir", "prompts")),
+        smoke_dir=root / str(du_lieu.get("smoke_dir", "smoke")),
+        tool_requirements={
+            str(k): str(v) for k, v in (du_lieu.get("tool_requirements") or {}).items()
+        },
+    )
+
+
+def _parse_invocation(ten: str, than: Any, path: Path) -> ToolInvocation:
+    if not isinstance(than, dict):
+        raise PackError(f"{path}: năng lực {ten!r} phải là ánh xạ, nhận {type(than)}")
+
+    lenh = than.get("command")
+    if isinstance(lenh, str):
+        raise PackError(
+            f"{path}: năng lực {ten!r} khai báo command dạng chuỗi. Phải dùng "
+            "danh sách argv — engine không chạy qua shell (chống chèn lệnh và "
+            "để mẫu chạy giống nhau trên Windows/Linux)."
+        )
+    if not isinstance(lenh, list) or not lenh:
+        raise PackError(f"{path}: năng lực {ten!r} thiếu 'command' dạng danh sách")
+
+    parse_raw = than.get("parse") or {}
+    if not isinstance(parse_raw, dict):
+        raise PackError(f"{path}: năng lực {ten!r} có 'parse' sai kiểu")
+
+    try:
+        parse = ParseSpec(
+            success_exit_codes=tuple(parse_raw.get("success_exit_codes", (0,))),
+            error_regex=parse_raw.get("error_regex"),
+            warning_regex=parse_raw.get("warning_regex"),
+            metric_regex=dict(parse_raw.get("metric_regex") or {}),
+        )
+        return ToolInvocation(
+            command=tuple(str(p) for p in lenh),
+            parse=parse,
+            requires_confirmation=bool(than.get("requires_confirmation", False)),
+            timeout_s=float(than.get("timeout_s", 120.0)),
+            description=str(than.get("description", "")),
+        )
+    except PackError as exc:
+        raise PackError(f"{path}: năng lực {ten!r} — {exc}") from exc
+
+
+def discover_packs(root: str | Path) -> dict[str, PackManifest]:
+    """Nạp mọi pack trong thư mục ``packs/``."""
+    root = Path(root)
+    ket_qua: dict[str, PackManifest] = {}
+    if not root.is_dir():
+        return ket_qua
+    for manifest_path in sorted(root.glob("*/pack.yaml")):
+        manifest = load_manifest(manifest_path)
+        ket_qua[manifest.name] = manifest
+    return ket_qua
+
+
+@runtime_checkable
+class PlatformPack(Protocol):
+    """Hợp đồng runtime mà engine trông cậy vào.
+
+    Mọi phương thức trả ``ToolReport`` để Orchestrator kiểm tra bất biến merge
+    theo cùng một cách với mọi nền tảng.
+    """
+
+    manifest: PackManifest
+
+    def compile(self, artifact: CodeArtifact, work_dir: Path) -> ToolReport:
+        """Dịch mã nguồn; ``metrics`` nên kèm đường dẫn ảnh nhị phân sinh ra."""
+        ...
+
+    def size(self, binary: Path) -> ToolReport:
+        """Đo chiếm dụng bộ nhớ.
+
+        ``metrics`` phải mang các khóa mà ``constraints.yaml`` đặt ngưỡng — tên
+        khóa là hợp đồng giữa pack và ràng buộc dự án, engine chỉ so sánh số.
+        """
+        ...
+
+    def static_rules(self) -> list[StaticRule]:
+        """Bộ quy tắc phân tích tĩnh của nền tảng."""
+        ...
+
+    def flash(self, binary: Path, *, confirmed_by: str) -> ToolReport:
+        """Nạp firmware. ``confirmed_by`` là bằng chứng người đã xác nhận.
+
+        Tham số này bắt buộc chứ không phải cờ tùy chọn: một adapter không thể
+        vô tình nạp firmware mà quên hỏi người (FR-DIA-02).
+        """
+        ...
+
+    def sim_bindings(self) -> dict[str, Any]:
+        """Cấu hình nối firmware vào bộ mô phỏng cho cổng SIL (FR-SIM-01)."""
+        ...
+
+    def smoke_test(self) -> ToolReport:
+        """Tự kiểm tra pack chạy được trên máy này (AIS §9.5)."""
+        ...

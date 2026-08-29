@@ -1,0 +1,50 @@
+# Hard Constraints Spec — EAA-SDD-03 §3.1, sản phẩm của công đoạn A1.
+#
+# Tệp này là "sợi chỉ đỏ" của toàn dự án: nội dung nó được bảng hóa (kỹ thuật
+# nén K1) và nạp vào 100% lần gọi LLM (FR-KB-01, TC-04). Đổi tệp này là đổi
+# mọi prompt về sau, nên nó có phiên bản riêng và phải duyệt lại tại G1
+# (AIS §8.1).
+#
+# Ràng buộc do KỸ SƯ chốt từ hệ quả vật lý, không phải do máy đề xuất: chỉ
+# người mới biết trượt bước và trễ pha dẫn tới robot ngã (Ma trận, A1).
+
+version: 1
+changelog:
+  - version: 1
+    date: 2026-08-29
+    author: Vũ Trí Công
+    note: Phát hành lần đầu cùng Sprint 0.
+
+platform: avr          # tên Platform Pack — packs/avr/
+mcu: atmega328p
+clock_hz: 16000000
+
+limits:
+  control_loop_ms: 10       # chu kỳ điều khiển tối đa
+  motor_response_us: 50     # đáp ứng động cơ
+  flash_pct_max: 50         # ngưỡng đề cương (STP-04 §5)
+  sram_pct_max: 40
+  max_module_lines: 300     # cưỡng chế tại cổng phân tích tĩnh, không dựa vào trần token
+  stack_headroom_bytes: 128 # không tràn stack
+
+forbidden:
+  - delay()          # cấm hàm chặn (blocking)
+  - malloc/new       # cấm cấp phát động
+  - recursion        # cấm đệ quy
+  - float_in_isr     # cấm số thực trong ngắt
+
+style:
+  arithmetic: integer   # số học số nguyên ở vòng điều khiển
+  io: direct_port       # thay cho digitalWrite()
+  naming: snake_case
+  isr_policy: >-
+    Chỉ đọc/ghi biến volatile đã khai báo; mọi xử lý dài đẩy sang vòng lặp
+    chính. Truy cập biến nhiều byte dùng khối nguyên tử.
+
+# Tiêu chí nghiệm thu vật lý tại G4 (đề cương mục 3.3.1).
+acceptance:
+  tilt_tolerance_deg: 1.0
+  scenarios:
+    - khởi động tĩnh
+    - kháng nhiễu
+    - hoạt động dài hạn 10–20 phút

@@ -1,0 +1,126 @@
+# Platform Pack: AVR 8-bit — pack đầu tiên của MVP (EAA-SRS-01 §1.2, FR-PLT-02).
+#
+# Đây là ranh giới: mọi tên công cụ, cờ biên dịch và quy ước riêng của họ AVR
+# nằm TRONG tệp này và các thư mục cạnh nó. Engine (eaa/) không biết chữ "avr"
+# nào — nó chỉ đọc các năng lực khai báo dưới đây qua eaa/platform.py.
+#
+# Thêm họ MCU mới = thêm packs/<tên>/pack.yaml tương tự, không sửa engine (NFR-05).
+
+pack: avr
+version: 0.1.0
+description: >-
+  Toolchain, quy tắc phân tích tĩnh và quy ước cho vi điều khiển AVR 8-bit.
+
+targets:
+  - atmega328p
+
+rules_dir: rules
+prompts_dir: prompts
+smoke_dir: smoke
+
+# Phiên bản tối thiểu; eaa doctor đối chiếu và ghi vào env_lock.json (FR-ENV-01/04).
+tool_requirements:
+  avr-gcc: ">=12.0"
+  avr-size: ">=2.38"
+  avrdude: ">=7.0"
+  cppcheck: ">=2.10"
+
+capabilities:
+
+  compile:
+    description: Biên dịch một module firmware thành ảnh ELF.
+    command:
+      - avr-gcc
+      - -mmcu={mcu}
+      - -DF_CPU={clock_hz}UL
+      - -Os
+      - -std=gnu11
+      - -Wall
+      - -Wextra
+      - -Werror
+      - -ffunction-sections
+      - -fdata-sections
+      - -Wl,--gc-sections
+      - -I{include_dir}
+      - -o
+      - "{output}"
+      - "{sources}"
+    timeout_s: 120
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+error:\\s+(?P<msg>.+)$"
+      warning_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+warning:\\s+(?P<msg>.+)$"
+
+  size:
+    description: >-
+      Đo chiếm dụng Flash và SRAM. Các khóa metric ở đây là hợp đồng với
+      constraints.yaml của dự án (flash_pct_max, sram_pct_max) — engine chỉ so
+      sánh số, không biết Flash hay SRAM nghĩa là gì.
+    command:
+      - avr-size
+      - --format=avr
+      - -mmcu={mcu}
+      - "{binary}"
+    timeout_s: 30
+    parse:
+      success_exit_codes: [0]
+      metric_regex:
+        flash_bytes: "Program:\\s+(\\d+)\\s+bytes"
+        flash_pct: "Program:.*\\(([\\d.]+)% Full\\)"
+        sram_bytes: "Data:\\s+(\\d+)\\s+bytes"
+        sram_pct: "Data:.*\\(([\\d.]+)% Full\\)"
+
+  static:
+    description: Phân tích tĩnh theo bộ quy tắc trong rules/.
+    command:
+      - cppcheck
+      - --enable=warning,style,performance,portability
+      - --error-exitcode=1
+      - --inline-suppr
+      - --platform=avr8
+      - --std=c11
+      - "{source}"
+    timeout_s: 120
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+(?:error|warning):\\s+(?P<msg>.+)$"
+
+  flash:
+    description: >-
+      Nạp firmware xuống board. LUÔN cần người xác nhận — engine từ chối nạp
+      pack nào khai báo năng lực này mà thiếu requires_confirmation (FR-DIA-02).
+    requires_confirmation: true
+    command:
+      - avrdude
+      - -c
+      - "{programmer}"
+      - -p
+      - "{mcu}"
+      - -P
+      - "{port}"
+      - -b
+      - "{baud}"
+      - -U
+      - "flash:w:{binary}:e"
+    timeout_s: 180
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^avrdude:\\s+(?:error|ERROR):\\s+(?P<msg>.+)$"
+
+  sim:
+    description: >-
+      Cầu nối cổng SIL: biên dịch firmware cho máy chủ qua lớp HAL giả lập rồi
+      nối vào mô hình vật lý của dự án (FR-SIM-01, ADR-05).
+    command:
+      - "{python}"
+      - -m
+      - eaa.tools.sim_runner
+      - --hal={hal_mock}
+      - --model={sim_model}
+      - --scenario={scenario}
+    timeout_s: 300
+    parse:
+      success_exit_codes: [0]
+      metric_regex:
+        max_angle_deg: "max_angle_deg=([\\d.-]+)"
+        settling_time_s: "settling_time_s=([\\d.]+)"

@@ -1,0 +1,87 @@
+# Hardware Profile — EAA-SDD-03 §2, sản phẩm của công đoạn B2 (90% con người).
+#
+# Đây là DỮ LIỆU ĐẦU VÀO cho Datasheet Injection và là nguồn dựng tự động
+# Knowledge Graph (FR-KG-01): node MCU/Peripheral/Register/Pin và cạnh
+# has / configured_by / outputs_on được suy ra từ tệp này cộng với khai báo
+# uses[] của từng module trong backlog.
+#
+# Sửa tệp này kích hoạt phân tích ảnh hưởng và phải duyệt lại tại G1
+# (AIS §8.1) — đổi một chân là đổi mọi module chạm vào chân đó.
+
+version: 1
+project: robot_balance
+description: Robot 2 bánh tự cân bằng — dự án mẫu kiểm chứng quy trình.
+
+mcu:
+  part: atmega328p
+  clock_hz: 16000000
+  flash_bytes: 32768
+  sram_bytes: 2048
+  eeprom_bytes: 1024
+
+peripherals:
+  - id: timer1
+    kind: timer
+    width_bits: 16
+    configured_by: [TCCR1A, TCCR1B, OCR1A, TIMSK1]
+    note: Ngắt chu kỳ cho vòng điều khiển và phát xung bước.
+  - id: timer0
+    kind: timer
+    width_bits: 8
+    configured_by: [TCCR0A, TCCR0B, OCR0A, TIMSK0]
+    note: Dành cho tick của nhân điều phối — tách khỏi timer1 để tránh tranh chấp.
+  - id: twi
+    kind: i2c
+    configured_by: [TWBR, TWCR, TWSR, TWDR]
+    clock_hz: 400000        # fast-mode
+  - id: usart0
+    kind: uart
+    configured_by: [UBRR0H, UBRR0L, UCSR0A, UCSR0B, UCSR0C]
+    baud: 115200
+    note: Kênh telemetry, cũng là kênh máy đọc được của chế độ chẩn đoán.
+
+components:
+  - id: imu
+    part: mpu6050
+    bus: twi
+    address: 0x68
+    provides: [accel_xyz, gyro_xyz, temperature]
+    whoami_register: 0x75
+    whoami_expected: 0x68
+  - id: motor_driver_left
+    part: a4988
+    microstep: 16
+    pins: {step: PB1, dir: PB2, enable: PB0}
+  - id: motor_driver_right
+    part: a4988
+    microstep: 16
+    pins: {step: PB3, dir: PB4, enable: PB0}
+
+pin_map:
+  PB0: {net: MOTOR_EN, direction: out, note: Chung cho cả hai driver, mức thấp là bật}
+  PB1: {net: STEP_L, direction: out, peripheral: timer1, alt: OC1A}
+  PB2: {net: DIR_L, direction: out}
+  PB3: {net: STEP_R, direction: out, peripheral: timer1, alt: OC1B}
+  PB4: {net: DIR_R, direction: out}
+  PC4: {net: SDA, direction: bidir, peripheral: twi}
+  PC5: {net: SCL, direction: out, peripheral: twi}
+  PD0: {net: UART_RX, direction: in, peripheral: usart0}
+  PD1: {net: UART_TX, direction: out, peripheral: usart0}
+
+power:
+  # Rủi ro brown-out đã lường trước ở thiết kế B2; kịch bản chẩn đoán DS-05
+  # kiểm đúng điều này dưới tải.
+  logic_rail: {voltage: 5.0, source: LDO từ nguồn động lực}
+  motor_rail: {voltage: 12.0, source: pin 3S}
+  separated: true
+  note: >-
+    Tách nguồn động lực và nguồn điều khiển; sụt áp khi động cơ tăng tốc là
+    nguyên nhân reset ngẫu nhiên đã lường trước.
+
+mechanics:
+  # Giả định vật lý — vào Assumption Log ở trạng thái proposed cho tới khi có
+  # số đo thật thay thế (AIS §8.1: tri thức thực chứng luôn thắng giả định).
+  wheel_radius_m: 0.0425
+  body_mass_kg: 0.85
+  com_height_m: 0.11
+  friction_coeff: 0.02   # ước lượng, chưa đo
