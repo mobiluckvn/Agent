@@ -211,6 +211,35 @@ class GitRepo:
             gitkeep.write_text("", encoding="utf-8")
             self._git("add", ".gitkeep")
             self._git("commit", "-q", "-m", "Khởi tạo kho firmware")
+        self._bo_qua_san_pham_dich()
+
+    #: Thư mục sản phẩm dịch — dẫn xuất từ mã nguồn, không thuộc lịch sử.
+    BUILD_DIRS: tuple[str, ...] = ("build/",)
+
+    def _bo_qua_san_pham_dich(self) -> None:
+        """Loại thư mục build khỏi tầm nhìn của Git, bằng .git/info/exclude.
+
+        Không dùng ``.gitignore``: tệp ấy phải được commit, mà commit thêm vào
+        một kho đang ở giữa một nhánh module là chen vào việc của người khác.
+        ``info/exclude`` là chỗ đúng cho loại trừ cục bộ.
+
+        Vì sao cần: ``eaa build`` ghi vào ``firmware/build/``, nên nếu Git vẫn
+        thấy thư mục ấy thì kho LUÔN "bẩn" sau mỗi lần ráp — và phép kiểm "kho
+        sạch trước khi nạp" sẽ chặn mọi lần nạp, kể cả những lần hoàn toàn hợp
+        lệ. Một phép kiểm luôn báo động là một phép kiểm sẽ bị tắt.
+        """
+        loai_tru = self.root / ".git" / "info" / "exclude"
+        if not loai_tru.parent.is_dir():
+            return
+        hien_co = loai_tru.read_text(encoding="utf-8") if loai_tru.is_file() else ""
+        thieu = [d for d in self.BUILD_DIRS if d not in hien_co.split()]
+        if thieu:
+            loai_tru.write_text(
+                hien_co.rstrip("\n") + "\n" + "\n".join(thieu) + "\n"
+                if hien_co.strip()
+                else "\n".join(thieu) + "\n",
+                encoding="utf-8",
+            )
 
     def current_branch(self) -> str:
         return self._git("rev-parse", "--abbrev-ref", "HEAD")

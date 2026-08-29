@@ -61,6 +61,29 @@ components:
     microstep: 16
     pins: {step: PB3, dir: PB4, enable: PB0}
 
+# Cách nạp firmware xuống bo, và cách nhận ra bo khi nó được cắm vào USB.
+#
+# Ở tầng DỰ ÁN chứ không phải pack: cầu USB-nối tiếp là thuộc tính của cái bo cụ
+# thể đang nằm trên bàn, không phải của họ vi điều khiển. Cùng một ATmega328P có
+# thể nằm trên bo dùng cầu này hay cầu khác.
+#
+# Engine coi mọi giá trị dưới đây là chuỗi mờ: nó chuyển `tool` và `baud` xuống
+# chỗ giữ {programmer}/{baud} của pack, và so `usb` với những gì hệ điều hành
+# báo — không diễn giải giá trị nào.
+programmer:
+  tool: arduino          # giao thức nạp qua bootloader có sẵn trên bo
+  baud: 115200
+  usb:
+    - vid: "2341"
+      pid: "0043"
+      note: Bo chính hãng, cầu USB dùng vi điều khiển phụ
+    - vid: "1a86"
+      pid: "7523"
+      note: Bo tương thích, cầu USB rời
+  # Dùng khi máy không đọc được VID/PID: khớp theo tên cổng, kém chắc chắn hơn
+  # hẳn nên kết quả được ghi rõ là "chưa xác nhận".
+  port_hint: usbmodem
+
 pin_map:
   PB0: {net: MOTOR_EN, direction: out, note: Chung cho cả hai driver, mức thấp là bật}
   PB1: {net: STEP_L, direction: out, peripheral: timer1, alt: OC1A}

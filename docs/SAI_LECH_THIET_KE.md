@@ -403,6 +403,38 @@ Ba loại:
 
 ---
 
+## SL-32 · BỔ SUNG · `eaa/serialport.py` — liệt kê cổng, nhận diện mạch
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7 (kênh máy của chẩn đoán hai kênh), FR-DIA-02 |
+| **Chỗ trống** | SDD v1.0 không có module nào cho việc tìm thiết bị. Chẩn đoán hai kênh giả định telemetry "có sẵn", nhưng ai nối dây và nối vào đâu thì không nói |
+| **Code làm** | `list_ports()` (pyserial nếu có, không thì glob theo quy ước POSIX), `UsbId`/`match_declared()` đối chiếu với danh sách bo dự án khai, `eaa ports` |
+| **Ranh giới ba tầng** | Cặp VID/PID nằm ở **tầng dự án** (`hardware_profile.yaml → programmer.usb`), không ở pack và càng không ở engine: cầu USB-nối tiếp là thuộc tính của cái bo cụ thể đang nằm trên bàn, không phải của họ vi điều khiển. Cùng một MCU có thể nằm trên bo dùng cầu này hay cầu khác |
+| **Nguyên tắc trung thực** | Không có `pyserial` thì không đọc được VID/PID, và lúc ấy báo cáo nói thẳng "không đọc được" thay vì trả danh sách trông y hệt trường hợp đọc được rồi để người tưởng mạch không khớp. Một dòng "không nhận diện được" đúng đáng hơn một dòng "không khớp" sai |
+| **TC-38 bắt được một lần** | Docstring của `UsbId._chuan` lấy mã một hãng làm ví dụ — đúng cái bẫy đã bắt bốn lần ở các sprint trước. Đã viết lại tổng quát. TC-42 thêm một phép kiểm hẹp hơn: quét riêng `serialport.py` tìm mã hãng |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/serialport.py`; `hardware_profile.yaml` thêm mục `programmer` |
+| **Sprint** | S4 |
+
+---
+
+## SL-33 · BỔ SUNG · `eaa/flash.py` — nạp firmware và nhật ký nạp
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-DIA-02, EAA-AIS-05 §7.3 |
+| **Thiết kế nói** | Nạp firmware LUÔN cần người xác nhận |
+| **Chỗ trống** | Điều khoản ấy đã được thi hành ở tầng pack (`flash` phải khai `requires_confirmation`) nhưng chưa có đường nào từ CLI tới đó: trường `DiagnosticSession.flasher` chưa nơi nào gán |
+| **Code làm** | `Flasher` (bốn phép kiểm + xác nhận), `FlashLog` append-only, lệnh `eaa flash` và `eaa flash --history` |
+| **Bốn phép kiểm, đều là "không" chứ không phải "cảnh báo"** | (1) có ảnh đã ráp; (2) kho mã sạch — còn thay đổi chưa commit thì câu "đã nạp commit X" là câu sai, và sai lệch ấy đi theo tới lúc bảo vệ; (3) ảnh mới hơn nguồn — nạp ảnh cũ là cách hỏng âm thầm nhất vì mạch chạy mã cũ còn người đọc mã mới; (4) người xác nhận, phiên không có terminal tính là chưa xác nhận |
+| **Ghi cả lần trượt** | "Đã thử nạp và trượt" là dữ kiện chẩn đoán y như "đã nạp xong" |
+| **Engine không đoán cổng** | Nhận ra đúng một cổng thì tự chọn; không nhận ra, hoặc nhận ra nhiều, thì dừng và đòi `--port`. Nạp nhầm thiết bị là hỏng thật, không phải một lượt chạy lại |
+| **Lỗi phát sinh và cách sửa** | `eaa build` ghi vào `firmware/build/`, nên `has_changes()` luôn đúng và phép kiểm "kho sạch" sẽ chặn MỌI lần nạp. Đã loại `build/` qua `.git/info/exclude` (loại trừ cục bộ, không cần commit vào một kho đang ở giữa nhánh module). Một phép kiểm luôn báo động là một phép kiểm sẽ bị tắt |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/flash.py`, `flash_log.jsonl`, lệnh `eaa ports` và `eaa flash` |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

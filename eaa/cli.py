@@ -1520,6 +1520,154 @@ def cmd_build(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_ports(args: argparse.Namespace) -> int:
+    """Bước đầu chạm vào thế giới vật lý: máy đang thấy cổng nào."""
+    from eaa.serialport import declared_usb_ids, list_ports, match_declared, render_ports
+
+    project = resolve_project(args.project)
+    hardware = _nap_kho(HardwareProfile.load, project / "hardware_profile.yaml")
+
+    khai, goi_y = declared_usb_ids(hardware)
+    cong = match_declared(
+        list_ports(include_virtual=args.all), khai, port_hint=goi_y
+    )
+
+    _in_tieu_de("Cổng nối tiếp")
+    print(render_ports(cong))
+
+    if not khai:
+        print(
+            "\nHồ sơ phần cứng chưa khai mục 'programmer.usb', nên engine không "
+            "có gì để đối chiếu.\nKhai VID/PID của bo ở đó thì lệnh này nói được "
+            "cổng nào là mạch của dự án."
+        )
+    return EXIT_OK
+
+
+def _tham_so_nap(ctx: AppContext, hardware: Any) -> dict[str, Any]:
+    """Tham số truyền xuống năng lực 'flash' của pack.
+
+    Chuyển tiếp nguyên vẹn, không diễn giải. Giao thức nạp và tốc độ truyền là
+    chuỗi mờ đối với engine — nó chỉ biết pack có hai chỗ giữ mang tên ấy, còn
+    giá trị nghĩa là gì thì chỉ hồ sơ phần cứng của dự án mới biết.
+    """
+    khai = (getattr(hardware, "raw", {}) or {}).get("programmer") or {}
+    tham_so = dict(ctx.kb.constraints.platform_params())
+    if isinstance(khai, dict):
+        if khai.get("tool"):
+            tham_so["programmer"] = str(khai["tool"])
+        if khai.get("baud"):
+            tham_so["baud"] = str(khai["baud"])
+    return tham_so
+
+
+def _chon_cong(project: Path, hardware: Any, chi_dinh: str) -> str:
+    from eaa.serialport import declared_usb_ids, list_ports, match_declared
+
+    if chi_dinh:
+        return chi_dinh
+
+    khai, goi_y = declared_usb_ids(hardware)
+    cong = match_declared(list_ports(), khai, port_hint=goi_y)
+    khop = [c for c in cong if c.matched]
+
+    if len(khop) == 1:
+        print(f"  Tự chọn cổng: {khop[0].device} ({khop[0].matched})")
+        return khop[0].device
+
+    if not khop:
+        raise CliError(
+            "Không nhận ra cổng nào là mạch của dự án. Chỉ rõ bằng --port, "
+            "và xem 'eaa ports' để biết máy đang thấy gì.\n"
+            "Engine KHÔNG đoán bừa một cổng: nạp nhầm thiết bị là hỏng thật, "
+            "không phải một lượt chạy lại."
+        )
+
+    ten = ", ".join(c.device for c in khop)
+    raise CliError(
+        f"Có {len(khop)} cổng cùng khớp bo đã khai ({ten}). Chỉ rõ bằng --port."
+    )
+
+
+def cmd_flash(args: argparse.Namespace) -> int:
+    """Nạp firmware xuống thiết bị — LUÔN cần người xác nhận (FR-DIA-02)."""
+    from eaa.firmware import ASSEMBLY_FILE, AssemblyPlan, FirmwareError
+    from eaa.flash import FLASH_LOG, FlashError, FlashLog, Flasher
+
+    project = resolve_project(args.project)
+    nhat_ky = FlashLog(project / FLASH_LOG)
+
+    if args.history:
+        _in_tieu_de("Nhật ký nạp")
+        ban_ghi = nhat_ky.all()
+        if not ban_ghi:
+            print("  Chưa lần nào nạp.")
+        for r in ban_ghi:
+            print(f"  {r.render()}")
+        return EXIT_OK
+
+    ctx = build_context(project)
+    hardware = _nap_kho(HardwareProfile.load, project / "hardware_profile.yaml")
+
+    if not ctx.runner.manifest.has("flash"):
+        raise CliError(
+            f"Pack {ctx.runner.manifest.name!r} không khai báo năng lực 'flash'."
+        )
+
+    if args.image:
+        anh = Path(args.image)
+    else:
+        try:
+            plan = AssemblyPlan.load(project / ASSEMBLY_FILE)
+            ten_anh = plan.image_name
+        except FirmwareError:
+            ten_anh = "firmware"
+        anh = project / "firmware" / "build" / f"{ten_anh}.hex"
+
+    nguoi = args.actor or _nguoi_dung()
+    _in_tieu_de("Nạp firmware")
+
+    flasher = Flasher(
+        runner=ctx.runner,
+        repo=ctx.repo,
+        log=nhat_ky,
+        source_dir=project / "firmware",
+    )
+
+    kiem = flasher.preflight(anh)
+    if not kiem.ok:
+        raise CliError(kiem.render())
+    print(f"  {kiem.render()}")
+
+    cong = _chon_cong(project, hardware, args.port)
+    tham_so = _tham_so_nap(ctx, hardware)
+
+    try:
+        ban_ghi = flasher.run(
+            anh,
+            port=cong,
+            actor=nguoi,
+            params=tham_so,
+            programmer=str(tham_so.get("programmer", "")),
+        )
+    except FlashError as exc:
+        raise CliError(str(exc), EXIT_WAITING_GATE) from exc
+
+    print()
+    if not ban_ghi.passed:
+        print(f"NẠP KHÔNG THÀNH CÔNG — {ban_ghi.note}")
+        print("Đã ghi vào nhật ký nạp: một lần thử trượt cũng là dữ kiện chẩn đoán.")
+        return EXIT_REPAIR_LIMIT
+
+    print(f"Đã nạp {ban_ghi.image_digest[:19]}… lên {ban_ghi.port}.")
+    print(f"Commit đang chạy trên thiết bị: {ban_ghi.commit[:10]}")
+    print(
+        "\nTừ đây mọi số đo lấy về đều gắn với commit trên. Xem lại lịch sử:\n"
+        "  eaa flash --history"
+    )
+    return EXIT_OK
+
+
 def cmd_rollback(args: argparse.Namespace) -> int:
     from eaa.versions import NoKnownGood, VersionError
 
@@ -2024,6 +2172,33 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_build.set_defaults(func=cmd_build)
+
+    # Bước 3 — cổng nối tiếp
+    p_ports = sub.add_parser(
+        "ports",
+        help="Liệt kê cổng nối tiếp và nhận diện mạch đang cắm",
+    )
+    p_ports.add_argument(
+        "--all", action="store_true", help="Kể cả cổng ảo (Bluetooth, debug console)"
+    )
+    p_ports.set_defaults(func=cmd_ports)
+
+    # Bước 4 — nạp firmware (FR-DIA-02)
+    p_flash = sub.add_parser(
+        "flash",
+        help="Nạp firmware xuống thiết bị (luôn cần người xác nhận)",
+        description=(
+            "Nạp chỉ xảy ra khi: có ảnh đã ráp, kho mã sạch, ảnh mới hơn nguồn, "
+            "và có người xác nhận. Không cờ nào bỏ qua được bốn điều này."
+        ),
+    )
+    p_flash.add_argument("--port", default="", help="Cổng nối tiếp; bỏ trống thì tự nhận")
+    p_flash.add_argument("--image", help="Ảnh cần nạp; mặc định lấy bản vừa ráp")
+    p_flash.add_argument("--actor", help="Người chịu trách nhiệm lần nạp này")
+    p_flash.add_argument(
+        "--history", action="store_true", help="Xem nhật ký nạp thay vì nạp"
+    )
+    p_flash.set_defaults(func=cmd_flash)
 
     # AIS §8.4 — quay lui
     p_rb = sub.add_parser(

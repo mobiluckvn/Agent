@@ -220,9 +220,8 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "Cài phần mềm là thay đổi máy kỹ sư. Một agent tự cài im lặng là một agent "
      "có quyền ghi tùy ý lên máy — bỏ chốt này thì hai chốt còn lại mất ý nghĩa"),
     ("G. Công cụ & môi trường", "Tự phát hiện cổng USB / thiết bị cắm vào",
-     "Liệt kê cổng serial, đoán mạch nào đang cắm",
-     "—", "—", CHUA,
-     "Cần bộ liệt kê cổng theo hệ điều hành; là mắt xích đầu của nhóm J"),
+     "Liệt kê cổng nối tiếp, khớp VID/PID với bo dự án khai; không đọc được thì nói thẳng",
+     "eaa/serialport.py + eaa ports", "TC-42a (8 test)", DA, ""),
 
     # -- H. Phiên bản mã ----------------------------------------------------
     ("H. Phiên bản mã", "Ba hạng chất lượng",
@@ -288,9 +287,17 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "flash_pct_max lần đầu áp lên thứ sẽ nạp xuống mạch, không lên module lẻ",
      "eaa/firmware.py", "TC-41e", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Nạp firmware xuống mạch qua USB",
-     "avrdude đã vào manifest và biết cách cài, nhưng chưa nối vào lệnh CLI nào",
-     "eaa/diagnostics.py (trường flasher chưa ai gán)", "—", PHAN,
-     "Cần lệnh 'eaa flash' gọi năng lực flash của pack, kèm G4-style xác nhận người"),
+     "eaa flash gọi năng lực flash của pack; bốn phép kiểm rồi mới hỏi người",
+     "eaa/flash.py + eaa flash", "TC-42 (30 test)", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Bốn phép kiểm trước khi nạp",
+     "Có ảnh · kho mã sạch · ảnh mới hơn nguồn · người xác nhận — đều là 'không', không phải cảnh báo",
+     "eaa/flash.py", "TC-42b, TC-42c", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Nhật ký nạp append-only",
+     "Commit nào, ảnh nào (kèm băm), cổng nào, ai, lúc nào — ghi cả lần trượt",
+     "eaa flash --history", "TC-42d", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Engine không đoán cổng để nạp",
+     "Nhận ra đúng một cổng thì tự chọn; mơ hồ thì dừng và đòi --port",
+     "eaa/cli.py", "TC-42e", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Đọc telemetry UART thật",
      "Hiện --telemetry đọc từ TỆP, không đọc từ cổng nối tiếp",
      "eaa diagnose --telemetry", "—", PHAN,
@@ -325,15 +332,16 @@ LO_TRINH: list[tuple[str, str, str, str, str]] = [
      "module nào chạy mỗi bao nhiêu ms; `eaa build` dịch, liên kết, ra .hex. TC-41",
      "Biến các module rời thành một chương trình chạy được trên chip",
      "packs/avr/templates/, eaa/firmware.py, eaa/cli.py"),
-    ("3", "Liệt kê cổng USB",
-     "Liệt kê cổng nối tiếp theo hệ điều hành, đoán mạch đang cắm qua VID/PID",
+    ("3 ✔", "Liệt kê cổng USB — XONG",
+     "eaa ports; khớp VID/PID với bo khai ở hardware_profile.yaml; thiếu pyserial "
+     "thì nói thẳng là không đọc được VID/PID. TC-42a",
      "Agent trả lời được 'bạn đang cắm mạch nào vào cổng nào'",
-     "eaa/serialport.py (mới)"),
-    ("4", "Lệnh nạp firmware",
-     "eaa flash gọi năng lực flash của pack; xác nhận người BẮT BUỘC theo FR-DIA-02; "
-     "ghi lại đã nạp bản commit nào lên thiết bị nào lúc nào",
+     "eaa/serialport.py"),
+    ("4 ✔", "Lệnh nạp firmware — XONG",
+     "eaa flash: bốn phép kiểm (có ảnh · kho sạch · ảnh mới hơn nguồn · người xác "
+     "nhận) rồi mới nạp; nhật ký append-only ghi cả lần trượt. TC-42",
      "Đây là lần đầu Agent chạm vào phần cứng thật",
-     "eaa/cli.py, eaa/diagnostics.py"),
+     "eaa/flash.py, eaa/cli.py"),
     ("5", "Bộ đọc telemetry UART",
      "Đọc cổng nối tiếp theo khung tin có checksum + nhãn thời gian; có hạn chờ; "
      "ghi nguyên văn vào tệp để tái lập lại được",
@@ -463,12 +471,12 @@ def dung_bang(dich: Path) -> Path:
     ws.append(["Số liệu nền"])
     ws[f"A{ws.max_row}"].font = Font(bold=True, size=12, color="2F5597")
     for nhan, gia_tri in [
-        ("Test tự động đang xanh", "772"),
+        ("Test tự động đang xanh", "799"),
         ("Dòng mã engine (eaa/)", "14.792"),
-        ("Lệnh CLI", "18"),
+        ("Lệnh CLI", "20"),
         ("Platform Pack", "1 (AVR 8-bit)"),
         ("Mô hình nền", "gemini-3.1-pro-preview (ghim phiên bản)"),
-        ("Sai lệch thiết kế đã ghi", "31 mục (SL-01..SL-31)"),
+        ("Sai lệch thiết kế đã ghi", "33 mục (SL-01..SL-33)"),
     ]:
         ws.append([nhan, gia_tri])
         ws[f"A{ws.max_row}"].font = DAM
