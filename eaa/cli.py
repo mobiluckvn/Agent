@@ -1783,6 +1783,10 @@ def cmd_tune(args: argparse.Namespace) -> int:
     kho = _tao_versions(project, ctx.repo)
 
     so_do = _doc_so_do(Path(args.input)) if args.input else []
+    rut_ra = None
+    if args.port or args.seconds:
+        rut_ra = _rut_so_do_tu_mach(project, ctx, args)
+        so_do = rut_ra.measurements
 
     if args.reject:
         ban_ghi = kho.reject_acceptance(
@@ -1799,6 +1803,24 @@ def cmd_tune(args: argparse.Namespace) -> int:
         )
         return EXIT_WAITING_GATE
 
+    # Chốt: commit sắp phong hạng phải là commit ĐANG CHẠY trên thiết bị.
+    # Không có phép so này thì quy trình cho phép nạp bản A, đo bản A, rồi
+    # phong hạng hw-verified cho bản B — và known_good.lock sẽ nói bản B đã
+    # chạy trên phần cứng, điều mà mọi lần quay lui về sau tin theo.
+    from eaa.acceptance import check_device_commit
+    from eaa.flash import FLASH_LOG, FlashLog
+
+    thiet_bi = check_device_commit(ctx.repo.head(), FlashLog(project / FLASH_LOG))
+    if thiet_bi.blocking:
+        raise CliError(thiet_bi.message, EXIT_WAITING_GATE)
+    if not thiet_bi.verified:
+        print(f"\n  {thiet_bi.message}\n")
+
+    if rut_ra is not None and not rut_ra.ok:
+        raise CliError(
+            "Không phong hạng được:\n" + rut_ra.render(), EXIT_WAITING_GATE
+        )
+
     quyet_dinh = ctx.gates.latest("G4")
     try:
         ban_ghi = kho.promote(
@@ -1808,7 +1830,10 @@ def cmd_tune(args: argparse.Namespace) -> int:
             decision=quyet_dinh,
             measurements=so_do,
             env_hash=ctx.store.load().env_hash,
-            reason="nghiệm thu vật lý tại G4",
+            reason=(
+                "nghiệm thu vật lý tại G4; "
+                f"device_verified={'true' if thiet_bi.verified else 'false'}"
+            ),
         )
     except (PromotionNotAuthorized, VersionError) as exc:
         raise CliError(str(exc), EXIT_WAITING_GATE) from exc
@@ -1818,6 +1843,36 @@ def cmd_tune(args: argparse.Namespace) -> int:
         print(f"  {m}")
     print(f"\nknown_good.lock cập nhật: {ban_ghi.commit}")
     return EXIT_OK
+
+
+def _rut_so_do_tu_mach(project: Path, ctx: AppContext, args: argparse.Namespace) -> Any:
+    """Thu telemetry rồi rút số đo theo đúng những gì dự án đã khai."""
+    from eaa.acceptance import AcceptanceError, AcceptanceSpec, derive_measurements
+    from eaa.diagnostics import DiagnosticSession
+
+    ban_thu = _thu_telemetry(project, args.port, args.seconds or 10.0)
+    print(ban_thu.render())
+    if not ban_thu.trustworthy:
+        raise CliError(
+            "Phiên thu không tin được — không nghiệm thu trên dữ liệu này.",
+            EXIT_REPAIR_LIMIT,
+        )
+    if args.out:
+        da_loc, tho = ban_thu.write(args.out)
+        print(f"\n  Bản thu    : {da_loc}")
+        print(f"  Nguyên văn : {tho}")
+
+    try:
+        spec = AcceptanceSpec.from_acceptance(ctx.kb.constraints.acceptance)
+        rut_ra = derive_measurements(
+            DiagnosticSession.parse_telemetry(ban_thu.stream()), spec
+        )
+    except AcceptanceError as exc:
+        raise CliError(str(exc)) from exc
+
+    print()
+    print(rut_ra.render())
+    return rut_ra
 
 
 def _doc_so_do(path: Path) -> list[Any]:
@@ -2286,6 +2341,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_tune.add_argument("module_id")
     p_tune.add_argument("--input", help="Tệp measures.yaml chứa số đo đã thực hiện")
+    p_tune.add_argument("--port", default="", help="Đọc số đo thẳng từ cổng này")
+    p_tune.add_argument(
+        "--seconds", type=float, default=0.0, help="Thu bao lâu (mặc định 10s khi có --port)"
+    )
+    p_tune.add_argument("--out", help="Ghi lại phiên thu làm bằng chứng nghiệm thu")
     p_tune.add_argument("--reject", help="Ghi nhận KHÔNG đạt nghiệm thu, kèm lý do")
     p_tune.add_argument("--actor", help="Người nghiệm thu")
     p_tune.set_defaults(func=cmd_tune)

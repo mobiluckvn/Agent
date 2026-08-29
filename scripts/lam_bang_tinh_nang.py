@@ -322,9 +322,15 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "Thẻ .meta.json đi kèm ảnh; eaa flash đưa checklist ra đúng lúc người bấm đồng ý",
      "eaa/firmware.py + eaa/cli.py", "TC-44d", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Chốt vòng: số đo thật → G4 → phong hạng",
-     "Đường ống đã có ở hai đầu (diagnose, tune, versions) nhưng chưa nối liền",
-     "eaa tune", "TC-30", PHAN,
-     "Hiện phải nhập số đo bằng tay; nối được UART thì vòng này tự khép"),
+     "eaa tune --port thu telemetry, rút số đo theo tiêu chí đã khai, rồi phong hạng",
+     "eaa/acceptance.py", "TC-45 (23 test)", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Không phong hạng cho bản chưa từng chạy trên mạch",
+     "Nhật ký nạp nói bản khác đang trên chip thì CHẶN; nhật ký trống thì ghi "
+     "device_verified=false chứ không cấm",
+     "eaa/acceptance.py", "TC-45a", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Tiêu chí nghiệm thu có TRƯỚC số đo",
+     "acceptance.measurements khai trước; thiếu số đo hay vượt ngưỡng đều chặn phong hạng",
+     "constraints.yaml + eaa/acceptance.py", "TC-45b, TC-45c, TC-45d", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Debug sâu qua debugWIRE / JTAG / SWD",
      "Đặt điểm dừng, đọc thanh ghi lúc chạy",
      "—", "—", CHUA,
@@ -367,10 +373,11 @@ LO_TRINH: list[tuple[str, str, str, str, str]] = [
      "kết. Ảnh mang thẻ an toàn tới tận lúc nạp. TC-44",
      "Mỗi kịch bản chẩn đoán tự chạy được thay vì cần người viết mã đo",
      "eaa/firmware.py, packs/avr/templates/, projects/*/diagnostics/"),
-    ("7", "Khép vòng số đo → G4",
-     "Số đo từ UART chảy thẳng vào eaa tune; G4 duyệt thì phong hạng hw-verified",
+    ("7 ✔", "Khép vòng số đo → G4 — XONG",
+     "eaa tune --port: thu telemetry → rút số đo theo tiêu chí đã khai → G4 → "
+     "hw-verified. Commit phong hạng phải là commit đang chạy trên thiết bị. TC-45",
      "Vòng đời ba hạng chất lượng khép kín, không còn nhập tay",
-     "eaa/versions.py, eaa/cli.py"),
+     "eaa/acceptance.py, eaa/cli.py"),
     ("8", "Gate nhiều phương án",
      "GatePayload trình N cách làm kèm đánh đổi; GateDecision ghi phương án đã chọn "
      "và lý do; phương án bị loại vẫn lưu để tra lại",
@@ -487,12 +494,12 @@ def dung_bang(dich: Path) -> Path:
     ws.append(["Số liệu nền"])
     ws[f"A{ws.max_row}"].font = Font(bold=True, size=12, color="2F5597")
     for nhan, gia_tri in [
-        ("Test tự động đang xanh", "845"),
+        ("Test tự động đang xanh", "868"),
         ("Dòng mã engine (eaa/)", "14.792"),
         ("Lệnh CLI", "21"),
         ("Platform Pack", "1 (AVR 8-bit)"),
         ("Mô hình nền", "gemini-3.1-pro-preview (ghim phiên bản)"),
-        ("Sai lệch thiết kế đã ghi", "35 mục (SL-01..SL-35)"),
+        ("Sai lệch thiết kế đã ghi", "36 mục (SL-01..SL-36)"),
     ]:
         ws.append([nhan, gia_tri])
         ws[f"A{ws.max_row}"].font = DAM

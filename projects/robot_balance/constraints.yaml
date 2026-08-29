@@ -53,3 +53,32 @@ acceptance:
     - khởi động tĩnh
     - kháng nhiễu
     - hoạt động dài hạn 10–20 phút
+
+  # Số đo lấy từ telemetry khi nghiệm thu tại G4 — TIÊU CHÍ CÓ TRƯỚC, không suy
+  # ra từ dữ liệu đo được. Nghiệm thu là đối chiếu hành vi thật với ngưỡng đã
+  # chốt từ công đoạn A1; nếu ngưỡng được viết sau khi nhìn số thì phép đối
+  # chiếu ấy không còn nghĩa gì.
+  #
+  # Thiếu một mục trong telemetry là LỖI chứ không phải "bỏ qua mục ấy": một
+  # bản ghi nghiệm thu có 2 trong 4 số đo trông y hệt một bản có đủ 4.
+  measurements:
+    - name: max_tilt_deg
+      key: max_tilt_deg
+      unit: "°"
+      max: 1.0            # trùng tilt_tolerance_deg ở trên
+      note: Góc nghiêng lớn nhất quan sát được trong phiên đo
+    - name: settling_time_s
+      key: settling_time_s
+      unit: s
+      max: 2.0
+      note: Thời gian ổn định sau nhiễu
+    - name: loop_period_ms
+      key: loop_period_ms
+      unit: ms
+      max: 10             # trùng limits.control_loop_ms
+      note: Chu kỳ vòng điều khiển đo được trên thiết bị
+    - name: uptime_s
+      key: uptime_s
+      unit: s
+      min: 600            # kịch bản "hoạt động dài hạn 10–20 phút"
+      note: Thời gian chạy liên tục không reset

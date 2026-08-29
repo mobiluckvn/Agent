@@ -470,6 +470,25 @@ Ba loại:
 
 ---
 
+## SL-36 · BỔ SUNG · `eaa/acceptance.py` — khép vòng số đo tới hạng `hw-verified`
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §8.4 (ba hạng chất lượng), FR-VER-01, UC07 |
+| **Thiết kế nói** | Hạng `hw-verified` đòi phê duyệt G4 và đòi có SỐ ĐO đi kèm |
+| **Chỗ trống** | Bất biến ấy đã được thi hành từ Sprint 4, nhưng "số đo" là một tệp `measures.yaml` người tự gõ — và một tệp tự gõ thì khẳng định được bất cứ điều gì. Không có mắt xích nào nối số đo với thiết bị |
+| **Code làm** | `MeasurementSpec`/`AcceptanceSpec` (khai trong `constraints.yaml → acceptance.measurements`), `derive_measurements()`, `check_device_commit()`; `eaa tune --port` thu telemetry rồi rút số đo |
+| **Chốt 1 — bất biến mới, và là lý do cả bước này tồn tại** | Commit sắp phong hạng phải là commit **đang chạy trên thiết bị**, đối chiếu với nhật ký nạp. Không có nó, quy trình cho phép: nạp bản A, đo bản A, sửa mã thành bản B, rồi phong `hw-verified` cho B. Bản B chưa bao giờ chạy trên phần cứng — nhưng `known_good.lock` sẽ nói ngược lại, và đó là thứ mọi lần quay lui về sau tin theo. Một lần nạp TRƯỢT cũng không tính là bằng chứng |
+| **Sửa ngay trong bước: "thiếu bằng chứng" ≠ "bằng chứng nói ngược lại"** | Bản đầu tiên chặn cả hai như nhau, và TC-15 đỏ ngay: ba bài end-to-end phong hạng bằng `--input` mà chưa từng chạy `eaa flash`. Đó là một luồng hoàn toàn hợp lệ — kỹ sư nạp bằng IDE hay công cụ của hãng. Nhật ký nói bản A đang trên chip mà ta phong cho B là **mâu thuẫn** → chặn; nhật ký trống là **engine không biết** → nói rõ mình không kiểm được, ghi `device_verified=false` vào bản ghi phong hạng, rồi để người quyết. Một phép kiểm chặn cả việc đúng lẫn việc sai là phép kiểm sẽ bị gỡ |
+| **Chốt 2** | Số đo đã khai mà telemetry không có là **lỗi**, không phải "bỏ qua mục ấy". Một bản ghi nghiệm thu có 2 trong 4 số đo trông y hệt một bản có đủ 4 |
+| **Chốt 3** | Vượt ngưỡng thì KHÔNG phong hạng; đường đi của kết quả không đạt là `eaa tune --reject`. Số đo không đạt vẫn được giữ để vào bản ghi từ chối |
+| **Tiêu chí có trước số đo** | `acceptance.measurements` phải khai trước; chưa khai thì engine từ chối rút số đo thay vì tự đoán khóa nào là số đo. Nghiệm thu là đối chiếu hành vi thật với ngưỡng đã chốt từ công đoạn A1 — ngưỡng viết sau khi nhìn số thì phép đối chiếu không còn nghĩa gì |
+| **Một nguồn sự thật cho mỗi ngưỡng** | Test khóa lại: `max_tilt_deg.max` phải bằng `acceptance.tilt_tolerance_deg`, `loop_period_ms.max` phải bằng `limits.control_loop_ms`. Hai nguồn cho cùng một ngưỡng sẽ lệch nhau ở lần sửa đầu tiên |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/acceptance.py`, mục `acceptance.measurements` của `constraints.yaml`, cờ `--port/--seconds/--out` của `eaa tune`; EAA-AIS-05 §8.4 nói rõ điều kiện "commit phải đang chạy trên thiết bị" |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 
