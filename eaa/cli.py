@@ -1668,6 +1668,57 @@ def cmd_flash(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _thu_telemetry(project: Path, port: str, seconds: float, max_frames: int = 0) -> Any:
+    """Thu telemetry từ mạch — dùng chung cho 'eaa telemetry' và 'eaa diagnose run'."""
+    from eaa.kb import HardwareProfile as _HP
+    from eaa.telemetry import SerialTelemetryReader, TelemetryError, load_frame_spec
+
+    khung = load_frame_spec(project / "diagnostics.yaml")
+    hardware = _nap_kho(_HP.load, project / "hardware_profile.yaml")
+    cong = _chon_cong(project, hardware, port)
+
+    print(f"  Đang thu {seconds:g}s từ {cong} ở {khung.baud} baud…")
+    try:
+        return SerialTelemetryReader(port=cong, spec=khung).read(
+            duration_s=seconds, max_frames=max_frames
+        )
+    except TelemetryError as exc:
+        raise CliError(str(exc)) from exc
+
+
+def cmd_telemetry(args: argparse.Namespace) -> int:
+    """Thu telemetry từ mạch — kênh máy của chẩn đoán hai kênh."""
+    from eaa.telemetry import TelemetryError, read_capture
+
+    project = resolve_project(args.project)
+    _in_tieu_de("Thu telemetry")
+
+    if args.replay:
+        from eaa.telemetry import load_frame_spec
+
+        try:
+            ban_thu = read_capture(args.replay, load_frame_spec(project / "diagnostics.yaml"))
+        except TelemetryError as exc:
+            raise CliError(str(exc)) from exc
+    else:
+        ban_thu = _thu_telemetry(project, args.port, args.seconds, args.frames)
+
+    print(ban_thu.render())
+
+    if args.out:
+        da_loc, tho = ban_thu.write(args.out)
+        print(f"\n  Đã lọc     : {da_loc}")
+        print(f"  Nguyên văn : {tho}")
+        print(
+            "\nBản nguyên văn là bằng chứng: khi một số đo gây tranh cãi, câu\n"
+            "\"mạch thật sự gửi gì\" phải trả lời được từ dữ liệu chứ không từ trí nhớ."
+        )
+
+    if not ban_thu.frames:
+        return EXIT_ENV_ERROR
+    return EXIT_OK if ban_thu.trustworthy else EXIT_REPAIR_LIMIT
+
+
 def cmd_rollback(args: argparse.Namespace) -> int:
     from eaa.versions import NoKnownGood, VersionError
 
@@ -1838,7 +1889,25 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         except DiagnosticError as exc:
             raise CliError(str(exc)) from exc
 
-        telemetry = Path(args.telemetry).read_text(encoding="utf-8") if args.telemetry else "{}"
+        if args.port or args.seconds:
+            # Kênh máy đọc THẲNG từ mạch thay vì từ tệp người tự bắt về.
+            ban_thu = _thu_telemetry(project, args.port, args.seconds or 5.0)
+            print(ban_thu.render())
+            if not ban_thu.trustworthy:
+                raise CliError(
+                    "Phiên thu telemetry không tin được — không kết luận chẩn đoán "
+                    "trên dữ liệu này.\nSố rút ra từ một phiên nhiều khung hỏng vẫn "
+                    "trông hợp lý, và đó mới là chỗ nguy hiểm.",
+                    EXIT_REPAIR_LIMIT,
+                )
+            if args.telemetry:
+                ban_thu.write(args.telemetry)
+            telemetry = ban_thu.stream()
+            print()
+        else:
+            telemetry = (
+                Path(args.telemetry).read_text(encoding="utf-8") if args.telemetry else "{}"
+            )
         tra_loi = _doc_tra_loi_nguoi(args.answer or [])
 
         if kich_ban.human and not tra_loi:
@@ -2173,6 +2242,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_build.set_defaults(func=cmd_build)
 
+    # Bước 5 — kênh máy đọc thẳng từ mạch
+    p_tele = sub.add_parser(
+        "telemetry",
+        help="Thu telemetry từ mạch qua cổng nối tiếp",
+        description=(
+            "Luôn có hạn thời gian: một lệnh đọc không hạn chờ sẽ treo mãi khi "
+            "mạch không nói gì, và 'treo' trông giống hệt 'đang đo'."
+        ),
+    )
+    p_tele.add_argument("--port", default="", help="Cổng nối tiếp; bỏ trống thì tự nhận")
+    p_tele.add_argument("--seconds", type=float, default=5.0, help="Thu bao lâu")
+    p_tele.add_argument("--frames", type=int, default=0, help="Dừng sớm khi đủ N khung đạt")
+    p_tele.add_argument("--out", help="Ghi bản thu ra tệp (kèm bản nguyên văn .raw)")
+    p_tele.add_argument("--replay", help="Phân tích lại một bản thu nguyên văn, không cần mạch")
+    p_tele.set_defaults(func=cmd_telemetry)
+
     # Bước 3 — cổng nối tiếp
     p_ports = sub.add_parser(
         "ports",
@@ -2224,7 +2309,14 @@ def build_parser() -> argparse.ArgumentParser:
     ds.add_argument("symptom")
     dr = dg_sub.add_parser("run", help="Chạy một kịch bản và kết luận")
     dr.add_argument("scenario")
-    dr.add_argument("--telemetry", help="Tệp chứa telemetry JSON từng dòng")
+    dr.add_argument(
+        "--telemetry",
+        help="Tệp telemetry JSON từng dòng; kèm --port thì đây là nơi GHI bản thu",
+    )
+    dr.add_argument("--port", default="", help="Đọc telemetry thẳng từ cổng này")
+    dr.add_argument(
+        "--seconds", type=float, default=0.0, help="Thu bao lâu (mặc định 5s khi có --port)"
+    )
     dr.add_argument(
         "--answer", action="append",
         help="Quan sát của người, dạng khóa=có|không; lặp lại cho từng mục",

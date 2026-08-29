@@ -299,10 +299,17 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "Nhận ra đúng một cổng thì tự chọn; mơ hồ thì dừng và đòi --port",
      "eaa/cli.py", "TC-42e", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Đọc telemetry UART thật",
-     "Hiện --telemetry đọc từ TỆP, không đọc từ cổng nối tiếp",
-     "eaa diagnose --telemetry", "—", PHAN,
-     "Cần bộ đọc serial (pyserial), khung tin có checksum + nhãn thời gian, "
-     "và hạn thời gian chờ để không treo phiên"),
+     "eaa telemetry thu thẳng từ cổng; diagnose run --port dùng luôn kênh máy sống",
+     "eaa/telemetry.py", "TC-43 (28 test)", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Khung telemetry có checksum",
+     "Định dạng khung do dự án khai; mỗi loại hỏng có lý do riêng",
+     "eaa/telemetry.py", "TC-43a", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Phiên thu nhiều khung hỏng bị từ chối",
+     "Vượt ngưỡng thì không kết luận: dữ liệu nhiễu vẫn cho ra số trông hợp lý",
+     "eaa/telemetry.py", "TC-43c", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Giữ nguyên văn bản thu, phát lại được",
+     "Bản thô cạnh bản đã lọc; phân tích lại không cần mạch",
+     "eaa telemetry --replay", "TC-43d", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Sinh firmware chẩn đoán từ mẫu",
      "diagnostics.yaml đã có trường firmware_template nhưng chưa nơi nào dùng",
      "eaa/diagnostics.py:156", "—", CHUA,
@@ -342,11 +349,12 @@ LO_TRINH: list[tuple[str, str, str, str, str]] = [
      "nhận) rồi mới nạp; nhật ký append-only ghi cả lần trượt. TC-42",
      "Đây là lần đầu Agent chạm vào phần cứng thật",
      "eaa/flash.py, eaa/cli.py"),
-    ("5", "Bộ đọc telemetry UART",
-     "Đọc cổng nối tiếp theo khung tin có checksum + nhãn thời gian; có hạn chờ; "
-     "ghi nguyên văn vào tệp để tái lập lại được",
+    ("5 ✔", "Bộ đọc telemetry UART — XONG",
+     "eaa telemetry: hạn thời gian bắt buộc, khung hỏng được đếm, bản nguyên văn "
+     "giữ lại và phát lại được; diagnose run --port từ chối kết luận trên phiên "
+     "không tin được. TC-43",
      "Kênh máy của chẩn đoán hai kênh chuyển từ 'đọc tệp' sang 'đọc mạch'",
-     "eaa/telemetry.py (mới), phụ thuộc pyserial"),
+     "eaa/telemetry.py, eaa/cli.py"),
     ("6", "Sinh firmware chẩn đoán",
      "Dùng firmware_template của từng kịch bản DS-xx để sinh firmware nhỏ tự in số đo",
      "Mỗi kịch bản chẩn đoán tự chạy được thay vì cần người viết mã đo",
@@ -471,12 +479,12 @@ def dung_bang(dich: Path) -> Path:
     ws.append(["Số liệu nền"])
     ws[f"A{ws.max_row}"].font = Font(bold=True, size=12, color="2F5597")
     for nhan, gia_tri in [
-        ("Test tự động đang xanh", "799"),
+        ("Test tự động đang xanh", "827"),
         ("Dòng mã engine (eaa/)", "14.792"),
-        ("Lệnh CLI", "20"),
+        ("Lệnh CLI", "21"),
         ("Platform Pack", "1 (AVR 8-bit)"),
         ("Mô hình nền", "gemini-3.1-pro-preview (ghim phiên bản)"),
-        ("Sai lệch thiết kế đã ghi", "33 mục (SL-01..SL-33)"),
+        ("Sai lệch thiết kế đã ghi", "34 mục (SL-01..SL-34)"),
     ]:
         ws.append([nhan, gia_tri])
         ws[f"A{ws.max_row}"].font = DAM

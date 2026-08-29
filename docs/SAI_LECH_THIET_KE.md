@@ -435,6 +435,23 @@ Ba loại:
 
 ---
 
+## SL-34 · BỔ SUNG · `eaa/telemetry.py` — kênh máy đọc thẳng từ mạch
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7 (chẩn đoán hai kênh), FR-DIA-01 |
+| **Thiết kế nói** | Chẩn đoán là phép GIAO của kênh máy (telemetry) và kênh người (quan sát) |
+| **Chỗ trống** | Kênh người đã có từ Sprint 4. Kênh máy vẫn đọc từ MỘT TỆP — nghĩa là ai đó phải tự nối dây, tự bắt log, tự dán vào tệp. Đoạn "tự" ấy nằm ngoài mọi bằng chứng của hệ thống |
+| **Code làm** | `FrameSpec` (định dạng khung do dự án khai), `verify_frame`, `SerialTelemetryReader`, `Capture`, `read_capture`; lệnh `eaa telemetry`; `eaa diagnose run --port` đọc thẳng từ mạch |
+| **Ba bất biến** | (1) **Luôn có hạn thời gian** — đọc không hạn sẽ treo mãi khi mạch câm, và "treo" trông giống hệt "đang đo"; (2) **khung hỏng được ĐẾM, không bị nuốt** — tỉ lệ vượt ngưỡng thì cả phiên bị coi là không tin được; (3) **giữ nguyên văn** — bản thô nằm cạnh bản đã lọc, phát lại được không cần mạch, cùng nguyên tắc với `ReplayClient` |
+| **Vì sao (2) là mục quan trọng nhất** | Một phiên 40% khung hỏng vẫn cho ra vài con số trông hoàn toàn hợp lý. Sai tốc độ truyền, dây dài quá, nguồn sụt khi động cơ chạy — cả ba biểu hiện như vậy, và cả ba sẽ đi thẳng vào Chương 3 nếu khung hỏng bị bỏ lặng lẽ. Nên `eaa diagnose run --port` TỪ CHỐI kết luận trên một phiên không tin được |
+| **Lỗi đã mắc và đã sửa** | Cửa sổ ổn định (`settle_ms`, bỏ rác lúc bo tự khởi động lại khi mở cổng) ban đầu bỏ theo THỜI GIAN, nên một nguồn dữ liệu nhanh bị vứt sạch kể cả khung hợp lệ. Nay nó chỉ bỏ khung KHÔNG kiểm được: một khung đạt đã là dữ liệu thật, vứt nó chỉ vì nó tới sớm là mất đúng thứ đang cần đo |
+| **Ranh giới ba tầng** | Engine chỉ biết một quy ước: mỗi khung một dòng, phần tải là JSON — đúng thứ `parse_telemetry` vốn đã đọc. Checksum gắn kiểu gì, tốc độ truyền bao nhiêu nằm ở `diagnostics.yaml` của dự án |
+| **Cần cập nhật** | EAA-SDD-03: thêm `eaa/telemetry.py`, lệnh `eaa telemetry`; `diagnostics.yaml` thêm mục `telemetry`; EAA-AIS-05 §7 nói rõ ngưỡng tin cậy của một phiên thu |
+| **Sprint** | S4 |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

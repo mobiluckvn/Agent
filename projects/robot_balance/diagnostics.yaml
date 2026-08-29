@@ -11,6 +11,24 @@
 # Kịch bản nào làm thiết bị CHUYỂN ĐỘNG bắt buộc có safety_checklist. Engine
 # từ chối nạp một kịch bản có motion mà thiếu checklist.
 
+# Cách firmware chẩn đoán đóng gói telemetry gửi về qua UART.
+#
+# Engine chỉ biết một quy ước: mỗi khung là một dòng, phần tải là JSON. Còn
+# checksum gắn kiểu gì và tốc độ truyền bao nhiêu thì thuộc về hợp đồng giữa
+# firmware và dự án này, nên nó nằm ở đây.
+#
+# Ví dụ một khung:  {"i2c_devices": ["0x68"]}*4C
+telemetry:
+  baud: 115200
+  checksum: xor8         # none | xor8 | sum8
+  separator: "*"
+  # Mở cổng nối tiếp làm nhiều bo tự khởi động lại, nên bỏ qua rác đầu phiên.
+  settle_ms: 200
+  # Quá tỉ lệ này thì cả phiên đo bị coi là không tin được: sai tốc độ truyền
+  # hay nhiễu đường dây vẫn cho ra vài con số trông hợp lý, và đó là chỗ nguy
+  # hiểm chứ không phải chỗ an toàn.
+  max_bad_ratio: 0.2
+
 scenarios:
 
   - id: DS-01
