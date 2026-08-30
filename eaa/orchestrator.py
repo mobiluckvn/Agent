@@ -92,6 +92,17 @@ class OrchestratorConfig:
     #: đọc, nên tới bước merge đơn giản là không có bằng chứng nào để đọc.
     #: Không có một câu ``if`` nào phải nhớ đặt cho đúng.
     draft_gates: tuple[str, ...] = ()
+    #: Chế độ XEM TRƯỚC — sinh mã rồi dừng, KHÔNG chạy cổng nào, KHÔNG tạo
+    #: nhánh, KHÔNG commit.
+    #:
+    #: Dùng cho đúng một hoàn cảnh, và là hoàn cảnh rất thường gặp: máy chưa
+    #: có toolchain. Khi ấy cổng ``compile`` hỏng vì lỗi môi trường và người
+    #: dùng không xem được cả dòng mã nào — trong khi thứ họ muốn chỉ là *nhìn
+    #: xem Agent sẽ viết gì*.
+    #:
+    #: An toàn hơn cả chế độ nháp: nháp không GHI BẰNG CHỨNG, còn xem trước
+    #: thậm chí không tạo ra một nhánh nào để mà merge.
+    preview: bool = False
 
     @property
     def is_draft(self) -> bool:
@@ -218,6 +229,40 @@ class Orchestrator:
                 "blocked",
                 EXIT_ENV_ERROR,
                 f"Không lắp ráp hoặc không sinh được mã: {exc}",
+            )
+
+        # Xem trước dừng ở ĐÂY — trước cả khi tạo nhánh. Không nhánh nghĩa là
+        # không có gì để merge, kể cả khi ai đó sau này viết nhầm một lối merge
+        # thứ hai: lối ấy sẽ không tìm thấy nhánh nào của lượt chạy này.
+        if self.config.preview:
+            self._dat_trang_thai(module_id, "todo")
+            self._kpi(
+                "preview", module_id, prompt_hash=artifact.prompt_hash,
+                llm_model=artifact.model, tokens_in=artifact.tokens_in,
+                tokens_out=artifact.tokens_out,
+                note="xem trước — không cổng, không nhánh, không commit",
+            )
+            return ModuleOutcome(
+                module_id=module_id,
+                status="preview",
+                exit_code=EXIT_WAITING_GATE,
+                message=(
+                    f"XEM TRƯỚC — mã cho {module_id} đã sinh, và DỪNG Ở ĐÂY.\n"
+                    "Không cổng nào chạy, không nhánh nào tạo, không commit nào.\n\n"
+                    "Nghĩa là: mã này CHƯA ĐƯỢC KIỂM. Nó chưa từng được dịch, "
+                    "chưa qua phân tích tĩnh, chưa chạy một test nào. Đọc nó như "
+                    "đọc một bản nháp của người khác.\n"
+                    + (
+                        f"\n⚠ Dự án còn ở pha {state.phase}, chưa tới pha "
+                        f"{GENERATION_PHASE}. Kiến trúc chưa chốt xong, nên mã "
+                        "này dựng trên những ràng buộc còn có thể đổi. Xem để "
+                        "hình dung, đừng để nó chốt hộ một quyết định bạn chưa "
+                        "đưa ra.\n"
+                        if state.phase != GENERATION_PHASE else ""
+                    )
+                    + f"\nMuốn kiểm thật thì cần toolchain: eaa doctor  →  eaa gen {module_id}"
+                ),
+                artifact=artifact,
             )
 
         branch = self.repo.start_module(module_id)
@@ -465,7 +510,19 @@ class Orchestrator:
                 "là một loại lỗi không được kiểm."
             )
 
-        if state.phase != GENERATION_PHASE:
+        # Xem trước KHÔNG bị chặn ở pha, và chỉ ở pha.
+        #
+        # Cổng pha tồn tại để kiểm soát thứ ĐI VÀO sản phẩm. Xem trước không
+        # đưa gì vào cả: không nhánh, không commit, không bằng chứng — mã đi
+        # thẳng ra màn hình. Bắt nó đi hết đường gate là đánh mất chính lý do
+        # nó tồn tại: người dùng chưa có toolchain, chỉ muốn nhìn xem Agent sẽ
+        # viết gì.
+        #
+        # Mọi tiền điều kiện KHÁC vẫn áp: module phải có trong backlog, không
+        # được xung đột tài nguyên, và phải đủ tri thức. Ba cái ấy quyết định
+        # mã sinh ra có nghĩa hay không — bỏ chúng thì thứ in ra là mã bịa,
+        # không phải mã xem trước.
+        if state.phase != GENERATION_PHASE and not self.config.preview:
             raise PreconditionFailed(
                 f"Dự án đang ở pha {state.phase} ({PHASE_NAMES[state.phase]}); vòng "
                 f"sinh mã chỉ chạy ở pha {GENERATION_PHASE} "

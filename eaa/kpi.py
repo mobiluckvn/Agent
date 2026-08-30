@@ -72,6 +72,12 @@ EVENTS: tuple[str, ...] = (
     "merge",
     "handoff",
     "rollback",
+    # Hai lượt chạy KHÔNG dẫn tới merge. Ghi riêng chứ không gộp vào
+    # ``generate``: nếu gộp, số liệu Chương 3 sẽ tính cả những lượt chưa từng
+    # qua đủ cổng vào tỉ lệ đạt — và tỉ lệ ấy đẹp lên vì một lý do không liên
+    # quan gì tới chất lượng mã.
+    "draft_run",   # nháp: chạy một tập cổng nhẹ hơn (SL-88)
+    "preview",     # xem trước: không cổng, không nhánh, không commit (SL-91)
 )
 
 

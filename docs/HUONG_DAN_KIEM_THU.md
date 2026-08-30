@@ -1027,3 +1027,57 @@ N-085 ở mức tự chủ **T0** — Agent không chạy phiên gỡ lỗi, và
   `eaa diagnose list` xem có khớp không.
 - `debug record` từ chối nếu thiếu `--actor`: ở mức T0, *"ai làm"* là phần
   thông tin duy nhất máy không tự biết được.
+
+## B13. Kế hoạch cài: thứ tự, cách cài, xung đột
+
+```bash
+eaa doctor --plan
+```
+
+Ba thứ mà danh sách lệnh cài phẳng không nói được:
+
+| Kiểm | Phải thấy |
+|---|---|
+| **Thứ tự** | công cụ khai `requires` phải đứng **sau** thứ nó cần (dòng "sau khi có: …") |
+| **Cách cài** | `[gói]`, `[nhị phân]`, `[nguồn]`… — và nhị phân **thiếu checksum** phải có `⚠` |
+| **Phụ thuộc ngoài** | `libusb >=1.0` phải hiện kèm chữ "kiểm bằng tay", không bị nuốt |
+| **Xung đột** | hai thẻ đòi cùng một thứ ở hai phiên bản đá nhau → **DỪNG** cả kế hoạch |
+
+Thử phá: sửa `packs/avr/tools.yaml` cho hai công cụ cùng khai `requires: {libusb: ...}`
+với `>=3.0` và `<2.0`. Kế hoạch phải chặn, kèm câu giải thích vì sao cài chồng
+lên nhau khi đang xung đột là hỏng ở một chỗ chẳng liên quan.
+
+Thử phá tiếp: cho hai công cụ `requires` lẫn nhau. Phải báo phụ thuộc vòng và
+**không tự chọn hộ** cái nào đi trước.
+
+## B14. Xem trước — chính là hoàn cảnh máy anh đang ở
+
+```bash
+eaa gen drv_imu --preview
+```
+
+Dùng khi **chưa có toolchain**. Nó sinh mã, in ra, rồi dừng. Phải thấy:
+
+- Tiêu đề **XEM TRƯỚC**, và câu "mã này CHƯA ĐƯỢC KIỂM".
+- **Không nhánh git nào** được tạo: `git branch --list "*drv_imu*"` phải rỗng.
+- Nếu dự án chưa tới pha D: thêm cảnh báo kiến trúc chưa chốt.
+- Nhưng nó **vẫn** bị chặn nếu thiếu tri thức — bỏ cái đó thì thứ in ra là mã
+  bịa, không phải mã xem trước.
+
+`--preview` và `--draft` loại trừ nhau: một cái không chạy cổng nào, một cái
+chạy một tập cổng.
+
+## B15. Công cụ tự sinh: đường lui và tài liệu
+
+```bash
+eaa tool doc <tên>            # tài liệu dựng TỪ MÃ, không hỏi mô hình
+eaa tool rollback <tên>       # quay về bản đã duyệt trước
+eaa environ --packages        # máy này sẵn có gói gì
+```
+
+- `tool doc` phải nêu đúng tham số trong `SCHEMA` và đúng tên các hàm `test_`
+  trong mã. Nếu nó mô tả thứ không có trong mã, đó là lỗi nghiêm trọng.
+- `tool rollback` đưa công cụ về **`proposed`**, không về `approved`. Phải chạy
+  lại `verify` rồi `approve`. Nếu nó tự chạy lại được ngay, đó là lỗi.
+- Chỉ bản **đã duyệt** mới được cất — sửa một bản `proposed` nhiều lần không
+  sinh ra lịch sử.

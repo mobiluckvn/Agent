@@ -726,7 +726,15 @@ def cmd_gen(args: argparse.Namespace) -> int:
     project = resolve_project(args.project)
     ctx = build_context(project)
 
+    xem_truoc = bool(getattr(args, "preview", False))
     nhap = [g.strip() for g in (getattr(args, "draft", "") or "").split(",") if g.strip()]
+    if xem_truoc and nhap:
+        raise CliError(
+            "--preview và --draft loại trừ nhau: xem trước KHÔNG chạy cổng nào, "
+            "còn nháp chạy một tập cổng. Chọn một."
+        )
+    if xem_truoc:
+        ctx.orchestrator.config.preview = True
     if nhap:
         co = {getattr(g, "name", "") for g in ctx.orchestrator.gate_chain}
         la = [g for g in nhap if g not in co]
@@ -742,9 +750,19 @@ def cmd_gen(args: argparse.Namespace) -> int:
     except PreconditionFailed as exc:
         raise CliError(str(exc)) from exc
 
-    _in_tieu_de(("BẢN NHÁP — " if nhap else "Vòng lặp chuẩn — ") + args.module_id)
+    tieu_de = ("XEM TRƯỚC — " if xem_truoc
+               else "BẢN NHÁP — " if nhap else "Vòng lặp chuẩn — ")
+    _in_tieu_de(tieu_de + args.module_id)
     for dong in ket_qua.attempts_log:
         print(dong)
+
+    # Xem trước không chạy cổng nào, nên thứ duy nhất đáng in là CHÍNH MÃ.
+    if xem_truoc and ket_qua.artifact is not None:
+        for ten, noi_dung in (ket_qua.artifact.files or {}).items():
+            print()
+            print(f"── {ten}")
+            print(noi_dung)
+
     print()
     print(ket_qua.message)
     return ket_qua.exit_code
@@ -1260,6 +1278,25 @@ def _hoi_xac_nhan_cai(ten: str, lenh: str) -> bool:
     return input("  Đồng ý chạy lệnh này? [y/N]: ").strip().lower() in ("y", "yes", "c", "có")
 
 
+def _doctor_plan(doctor: Any, bao_cao: Any) -> int:
+    """Kế hoạch cài: thứ tự, cách cài, và chỗ đá nhau (C2.9, C4.1, C4.3)."""
+    from eaa.doctor import _os_key
+    from eaa.installplan import CircularDependency, plan_installs
+
+    specs = [k.spec for k in bao_cao]
+    da_co = {k.spec.name for k in bao_cao if not k.blocking}
+    try:
+        ke_hoach = plan_installs(specs, os_key=_os_key(), present=da_co)
+    except CircularDependency as exc:
+        raise CliError(str(exc)) from None
+
+    _in_tieu_de("Kế hoạch cài")
+    print(ke_hoach.render())
+    if ke_hoach.blocked:
+        return EXIT_ENV_ERROR
+    return EXIT_OK if not ke_hoach.todo else EXIT_WAITING_GATE
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     from eaa.doctor import DoctorError, InstallNotConfirmed, ToolStatus
 
@@ -1270,6 +1307,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         return _doctor_discover(project, doctor, args)
 
     bao_cao = doctor.scan()
+
+    if getattr(args, "plan", False):
+        return _doctor_plan(doctor, bao_cao)
+
     _in_tieu_de("Môi trường công cụ")
     print(doctor.render_scan(bao_cao))
 
@@ -3232,6 +3273,27 @@ def cmd_environ(args: argparse.Namespace) -> int:
     """Dò môi trường: máy này là máy gì (C2.3–C2.5, N-020)."""
     from eaa.environ import probe
 
+    if getattr(args, "packages", None):
+        from eaa.environ import LENH_LIET_KE_GOI, list_packages
+
+        he = args.packages
+        try:
+            ds = list_packages(ecosystem=he)
+        except ValueError as exc:
+            raise CliError(str(exc)) from None
+        print(f"Gói đã cài — hệ sinh thái {he}")
+        print(f"  hỏi bằng: {' '.join(LENH_LIET_KE_GOI[he])}")
+        print()
+        if not ds:
+            print("  (không hỏi được, hoặc chưa cài gói nào)")
+            return EXIT_OK
+        for d in ds:
+            print(f"  {d}")
+        print()
+        print(f"{len(ds)} gói. Đây là 'máy này sẵn có gì' — khác với 'công cụ "
+              "trong Tool Card đã cài chưa', câu ấy do 'eaa doctor' trả lời.")
+        return EXIT_OK
+
     bao_cao = probe(network=not args.no_network)
     print(bao_cao.render())
 
@@ -3788,6 +3850,40 @@ def _tu_khoi_tao_neu_la_nhap(project: Path, args: argparse.Namespace) -> bool:
     ))
     print()
     return True
+
+
+def cmd_tool_rollback(args: argparse.Namespace) -> int:
+    """Quay về bản công cụ đã duyệt gần nhất (C7.3)."""
+    from eaa.toolforge import ForgeError
+
+    try:
+        t = _xuong_cong_cu(args).rollback(args.name)
+    except ForgeError as exc:
+        raise CliError(str(exc)) from None
+    print(f"Đã quay {t.name} về bản trước — trạng thái: {t.status}")
+    print(f"  {t.note}")
+    print(f"\nBước tiếp: eaa tool verify {t.name}")
+    return EXIT_OK
+
+
+def cmd_tool_doc(args: argparse.Namespace) -> int:
+    """Sinh tài liệu cho một công cụ tự sinh (C6.8)."""
+    from eaa.toolforge import ForgeError, ToolRegistry
+    from eaa.toolusage import UsageLog
+
+    goc = repo_root()
+    try:
+        van_ban = _xuong_cong_cu(args).document(args.name, usage=UsageLog(goc))
+    except ForgeError as exc:
+        raise CliError(str(exc)) from None
+
+    if args.save:
+        dich = ToolRegistry(goc).dir / f"{args.name}.md"
+        dich.write_text(van_ban + "\n", encoding="utf-8")
+        print(f"Đã ghi {dich}")
+        return EXIT_OK
+    print(van_ban)
+    return EXIT_OK
 
 
 def cmd_scratch(args: argparse.Namespace) -> int:
@@ -4348,6 +4444,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--draft", metavar="CỔNG",
         help="Chế độ nháp: chỉ chạy các cổng này (ngăn phẩy). Ví dụ: --draft compile,static",
     )
+    p_gen.add_argument(
+        "--preview", action="store_true",
+        help="Sinh mã rồi DỪNG: không cổng, không nhánh, không commit. "
+             "Dùng khi máy chưa có toolchain và bạn chỉ muốn xem mã",
+    )
     p_gen.set_defaults(func=cmd_gen)
 
     # UC05 — Human Gate
@@ -4473,6 +4574,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="accept_drift",
         help="Chấp nhận môi trường hiện tại và cập nhật env_lock.json",
+    )
+    p_doctor.add_argument(
+        "--plan",
+        action="store_true",
+        help="Kế hoạch cài: THỨ TỰ theo phụ thuộc, cách cài từng cái, và chỗ "
+             "hai thẻ công cụ đòi cùng một thứ ở hai phiên bản đá nhau",
     )
     p_doctor.set_defaults(func=cmd_doctor)
 
@@ -4803,6 +4910,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_env.add_argument("--no-network", action="store_true", help="Bỏ qua bước thử mạng")
+    p_env.add_argument(
+        "--packages", metavar="HỆ", nargs="?", const="python",
+        help="Liệt kê gói đã cài của một hệ sinh thái (python | npm). "
+             "'doctor' chỉ kiểm thứ có trong Tool Card; cái này trả lời 'máy này sẵn có gì'",
+    )
     p_env.add_argument("--remember", action="store_true",
                        help="Ghi kết quả vào bộ nhớ liên dự án")
     p_env.set_defaults(func=cmd_environ)
@@ -4909,6 +5021,23 @@ def build_parser() -> argparse.ArgumentParser:
     t_run.add_argument("name")
     t_run.add_argument("--args", default="{}", help="Tham số dạng JSON")
     t_run.set_defaults(func=cmd_tool_run)
+    t_rb = sub_tool.add_parser(
+        "rollback",
+        help="Quay về bản đã duyệt gần nhất trước bản hiện tại",
+        description=(
+            "Bản quay về KHÔNG tự lên lại 'approved' — nó về 'proposed' và phải "
+            "đi lại ba cổng. Mã ấy từng chạy được, nhưng 'từng' là ở một môi "
+            "trường khác."
+        ),
+    )
+    t_rb.add_argument("name")
+    t_rb.set_defaults(func=cmd_tool_rollback)
+    t_doc = sub_tool.add_parser(
+        "doc", help="Sinh tài liệu ngắn cho một công cụ tự sinh")
+    t_doc.add_argument("name")
+    t_doc.add_argument("--save", action="store_true",
+                       help="Ghi ra tools_local/<tên>.md thay vì in ra")
+    t_doc.set_defaults(func=cmd_tool_doc)
 
     p_scr = sub.add_parser(
         "scratch",

@@ -139,6 +139,14 @@ class ToolSpec:
     error_regex: str = ""
     scope: str = "engine"   # engine · pack:<tên>
     note: str = ""
+    #: Cách cài — xem ``eaa/installplan.py``. Mặc định là trình quản lý gói.
+    method: str = "gói"
+    #: Công cụ khác phải có TRƯỚC, kèm ràng buộc phiên bản:
+    #: ``{"libusb": ">=1.0"}``. Dùng cho hai việc: sắp thứ tự cài, và phát hiện
+    #: hai thẻ cùng đòi một thứ ở hai phiên bản đá nhau (SL-90).
+    requires: dict[str, str] = field(default_factory=dict)
+    #: Công cụ thay thế được, khi cái này không cài nổi.
+    alternatives: tuple[str, ...] = ()
 
 
 @dataclass
@@ -222,6 +230,11 @@ class ToolManifest:
             error_regex=str(muc.get("error_regex", "")),
             scope=str(muc.get("scope", pham_vi)),
             note=str(muc.get("note", "")),
+            method=str(muc.get("method", "") or "gói"),
+            requires={
+                str(k): str(v) for k, v in (muc.get("requires") or {}).items()
+            },
+            alternatives=tuple(str(x) for x in (muc.get("alternatives") or [])),
         )
 
     def get(self, name: str) -> ToolSpec:

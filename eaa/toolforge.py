@@ -246,6 +246,37 @@ class ToolRegistry:
     def code_path(self, name: str) -> Path:
         return self.dir / f"{name}.py"
 
+    def history_dir(self, name: str) -> Path:
+        return self.dir / "lich_su" / name
+
+    def versions(self, name: str) -> list[Path]:
+        """Các bản đã lưu của một công cụ, mới nhất trước."""
+        thu_muc = self.history_dir(name)
+        if not thu_muc.is_dir():
+            return []
+        return sorted(thu_muc.glob("*.py"), reverse=True)
+
+    def _giu_ban_cu(self, name: str) -> Path | None:
+        """Cất bản hiện tại trước khi ghi đè.
+
+        Vì sao cần: một công cụ **đã được duyệt và đang chạy tốt** bị viết lại
+        rồi bản mới hỏng là chuyện sẽ xảy ra — chính ``eaa suggest`` đề nghị
+        viết lại những công cụ hay hỏng, nên đường đi ấy là đường thường dùng.
+        Không giữ bản cũ thì "viết lại cho tốt hơn" là một canh bạc không có
+        đường lui, và người ta sẽ thôi không dám sửa.
+
+        Chỉ giữ bản ĐÃ DUYỆT: một bản đề xuất chưa ai duyệt thì chưa từng chạy
+        thật, nên quay lui về nó không mang lại gì.
+        """
+        cu = self.get(name)
+        if cu is None or not cu.runnable or not cu.code:
+            return None
+        thu_muc = self.history_dir(name)
+        thu_muc.mkdir(parents=True, exist_ok=True)
+        dich = thu_muc / f"{cu.approved_at.replace(':', '-') or _now().replace(':', '-')}.py"
+        dich.write_text(cu.code, encoding="utf-8")
+        return dich
+
     # ----------------------------------------------------------------- đọc ---
 
     def all(self) -> list[ForgedTool]:
@@ -286,6 +317,9 @@ class ToolRegistry:
         """Ghi mã ra tệp và cập nhật sổ. Mã và sổ luôn đi cùng nhau."""
         self.dir.mkdir(parents=True, exist_ok=True)
         if tool.code:
+            cu = self.get(tool.name)
+            if cu is not None and cu.code and cu.code != tool.code:
+                self._giu_ban_cu(tool.name)
             self.code_path(tool.name).write_text(tool.code, encoding="utf-8")
 
         ds = [t for t in self.all() if t.name != tool.name] + [tool]
@@ -795,6 +829,106 @@ class ToolForge:
 
         self._ghi_lan_dung(name, ok=True, ms=int((time.monotonic() - bat_dau) * 1000))
         return ket
+
+    def rollback(self, name: str) -> ForgedTool:
+        """Quay về bản đã duyệt gần nhất trước bản hiện tại.
+
+        Bản quay về KHÔNG tự lên lại ``approved``: nó về ``proposed`` và phải
+        đi lại ba cổng. Mã ấy từng chạy được, nhưng "từng" là ở một môi trường
+        khác và có thể ở một phiên bản Python khác — và nếu ba cổng vẫn xanh
+        thì chạy lại chúng tốn vài giây, còn nếu không thì đó chính là thứ ta
+        cần biết trước khi dựa vào nó.
+        """
+        # Kiểm sự TỒN TẠI trước. Ngược lại thì một cái tên gõ nhầm nhận được
+        # câu "không có bản cũ nào" — đúng về mặt sự thật và sai về mặt giúp
+        # đỡ: người dùng đi tìm bản cũ, trong khi thứ họ gõ sai là cái tên.
+        hien_tai = self.registry.get(name)
+        if hien_tai is None:
+            raise ForgeError(f"Sổ không có công cụ {name!r}")
+
+        cu = self.registry.versions(name)
+        if not cu:
+            raise ForgeError(
+                f"Không có bản cũ nào của {name!r} để quay về. Chỉ những bản ĐÃ "
+                "ĐƯỢC DUYỆT mới được cất — một bản chưa ai duyệt thì chưa từng "
+                "chạy thật, nên quay lui về nó không mang lại gì."
+            )
+
+        ma = cu[0].read_text(encoding="utf-8")
+        moi = self.registry.set_status(
+            name, DE_XUAT, code=ma,
+            note=f"quay lui về bản {cu[0].stem}; phải chạy lại ba cổng trước khi duyệt",
+        )
+        return moi
+
+    def document(self, name: str, *, usage: Any = None) -> str:
+        """Sinh tài liệu ngắn cho một công cụ tự sinh.
+
+        Dựng từ thứ ĐÃ CÓ TRONG MÃ — ``MO_TA``, ``SCHEMA``, các hàm ``test_``
+        — cộng số đo dùng thật. Không hỏi mô hình: một bản mô tả do mô hình
+        viết lại có thể lệch khỏi mã, và một tài liệu lệch khỏi mã là thứ tệ
+        hơn không có tài liệu.
+        """
+        t = self.registry.get(name)
+        if t is None:
+            raise ForgeError(f"Sổ không có công cụ {name!r}")
+
+        thuoc_tinh = (t.schema.get("properties") or {})
+        bat_buoc = set(t.schema.get("required") or [])
+        vi_du = {k: f"<{k}>" for k in thuoc_tinh}
+
+        dong = [
+            f"# {t.name}",
+            "",
+            t.purpose or "(chưa khai mục đích)",
+            "",
+            f"- Trạng thái : {t.status}"
+            + (f" — duyệt bởi {t.approved_by} lúc {t.approved_at}" if t.approved_by else ""),
+            f"- Băm mã     : {t.sha256[:16]}",
+            "",
+            "## Tham số",
+            "",
+        ]
+        if thuoc_tinh:
+            dong.append("| tên | kiểu | bắt buộc | mô tả |")
+            dong.append("|---|---|---|---|")
+            for k, v in thuoc_tinh.items():
+                dong.append(f"| `{k}` | {v.get('type', '?')} | "
+                            f"{'có' if k in bat_buoc else '—'} | {v.get('description', '')} |")
+        else:
+            dong.append("Không nhận tham số nào.")
+
+        dong += ["", "## Gọi nó", "",
+                 "```bash",
+                 f"eaa tool run {t.name}" + (f" --args '{json.dumps(vi_du, ensure_ascii=False)}'"
+                                             if vi_du else ""),
+                 "```", ""]
+
+        ham_test = re.findall(r"^def (test_\w+)", t.code, re.M)
+        if ham_test:
+            dong += ["## Đã kiểm những gì", "",
+                     *[f"- `{h}`" for h in ham_test], ""]
+
+        if usage is not None:
+            s = usage.stats_for(name)
+            if s.runs:
+                dong += ["## Đo được sau khi dùng thật", "",
+                         f"- {s.runs} lần dùng · {s.ok} đạt / {s.failed} hỏng",
+                         f"- trung bình {s.avg_ms} ms"]
+                if s.concerning:
+                    dong.append(f"- ⚠ HAY HỎNG — lỗi gần nhất: {s.last_error[:120]}")
+                dong.append("")
+
+        dong += [
+            "## Giới hạn đã biết",
+            "",
+            "- Công cụ này do Agent sinh ra và một người duyệt. Nó đã qua ba "
+            "cổng — cấu tạo, an toàn, chạy thử — nhưng ba cổng ấy kiểm nó ở "
+            "**lúc duyệt**, không kiểm nó trên mọi đầu vào.",
+            "- Nó không tự mở mạng và không chạy tiến trình khác; đó là ràng "
+            "buộc của cổng an toàn, không phải một thiếu sót.",
+        ]
+        return "\n".join(dong)
 
     def _ghi_lan_dung(self, name: str, *, ok: bool, ms: int, loi: str = "") -> None:
         """Ghi một lần dùng. Không bao giờ để việc ghi làm hỏng lượt chạy."""

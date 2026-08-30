@@ -289,6 +289,18 @@ TOOLBOX: tuple[Tool, ...] = (
         takes="--scenario DS-0x",
     ),
     Tool(("debug", "log"), "Các phiên gỡ lỗi sâu đã ghi: ai làm, thấy gì, kết luận gì"),
+    Tool(
+        ("tool", "doc"),
+        "Sinh tài liệu ngắn cho một công cụ tự sinh: tham số, cách gọi, đã kiểm "
+        "những gì, và số đo sau khi dùng thật",
+        takes="tên công cụ",
+    ),
+    Tool(
+        ("tool", "rollback"),
+        "Quay một công cụ về bản đã duyệt gần nhất, khi bản mới hỏng. Bản quay "
+        "về phải đi lại ba cổng",
+        takes="tên công cụ", writes=True,
+    ),
 )
 
 #: Lệnh Agent KHÔNG BAO GIỜ được tự gọi, kèm lý do nói cho người nghe.

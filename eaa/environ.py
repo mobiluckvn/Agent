@@ -256,6 +256,54 @@ def _bien_proxy() -> tuple[tuple[str, str], ...]:
     return tuple(ket)
 
 
+#: Cách hỏi từng hệ sinh thái "đã cài gói nào rồi". Là DỮ LIỆU để thêm được
+#: hệ sinh thái mới mà không sửa logic.
+LENH_LIET_KE_GOI: dict[str, tuple[str, ...]] = {
+    "python": ("{python}", "-m", "pip", "list", "--format=freeze"),
+    "npm": ("npm", "ls", "--global", "--depth=0", "--parseable"),
+}
+
+
+def list_packages(
+    *,
+    ecosystem: str = "python",
+    runner: Callable[[Sequence[str]], tuple[int, str]] | None = None,
+    timeout_s: float = 20.0,
+) -> list[str]:
+    """Liệt kê gói đã cài của một hệ sinh thái.
+
+    Vì sao cần, khi đã có ``doctor``: ``doctor`` chỉ kiểm được **thứ đã có
+    trong Tool Card**. Nó trả lời "công cụ tôi cần đã cài chưa", không trả lời
+    "máy này sẵn có gì". Hai câu khác nhau, và câu thứ hai là câu người ta hỏi
+    trước khi quyết định cài thêm hay dùng thứ đang có.
+
+    Trả danh sách rỗng khi không hỏi được — không có gói nào và không hỏi được
+    là hai chuyện khác nhau, nhưng ở đây gộp lại được vì bên gọi luôn hiển thị
+    kèm câu "hỏi bằng lệnh gì".
+    """
+    import subprocess
+
+    mau = LENH_LIET_KE_GOI.get(ecosystem)
+    if mau is None:
+        raise ValueError(
+            f"Chưa biết hỏi hệ sinh thái {ecosystem!r}. "
+            f"Đang biết: {', '.join(LENH_LIET_KE_GOI)}"
+        )
+    argv = [sys.executable if x == "{python}" else x for x in mau]
+
+    if runner is not None:
+        ma, dau_ra = runner(argv)
+    else:
+        try:
+            kq = subprocess.run(argv, capture_output=True, text=True, timeout=timeout_s)
+            ma, dau_ra = kq.returncode, kq.stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return []
+    if ma != 0:
+        return []
+    return [d.strip() for d in (dau_ra or "").splitlines() if d.strip()]
+
+
 def check_network(
     host: tuple[str, int] = HOST_KIEM_MANG,
     *,

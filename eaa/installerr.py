@@ -310,6 +310,16 @@ def remedies(
              f"Đã khai sẵn cho {ten}: {', '.join(alternatives)}. Đổi công cụ là "
              "đổi cả cổng kiểm chứng, nên đây là quyết định của bạn.")
 
+    # Bậc áp chót: tự viết một thứ tối thiểu thay thế. Đứng SAU mọi bậc cài
+    # thật, và có lý do: một công cụ tự viết chỉ làm được phần hẹp của việc, và
+    # nó không có ai bảo trì ngoài chính dự án này. Nó là lối thoát khi mọi
+    # cách khác đã hết, không phải một lựa chọn ngang hàng.
+    them("Tự viết một thứ tối thiểu thay thế",
+         f"Khi {ten} không cài nổi bằng cách nào và việc cần nó chỉ dùng một "
+         "phần nhỏ, tôi viết được một công cụ hẹp làm đúng phần ấy. Nó đi qua "
+         "ba cổng rồi tới bạn duyệt, như mọi công cụ tự sinh khác.",
+         agent=True, command=("tool", "propose", f"'thay {ten} cho việc đang cần'"))
+
     if install_command:
         them("Quay lui — gỡ phần đã cài dở",
              "Cài hỏng nửa chừng để lại môi trường ở trạng thái không ai mô tả được.",

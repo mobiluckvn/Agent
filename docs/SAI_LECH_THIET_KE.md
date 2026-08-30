@@ -1271,6 +1271,59 @@ Ba loại:
 | **Cần cập nhật** | EAA-SDD-03 §6: `eaa scratch` bao gồm `init` |
 
 
+## SL-90 · BỔ SUNG · `eaa/installplan.py` — cài theo thứ tự nào, cách nào, và chỗ nào đá nhau
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.1, §9.2, §9.4; FR-ENV-02, FR-ENV-04 |
+| **Chỗ trống** | `doctor --fix` in ra danh sách lệnh cài đúng từng dòng một, mà thiếu ba thứ — và cả ba chỉ lộ ra khi có nhiều hơn một công cụ: ① **thứ tự** (cài ngược thì lệnh sau hỏng bằng một thông báo nói về thứ khác hẳn, và người dùng đi sửa nhầm chỗ) ② **cách cài** (không phải cái nào cũng nằm trong một trình quản lý gói) ③ **xung đột** (hai thẻ cùng đòi một thứ ở hai phiên bản; cài cái sau làm hỏng cái trước, mà cái trước thì đã báo "đạt" rồi) |
+| **Code làm** | `PlannedStep`, `InstallPlan`, `plan_installs()`, `find_conflicts()`; `ToolSpec.method` / `.requires` / `.alternatives`; lệnh `eaa doctor --plan` |
+| **Vì sao ba câu gộp một module** | Cả ba chỉ trả lời được khi nhìn **toàn bộ manifest cùng lúc**. Một Tool Card đọc riêng thì không biết mình đứng sau ai và không biết mình đá nhau với ai — đặt phép kiểm ở tầng từng thẻ là đặt nó ở chỗ không có đủ thông tin |
+| **Sắp xếp tô-pô ỔN ĐỊNH** | Cùng một manifest luôn ra cùng một thứ tự. Hai lần chạy doctor in ra hai danh sách khác nhau là hai lần không ai hiểu vì sao |
+| **Phụ thuộc vòng: dừng, không tự gỡ** | Máy không chọn hộ được cái nào đi trước — phải gỡ ở manifest |
+| **Chỉ báo xung đột khi CHẮC CHẮN loại trừ** | `>=3.0` và `<2.0` thì báo; hai ràng buộc chỉ *có thể* đá nhau thì không. Một cảnh báo sai làm người dùng bỏ qua cả những cảnh báo đúng, và bộ kiểm này chạy mỗi lần chạy doctor |
+| **Phụ thuộc ra ngoài manifest: nêu ra, không nuốt** | Không xếp thứ tự theo nó được (nó không phải một nút trong đồ thị), nhưng nó vẫn là thứ phải có trước. Nêu kèm chữ "kiểm bằng tay" là cách trung thực nhất |
+| **Không cài gì cả** | Module sắp thứ tự và chỉ ra chỗ đá nhau; chạy vẫn là của người (N-022, mức T2) |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/installplan.py`, cờ `eaa doctor --plan`; AIS §9.1: Tool Card có thêm `method`, `requires`, `alternatives` |
+
+## SL-91 · BỔ SUNG · `eaa gen --preview` — xem mã khi máy chưa có toolchain
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §4; C10.3 trong bảng năng lực |
+| **Chỗ trống** | Máy chưa có toolchain là hoàn cảnh **rất thường gặp** — chính máy làm đề án này đang thiếu 5/7 công cụ. Khi ấy cổng `compile` hỏng vì lỗi môi trường và người dùng không xem được cả dòng mã nào, trong khi thứ họ muốn chỉ là *nhìn xem Agent sẽ viết gì* |
+| **Code làm** | `OrchestratorConfig.preview`; `eaa gen <module> --preview` |
+| **An toàn hơn cả chế độ nháp** | Nháp không ghi bằng chứng (SL-88); xem trước thậm chí **không tạo ra một nhánh nào để mà merge**. Nó trả về TRƯỚC `repo.start_module()` — kể cả nếu ai đó sau này viết nhầm một lối merge thứ hai, lối ấy sẽ không tìm thấy nhánh nào của lượt chạy này |
+| **Nới ĐÚNG một tiền điều kiện: pha** | Cổng pha kiểm soát thứ **đi vào** sản phẩm; xem trước không đưa gì vào cả. Mọi tiền điều kiện khác vẫn áp — backlog, xung đột tài nguyên, đủ tri thức — vì ba cái ấy quyết định mã sinh ra **có nghĩa hay không**; bỏ chúng thì thứ in ra là mã bịa, không phải mã xem trước |
+| **Cảnh báo khi chạy trước pha D** | Kiến trúc chưa chốt xong thì mã dựng trên ràng buộc còn có thể đổi. Rủi ro ở đây là **tâm lý**, không phải kỹ thuật: nhìn thấy mã hợp lý trước khi chốt ràng buộc dễ chốt hộ một quyết định chưa ai đưa ra. Nên đây là một cảnh báo, không phải một cái chặn |
+| **KPI ghi riêng** | `preview` và `draft_run` là sự kiện riêng trong `EVENTS`, không gộp vào `generate`: gộp thì tỉ lệ đạt của Chương 3 đẹp lên vì một lý do không liên quan gì tới chất lượng mã |
+| **Cần cập nhật** | EAA-SDD-03 §6: cờ `eaa gen --preview` |
+
+## SL-92 · BỔ SUNG · Công cụ tự sinh: giữ bản cũ, quay lui, và tự sinh tài liệu
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §8.4 (phiên bản), §11; C6.8, C7.3 |
+| **Chỗ trống** | `eaa suggest` (SL-84) **đề nghị viết lại** những công cụ hay hỏng — nên "viết lại" là một đường đi thường dùng. Không giữ bản cũ thì nó là một canh bạc không có đường lui, và người ta sẽ thôi không dám sửa |
+| **Code làm** | `ToolRegistry.versions()` / `_giu_ban_cu()`; `ToolForge.rollback()`, `.document()`; lệnh `eaa tool rollback`, `eaa tool doc` |
+| **Chỉ giữ bản ĐÃ DUYỆT** | Một bản đề xuất chưa ai duyệt thì chưa từng chạy thật — quay lui về nó không mang lại gì |
+| **Bản quay về KHÔNG tự lên lại `approved`** | Nó về `proposed` và phải đi lại ba cổng. Mã ấy từng chạy được, nhưng "từng" là ở một môi trường khác và có thể ở một phiên bản Python khác — nếu ba cổng vẫn xanh thì chạy lại tốn vài giây, còn nếu không thì đó chính là thứ ta cần biết trước khi dựa vào nó |
+| **Tài liệu dựng TỪ MÃ, không hỏi mô hình** | `MO_TA`, `SCHEMA`, các hàm `test_`, cộng số đo dùng thật. Một bản mô tả do mô hình viết lại có thể lệch khỏi mã, và **một tài liệu lệch khỏi mã tệ hơn không có tài liệu** |
+| **Cần cập nhật** | EAA-SDD-03 §6: `eaa tool rollback`, `eaa tool doc` |
+
+## SL-93 · BỔ SUNG · Liệt kê gói runtime, và xưởng công cụ là bậc áp chót của thang gỡ
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.1, §9.2; C2.4, C5.6 |
+| **C2.4 — chỗ trống** | `doctor` chỉ kiểm được **thứ đã có trong Tool Card**. Nó trả lời "công cụ tôi cần đã cài chưa", không trả lời "máy này sẵn có gì" — hai câu khác nhau, và câu thứ hai là câu người ta hỏi TRƯỚC khi quyết định cài thêm hay dùng thứ đang có |
+| **Code làm (C2.4)** | `eaa/environ.py` `list_packages()`, `LENH_LIET_KE_GOI`; lệnh `eaa environ --packages [python\|npm]` |
+| **Hỏi bằng trình thông dịch ĐANG CHẠY** | `{python}` thay bằng `sys.executable`, cùng lý do với `doctor` (SL-18): hỏi cái đầu tiên gặp trong PATH là hỏi một môi trường khác |
+| **C5.6 — chỗ trống** | Thang gỡ lỗi cài đặt (SL-76) kết thúc ở "bàn giao người". Nhưng từ SL-77 còn một bậc nữa: tự viết một thứ tối thiểu thay thế |
+| **Đặt SAU mọi bậc cài thật** | Một công cụ tự viết chỉ làm được phần hẹp của việc, và **không có ai bảo trì ngoài chính dự án này**. Nó là lối thoát khi mọi cách khác đã hết, không phải một lựa chọn ngang hàng |
+| **Cần cập nhật** | EAA-SDD-03 §6: cờ `eaa environ --packages`; AIS §9.2: thang gỡ có thêm bậc tự viết |
+
+
 ---
 
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
