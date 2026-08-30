@@ -662,7 +662,12 @@ DOI_CHIEU = [
  ("N-082", DU, "eaa/diagnostics.py · TC-27", "", "T1"),
  ("N-083", DU, "DS-06 đo cả trường hợp xấu nhất và tải CPU · TC-58b", "", "T3"),
  ("N-084", DU, "ManualMeasurement + eaa diagnose measure · TC-58c,d", "", "T0"),
- ("N-085", CHUA, "—", "Ngoài phạm vi đề án (đã ghi từ trước).", "T0"),
+ ("N-085", DU, "eaa/debugsession.py + eaa debug plan/log/record · TC-75",
+  "Đủ Ở ĐÚNG MỨC T0 — 'người làm, Agent ghi vết'. Agent dò mạch gỡ lỗi, dựng kế "
+  "hoạch phiên từ tiêu chí kịch bản đã duyệt (mỗi bước khai trước hai nhánh kết "
+  "luận), và ghi lại ai làm gì. Nó KHÔNG chạy phiên gỡ lỗi — việc ấy đòi mạch cắm "
+  "vào bo thật và vẫn ngoài phạm vi đề án. Tên trình gỡ lỗi nằm ở packs/*/pack.yaml, "
+  "không ở engine.", "T0"),
  ("N-086", DU, "eaa/endurance.py + eaa endurance · TC-58e,f,g", "", "T3"),
  ("N-090", DU, "eaa/acceptance.py · TC-45", "", "T2"),
  ("N-091", DU, "eaa/versions.py + check_device_commit · TC-30, TC-45a", "", "T2"),

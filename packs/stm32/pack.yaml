@@ -62,6 +62,12 @@ interfaces:
   comment_line: "/* {comment} */"
   include_line: '#include "{header}"'
 
+# Trình gỡ lỗi sâu của họ MCU này (N-085, mức tự chủ T0). Engine KHÔNG biết
+# những tên này — nó chỉ nhận danh sách và kiểm xem máy có chúng chưa.
+debug_tools:
+  - arm-none-eabi-gdb
+  - openocd
+
 capabilities:
 
   compile:

@@ -271,6 +271,24 @@ TOOLBOX: tuple[Tool, ...] = (
         "Cho một kỹ năng đi qua ba cổng: quyền, tham số, chạy khô",
         takes="tên kỹ năng", writes=True,
     ),
+    Tool(
+        ("suggest",),
+        "Tự nhìn lại nhật ký: việc gì đang tốn công nhất, nên viết công cụ mới "
+        "hay rút một kỹ năng. Gọi khi người dùng hỏi 'có gì cải tiến được không'",
+    ),
+    Tool(
+        ("assess",),
+        "Một gói phần mềm có đáng cài không: còn ai bảo trì, license gì, tên có "
+        "thật hay chỉ gần giống một gói nổi tiếng",
+        takes="tên gói [--registry pypi|npm|github]",
+    ),
+    Tool(
+        ("debug", "plan"),
+        "Dựng kế hoạch một phiên gỡ lỗi sâu để NGƯỜI thi hành. Tôi không chạy "
+        "phiên; tôi dò dụng cụ, rút bước từ kịch bản chẩn đoán, và ghi vết",
+        takes="--scenario DS-0x",
+    ),
+    Tool(("debug", "log"), "Các phiên gỡ lỗi sâu đã ghi: ai làm, thấy gì, kết luận gì"),
 )
 
 #: Lệnh Agent KHÔNG BAO GIỜ được tự gọi, kèm lý do nói cho người nghe.

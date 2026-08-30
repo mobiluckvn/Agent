@@ -952,3 +952,78 @@ duyệt.
 Một điểm dễ hiểu nhầm: bước trả **mã 2** (đang chờ người) **không** làm đứt
 chuỗi — đó là một trạng thái của dự án, không phải lỗi của lệnh. Chỉ mã 1, 3,
 4 mới dừng.
+
+## B9. Chế độ nháp — thử nhanh mà không đường nào vào main
+
+```bash
+eaa gen drv_i2c --draft compile,static
+```
+
+Đây là bài kiểm **quan trọng nhất** của phần bổ sung này, vì nó đụng vào bất
+biến trung tâm. Phải thấy:
+
+| Kiểm | Phải thấy |
+|---|---|
+| Nhãn rõ ràng | tiêu đề **BẢN NHÁP**, và câu "bản này KHÔNG merge được" |
+| Chỉ chạy cổng đã chọn | báo cáo chỉ có `compile`, `static` |
+| Không xin gate | `eaa gate show G3` **không** có hồ sơ mới |
+| Không để lại bằng chứng | `runs/verification_drv_i2c.json` **không** được tạo/ghi đè |
+
+Thử phá — cách chắc nhất để tin: chạy `--draft`, rồi duyệt G3 bằng tay, rồi
+thử merge. Phải hỏng ở bước "không có báo cáo cổng kiểm chứng nào". Bản nháp
+không merge được **không phải vì bị chặn**, mà vì nó không để lại thứ mà bước
+merge cần đọc.
+
+Lớp thứ hai, độc lập: kể cả khi có bằng chứng, giấy phép merge giờ đòi bộ báo
+cáo **phủ đủ** bộ cổng bắt buộc — một cổng vắng mặt bị từ chối y như một cổng
+trượt.
+
+## B10. Đo công cụ tự sinh, và tự nhìn lại
+
+```bash
+eaa tool list        # kèm tỉ lệ đạt sau khi dùng thật
+eaa suggest          # đề nghị, mỗi cái kèm SỐ
+```
+
+- `tool list` chỉ cảnh báo khi đã đủ **4 lần dùng** — hai lần hỏng đầu có thể
+  chỉ là hai lần đầu vào xấu, và một cảnh báo sai làm người ta thôi đọc cảnh báo.
+- Nó **không tự gỡ** công cụ nào. Nếu bạn thấy nó tự gỡ, đó là lỗi.
+- `suggest` trên nhật ký sạch phải nói *"chưa thấy gì đáng làm"*. Một lệnh
+  `suggest` luôn tìm ra điều gì đó để nói là một lệnh không đáng tin.
+- Bài kiểm quan trọng: để Agent bị chặn ở `gate approve` vài lần, rồi chạy
+  `suggest`. Nó phải xếp việc ấy vào mục *"ĐÚNG như thiết kế"*, **không** đề
+  nghị viết công cụ để lách.
+
+## B11. Gói này có đáng cài không
+
+```bash
+eaa assess pyserial
+eaa assess pyseriall --similar-to pyserial     # tên gõ nhầm một ký tự
+eaa assess ai/kho --registry github
+```
+
+Phải thấy: lần phát hành cuối, license, và — quan trọng nhất — **tên có thật
+không**. Gói không tồn tại là một *kết quả*, không phải một lỗi: đó chính là
+câu trả lời cho "tôi có gõ đúng tên không".
+
+Mọi bản in phải kết bằng dòng nhắc rằng đây là **hạng MỞ**, không dùng làm
+nguồn cho giá trị cấu hình phần cứng.
+
+## B12. Phiên gỡ lỗi sâu — tôi dựng kế hoạch, BẠN cầm dụng cụ
+
+```bash
+eaa debug plan --scenario DS-03
+eaa debug record --note "thấy pulse_freq_hz = 0" --outcome "timer chưa chạy" --tool avr-gdb
+eaa debug log
+```
+
+N-085 ở mức tự chủ **T0** — Agent không chạy phiên gỡ lỗi, và bản in nói thẳng
+điều đó. Cần kiểm:
+
+- Kế hoạch **hỏi ngược trước**: "bạn đã thử hai kênh rẻ hơn chưa?" Gỡ lỗi sâu
+  là dụng cụ đắt tiền cho một câu hỏi rẻ.
+- Mỗi bước khai trước **hai nhánh** kết luận. Bước nào chỉ có một nhánh là lỗi.
+- Các bước **rút từ tiêu chí của kịch bản**, không tự bịa. Đối chiếu với
+  `eaa diagnose list` xem có khớp không.
+- `debug record` từ chối nếu thiếu `--actor`: ở mức T0, *"ai làm"* là phần
+  thông tin duy nhất máy không tự biết được.

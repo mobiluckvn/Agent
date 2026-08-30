@@ -1184,6 +1184,93 @@ Ba loại:
 | **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/focus.py`, lệnh `eaa focus` |
 
 
+## SL-83 · BỔ SUNG · `eaa/toolusage.py` — công cụ tự sinh chạy ra sao khi dùng THẬT
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §11, NFR-08 |
+| **Chỗ trống** | Ba cổng của SL-77 chứng minh một công cụ **chạy được lúc duyệt**. Chúng không nói gì về lần thứ hai mươi, trên dữ liệu thật. Một công cụ qua cổng rồi hỏng bốn trong sáu lần dùng vẫn mang nhãn `approved` và vẫn nằm trong prompt của Agent — nó sẽ được gọi lại, hỏng lại, và mỗi lần hỏng là một lượt gọi mô hình bị đốt |
+| **Code làm** | `ToolUse`, `ToolStats`, `UsageLog`; `ToolForge.run()` ghi MỌI lần gọi; `eaa tool list` hiện số đo |
+| **Không cảnh báo sớm** | `concerning` chỉ đúng khi đã đủ `SO_LAN_DU_DE_KET_LUAN` = 4. Hai lần hỏng đầu có thể chỉ là hai lần đầu vào xấu, và **một cảnh báo sai làm người ta thôi đọc cảnh báo** |
+| **Không tự gỡ công cụ nào** | Gỡ là một quyết định: có khi công cụ đúng còn dữ liệu vào sai. Module bày số ra và cảnh báo; `eaa suggest` biến số ấy thành đề nghị cụ thể |
+| **Ghi hỏng không được che lỗi thật** | `_ghi_lan_dung` nuốt mọi ngoại lệ của chính nó — nhật ký hỏng không được biến một lỗi công cụ thành một lỗi nhật ký |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/toolusage.py` |
+
+## SL-84 · BỔ SUNG · `eaa/suggest.py` — tự nhìn lại, và mọi đề nghị đều kèm SỐ
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §11; N-906, NFR-08 |
+| **Chỗ trống** | Agent viết được công cụ (SL-77) và rút được kỹ năng (SL-81), nhưng cả hai vẫn phải do người gợi ý. Đó đúng là chỗ Agent có lợi thế mà con người không có: nó có **nhật ký**, biết chính xác lần thứ mấy nó bị hỏi một việc nó không làm được — còn người chỉ có cảm giác mơ hồ rằng "cái này hơi phiền" |
+| **Code làm** | `Suggestion`, `SuggestionReport`, `analyse()`; lệnh `eaa suggest` |
+| **Luật duy nhất: đề nghị phải có SỐ** | Một đề nghị không kèm bằng chứng đếm được là một ý kiến, và **một agent đưa ý kiến về việc nên xây gì tiếp là một agent sớm muộn cũng đề nghị xây thứ nó thích** |
+| **Tách RANH GIỚI QUYỀN khỏi khoảng trống năng lực** | Đây là phần quan trọng nhất. Agent bị chặn ở `gate approve` mười lần **không** phải một khoảng trống năng lực, và đề nghị "viết công cụ" cho nó là đề nghị lách rào. Hai loại ấy được tách ở đúng chỗ đọc nhật ký, và loại thứ hai in ra dưới nhãn *"ĐÚNG như thiết kế, không phải thiếu sót"* |
+| **Không có tín hiệu thì nói KHÔNG CÓ GÌ** | Cám dỗ lớn nhất của một lệnh tên `suggest` là luôn tìm ra điều gì đó để nói. Nhật ký sạch thì đầu ra là "chưa thấy gì đáng làm" — một câu trả lời đúng, không phải một thất bại |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/suggest.py`, lệnh `eaa suggest` |
+
+## SL-85 · BỔ SUNG · `eaa/toolassess.py` — gói này có đáng cài không
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.2, §9.4; FR-ENV-03 |
+| **Chỗ trống** | Từ SL-80 đề xuất công cụ đọc được trang cài đặt thật, nhưng phần **đánh giá** vẫn đổ hết lên người duyệt: còn ai bảo trì không, license gì, bao nhiêu người dùng, tên có gõ đúng không. Người duyệt ngồi trước một đề xuất trông rất chỉn chu và không có cách nào kiểm nhanh mấy câu ấy |
+| **Code làm** | `PackageFacts`, `Assessment`, `assess()`; lệnh `eaa assess`; đọc PyPI / npm / GitHub qua `eaa/web.py` |
+| **Chống gõ nhầm tên: hỏi ĐẢO LẠI** | `toolsearch` đã chặn nguồn cài lạ, nhưng không chặn được một tên gõ nhầm một ký tự trỏ tới một gói khác **có thật** — kiểu nhắm đúng vào người đọc lướt. Câu trả lời không phải một danh sách đen (không bao giờ đủ) mà là: *gói này có tồn tại không, và nó trông ra sao?* Bốn con số nói được điều mà danh sách đen không nói được |
+| **"Không tìm thấy" là KẾT QUẢ, không phải lỗi** | Đó chính là câu trả lời cho "tên này có thật không" |
+| **Đánh dấu, KHÔNG loại** | Mọi cờ đều là "chỗ cần nhìn kỹ", kể cả license lạ. Loại là việc của người duyệt |
+| **Hai năm chứ không phải sáu tháng** | Ngưỡng bỏ hoang đặt ở 730 ngày: một công cụ dòng lệnh nhỏ **làm xong việc của nó** thì không cần phát hành thêm, và phạt nó vì điều đó là đọc sai chỉ số |
+| **Hạng MỞ, và nói rõ** | Kho gói không thuộc miền nhà sản xuất chip. Số liệu dùng để so công cụ và gỡ lỗi; tuyệt đối không làm nguồn cho giá trị cấu hình phần cứng |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/toolassess.py`, lệnh `eaa assess` |
+
+## SL-86 · BỔ SUNG · `eaa/debugsession.py` — N-085 ở mức tự chủ T0
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7; N-085 (mức T0) |
+| **Chỗ trống** | N-085 là mục duy nhất trong bảng nghiệp vụ mang trạng thái CHƯA CÓ, ghi "ngoài phạm vi đề án". Nhưng T0 có một định nghĩa cụ thể — *"Người làm, Agent ghi vết"* — và ba việc mà T0 đòi thì **làm được**, chỉ là chưa ai làm |
+| **Code làm** | `Probe`, `DebugStep`, `DebugPlan`, `SessionLog`, `detect_probes()`, `build_plan()`; lệnh `eaa debug plan/log/record` |
+| **Điều module này KHÔNG làm** | Không điều khiển mạch nạp, không đặt điểm dừng, không chạy phiên gỡ lỗi. Những việc ấy đòi một mạch gỡ lỗi cắm vào bo thật — nằm ngoài phạm vi, đã ghi từ đầu |
+| **Phần đáng giá nhất là bước 2** | Người ta hiếm khi bí ở chỗ "gõ lệnh gì trong gdb"; người ta bí ở chỗ **nhìn vào đâu**, và *thấy giá trị này thì suy ra được gì*. Nên mỗi bước bắt khai trước **hai nhánh** kết luận — cách rẻ nhất để không tự thuyết phục mình sau khi đã nhìn thấy số |
+| **Bước rút TỪ tiêu chí kịch bản, không tự bịa** | Kịch bản chẩn đoán là tri thức đã qua gate; tự nghĩ ra bước là đưa vào một giả thuyết không ai duyệt. Tiêu chí `machine` → điểm dừng và khoảng đúng; `human` → kênh đối chiếu thứ hai |
+| **Luôn hỏi ngược trước** | Gỡ lỗi sâu là dụng cụ đắt tiền cho một câu hỏi rẻ. Kế hoạch nào cũng bắt đầu bằng "bạn đã thử hai kênh rẻ hơn chưa?" |
+| **Tên trình gỡ lỗi thuộc PACK, không thuộc engine** | TC-38 bắt được `openocd`/`avarice` viết thẳng trong engine. Đã dời sang `debug_tools:` trong `pack.yaml` của cả hai pack; `build_plan(tools=())` mặc định RỖNG — đó là ràng buộc kiến trúc, không phải chỗ chưa điền (FR-PLT-01) |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/debugsession.py`, lệnh `eaa debug`; EAA-AIS-05 §7: N-085 chuyển từ "ngoài phạm vi" sang "đủ ở mức T0" |
+
+## SL-87 · LỆCH THẬT · Giấy phép merge đòi bằng chứng PHỦ ĐỦ, không chỉ đòi cái có mặt đều đạt
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §4, NFR-01, FR-VER-01; TC-01, TC-73 |
+| **Lỗ hổng** | `MergeAuthorization.__post_init__` kiểm *"mọi báo cáo CÓ MẶT đều đạt"*. Nó **không** kiểm chúng có phủ đủ bộ cổng bắt buộc không. Một bằng chứng chỉ chứa mỗi `compile` — đạt — vẫn thỏa phép kiểm ấy: câu "toàn bộ ToolReport.passed" khi đó đúng về mặt chữ nghĩa mà rỗng về mặt nội dung, vì **bộ báo cáo mới là thứ quyết định câu ấy có nghĩa gì** |
+| **Hôm nay chưa với tới được** | `_kiem_tien_dieu_kien` đòi chuỗi đủ cổng, nên một lượt chạy bình thường luôn sinh đủ bốn báo cáo. Nhưng thêm chế độ nháp (SL-88) là mở đúng đường tới lỗ hổng ấy |
+| **Đã sửa** | `MergeAuthorization.required_gates`; `authorize_merge(required_gates=…)`; `finalize_module` truyền `self.config.required_gates` xuống. Một cổng **vắng mặt** là một loại lỗi không được kiểm, y hệt một cổng trượt |
+| **Vì sao ghi là LỆCH THẬT** | Đây là một phép kiểm THÊM vào bất biến trung tâm, không phải một tính năng mới. SDD §4 phát biểu bất biến bằng "toàn bộ ToolReport.passed"; câu ấy cần thêm vế "và bộ báo cáo phủ đủ chuỗi cổng" |
+| **Cần cập nhật** | EAA-SDD-03 §4: bổ sung vế phủ đủ vào phát biểu bất biến |
+
+## SL-88 · BỔ SUNG · Chế độ nháp — hạ ceremony mà không hạ bất biến
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §4, NFR-01; C10.4 trong bảng năng lực |
+| **Yêu cầu** | Người dùng muốn chọn tập cổng nhẹ hơn để thử nhanh |
+| **Vì sao cách hiển nhiên là sai** | Một cờ cho phép **bỏ qua cổng** phá đúng bất biến trung tâm. Một cờ bỏ qua tồn tại là một cờ sẽ được dùng, và nó sẽ được dùng đúng vào lúc gấp |
+| **Cách làm** | `OrchestratorConfig.draft_gates`; `eaa gen <module> --draft compile,static`. Nhánh nháp **trả về TRƯỚC** khi chạm `_xin_gate` và `_luu_bang_chung` |
+| **Bất biến giữ được do CẤU TẠO** | Bản nháp không merge được **không phải vì bị chặn** — mà vì nó không ghi vào tệp mà `load_evidence` đọc. Tới bước merge đơn giản là không có bằng chứng nào để đọc. **Không có câu `if` nào ở phía merge phải nhớ đặt cho đúng**, và test canh điều ấy bằng cách đọc thứ tự trong mã |
+| **Hai lớp, độc lập nhau** | Lớp một: không để lại bằng chứng. Lớp hai: SL-87 đòi phủ đủ bộ cổng. Kể cả khi ai đó vô tình nối bằng chứng nháp vào đường merge, lớp hai vẫn chặn |
+| **Thứ tự cổng giữ nguyên** | Chuỗi nháp lọc theo tập đã chọn nhưng **giữ thứ tự gốc**: cổng sau ăn sản phẩm của cổng trước |
+| **Cần cập nhật** | EAA-SDD-03 §6: `eaa gen --draft` |
+
+## SL-89 · BỔ SUNG · Chỗ làm nháp tự khởi tạo — hạ nốt bậc thềm cuối
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-PLT-03; C10.1 |
+| **Chỗ trống** | SL-78 sinh sẵn YAML nhưng vẫn để lại một bậc: `eaa init` trước khi vào `eaa chat` |
+| **Code làm** | `_tu_khoi_tao_neu_la_nhap()`; `eaa scratch` chạy `init` luôn |
+| **Ranh giới hẹp có chủ ý** | Trên dự án THẬT, `eaa init` là một quyết định: nó đọc ràng buộc đã chốt, chọn nhà cung cấp mô hình, ghi Project State — làm hộ ở đó là lấy mất một quyết định. Ở chỗ nháp thì không có gì để lấy: ràng buộc do máy sinh và mang nhãn GIẢ ĐỊNH, nên bước ấy chỉ còn là thủ tục |
+| **Cần cập nhật** | EAA-SDD-03 §6: `eaa scratch` bao gồm `init` |
+
+
 ---
 
 ## Chưa lệch nhưng cần bổ sung tài liệu sau

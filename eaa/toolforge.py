@@ -769,6 +769,7 @@ class ToolForge:
             )
 
         import importlib.util
+        import time
 
         spec = importlib.util.spec_from_file_location(
             f"eaa_tool_{name}", self.registry.code_path(name)
@@ -776,8 +777,30 @@ class ToolForge:
         if spec is None or spec.loader is None:
             raise ForgeError(f"Không nạp được mã của {name!r}")
         mod = importlib.util.module_from_spec(spec)
+
+        # Ghi lại MỌI lần gọi, đạt hay hỏng. Ba cổng chứng minh công cụ chạy
+        # được lúc duyệt; chúng không nói gì về lần thứ hai mươi, trên dữ liệu
+        # thật. Chỉ có số đo sau khi dùng mới nói được (SL-83).
+        bat_dau = time.monotonic()
         try:
             spec.loader.exec_module(mod)
-            return str(mod.run(**(arguments or {})))
+            ket = str(mod.run(**(arguments or {})))
         except Exception as exc:  # noqa: BLE001 - công cụ hỏng không được làm sập Agent
+            self._ghi_lan_dung(
+                name, ok=False,
+                ms=int((time.monotonic() - bat_dau) * 1000),
+                loi=f"{type(exc).__name__}: {exc}",
+            )
             raise ForgeError(f"Công cụ {name!r} chạy lỗi: {type(exc).__name__}: {exc}") from None
+
+        self._ghi_lan_dung(name, ok=True, ms=int((time.monotonic() - bat_dau) * 1000))
+        return ket
+
+    def _ghi_lan_dung(self, name: str, *, ok: bool, ms: int, loi: str = "") -> None:
+        """Ghi một lần dùng. Không bao giờ để việc ghi làm hỏng lượt chạy."""
+        try:
+            from eaa.toolusage import UsageLog
+
+            UsageLog(self.registry.root).record(name, ok=ok, duration_ms=ms, error=loi)
+        except Exception:  # noqa: BLE001 - nhật ký hỏng không được che lỗi thật
+            pass

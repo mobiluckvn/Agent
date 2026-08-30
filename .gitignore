@@ -64,3 +64,6 @@ projects/*/sources/
 # Nhật ký hội thoại của một phiên làm việc.
 projects/*/chat_log.jsonl
 projects/*/llm_calls.jsonl
+
+# Chỗ làm nháp ở gốc kho — sinh ra khi chạy, không thuộc lịch sử kho mã.
+.eaa/

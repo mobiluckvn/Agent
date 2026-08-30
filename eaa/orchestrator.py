@@ -80,6 +80,26 @@ class OrchestratorConfig:
     #: một ngoại lệ ở chỗ khác.
     required_gates: tuple[str, ...] = ("compile", "size", "static", "unittests")
     actor: str = ""
+    #: Chế độ NHÁP — chạy một tập cổng nhẹ hơn để thử nhanh.
+    #:
+    #: Rỗng nghĩa là chạy bình thường. Khác rỗng thì vòng chạy dùng đúng tập
+    #: này thay cho ``required_gates``, và **không ghi bằng chứng nào**.
+    #:
+    #: Chỗ ấy mới là điểm của cả tính năng. Cách hiển nhiên — thêm một cờ cho
+    #: phép bỏ qua cổng — phá bất biến trung tâm: một cờ bỏ qua tồn tại là một
+    #: cờ sẽ được dùng, và nó sẽ được dùng đúng vào lúc gấp. Ở đây bản nháp
+    #: không thể merge được **do cấu tạo**: nó không ghi vào tệp mà đường merge
+    #: đọc, nên tới bước merge đơn giản là không có bằng chứng nào để đọc.
+    #: Không có một câu ``if`` nào phải nhớ đặt cho đúng.
+    draft_gates: tuple[str, ...] = ()
+
+    @property
+    def is_draft(self) -> bool:
+        return bool(self.draft_gates)
+
+    @property
+    def gates_to_run(self) -> tuple[str, ...]:
+        return self.draft_gates or self.required_gates
 
 
 @dataclass
@@ -272,6 +292,38 @@ class Orchestrator:
         commit = self._commit(artifact, module_id)
         tdev = (time.monotonic() - bat_dau) / 60.0
 
+        # Bản nháp dừng ở đây. Nó KHÔNG gọi ``_xin_gate`` và KHÔNG gọi
+        # ``_luu_bang_chung`` — nên tệp mà ``load_evidence`` đọc vẫn trống, và
+        # ``finalize_module`` sẽ từ chối vì thiếu bằng chứng. Không có câu
+        # ``if`` nào ở phía merge phải nhớ đặt cho đúng: bản nháp không merge
+        # được vì nó không để lại thứ mà merge cần đọc.
+        if self.config.is_draft:
+            self._dat_trang_thai(module_id, "todo", retries=so_lan_va)
+            self._kpi(
+                "draft_run", module_id, commit=commit, tdev_min=round(tdev, 3),
+                retries=so_lan_va, prompt_hash=artifact.prompt_hash,
+                llm_model=artifact.model,
+                note=f"nháp qua {len(bao_cao)} cổng: {', '.join(self.config.draft_gates)}",
+            )
+            return ModuleOutcome(
+                module_id=module_id,
+                status="draft",
+                exit_code=EXIT_WAITING_GATE,
+                message=(
+                    f"BẢN NHÁP — {module_id} qua {len(bao_cao)} cổng "
+                    f"({', '.join(r.gate for r in bao_cao)}) sau {so_lan_va} vòng tự sửa.\n"
+                    f"Bộ cổng đầy đủ là: {', '.join(self.config.required_gates)}.\n\n"
+                    "Bản này KHÔNG merge được, và không phải vì bị chặn — vì nó "
+                    "không để lại bằng chứng nào cho bước merge đọc. Muốn đưa nó "
+                    f"vào thì chạy lại đủ: eaa gen {module_id}"
+                ),
+                reports=list(bao_cao),
+                repairs=so_lan_va,
+                artifact=artifact,
+                commit=commit,
+                attempts_log=nhat_ky,
+            )
+
         # Bước 10: gửi diff chờ G3.
         payload = self._xin_gate(module_id, branch, bao_cao, artifact)
         self._luu_bang_chung(module_id, bao_cao, payload.content_digest)
@@ -358,6 +410,7 @@ class Orchestrator:
         # Bước 11 — merge. Cửa duy nhất, và nó tự kiểm bằng chứng.
         try:
             giay_phep = authorize_merge(
+                required_gates=self.config.required_gates,
                 module_id=module_id,
                 branch=branch,
                 reports=list(reports),
@@ -404,7 +457,7 @@ class Orchestrator:
 
     def _kiem_tien_dieu_kien(self, state: Any, module_id: str) -> None:
         """Bước 1 — tiền điều kiện của UC04, và là nơi TC-01 gõ cửa đầu tiên."""
-        thieu = [c for c in self.config.required_gates if c not in self._ten_cong()]
+        thieu = [c for c in self.config.gates_to_run if c not in self._ten_cong()]
         if thieu:
             raise PreconditionFailed(
                 f"Chuỗi kiểm chứng thiếu cổng bắt buộc {thieu} (FR-VER-01). "
@@ -558,8 +611,16 @@ class Orchestrator:
         dịch được thì không có gì để đo kích thước), và một chuỗi báo cáo lỗi
         dây chuyền chỉ làm loãng prompt vá.
         """
+        # Ở chế độ nháp chỉ chạy tập cổng người dùng chọn. Giữ nguyên THỨ TỰ
+        # của chuỗi gốc chứ không theo thứ tự người dùng gõ: cổng sau ăn sản
+        # phẩm của cổng trước, và đảo thứ tự thì cổng sau chạy trên thứ chưa có.
+        chuoi = self.gate_chain
+        if self.config.is_draft:
+            chon = set(self.config.draft_gates)
+            chuoi = [g for g in chuoi if getattr(g, "name", "") in chon]
+
         bao_cao: list[ToolReport] = []
-        for cong in self.gate_chain:
+        for cong in chuoi:
             ket_qua = self._chay_mot_cong(cong, artifact, bao_cao)
             bao_cao.append(ket_qua)
             if self.kpi is not None:

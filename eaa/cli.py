@@ -726,12 +726,23 @@ def cmd_gen(args: argparse.Namespace) -> int:
     project = resolve_project(args.project)
     ctx = build_context(project)
 
+    nhap = [g.strip() for g in (getattr(args, "draft", "") or "").split(",") if g.strip()]
+    if nhap:
+        co = {getattr(g, "name", "") for g in ctx.orchestrator.gate_chain}
+        la = [g for g in nhap if g not in co]
+        if la:
+            raise CliError(
+                f"Chuỗi kiểm chứng không có cổng {', '.join(la)}. "
+                f"Đang có: {', '.join(sorted(c for c in co if c))}"
+            )
+        ctx.orchestrator.config.draft_gates = tuple(nhap)
+
     try:
         ket_qua = ctx.orchestrator.run_module(args.module_id)
     except PreconditionFailed as exc:
         raise CliError(str(exc)) from exc
 
-    _in_tieu_de(f"Vòng lặp chuẩn — {args.module_id}")
+    _in_tieu_de(("BẢN NHÁP — " if nhap else "Vòng lặp chuẩn — ") + args.module_id)
     for dong in ket_qua.attempts_log:
         print(dong)
     print()
@@ -3357,8 +3368,10 @@ def cmd_tool_list(args: argparse.Namespace) -> int:
     """Sổ công cụ Agent tự viết (C6, C7.1)."""
     from eaa.confidence import SUY_RA, header
     from eaa.toolforge import ToolRegistry
+    from eaa.toolusage import UsageLog
 
-    ds = ToolRegistry(repo_root()).all()
+    goc = repo_root()
+    ds = ToolRegistry(goc).all()
     print("Công cụ Agent tự viết")
     print()
     print(header(SUY_RA))
@@ -3368,11 +3381,28 @@ def cmd_tool_list(args: argparse.Namespace) -> int:
         print()
         print("  Đặt hàng một cái:  eaa tool propose 'gom số liệu từ mấy tệp báo cáo'")
         return EXIT_OK
+
+    nhat_ky = UsageLog(goc)
+    so_do = nhat_ky.stats()
     for t in ds:
         print(t.render())
+        if t.name in so_do:
+            print(so_do[t.name].render())
+
     da_duyet = sum(1 for t in ds if t.runnable)
     print()
     print(f"{da_duyet}/{len(ds)} đã được người duyệt và chạy được.")
+
+    dang_lo = nhat_ky.concerning()
+    if dang_lo:
+        print()
+        print("ĐÁNG XEM LẠI — số đo sau khi dùng thật:")
+        for s in dang_lo:
+            print(f"  ⚠ {s.tool}: {s.ok}/{s.runs} lần đạt"
+                  + (f", trung bình {s.avg_ms} ms" if s.slow else ""))
+        print()
+        print("  Tôi KHÔNG tự gỡ cái nào — gỡ là một quyết định: có khi công cụ")
+        print("  đúng còn dữ liệu vào sai. Xem đề nghị cụ thể: eaa suggest")
     return EXIT_OK
 
 
@@ -3637,6 +3667,129 @@ def cmd_focus(args: argparse.Namespace) -> int:
     return EXIT_WAITING_GATE
 
 
+def cmd_suggest(args: argparse.Namespace) -> int:
+    """Tự nhìn lại (C6.1, C8.5, N-906)."""
+    from eaa.agent import CHAT_LOG
+    from eaa.playbook import Playbook
+    from eaa.skills import mine
+    from eaa.suggest import analyse
+    from eaa.toolusage import UsageLog
+
+    project = resolve_project(args.project)
+    goc = repo_root()
+    bao_cao = analyse(
+        chat_log=project / CHAT_LOG,
+        usage_log=UsageLog(goc),
+        playbook=Playbook(goc),
+        mined=mine(project / CHAT_LOG, min_count=args.min_count),
+        min_count=args.min_count,
+    )
+    print(bao_cao.render())
+    return EXIT_OK
+
+
+def cmd_assess(args: argparse.Namespace) -> int:
+    """Gói này có đáng cài không (C3.3, C3.4)."""
+    from eaa.toolassess import AssessError, assess
+    from eaa.web import WebCache, WebFetcher
+
+    f = WebFetcher(cache=WebCache(repo_root() / "memory" / "web_cache"))
+    try:
+        kq = assess(args.name, registry=args.registry, fetcher=f,
+                    similar_to=args.similar_to)
+    except AssessError as exc:
+        raise CliError(str(exc)) from None
+    print(kq.render())
+    return EXIT_OK if kq.clean else EXIT_WAITING_GATE
+
+
+def _nhat_ky_go_loi(args: argparse.Namespace):
+    from eaa.debugsession import SessionLog
+
+    return SessionLog(resolve_project(args.project))
+
+
+def cmd_debug_plan(args: argparse.Namespace) -> int:
+    """Dựng kế hoạch phiên gỡ lỗi sâu (N-085, mức T0)."""
+    from eaa.debugsession import build_plan
+    from eaa.diagnostics import DiagnosticError, ScenarioLibrary
+
+    project = resolve_project(args.project)
+
+    kich_ban = None
+    if args.scenario:
+        try:
+            thu_vien = ScenarioLibrary.load(project / "diagnostics.yaml")
+            kich_ban = thu_vien.get(args.scenario)
+        except DiagnosticError as exc:
+            raise CliError(f"{exc}\n    Xem danh sách: eaa diagnose list") from None
+
+    cong = []
+    try:
+        from eaa.serialport import list_ports
+
+        cong = list(list_ports())
+    except Exception:  # noqa: BLE001 - không dò được cổng thì kế hoạch vẫn dựng được
+        pass
+
+    dung_cu: tuple[str, ...] = ()
+    try:
+        dung_cu = tuple(getattr(_nap_pack(project), "debug_tools", ()) or ())
+    except Exception:  # noqa: BLE001 - chưa nạp được pack thì kế hoạch vẫn dựng được
+        pass
+
+    print(build_plan(scenario=kich_ban, ports=cong, tools=dung_cu).render())
+    return EXIT_OK
+
+
+def cmd_debug_log(args: argparse.Namespace) -> int:
+    print(_nhat_ky_go_loi(args).render())
+    return EXIT_OK
+
+
+def cmd_debug_record(args: argparse.Namespace) -> int:
+    from eaa.debugsession import DebugError
+
+    try:
+        ban = _nhat_ky_go_loi(args).record(
+            actor=args.actor or os.environ.get("USER", ""),
+            note=args.note, scenario_id=args.scenario,
+            outcome=args.outcome, tool=args.tool,
+        )
+    except DebugError as exc:
+        raise CliError(str(exc)) from None
+    print("Đã ghi phiên gỡ lỗi:")
+    print(ban.render())
+    return EXIT_OK
+
+
+def _tu_khoi_tao_neu_la_nhap(project: Path, args: argparse.Namespace) -> bool:
+    """Khởi tạo hộ, NHƯNG chỉ ở chỗ làm nháp. Trả về ``True`` nếu đã làm.
+
+    Ranh giới ở đây có chủ ý và hẹp. Trên một dự án thật, ``eaa init`` là một
+    quyết định: nó đọc ràng buộc đã chốt, chọn nhà cung cấp mô hình, và ghi
+    Project State — người dùng cần biết mình vừa bắt đầu cái gì. Làm hộ ở đó là
+    lấy mất một quyết định.
+
+    Ở chỗ làm nháp thì không có gì để lấy: ràng buộc do máy sinh sẵn và mang
+    nhãn GIẢ ĐỊNH, nên bước khởi tạo chỉ còn là thủ tục. Bắt gõ nó là dựng lại
+    đúng cái cửa vào mà ``eaa scratch`` sinh ra để hạ xuống.
+    """
+    from eaa.scratch import is_scratch
+
+    if (project / STATE_FILE).is_file() or not is_scratch(project):
+        return False
+
+    print("Chỗ làm nháp chưa khởi tạo — tôi tự làm bước ấy (ở đây nó chỉ là thủ tục).")
+    cmd_init(argparse.Namespace(
+        project=str(project), force=False,
+        provider=getattr(args, "provider", "") or "",
+        model=getattr(args, "model", "") or "",
+    ))
+    print()
+    return True
+
+
 def cmd_scratch(args: argparse.Namespace) -> int:
     """Dựng chỗ làm nháp (C10.1)."""
     from eaa.scratch import ScratchError, create_scratch, warning_banner
@@ -3651,9 +3804,17 @@ def cmd_scratch(args: argparse.Namespace) -> int:
     print()
     print(warning_banner(goc))
     print()
-    print("Dùng nó:")
+
+    # Khởi tạo luôn: ở chỗ nháp bước ấy không quyết định gì (xem
+    # ``_tu_khoi_tao_neu_la_nhap``), và bắt gõ nó là để lại đúng một bậc thềm
+    # nữa ở cửa vào mà lệnh này sinh ra để dọn.
+    if not (goc / STATE_FILE).is_file():
+        cmd_init(argparse.Namespace(project=str(goc), force=False, provider="", model=""))
+        print()
+
+    print("Dùng nó ngay:")
     print(f"  export EAA_PROJECT={goc}")
-    print("  eaa init && eaa chat")
+    print('  eaa chat "viết giúp tôi một hàm đọc kênh ADC"')
     return EXIT_OK
 
 
@@ -3687,6 +3848,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     from eaa.agent import MAX_STEPS, AgentError, AgentLoop
 
     project = resolve_project(args.project)
+    _tu_khoi_tao_neu_la_nhap(project, args)
     ctx = build_context(project)
     vong = AgentLoop(llm=ctx.llm, project=project, max_steps=args.max_steps)
 
@@ -4172,8 +4334,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_plan.set_defaults(func=cmd_plan)
 
     # UC04 — vòng lặp sinh mã
-    p_gen = sub.add_parser("gen", help="Chạy vòng lặp sinh mã chuẩn cho module (UC04)")
+    p_gen = sub.add_parser(
+        "gen",
+        help="Chạy vòng lặp sinh mã chuẩn cho module (UC04)",
+        description=(
+            "'--draft' chạy một tập cổng nhẹ hơn để thử nhanh. Bản nháp KHÔNG "
+            "merge được — và không phải vì bị chặn, mà vì nó không để lại bằng "
+            "chứng nào cho bước merge đọc."
+        ),
+    )
     p_gen.add_argument("module_id")
+    p_gen.add_argument(
+        "--draft", metavar="CỔNG",
+        help="Chế độ nháp: chỉ chạy các cổng này (ngăn phẩy). Ví dụ: --draft compile,static",
+    )
     p_gen.set_defaults(func=cmd_gen)
 
     # UC05 — Human Gate
@@ -4809,6 +4983,56 @@ def build_parser() -> argparse.ArgumentParser:
     p_focus.add_argument("--run", action="store_true",
                          help="Chạy luôn những chặng tôi tự lo được")
     p_focus.set_defaults(func=cmd_focus)
+
+    p_sug = sub.add_parser(
+        "suggest",
+        help="Tự nhìn lại: cái gì đang tốn công nhất, và nên làm gì với nó",
+        description=(
+            "Mọi đề nghị đều kèm SỐ đếm được từ nhật ký thật. Không có tín hiệu "
+            "thì nói thẳng là chưa thấy gì đáng làm — đó là một câu trả lời, "
+            "không phải một thất bại của lệnh."
+        ),
+    )
+    p_sug.add_argument("--min-count", type=int, default=2,
+                       help="Số lần lặp tối thiểu để coi là một tín hiệu")
+    p_sug.set_defaults(func=cmd_suggest)
+
+    p_ass = sub.add_parser(
+        "assess",
+        help="Gói này có đáng cài không: còn bảo trì, license, độ phổ biến, tên có thật",
+        description=(
+            "Đọc siêu dữ liệu từ kho gói — hạng MỞ. Dùng để so công cụ và gỡ "
+            "lỗi; KHÔNG dùng làm nguồn cho giá trị cấu hình phần cứng."
+        ),
+    )
+    p_ass.add_argument("name", help="Tên gói")
+    p_ass.add_argument("--registry", default="pypi", help="pypi | npm | github (github dùng chủ/kho)")
+    p_ass.add_argument("--similar-to", action="append", default=[],
+                       help="Tên gói phổ biến để so, bắt tên gõ nhầm một ký tự")
+    p_ass.set_defaults(func=cmd_assess)
+
+    p_dbg = sub.add_parser(
+        "debug",
+        help="Phiên gỡ lỗi sâu: tôi dựng kế hoạch và ghi vết, BẠN cầm dụng cụ",
+        description=(
+            "N-085 ở mức tự chủ T0 — Agent không chạy phiên gỡ lỗi. Nó dò dụng "
+            "cụ, dựng kế hoạch từ kịch bản chẩn đoán đã duyệt, và ghi lại ai "
+            "làm gì, thấy gì."
+        ),
+    )
+    sub_dbg = p_dbg.add_subparsers(dest="debug_cmd", required=True)
+    d_plan = sub_dbg.add_parser("plan", help="Dựng kế hoạch một phiên")
+    d_plan.add_argument("--scenario", default="", help="Mã kịch bản chẩn đoán, ví dụ DS-03")
+    d_plan.set_defaults(func=cmd_debug_plan)
+    d_log = sub_dbg.add_parser("log", help="Các phiên đã ghi")
+    d_log.set_defaults(func=cmd_debug_log)
+    d_rec = sub_dbg.add_parser("record", help="Ghi lại một phiên đã làm")
+    d_rec.add_argument("--note", required=True, help="Thấy gì")
+    d_rec.add_argument("--actor", default="", help="Ai làm")
+    d_rec.add_argument("--scenario", default="")
+    d_rec.add_argument("--outcome", default="", help="Kết luận rút ra")
+    d_rec.add_argument("--tool", default="", help="Dụng cụ đã dùng")
+    d_rec.set_defaults(func=cmd_debug_record)
 
     # FR-ING-01, N-004 — đọc kho nén hồ sơ dự án
     p_survey = sub.add_parser(

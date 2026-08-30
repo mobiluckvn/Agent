@@ -84,6 +84,9 @@ class MergeAuthorization:
     #: TẠI vẫn băm ra đúng như vậy.
     content_digest: str
     issued_at: str = field(default_factory=_now)
+    #: Bộ cổng BẮT BUỘC phải có mặt trong bằng chứng. Rỗng nghĩa là bên gọi
+    #: không nêu, và khi ấy chỉ kiểm được "cổng nào có thì cổng ấy đạt".
+    required_gates: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.reports:
@@ -99,6 +102,25 @@ class MergeAuthorization:
                 f"Các cổng sau chưa đạt cho {self.module_id!r}: {', '.join(hong)}. "
                 "Merge chỉ xảy ra khi TOÀN BỘ ToolReport.passed (SDD §4, NFR-01)."
             )
+
+        # Phủ ĐỦ, không chỉ "cái nào có thì cái ấy đạt".
+        #
+        # Hai phép kiểm này khác nhau, và khác nhau ở chỗ nguy hiểm: một bằng
+        # chứng chỉ chứa mỗi cổng ``compile`` — đạt — vẫn thỏa phép kiểm phía
+        # trên. "Toàn bộ ToolReport.passed" khi ấy đúng về mặt chữ nghĩa mà
+        # rỗng về mặt nội dung, vì bộ báo cáo mới là thứ quyết định câu ấy có
+        # nghĩa gì. Một cổng VẮNG MẶT là một loại lỗi không được kiểm, y hệt
+        # một cổng trượt.
+        if self.required_gates:
+            co = {r.gate for r in self.reports}
+            thieu = [g for g in self.required_gates if g not in co]
+            if thieu:
+                raise MergeNotAuthorized(
+                    f"Bằng chứng cho {self.module_id!r} thiếu cổng "
+                    f"{', '.join(thieu)}. Merge đòi bằng chứng PHỦ ĐỦ bộ cổng bắt "
+                    "buộc, không chỉ đòi những cổng có mặt đều đạt — một cổng "
+                    "vắng mặt là một loại lỗi không được kiểm (FR-VER-01, NFR-01)."
+                )
 
         if self.decision.gate_id != MERGE_GATE:
             raise MergeNotAuthorized(
@@ -146,6 +168,7 @@ def authorize_merge(
     reports: Sequence[ToolReport],
     decision: GateDecision | None,
     content_digest: str,
+    required_gates: Sequence[str] = (),
 ) -> MergeAuthorization:
     """Dựng giấy phép merge; ném :class:`MergeNotAuthorized` nếu chưa đủ điều kiện.
 
@@ -163,6 +186,7 @@ def authorize_merge(
         reports=tuple(reports),
         decision=decision,
         content_digest=content_digest,
+        required_gates=tuple(required_gates),
     )
 
 

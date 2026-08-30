@@ -376,6 +376,9 @@ class PackManifest:
     smoke_dir: Path
     #: Phiên bản tối thiểu của từng công cụ, đối chiếu với env_lock (FR-ENV-04).
     tool_requirements: dict[str, str] = field(default_factory=dict)
+    #: Trình gỡ lỗi sâu của họ MCU này (N-085). Engine chỉ nhận danh sách và
+    #: kiểm sự có mặt; nó không được biết tên nào trong đây (FR-PLT-01).
+    debug_tools: tuple[str, ...] = ()
     #: Khuôn ráp firmware — xem :class:`FirmwareTemplates`.
     firmware: "FirmwareTemplates | None" = None
     #: Bộ khung firmware chẩn đoán — xem :class:`DiagnosticTemplates`.
@@ -478,6 +481,7 @@ def load_manifest(path: str | Path) -> PackManifest:
         tool_requirements={
             str(k): str(v) for k, v in (du_lieu.get("tool_requirements") or {}).items()
         },
+        debug_tools=tuple(str(x) for x in (du_lieu.get("debug_tools") or ())),
     )
 
 

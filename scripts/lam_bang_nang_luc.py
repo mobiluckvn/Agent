@@ -94,9 +94,9 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
     ("C3.2", "3. Tìm thông tin để xác định công cụ cần cài", "Đọc tài liệu chính thống (docs, README, PyPI) bằng web_fetch", DU,
      "eaa/web.py WebFetcher: hai hạng tin cậy, chặn SSRF, trần byte/thời gian, kiểm lại hạng từng chặng chuyển hướng, bộ đệm để tái lập; `eaa read` · TC-65",
      "", KHONG),
-    ("C3.3", "3. Tìm thông tin để xác định công cụ cần cài", "Đánh giá & chọn công cụ: còn bảo trì, license, độ phổ biến, phụ thuộc hệ thống", PHAN,
-     "toolsearch đọc TRANG CÀI ĐẶT THẬT rồi mới đề xuất; ToolProposal.evidence ghi URL đã tải, và bản in nói rõ khi đề xuất chỉ dựa vào trí nhớ mô hình (SL-80)",
-     "Chưa tự đọc chỉ số bảo trì / license / độ phổ biến từ kho gói", VUA),
+    ("C3.3", "3. Tìm thông tin để xác định công cụ cần cài", "Đánh giá & chọn công cụ: còn bảo trì, license, độ phổ biến, phụ thuộc hệ thống", DU,
+     "eaa/toolassess.py: đọc PyPI/npm/GitHub qua eaa/web.py — lần phát hành cuối, license, độ phổ biến, và TÊN CÓ THẬT KHÔNG (chống gõ nhầm một ký tự) · lệnh eaa assess · TC-75",
+     "", KHONG),
     ("C3.4", "3. Tìm thông tin để xác định công cụ cần cài", "Kiểm bảo mật nguồn cài", DU,
      "eaa/toolsearch.py PACKAGE_MANAGERS là danh sách trắng; validate_proposal chặn URL ngoài miền cho phép và ĐÒI checksum khi tải trực tiếp (AIS §9.4); eaa/ingest.check_web_source lọc miền",
      "Chưa chống typosquatting theo TÊN GÓI (avr-gcc vs avrgcc). Bù lại: mọi đề xuất đều phải qua người duyệt tại gate", VUA),
@@ -159,9 +159,9 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
      "", KHONG),
 
     # ---------------------------------------------------------------- C6 ---
-    ("C6.1", "6. Tự viết code tạo công cụ mới", "Nhận diện khi nào nên tự viết thay vì đi tìm", PHAN,
-     "`eaa tool propose` có sẵn và nằm trong danh mục Agent tự gọi",
-     "Agent chưa tự NHẬN RA lúc nào nên viết — vẫn cần người gợi ý", VUA),
+    ("C6.1", "6. Tự viết code tạo công cụ mới", "Nhận diện khi nào nên tự viết thay vì đi tìm", DU,
+     "eaa/suggest.py đọc nhật ký thật: lệnh Agent đòi mà không có, chuỗi đã lặp, công cụ hay hỏng → đề nghị viết công cụ hoặc rút kỹ năng, MỖI đề nghị kèm số · lệnh eaa suggest · TC-74",
+     "", KHONG),
     ("C6.2", "6. Tự viết code tạo công cụ mới", "Sinh tool đúng chuẩn: chữ ký rõ, type hints, docstring", DU,
      "eaa/toolforge.py ToolForge.design(): sinh mã có MO_TA, SCHEMA, run(), test_ · TC-70",
      "", KHONG),
@@ -194,9 +194,9 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
     ("C7.3", "7. Đăng ký & mở rộng năng lực", "Versioning tool, giữ bản cũ nếu bản mới hỏng", PHAN,
      "env.lock ghim phiên bản; `eaa report versions` đối chiếu",
      "Không giữ song song hai bản để quay lui", THAP),
-    ("C7.4", "7. Đăng ký & mở rộng năng lực", "Đánh giá chất lượng sau khi dùng thật (hay hỏng? chậm?)", PHAN,
-     "kpi_log.csv đo vòng sinh mã; sổ tay lỗi đo tỉ lệ trúng từng CÁCH SỬA",
-     "Chưa đo độ tin cậy từng công cụ tự sinh sau khi dùng thật", VUA),
+    ("C7.4", "7. Đăng ký & mở rộng năng lực", "Đánh giá chất lượng sau khi dùng thật (hay hỏng? chậm?)", DU,
+     "eaa/toolusage.py ghi mọi lần gọi công cụ tự sinh (đạt/hỏng/thời gian); eaa tool list hiện tỉ lệ và cảnh báo — nhưng KHÔNG tự gỡ cái nào · TC-74",
+     "", KHONG),
     ("C7.5", "7. Đăng ký & mở rộng năng lực", "Gộp chuỗi tool hay dùng thành tool cấp cao hơn (skill/workflow)", DU,
      "eaa/skills.py: rút chuỗi việc đã lặp từ chat_log thành kỹ năng đặt tên được; ba cổng (quyền, tham số, chạy khô) rồi người duyệt · lệnh eaa skill list/add/mine/verify/approve/run · TC-71",
      "", KHONG),
@@ -215,7 +215,7 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
      "WebCache ở memory/web_cache — lưu kèm băm và mốc thời gian: để tái lập trước, để nhanh sau",
      "", KHONG),
     ("C8.5", "8. Ghi nhớ & học liên phiên", "Tự đánh giá cuối nhiệm vụ, đề xuất tạo tool/skill mới", DU,
-     "`eaa report kpi` + sổ tay lỗi + `eaa skill mine` đọc nhật ký thật và đề xuất rút chuỗi hay lặp thành kỹ năng",
+     "eaa suggest tự đề xuất 'nên viết công cụ mới cho việc này' từ nhật ký, không chờ người gợi ý · TC-74",
      "", KHONG),
 
     # ---------------------------------------------------------------- C9 ---
@@ -233,18 +233,18 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
      "", KHONG),
 
     # --------------------------------------------------------------- C10 ---
-    ("C10.1", "10. Không đóng cứng quy trình", "Dùng được cho việc NHỎ mà không bắt đi hết vòng đời", PHAN,
-     "`eaa scratch` sinh sẵn hồ sơ; 7 lệnh mới chạy không cần dự án; `eaa focus` nói rõ còn chặng nào",
-     "Vẫn phải `eaa init` trước khi vào `eaa chat`", VUA),
+    ("C10.1", "10. Không đóng cứng quy trình", "Dùng được cho việc NHỎ mà không bắt đi hết vòng đời", DU,
+     "eaa scratch sinh sẵn hồ sơ VÀ khởi tạo luôn; eaa chat tự khởi tạo khi đang ở chỗ nháp; 10 lệnh chạy không cần dự án nào · TC-73",
+     "", KHONG),
     ("C10.2", "10. Không đóng cứng quy trình", "Vào giữa quy trình, bỏ qua giai đoạn không cần", DU,
      "eaa/focus.py: tính TOÀN BỘ tiền điều kiện tới eaa gen thay vì báo cái chặn đầu tiên; nói rõ chặng nào Agent lo được, --run dừng ở chặng đầu tiên của người · TC-72",
      "", KHONG),
     ("C10.3", "10. Không đóng cứng quy trình", "Chế độ không cần toolchain / không cần phần cứng", PHAN,
      "Mô phỏng + MockLLM chạy không cần bo; `eaa scratch` nói rõ ràng buộc là GIẢ ĐỊNH",
      "Cổng compile/static vẫn đòi toolchain — đúng thiết kế cho bản bàn giao", THAP),
-    ("C10.4", "10. Không đóng cứng quy trình", "Người dùng tự chọn cổng nào bật, cổng nào tắt", CHUA,
-     "Bộ cổng do pack.yaml khai, cố định cho cả pack",
-     "Cẩn trọng: cổng tắt được thì bất biến 'merge chỉ khi TOÀN BỘ passed' mất nghĩa. Nếu làm thì phải là 'chế độ nháp, không bao giờ merge được'", VUA),
+    ("C10.4", "10. Không đóng cứng quy trình", "Người dùng tự chọn cổng nào bật, cổng nào tắt", DU,
+     "eaa gen --draft chạy tập cổng nhẹ hơn. Bản nháp KHÔNG merge được DO CẤU TẠO: nó không ghi bằng chứng vào tệp đường merge đọc. Kèm bịt lỗ hổng phủ cổng của giấy phép merge (SL-87) · TC-73",
+     "", KHONG),
 ]
 
 
