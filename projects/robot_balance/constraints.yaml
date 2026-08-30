@@ -25,7 +25,52 @@ limits:
   flash_pct_max: 50         # ngưỡng đề cương (STP-04 §5)
   sram_pct_max: 40
   max_module_lines: 300     # cưỡng chế tại cổng phân tích tĩnh, không dựa vào trần token
-  stack_headroom_bytes: 128 # không tràn stack
+  # Đuôi `_min` không phải chuyện hình thức: cổng đo kích thước THI HÀNH ngưỡng
+  # theo quy ước `<tên>_max` / `<tên>_min`, nên một khóa viết trần trụi
+  # `stack_headroom_bytes` là một ngưỡng có khai mà không ai áp. Nó nằm ở tệp
+  # này từ Sprint 0 và im lặng suốt bốn sprint (N-071).
+  #
+  # Số liệu `stack_headroom_bytes` không do công cụ nào in ra — nó được SUY RA
+  # ở khối `budget.derived` bên dưới, và chỉ có nghĩa ở tầm firmware.
+  stack_headroom_bytes_min: 128
+
+# Ngân sách tài nguyên chia theo module — N-015, duyệt tại G1.
+#
+# Trần TỔNG ở `limits` trả lời câu "còn chỗ không?"; khối này trả lời câu khác
+# và trả lời sớm hơn: "module này có ở trong phần của nó không?". Không có nó,
+# mỗi module lẻ đều dưới 50% và người ta chỉ biết mình hết chỗ vào lúc liên
+# kết — lúc muộn nhất, khi cắt bớt đã thành viết lại.
+budget:
+  # Dung lượng chip, lấy từ hardware_profile.yaml (mcu.flash_bytes/sram_bytes).
+  # Khai lại ở đây vì đây là nơi nó được dùng làm MẪU SỐ để chia.
+  capacity:
+    flash_bytes: 32768
+    sram_bytes: 2048
+
+  # Phần cố ý không chia cho ai: bản vá về sau, mã khởi động, và những thứ chưa
+  # ai nghĩ tới. Tiêu vào dự phòng là một quyết định, không phải một tai nạn.
+  reserve_pct: 20
+
+  # Số liệu engine tự tính: dung lượng trừ phần đã dùng. Đây là thứ biến
+  # `stack_headroom_bytes_min` ở trên từ một dòng chữ thành một cổng thật.
+  derived:
+    stack_headroom_bytes:
+      capacity: sram_bytes
+      used: sram_bytes
+
+  # Phần chia cho từng module. Còn trống vì backlog còn trống — bản chia là
+  # ĐỀ XUẤT của Agent (`eaa budget propose`) rồi người chốt tại G1, chứ không
+  # phải một con số viết sẵn trong tệp mẫu.
+  modules: {}
+
+  # Trần token tích lũy theo module (N-904). Đơn giá thuộc về dự án: nó phụ
+  # thuộc mô hình đang dùng và hợp đồng, hai thứ engine không được ghim.
+  tokens:
+    per_module: 120000
+    warn_at_pct: 80
+    price_in_per_mtok: 1.25
+    price_out_per_mtok: 10.0
+    currency: USD
 
 forbidden:
   - delay()          # cấm hàm chặn (blocking)

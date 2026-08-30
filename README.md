@@ -4,8 +4,12 @@ Agent lập trình nhúng **tổng quát** — bộ điều phối đóng gói q
 phần mềm nhúng có AI hỗ trợ thành một hệ thống chạy được, với các cổng phê duyệt
 của con người được **cưỡng chế bằng phần mềm** chứ không bằng quy ước.
 
-Sản phẩm phần mềm của đề án tốt nghiệp Thạc sĩ Kỹ thuật (Kỹ thuật Điện tử, PTIT)
-— Vũ Trí Công. Thiết kế đã đóng băng; hồ sơ đầy đủ nằm trong [`docs/`](docs/).
+Sản phẩm phần mềm của đề án tốt nghiệp Thạc sĩ Kỹ thuật (Kỹ thuật Điện tử, PTIT).
+
+- **Học viên thực hiện:** Vũ Trí Công
+- **Giảng viên hướng dẫn:** TS. Nguyễn Trung Hiếu
+
+Thiết kế đã đóng băng; hồ sơ đầy đủ nằm trong [`docs/`](docs/).
 
 ## Kiến trúc ba tầng
 
@@ -56,6 +60,41 @@ Các lệnh tra cứu: `eaa resume` · `eaa status` · `eaa policy` · `eaa pack
 
 Mã thoát (để script hóa thực nghiệm A/B): `0` thành công · `2` chờ gate ·
 `3` quá số lần tự sửa · `4` lỗi môi trường.
+
+### Trước khi sinh mã — Agent đề xuất, người chốt
+
+```bash
+eaa brief                                 # dò bo, hỏi, dựng hồ sơ nháp
+eaa propose scope                         # phạm vi và cái KHÔNG làm, kèm lý do
+eaa propose constraints                   # mỗi ràng buộc kèm HỆ QUẢ nếu vi phạm
+eaa propose acceptance                    # tiêu chí = số + đơn vị + cách đo
+eaa propose pinmap                        # bảng chân, kiểm chức năng thay thế
+eaa sources need --lookup                 # tài liệu cần, đích danh, kèm nguồn hãng
+eaa errata lookup --rev <rev in trên chip> # lỗi chip đã công bố cho ĐÚNG rev
+eaa budget propose                        # chia ngân sách flash/RAM theo module
+eaa interface <module> --write            # hợp đồng gọi TRƯỚC khi sinh thân
+```
+
+### Sau khi có mạch thật
+
+```bash
+eaa flash                                 # nạp, rồi ĐỌC NGƯỢC để đối chiếu
+eaa diagnose measure DS-05                # hướng dẫn đo bằng dụng cụ, nhận số về
+eaa endurance --port <cổng> --seconds 600 # chạy dài, bắt reset qua bộ đếm
+eaa scope-image anh.png --expect loop_period_ms   # ảnh màn hiện sóng → số đo
+eaa field "<mô tả triệu chứng>"           # ca hiện trường: dựng lại điều kiện
+eaa handover doc --publish                # tài liệu vận hành + điều KHÔNG làm được
+eaa handover rollout                      # cập nhật thiết bị: một máy trước đã
+```
+
+### Agent tự soi mình
+
+```bash
+eaa report retrieval                      # precision@3 trên bộ chuẩn truy xuất
+eaa report review                         # khâu nào hay hỏng, và nên sửa gì
+eaa budget tokens                         # token và chi phí theo module
+eaa deviations --draft                    # chỗ mã và tài liệu kể hai câu chuyện
+```
 
 ## Kiểm thử
 

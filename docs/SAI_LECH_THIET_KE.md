@@ -624,6 +624,309 @@ Ba loại:
 
 ---
 
+## SL-45 · BỔ SUNG · Năng lực `flash_verify` — đọc ngược sau khi nạp
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-DIA-02, EAA-AIS-05 §7.3; nghiệp vụ N-075 |
+| **Chỗ trống** | Thiết kế đặc tả nạp firmware phải có người xác nhận, nhưng dừng lại ở đó. Không chỗ nào nói *sau khi nạp thì kiểm gì* — nên mã thoát 0 của công cụ nạp đang âm thầm đóng vai bằng chứng cho câu "trên chip đúng là bản này" |
+| **Code làm** | Thêm năng lực `flash_verify` vào `CAPABILITIES` của `eaa/platform.py`; `VerifyResult` + `Flasher.verify()` trong `eaa/flash.py`; hai trường mới trong `FlashRecord`; hai pack khai lệnh đọc ngược của mình |
+| **Ba kết cục, không phải hai** | `khop` (đã kiểm) · `lech` (đã kiểm và hỏng — lần nạp bị coi là TRƯỢT dù công cụ trả 0) · `khong-kiem-duoc` (mạch nạp không hỗ trợ hoặc thiếu công cụ). Gộp hai cái sau vào một cờ nhị phân là đúng chỗ thông tin bị mất |
+| **Vì sao tách khỏi `flash`** | Không phải mạch nạp nào cũng đọc ngược được. Pack thiếu năng lực này phải *nói ra là không kiểm được*, và điều đó chỉ diễn đạt được khi năng lực là một mục khai báo riêng |
+| **Không đòi xác nhận lần hai** | Đọc ngược không đổi gì trên thiết bị, và nó chạy bên trong một lần nạp mà người đã xác nhận. Bắt bấm 'có' hai lần sẽ làm nhạt chính lần xác nhận có ý nghĩa |
+| **Bản ghi cũ** | Mặc định `khong-kiem-duoc`, không phải `khop` — suy ngược lại sẽ gán một bằng chứng chưa từng tồn tại cho các lần nạp đã qua |
+| **Lan sang phong hạng** | `DeviceCheck` có thêm `readback_verified`: commit khớp nhật ký mà chưa đọc ngược thì vẫn đi tiếp được (đây là thiếu biết, không phải mâu thuẫn) nhưng phải nói ra |
+| **Cần cập nhật** | EAA-SDD-03 §2 (`platform.py` — thêm năng lực), EAA-AIS-05 §7.3 |
+| **Test** | TC-52a..e |
+
+---
+
+## SL-46 · BỔ SUNG · `eaa/budget.py` — ngân sách tài nguyên và token theo module
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §3.1 (`limits`), EAA-AIS-05 P5 (ngân sách token); nghiệp vụ N-015, N-071, N-904 |
+| **Chỗ trống** | Thiết kế có trần TỔNG (`flash_pct_max`) và trần MỖI LẦN GỌI (8.000 token), nhưng không có gì ở giữa: không chia phần theo module, và không có trần tích lũy cho một module |
+| **Vì sao cần** | Trần tổng chỉ trả lời được vào lúc liên kết — lúc muộn nhất, khi cắt bớt đã thành viết lại. Mỗi module lẻ đều "dưới 50%" cho tới khi cộng lại thì không |
+| **Code làm** | `ResourceBudget` (chia phần, kiểm bản chia tự mâu thuẫn, số liệu suy ra), `TokenBudget` + `spent_tokens`, `propose_split`; khối `budget` trong `constraints.yaml`; lệnh `eaa budget show/propose/tokens` |
+| **Ba việc một tệp** | Bộ nhớ chương trình, bộ nhớ dữ liệu và token khác nhau ở đơn vị chứ không khác ở cách quản. Tách ba tệp thì luật "cảnh báo khi ăn quá phần" phải viết ba lần — ba cơ hội để lệch nhau |
+| **Sạch ranh giới** | Tên số liệu do pack đặt, dung lượng do dự án khai, đơn giá do dự án khai. Engine chỉ cộng, chia, so sánh — TC-53 quét để chắc không tên số liệu nào bị ghim vào engine |
+| **Lỗi bắt được ngay** | Bản `propose_split` đầu tiên làm tròn gần nhất và sinh ra một bản chia vượt dung lượng đúng 1 byte — tự vi phạm phép kiểm của chính nó. Đã đổi sang làm tròn xuống; phần dôi rơi về dự phòng |
+| **Test** | TC-53a..g |
+
+## SL-47 · LỆCH THẬT · `stack_headroom_bytes` khai từ Sprint 0 mà chưa bao giờ được thi hành
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §3.1; nghiệp vụ N-071 |
+| **Thiết kế nói** | `constraints.yaml` của dự án mẫu khai `stack_headroom_bytes: 128` — "không tràn stack" |
+| **Code làm (trước)** | `SizeGate` chỉ áp quy ước `<tên>_max` / `<tên>_min`. Khóa viết trần trụi rơi qua khe `continue`, nên **ngưỡng ấy im lặng suốt bốn sprint**. Thêm nữa, không công cụ nào in ra số liệu tên `stack_headroom_bytes` để mà so |
+| **Code làm (nay)** | Đổi khóa thành `stack_headroom_bytes_min`; thêm `budget.derived` để engine SUY RA số liệu ấy bằng `dung_lượng − đã_dùng`; chỉ suy ở tầm firmware, vì ở tầm module con số sẽ rộng rãi giả tạo |
+| **Vì sao xếp loại LỆCH THẬT** | Đây không phải chỗ trống của tài liệu mà là một ngưỡng **có khai, không ai áp** — thứ tệ hơn không khai, vì nó tạo cảm giác đã kiểm |
+| **Cần cập nhật** | EAA-SDD-03 §3.1: nêu rõ quy ước đuôi `_max`/`_min` là điều kiện để một ngưỡng được thi hành |
+| **Test** | TC-53d |
+
+## SL-48 · DỜI CHỖ · Đầu vào của TC-15 đóng băng cạnh fixture, không đọc từ dự án mẫu
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-STP-04 TC-15 |
+| **Trước** | `tests/test_tc15_e2e.py` chép `constraints.yaml`, `hardware_profile.yaml`, `datasheets/` thẳng từ `projects/robot_balance/` |
+| **Vấn đề** | Băm prompt phủ toàn bộ ngữ cảnh, nên **mọi lần sửa dự án mẫu đều làm trượt băm và đòi ghi lại fixture bằng một lượt gọi API thật** — kể cả khi thay đổi ấy chẳng liên quan tới thứ TC-15 chứng minh. Phát hiện đúng lúc thêm khối `budget` |
+| **Lý do nặng hơn lý do tiện lợi** | Phản hồi trong fixture được mô hình sinh ra *dưới đúng bộ ràng buộc cũ*. Ghép ràng buộc mới với phản hồi cũ là dựng một cảnh mô hình chưa bao giờ nhìn thấy. Bằng chứng đã ghi phải đi cùng đầu vào đã sinh ra nó |
+| **Nay** | `tests/fixtures/e2e_project/` giữ bản chụp ba đầu vào ấy, kèm README nói rõ cách làm mới (hai bước, có chủ ý). Bộ mô phỏng vẫn đọc từ dự án mẫu vì nó KHÔNG vào prompt |
+| **Ghi nhận thêm** | Lệnh thay dòng `platform:` sau khi chép đã bỏ: nó khiến tệp được băm khác tệp nằm trong kho, nên không cách nào đối chiếu bản ghi với đầu vào |
+| **Test** | `test_dau_vao_anh_huong_bam_prompt_deu_da_dong_bang` canh đúng điều này |
+
+---
+
+## SL-49 · BỔ SUNG · `eaa/propose.py` — Agent đề xuất ở G0/G1, không chỉ đối chiếu
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1 (quy trình P1), FR-KB-01; công đoạn A1, B2; nghiệp vụ N-006, N-010, N-011, N-014 |
+| **Chỗ trống** | Bốn việc của giai đoạn đầu đều có cơ chế và đều thiếu đúng một nửa: engine ĐỌC được ràng buộc, ĐỐI CHIẾU được tiêu chí nghiệm thu, TRA được bảng chân — nhưng không tự nói ra được một đề xuất nào. Người dùng vẫn phải tự biết cần khai gì |
+| **Vì sao đáng làm** | Đối chiếu bắt đầu từ một danh sách đã có; đề xuất phải bắt đầu từ trang trắng. Trang trắng mới là chỗ người mới vào nghề mắc kẹt, và Ma trận Người–AI xếp cả bốn việc này ở mức T1 (Agent đề xuất, người chốt) chứ không phải T0 |
+| **Code làm** | `ScopeProposal`, `ConstraintProposal`, `AcceptanceProposal`, `PinMapProposal`, `LlmProposer`; lệnh `eaa propose scope/constraints/acceptance/pinmap`; tệp `scope.yaml`; khóa `pin_functions` trong `hardware_profile.yaml` |
+| **Bốn bất biến riêng** | ① mục NGOÀI phạm vi phải có lý do ② mỗi ràng buộc kèm HỆ QUẢ nếu vi phạm — người duyệt cần căn cứ để **bác**, mà một con số trần trụi không phải căn cứ ③ tiêu chí nghiệm thu = số + đơn vị + cách đo + nguồn số đo; câu kiểu "chạy mượt" bị từ chối kèm câu hỏi làm nó đo được ④ mỗi chân phải nói phục vụ chức năng gì, và chức năng ấy được đối chiếu với bảng chức năng thay thế |
+| **Ba kết cục ở phép kiểm chân** | `hỗ trợ` · `KHÔNG hỗ trợ` · `chưa kiểm được`. Kết cục thứ ba tồn tại vì engine **không được biết** chân nào làm được gì — tri thức ấy thuộc đúng một họ vi điều khiển. Chưa khai `pin_functions` thì nói thẳng là chưa kiểm, không im lặng cho qua |
+| **Bất biến chặn cả nguồn từ mô hình** | Ràng buộc thiếu hệ quả, tiêu chí thiếu đơn vị… bị từ chối ngay lúc dựng đối tượng, nên mô hình cũng không lách được — không chỉ chặn khi người gõ tay |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/propose.py`, `scope.yaml`; EAA-SDD-03 §3.2: thêm `pin_functions` vào lược đồ Hardware Profile |
+| **Test** | TC-54a..g |
+
+---
+
+## SL-50 · BỔ SUNG · `eaa/docplan.py` — tài liệu đích danh, trang đích danh, errata theo rev
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1–6.2, FR-GAP-02, FR-ING-02; nghiệp vụ N-004, N-030, N-037 |
+| **Chỗ trống** | Thiết kế có tầng THU NHẬN tài liệu (`ingest.py`) và tầng ĐI TÌM khi thiếu (`gapsearch.py`), nhưng không có tầng nói **cần gì ngay từ đầu**. Người dùng vẫn phải tự biết mình cần đưa những tài liệu nào |
+| **Code làm** | `plan_documents` (N-004), `plan_pages` (N-030), `ErrataAnalysis` + `LlmDocLookup` (N-037); lệnh `eaa sources need/pages`, `eaa errata show/lookup`; tệp `errata.yaml` |
+| **Suy được vs phải tra** | Suy từ dữ liệu dự án: danh sách tài liệu (hồ sơ phần cứng), thanh ghi còn thiếu trích đoạn (đồ thị + kho chunk), module chạm lỗi (backlog). Phải tra: đường dẫn trang hãng và nội dung errata — cả hai là *proposed fact*, nguồn chặn trong danh sách cho phép, duyệt tại G2 |
+| **Vì sao errata quan trọng hơn vẻ ngoài** | Mã **đúng theo datasheet** vẫn chạy sai nếu chip có lỗi đã công bố. Đây là loại lỗi mà **mọi cổng kiểm chứng của hệ thống này đều cho qua** — vì mã thật sự đúng với thứ nó được bảo. Không tài liệu nào khác nói được điều đó |
+| **Bất biến trung tâm** | `looked_up: false` nghĩa là CHƯA AI TRA, không phải "chip sạch" — một danh sách trống ở hai trường hợp ấy trông y hệt nhau. Cùng nguyên tắc với `verify_status` ở SL-45 |
+| **Bất biến thứ hai** | `revisions` trống = tài liệu không nói rõ → coi là DÍNH mọi rev. Suy ngược lại biến một chỗ thiếu thông tin thành một lời bảo đảm |
+| **Danh sách ngắn là điểm chính của N-030** | Chỉ xin phần còn THIẾU trích đoạn, và chỉ tính bản `active` — chunk đã bị supersede thì thanh ghi ấy coi như chưa có, vì đó đúng là tình trạng của nó |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/docplan.py`, `errata.yaml`; EAA-AIS-05 §6.2: nêu bước "lập danh sách tài liệu cần" trước bậc thang tìm kiếm |
+| **Test** | TC-55a..h |
+
+---
+
+## SL-51 · BỔ SUNG · `eaa/interfaces.py` + khuôn `interfaces` của pack — giao diện sinh trước thân
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §3 (K3 interface-only), FR-CTX-02; nghiệp vụ N-041 |
+| **Chỗ trống** | Lớp K3 của composer đọc tệp tiêu đề của module phụ thuộc, nhưng tệp ấy chỉ tồn tại SAU khi module kia sinh xong và merge. Hệ quả: thứ tự làm việc bị ép thành một hàng dọc — không ai bắt đầu được cho tới khi người trước xong |
+| **Code làm** | `FunctionContract`, `InterfaceSpec`, `InterfaceGenerator`, `LlmInterfaceDesigner`; `InterfaceTemplates` trong `eaa/platform.py`; khuôn `templates/module.h.tmpl` ở cả hai pack; lệnh `eaa interface <module> [--write]` |
+| **Ba câu chữ ký không nói được** | gọi trong ngắt được không · có chặn không · tái nhập được không. Cả ba mặc định là KHÔNG, không phải "chắc là được" — một mặc định êm ái sẽ được nhận vì tiện, và sai lệch chỉ lộ ra dưới tải |
+| **Một mâu thuẫn bị chặn tại chỗ** | `isr_safe` **và** `blocking` cùng đúng bị từ chối ngay lúc dựng đối tượng, kể cả khi nguồn là mô hình |
+| **Engine không viết C** | Tệp tiêu đề là mã C nên khuôn nằm ở pack — cùng ranh giới với khuôn ráp firmware (SL-31). TC-56 quét engine tìm `#ifndef`/`#define` để chắc điều đó không trôi |
+| **Mắt xích dễ tuột** | Tệp tiêu đề đề xuất mang dòng đầu `GIAO DIỆN ĐỀ XUẤT — thân module CHƯA sinh`, và composer lấy đúng dòng chú thích đầu tiên làm tóm tắt lớp K3. Nhờ vậy mô hình biết nó đang dựa vào một lời hứa chứ không vào mã đã kiểm |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/interfaces.py`, mục `interfaces` trong lược đồ `pack.yaml` |
+| **Test** | TC-56a..e |
+
+## SL-52 · BỔ SUNG · Cổng test đơn vị nêu đích danh phần KHÔNG kiểm được
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §2 (pytest runner), FR-VER-01; nghiệp vụ N-053 |
+| **Chỗ trống** | Cổng chạy được và chặn được, nhưng một dòng "12 passed" không phân biệt *đã kiểm* với *không kiểm được ở đây*. Người đọc mang cảm giác đã phủ hết sang bước tiếp theo |
+| **Code làm** | `host_gaps()` trong `eaa/tools/unittests.py`; `UnitTestGate` nhận thêm `module`/`graph`/`constraints` |
+| **Suy từ đâu** | Đồ thị tài nguyên của chính module: thanh ghi nó cấu hình, ngoại vi nó chiếm, ràng buộc thời gian của dự án. Ba loại, và tách ra có ích vì mỗi loại được đóng ở một chỗ khác — thanh ghi ở G4, ngoại vi ở chẩn đoán hai kênh, thời gian ở cổng mô phỏng |
+| **Cảnh báo, không phải lỗi** | Thiếu sót này không sửa được bằng cách viết thêm test trên máy chủ, nên chặn ở đây là vô ích. Nó được NÊU RA, và nêu cả khi mọi test đều xanh — nhất là khi mọi test đều xanh |
+| **Tương thích ngược** | Không truyền ba tham số mới thì cổng chạy y như trước, chỉ im lặng hơn |
+| **Test** | TC-56f, TC-56g |
+
+---
+
+## SL-53 · BỔ SUNG · Tiêm lỗi trong mô phỏng — `FaultSpec` trong `sim_runner.py`
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-SIM-01, EAA-SAD-02 ADR-05; công đoạn C2; nghiệp vụ N-063 (nối với N-016, N-017) |
+| **Chỗ trống** | Bộ mô phỏng kiểm được "hệ có giữ được thăng bằng khi mọi thứ hoạt động không". Nó không có cách nào hỏi câu quan trọng hơn: **khi cảm biến hỏng thì hệ có kịp vào chế độ an toàn không** — trong khi `safety.yaml` (N-016) đã liệt kê sẵn các kiểu hỏng ấy từ S4 |
+| **Code làm** | `FaultSpec` + `_TiemLoi` + `_trang_thai_an_toan()` trong `eaa/tools/sim_runner.py`; ngưỡng `require_safe_state`; ba kịch bản tiêm lỗi trong `projects/robot_balance/sim/scenarios.yaml`; chế độ an toàn trong bộ điều khiển tham chiếu |
+| **Bốn kiểu hỏng, đặt tên theo HÀNH VI** | `stuck` · `garbage` · `dropout` · `power_sag`. Không đặt theo tên linh kiện, vì engine không được biết tên một họ cảm biến nào |
+| **Đặt GIỮA mô hình và bộ điều khiển** | Không đặt trong mô hình: một mô hình có sẵn chỗ để hỏng thì mãi mãi chỉ hỏng theo những cách đã nghĩ ra lúc viết nó. Ở đây, thêm một kiểu hỏng là thêm một dòng YAML |
+| **Ba trạng thái, không phải hai** | `safe_state_entered` = 1 / 0 / **−1 (không kiểm được)**. Bộ điều khiển không khai `safe`/`is_safe()` thì kết luận là *chưa kiểm được*, không phải *không vào* — cùng nguyên tắc với `verify_status` ở SL-45 |
+| **Một ngoại lệ có lý do vật lý** | Kịch bản đòi chế độ an toàn mà hệ vào được thì việc robot NGÃ không bị tính là trượt: chế độ an toàn nghĩa là cắt lệnh chấp hành, và một robot bị cắt lệnh thì ngã. Đòi cả hai là đòi hai điều loại trừ nhau |
+
+### Hai con số do tiêm lỗi chọn ra, không do trực giác
+
+| | |
+|---|---|
+| **Ngưỡng phát hiện cảm biến kẹt** | Bản đầu đặt 50 chu kỳ (0,5 s) vì "nghe hợp lý". Kịch bản `loi_cam_bien_ket` cho thấy robot **đã ngã trước khi bộ phát hiện kịp bật**. Quét lại: vách đứng nằm giữa 20 và 30 chu kỳ — cửa sổ chỉ ~200 ms. Chốt 10 chu kỳ (100 ms) để còn biên |
+| **Thời lượng kịch bản sụt nguồn** | Ở mức còn 30% lực: chịu được 1,0 s (đỉnh 1,2°), NGÃ ở 2,0 s. Đặt kịch bản ở 1,0 s — ngay dưới vách. Đặt ở 0,3 s thì mọi bộ tham số đều qua và phép kiểm thành trang trí |
+| **Vì sao ghi lại** | Cả hai đều là kết luận **quan sát được**, không phải lựa chọn thẩm mỹ. Đây đúng là loại giá trị mà tiêm lỗi sinh ra: nó biến một tham số đặt theo cảm tính thành một tham số có căn cứ |
+
+| **Test** | TC-57a..e; TC-12 đổi từ đếm cứng 3 kịch bản sang "mọi kịch bản dự án khai" |
+
+## SL-54 · BỔ SUNG · `PlantModelProposal` — đề xuất mô hình đối tượng (N-060)
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SAD-02 ADR-05; công đoạn C1; nghiệp vụ N-060 |
+| **Chỗ trống** | Dự án mẫu có mô hình con lắc viết tay, nhưng Agent không đề xuất được mô hình cho một đối tượng mới — nên phần tổng quát của bộ mô phỏng dừng ở khung chạy, không tới được nội dung |
+| **Code làm** | `PlantParameter`, `PlantModelProposal`, `LlmProposer.plant_model()`; lệnh `eaa propose plant --plant "<đối tượng>"` |
+| **Hai bất biến** | ① tham số `uoc_luong` BẮT BUỘC nói cách đo — một ước lượng không kèm cách kiểm sẽ lặng lẽ được đọc như một số đo ② mô hình BẮT BUỘC nêu hiện tượng nó bỏ qua; một mô hình tự nhận không bỏ qua gì là mô hình chưa ai nghĩ tới giới hạn của nó, và sẽ được tin quá mức |
+| **Nối vào Assumption Log** | `to_assumption_log()` dựng sẵn mục `proposed` kèm `how_to_verify` để dán vào `hardware_profile.yaml` — đúng đường đi của tri thức chưa thực chứng ở AIS §8.1 |
+| **Test** | TC-57f, TC-57g |
+
+---
+
+## SL-55 · BỔ SUNG · Hoàn thiện tầng đo trên thiết bị thật (N-081, N-083, N-084, N-086)
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7 (DS-01..06), EAA-SRS-01 FR-DIA-01/03; công đoạn G8 |
+| **Chỗ trống** | Cơ chế chẩn đoán đủ từ S4, nhưng **mới 2/6 kịch bản có phần đo**; kịch bản thời gian chỉ đo trung bình; không có kênh nào cho phép đo bằng dụng cụ; và tiêu chí `uptime_s ≥ 600` trong `constraints.yaml` không có gì thi hành nó |
+| **N-081 · đủ sáu phần đo** | Viết `DS-02.c`, `DS-03.c`, `DS-05.c`, `DS-06.c` ở tầng dự án. Thêm `Scenario.buildable` — kịch bản chưa khai phần đo thì DỪNG, không dựng một ảnh rỗng: một firmware chạy trơn tru và trả về không có gì thì "không có gì" không phân biệt được với "đo xong, mọi thứ bình thường" |
+| **N-083 · trường hợp xấu nhất** | DS-06 đo thêm `isr_period_max_ms` và `cpu_load_pct`. Ràng buộc `control_loop_ms` được đối chiếu với **chu kỳ dài nhất**, không với trung bình — trung bình gần như luôn đẹp, còn con lắc ngược thì ngã vì đúng cái chu kỳ 23 ms mỗi vài giây |
+| **N-083 · hai bộ đếm độc lập** | Timer1 là vật được đo, Timer0 là thước. Một bộ đếm tự đo chính mình thì mọi sai số nguồn xung nhịp triệt tiêu và ta luôn được một con số hoàn hảo — hoàn hảo vì nó không đo gì cả |
+| **N-084 · kênh thứ ba** | `ManualMeasurement` + `eaa diagnose measure`. Bốn trường bắt buộc là bốn câu một hướng dẫn đo phải trả lời: **đo cái gì, ở đâu, trong điều kiện nào, chờ đợi bao nhiêu**. Thiếu một câu thì hai người đo ra hai kết quả và không ai sai. Số đo về ghi vào `measurements.jsonl`, append-only |
+| **N-084 · vì sao cần** | Dòng tổng, sụt áp **trên dây**, nhiệt độ vỏ linh kiện — không con chip nào tự đo được về chính nó. ADC nội đo được điện áp tại chân chip, còn sụt áp nằm trên đoạn dây trước đó |
+| **N-086 · `eaa/endurance.py`** | Phát hiện reset qua **bộ đếm thời gian chạy tụt xuống** — bằng chứng trực tiếp, khác hẳn suy từ một khoảng lặng trên đường truyền (khoảng lặng cũng có thể do rút dây) |
+| **Bất biến của N-086** | Báo cáo **không suy rộng**. Câu đầu tiên luôn nói về THỜI GIAN đã quan sát thật, trước cả khi nói mọi thứ đều tốt; chạy ngắn hơn yêu cầu là *CHƯA KẾT LUẬN ĐƯỢC*, và thiếu bộ đếm là *KHÔNG KẾT LUẬN ĐƯỢC* — không cái nào là "đạt" |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/endurance.py`, `measurements.jsonl`, lệnh `eaa endurance` và `eaa diagnose measure`; EAA-AIS-05 §7.2: thêm khối `manual` vào lược đồ kịch bản |
+| **Test** | TC-58a..g; TC-27 cập nhật vì DS-06 đổi từ 2 lên 5 tiêu chí |
+
+---
+
+## SL-56 · BỔ SUNG · `eaa/handover.py` + `FieldCase` — giai đoạn bàn giao và vận hành
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7, §8.5; FR-DOC-01; công đoạn G9, G10; nghiệp vụ N-094, N-101, N-102, N-103 |
+| **Chỗ trống** | Thiết kế dừng ở nghiệm thu G4/G5. Bốn việc sau đó — bàn giao, đổi linh kiện, sự cố hiện trường, cập nhật thiết bị đã triển khai — không có chỗ nào trong cây thư mục, dù chúng chiếm phần lớn vòng đời một sản phẩm nhúng |
+| **N-094 · `OperationsHandbook`** | Sinh tài liệu vận hành từ dữ liệu dự án. Toàn bộ nội dung đã nằm rải rác sẵn (bảng chân, kịch bản chẩn đoán, Assumption Log, nhật ký nạp) — việc ở đây là GOM, không phải nghĩ ra, nên nó sinh được và nên sinh chứ đừng chép tay |
+| **Mục "KHÔNG làm được" là phần chính** | Dựng từ bốn nguồn dữ liệu thật: giả định chưa kiểm, kịch bản chưa có phần đo, đại lượng phải đo tay, errata chưa tra, kiểu hỏng không phát hiện được. Một mục viết tay sẽ liệt kê những giới hạn người viết NHỚ RA — tức là những giới hạn ít nguy hiểm nhất |
+| **N-101 · `SwapAnalysis`** | So hai linh kiện rồi bắc cầu trên đồ thị tài nguyên ra module bị chạm. Báo cáo nói rõ nó nêu được module *đụng tới* thứ đã đổi, KHÔNG nói được mã ấy sai ở đâu. `drop_in: true` vẫn kèm câu "phải chạy lại chẩn đoán" — "thay thẳng được" là lời hứa về chân, không phải về dải hoạt động |
+| **Một dòng bị cấm** | `ComponentDelta` từ chối mục có `old == new`. Bảng so sánh đầy dòng "giống nhau" sẽ được lướt qua, và dòng khác biệt thật sự lướt qua cùng |
+| **N-102 · `FieldCase`** | Ca hiện trường khác một phiên trên bàn ở đúng một điểm: **hiện tượng không xảy ra trước mặt ta**. Nên bước đầu là DỰNG LẠI ĐIỀU KIỆN, và ba trạng thái `tái-hiện-được` / `không-tái-hiện` / `chưa-thử` được phân biệt. Không tái hiện ⇒ *CHƯA KẾT LUẬN ĐƯỢC*, kèm việc phải làm: đi lấy thêm dữ kiện, không đoán nguyên nhân |
+| **N-103 · `RolloutPlan`** | Bậc đầu tiên có **đúng một** thiết bị — không thương lượng; số thiết bị phải tăng dần; mỗi bậc phải nêu ĐIỀU KIỆN DỪNG; phải có bản quay lui, và bản ấy lấy từ `known_good.lock` (chỉ cập nhật tại G4 sau khi có số đo vật lý) chứ không từ một commit trông có vẻ ổn định |
+| **Engine không tự chuyển bậc** | Điều kiện dừng là thứ người quan sát, không phải thứ đọc được từ một tệp |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/handover.py`, `rollout.yaml`, lệnh `eaa handover` và `eaa field`; EAA-AIS-05 §7: thêm mục ca hiện trường |
+| **Test** | TC-59a..h |
+
+---
+
+## SL-57 · BỔ SUNG · `eaa/confidence.py` — một bộ từ vựng mức tin cậy cho toàn hệ
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1 (proposed fact), §12; FR-ING-02; nghiệp vụ N-903 |
+| **Chỗ trống** | Nhiều chỗ đã phân biệt đúng ba loại phát biểu — `flash.VerifyResult`, `docplan.ErrataAnalysis`, `propose.PlantParameter` — nhưng **mỗi chỗ tự đặt tên theo cách riêng**. Người đọc phải học lại từ vựng ở từng màn hình, và những chỗ CHƯA phân biệt thì không có gì nhắc rằng chúng nên |
+| **Code làm** | `DA_KIEM` / `SUY_RA` / `GIA_DINH` / `KHONG_KIEM_DUOC`, `Claim`, `ClaimSet`; năm module hiện có expose `confidence_level` quy về đúng bốn mức ấy |
+| **Ranh giới hay bị gộp** | GIẢ ĐỊNH vs KHÔNG KIỂM ĐƯỢC. Cái đầu còn kiểm được nếu ai đó bỏ công; cái sau cần một cách khác hoặc một dụng cụ khác. Hai tình huống dẫn tới hai việc phải làm khác hẳn, nên gộp là mất thông tin |
+| **Ba bất buộc của `Claim`** | ĐÃ KIỂM phải có nguồn (không có nguồn thì đó chỉ là một câu nói chắc) · GIẢ ĐỊNH phải có cách kiểm · KHÔNG KIỂM ĐƯỢC phải có lý do |
+| **Điều nó cố ý KHÔNG làm** | Không xếp hạng, không tính điểm tin cậy tổng. Một con số như thế nghe khoa học và che mất đúng thứ cần thấy: phát biểu NÀO đang ở mức nào |
+| **Cần cập nhật** | EAA-SDD-03 §2; EAA-AIS-05 §6.1: nêu bốn mức là quy ước chung |
+| **Test** | TC-60a..c |
+
+## SL-58 · BỔ SUNG · `eaa/deviation.py` — Agent tự phát hiện sai lệch (N-905)
+
+| | |
+|---|---|
+| **Tài liệu** | `CLAUDE.md` ("không lệch ngầm"); nghiệp vụ N-905 |
+| **Chỗ trống** | Sổ này đầy đủ nhưng được ghi TAY, và một sổ ghi tay im lặng khi ai đó thêm một module rồi quên ghi. Đúng thứ mà quy tắc "không lệch ngầm" sinh ra để chặn |
+| **Code làm** | `scan()` đối chiếu module trong `eaa/` và lệnh CLI với cây thư mục EAA-SDD-03 và với chính sổ này; lệnh `eaa deviations [--draft]` |
+| **Đối chiếu danh sách, không đọc ý định** | Nó bắt được *"có trong mã mà không có trong tài liệu"*; nó **không** bắt được một module làm khác điều tài liệu mô tả. Giới hạn ấy được in ra cùng kết quả, không giấu |
+| **Không dùng mô hình có chủ ý** | Một phép đối chiếu danh sách chạy bằng mô hình sẽ chậm hơn, tốn tiền, và có thể bỏ sót theo cách không tái hiện được |
+| **Chỉ dựng nháp** | Phân loại BỔ SUNG / DỜI CHỖ / LỆCH THẬT là phán đoán về ý định, và lý do của lệch chỉ người làm mới biết. Máy dựng khung kèm chỗ trống rõ ràng |
+| **Lệnh lấy từ chính bộ phân tích đối số** | Chép tay danh sách lệnh thì nó lệch ngay lần thêm lệnh sau, và một bộ dò sai lệch tự nó lệch thì tệ hơn không có |
+| **Test** | TC-60d..f |
+
+## SL-59 · BỔ SUNG · Bốn lệnh CLI có từ trước mà chưa lần nào được ghi nhận
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §6 (10 lệnh CLI) |
+| **Phát hiện bởi** | Chính `eaa deviations` ở lượt chạy đầu tiên — đây là bằng chứng cơ chế N-905 làm được việc nó sinh ra để làm |
+| **Bốn lệnh** | `eaa status` (xem trạng thái, chỉ đọc) · `eaa policy` (in bảng phân quyền và máy trạng thái) · `eaa packs` (liệt kê Platform Pack đã cài) · `eaa docs` (kho phẩm xuất, AIS §8.5) |
+| **Phân loại** | BỔ SUNG. Cả bốn đều là lệnh CHỈ ĐỌC, không tạo ra quyết định nào và không chạm vào thiết bị — chúng bày ra thứ đã có. Đó là lý do chúng lọt qua mọi lần rà trước: không lệnh nào trong số đó làm gì đáng ngờ |
+| **Vì sao vẫn phải ghi** | Danh sách lệnh là mặt tiếp xúc của sản phẩm với người dùng. Một lệnh không có trong tài liệu là một lệnh không ai biết để dùng, và cũng là một lệnh không ai nhớ để bảo trì |
+| **Cần cập nhật** | EAA-SDD-03 §6: mở rộng bảng lệnh từ 10 lên số lệnh hiện có |
+
+## SL-60 · BỔ SUNG · `KpiLogger.weak_points()` — tự đánh giá quy trình (N-906)
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-KPI-01; công đoạn F1; nghiệp vụ N-906 |
+| **Chỗ trống** | `summary()` tổng hợp được số liệu nhưng cố ý KHÔNG diễn giải. Nên không chỗ nào trả lời câu "khâu nào hay hỏng nhất, và nên sửa gì" |
+| **Code làm** | `ProcessReview` + bảng `_HUONG_SUA`; lệnh `eaa report review` |
+| **Ranh giới giữ nguyên** | `summary()` vẫn không diễn giải; phần diễn giải nằm ở một hàm khác, và mọi đề xuất **gắn với một con số quan sát được**. Trộn hai việc thì người đọc không còn biết đâu là quan sát, đâu là suy đoán |
+| **Hướng sửa là DỮ LIỆU** | Bảng "cổng X trượt nhiều thì thường vì Y" đến từ quan sát, không từ suy luận — thêm một cổng mới là thêm một dòng, không sửa mã |
+| **Câu quan trọng khi chưa có dữ liệu** | "Chưa thấy khâu nào nổi lên" **không** có nghĩa là quy trình đang tốt; nó có nghĩa là chưa đủ dữ liệu để thấy |
+| **Test** | TC-60g..i |
+
+---
+
+## SL-61 · BỔ SUNG · `eaa/goldenset.py` — bộ chuẩn đánh giá truy xuất (TC-20)
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §4, ADR-07, FR-KG-03; **TC-20** — test case của thiết kế, tới bản này mới có |
+| **Chỗ trống** | Không có gì đo được chất lượng truy xuất. Kho lớn dần, mỗi trích đoạn mới là một ứng viên nữa cạnh tranh ba chỗ trong prompt — và đó là kiểu thoái lui **không làm đỏ một test nào**: mã vẫn chạy, prompt vẫn lắp được, chỉ là nội dung dần kém liên quan. Hậu quả hiện ra ở chỗ khác hẳn, dưới dạng mô hình bịa giá trị vì thứ nó cần không có trong prompt |
+| **Code làm** | `GoldenCase`, `GoldenSet`, `RetrievalReport`; `retrieval_golden.yaml` ở tầng dự án; hai chunk nhiễu có chủ ý; lệnh `eaa report retrieval` |
+| **Vì sao precision@k chứ không recall** | Prompt chỉ có chỗ cho k trích đoạn, nên câu hỏi đúng là "trong k cái được chọn, bao nhiêu cái liên quan". Recall đo một thứ mà ngân sách token vốn đã chặn |
+| **Mẫu số là số chunk THẬT SỰ chọn** | Chia cho k khi kho chưa đủ chunk là phạt bộ chọn vì một chỗ thiếu của kho — một phép đo đổ lỗi nhầm chỗ |
+| **Chunk nhiễu phải KHÓ** | `ds-023` (TWI chế độ slave) đúng về nội dung, đã duyệt G2, cùng ngoại vi, chia sẻ một thanh ghi — mà vẫn vô can. Chunk nhiễu ngây thơ (nói về ngoại vi chẳng ai dùng) không đo được gì: bộ chọn theo quan hệ loại nó ngay |
+
+### Lỗi mà TC-20 tìm ra ngay lượt chạy đầu tiên
+
+| | |
+|---|---|
+| **Quan sát** | precision@3 = **0,889** (dưới ngưỡng 0,9), và `ds-023` đẩy `ds-031` — trích đoạn khởi động chính con cảm biến — ra khỏi ba chỗ của prompt |
+| **Nguyên nhân gốc** | `KnowledgeGraph.build` nối cạnh `configured_by` cho **ngoại vi** nhưng không cho **linh kiện**. Nên trích đoạn về cảm biến chỉ được nối qua quan hệ "module dùng linh kiện" — yếu hơn hẳn — và thua một trích đoạn chỉ tình cờ chia sẻ MỘT thanh ghi của bus |
+| **Sửa** | Linh kiện cũng nhận cạnh `configured_by`; `hardware_profile.yaml` khai `configured_by` cho `imu`. precision@3 lên **1,000**, không chunk nhiễu nào lọt |
+| **Một quyết định đi kèm** | Danh sách chỉ có bốn thanh ghi của phần nhận dạng/khởi động — đúng phần `ds-031` đã qua G2. Thanh ghi cấu hình dải đo thuộc `ds-032` còn ở trạng thái proposed; khai chúng bây giờ sẽ khiến Readiness Check chặn vòng sinh mã, và chặn ĐÚNG |
+| **Vì sao đáng ghi lại** | Đây là loại lỗi mà không test nào khác bắt được: mọi test cũ vẫn xanh, prompt vẫn lắp được, chỉ là nội dung sai chỗ. Nó lộ ra đúng vào lượt chạy đầu tiên của phép đo sinh ra để bắt nó |
+| **Test** | TC-20a..d |
+
+## SL-62 · BỔ SUNG · `ScopeImageReader` — ảnh màn hiện sóng thành số đo (TC-23)
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1, FR-ING-03; **TC-23** — test case của thiết kế, tới bản này mới có |
+| **Chỗ trống** | `ingest.py` phân loại được đầu vào ảnh và giữ được ảnh gốc, nhưng không có gì đọc ảnh thành số đo. FR-ING-03 đặc tả đầy đủ mà không có nơi cài đặt |
+| **Code làm** | `ProposedMeasurement`, `ScopeImageReader`; trường `Prompt.image_path`; lệnh `eaa scope-image` |
+| **Ba trường quyết định tệp này có ích hay có hại** | `uncertainty` — sai số ĐỌC ẢNH, và thiếu nó thì số đọc từ ảnh trông y hệt số máy đo gửi về · `reading` — thấy gì trên ảnh để ra con số ấy, để người kiểm lại mà không cần tin · `status` luôn là `proposed` |
+| **Người sửa được trước khi lưu** | `accept(value, actor=...)` nhận giá trị NGƯỜI chốt, và bản ghi giữ **cả hai** con số kèm cờ `edited`. Nếu về sau số đo gây tranh cãi, câu "máy đọc ra bao nhiêu, người sửa thành bao nhiêu" phải trả lời được từ dữ liệu |
+| **Không đọc được là kết cục hợp lệ** | Một con số bịa ra kèm đơn vị đúng còn tệ hơn không có con số nào |
+| **Ảnh gốc giữ lại trước khi trích** | Câu "máy đọc nhầm ảnh" chỉ kiểm chứng lại được khi ảnh còn đó |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/goldenset.py`, `retrieval_golden.yaml`, `measurements.jsonl`, lệnh `eaa scope-image` và `eaa report retrieval` |
+| **Test** | TC-23a..d |
+
+---
+
+## SL-63 · LỆCH THẬT · Đồ thị tri thức không nối thanh ghi cho LINH KIỆN
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §5 (Knowledge Graph), ADR-08; FR-KG-01 |
+| **Thiết kế nói** | Node MCU / Peripheral / Register / Pin, cạnh `has` / `configured_by` / `outputs_on` được suy từ hồ sơ phần cứng |
+| **Code làm (trước)** | `KnowledgeGraph.build` nối `configured_by` cho **ngoại vi**, nhưng linh kiện chỉ nhận `on_bus` và `connects_to`. Nên một cảm biến trên bus — thứ có bảng thanh ghi của riêng nó — không có đường nào nối tới trích đoạn tài liệu nói về nó |
+| **Hậu quả quan sát được** | Với `drv_bus_sensor`, trích đoạn khởi động cảm biến (`ds-031`) bị một trích đoạn về **chế độ slave của bus** (`ds-023`) đẩy khỏi top-3, chỉ vì cái sau tình cờ chia sẻ một thanh ghi. precision@3 = 0,889 |
+| **Vì sao xếp loại LỆCH THẬT** | Đây không phải chỗ trống của tài liệu. Thiết kế mô tả một đồ thị nối *thanh ghi với thứ cấu hình nó*; code chỉ hiện thực một nửa danh mục thứ ấy, và nửa thiếu là nửa mà Graph-RAG dựa vào nhiều nhất |
+| **Code làm (nay)** | Linh kiện cũng nhận cạnh `configured_by`. precision@3 lên 1,000 |
+| **Phát hiện bởi** | TC-20, ngay lượt chạy đầu tiên — xem SL-61 |
+| **Cần cập nhật** | EAA-AIS-05 §5.1: nêu rõ `configured_by` xuất phát từ **cả** ngoại vi lẫn linh kiện |
+
+## SL-64 · BỔ SUNG · `Prompt.image_path` — đường đi của ảnh vào prompt
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §2 (lược đồ Prompt), §6.1; FR-ING-01/03 |
+| **Chỗ trống** | AIS đặc tả thu nhận đa phương thức và đọc ảnh màn hiện sóng, nhưng lược đồ `Prompt` chỉ có lớp văn bản — không có chỗ nào cho ảnh đi qua |
+| **Code làm** | Thêm trường `image_path` vào `Prompt` |
+| **Là ĐƯỜNG DẪN, không phải nội dung** | Adapter tự quyết mã hóa thế nào cho nhà cung cấp của nó, và giữ đường dẫn ở đây nghĩa là ảnh gốc vẫn nằm nguyên trong kho — điều kiện để câu "máy đọc nhầm ảnh" kiểm chứng lại được. Adapter không hỗ trợ ảnh thì bỏ qua trường này, không vỡ |
+| **Cần cập nhật** | EAA-AIS-05 §2: thêm `image_path` vào lược đồ Prompt |
+| **Test** | TC-23 (`test_tc23_anh_di_kem_prompt`) |
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

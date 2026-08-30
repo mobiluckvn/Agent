@@ -36,7 +36,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Sequence
 
 import yaml
 
@@ -44,6 +44,8 @@ __all__ = [
     "SimError",
     "Scenario",
     "SimResult",
+    "FaultSpec",
+    "FAULT_KINDS",
     "load_module",
     "run_scenario",
     "sweep",
@@ -60,6 +62,52 @@ class SimError(Exception):
 # --------------------------------------------------------------------------
 
 
+#: Bốn kiểu hỏng tiêm được, đặt tên theo HÀNH VI chứ không theo linh kiện —
+#: engine không được biết tên một họ cảm biến nào (N-063, FR-PLT-01).
+#:
+#: * ``stuck``     — số đo đứng yên ở giá trị cuối. Kiểu hỏng khó nhất, vì giá
+#:   trị vẫn nằm trong dải hợp lý; không phát hiện được bằng kiểm biên.
+#: * ``garbage``   — số đo nhảy ra ngoài dải vật lý.
+#: * ``dropout``   — mất mẫu: không có số đo mới trong khoảng thời gian ấy.
+#: * ``power_sag`` — nguồn sụt: cơ cấu chấp hành chỉ ra được một phần lực lệnh.
+FAULT_KINDS: tuple[str, ...] = ("stuck", "garbage", "dropout", "power_sag")
+
+
+@dataclass
+class FaultSpec:
+    """Một lỗi tiêm vào mô phỏng — N-063, lấy từ danh sách hỏng hóc ở N-016."""
+
+    kind: str
+    at_s: float = 0.0
+    #: 0 nghĩa là hỏng rồi không hồi phục — đúng dạng của phần lớn hỏng hóc thật.
+    duration_s: float = 0.0
+    magnitude: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.kind not in FAULT_KINDS:
+            raise SimError(
+                f"Kiểu hỏng {self.kind!r} không nhận biết (hợp lệ: {list(FAULT_KINDS)})"
+            )
+        if self.at_s < 0 or self.duration_s < 0:
+            raise SimError(f"Lỗi {self.kind!r} có mốc thời gian âm")
+
+    def active_at(self, t: float) -> bool:
+        if t < self.at_s:
+            return False
+        return self.duration_s <= 0 or t < self.at_s + self.duration_s
+
+    @classmethod
+    def from_dict(cls, data: Any) -> "FaultSpec":
+        if not isinstance(data, dict):
+            raise SimError(f"mục tiêm lỗi phải là ánh xạ, nhận {type(data)}")
+        return cls(
+            kind=str(data.get("kind", "")),
+            at_s=float(data.get("at_s", 0.0)),
+            duration_s=float(data.get("duration_s", 0.0)),
+            magnitude=float(data.get("magnitude", 1.0)),
+        )
+
+
 @dataclass
 class Scenario:
     """Một kịch bản mô phỏng, đọc từ ``scenarios.yaml`` của dự án."""
@@ -71,6 +119,12 @@ class Scenario:
     disturbances: list[dict[str, float]] = field(default_factory=list)
     sensor: dict[str, float] = field(default_factory=dict)
     thresholds: dict[str, float] = field(default_factory=dict)
+    #: Lỗi tiêm vào trong lượt chạy này (N-063).
+    faults: list[FaultSpec] = field(default_factory=list)
+
+    @property
+    def injects_faults(self) -> bool:
+        return bool(self.faults)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Scenario":
@@ -84,6 +138,7 @@ class Scenario:
             disturbances=list(data.get("disturbances") or []),
             sensor=dict(data.get("sensor") or {}),
             thresholds=dict(data.get("thresholds") or {}),
+            faults=[FaultSpec.from_dict(f) for f in (data.get("faults") or [])],
         )
 
 
@@ -229,6 +284,77 @@ def build_controller(spec: str, params: dict[str, Any]) -> Any:
 # --------------------------------------------------------------------------
 
 
+class _TiemLoi:
+    """Áp lỗi lên số đo và lên lệnh chấp hành (N-063).
+
+    Nằm GIỮA mô hình và bộ điều khiển, không nằm trong mô hình: một mô hình có
+    sẵn chỗ để hỏng thì mãi mãi chỉ hỏng theo những cách đã nghĩ ra lúc viết
+    nó. Đặt ở đây thì thêm một kiểu hỏng là thêm một dòng YAML ở kịch bản.
+    """
+
+    #: Ngoài dải này thì số đo là rác theo bất kỳ nghĩa vật lý nào của một góc.
+    GOC_RAC_RAD = 100.0
+
+    def __init__(self, faults: Sequence[FaultSpec]) -> None:
+        self.faults = list(faults)
+        self._giu: tuple[float, float] | None = None
+        self.applied: dict[str, int] = {}
+
+    def _dang_hong(self, kind: str, t: float) -> FaultSpec | None:
+        for f in self.faults:
+            if f.kind == kind and f.active_at(t):
+                return f
+        return None
+
+    def measure(self, goc: float, toc_do: float, t: float) -> tuple[float, float]:
+        if self._giu is None:
+            self._giu = (goc, toc_do)
+
+        loi = (
+            self._dang_hong("stuck", t)
+            or self._dang_hong("dropout", t)
+            or self._dang_hong("garbage", t)
+        )
+        if loi is None:
+            self._giu = (goc, toc_do)
+            return goc, toc_do
+
+        self.applied[loi.kind] = self.applied.get(loi.kind, 0) + 1
+        if loi.kind in ("stuck", "dropout"):
+            # Mất mẫu và kẹt số đo trông giống nhau ở đầu vào bộ điều khiển:
+            # cả hai đều là "không có tin mới". Khác nhau ở chỗ firmware thật
+            # CÓ THỂ phân biệt được (một bên cờ dữ liệu sẵn sàng không bật),
+            # nên chúng vẫn là hai kiểu hỏng riêng ở danh sách N-016.
+            return self._giu
+        # garbage: đẩy ra ngoài mọi dải vật lý của một góc.
+        rac = self.GOC_RAC_RAD * max(1.0, loi.magnitude)
+        return rac, rac
+
+    def actuate(self, u: float, t: float) -> float:
+        loi = self._dang_hong("power_sag", t)
+        if loi is None:
+            return u
+        self.applied["power_sag"] = self.applied.get("power_sag", 0) + 1
+        # magnitude là phần lực CÒN LẠI: 0,3 nghĩa là sụt còn 30%.
+        return u * max(0.0, min(1.0, loi.magnitude))
+
+
+def _trang_thai_an_toan(controller: Any) -> bool | None:
+    """Bộ điều khiển có báo mình đã vào chế độ an toàn không.
+
+    Hợp đồng cố ý tối giản và TÙY CHỌN: thuộc tính ``safe`` hoặc phương thức
+    ``is_safe()``. Không có cả hai thì trả ``None`` — *không kiểm được*, và đó
+    là câu trả lời trung thực. Trả ``False`` sẽ là một lời khẳng định (hệ KHÔNG
+    vào chế độ an toàn) mà ta không có căn cứ để nói.
+    """
+    ham = getattr(controller, "is_safe", None)
+    if callable(ham):
+        return bool(ham())
+    if hasattr(controller, "safe"):
+        return bool(getattr(controller, "safe"))
+    return None
+
+
 def run_scenario(
     plant: Any,
     controller: Any,
@@ -291,6 +417,10 @@ def run_scenario(
         )
     goc_cuoi_ky: list[float] = []
 
+    tiem = _TiemLoi(scenario.faults) if scenario.faults else None
+    da_vao_an_toan = False
+    biet_an_toan = _trang_thai_an_toan(controller) is not None
+
     for i in range(so_chu_ky):
         t = i * control_period_s
         trang_thai = plant.state
@@ -299,6 +429,9 @@ def run_scenario(
             goc_do, toc_do_do = sensor.measure(trang_thai, control_period_s)
         else:
             goc_do, toc_do_do = trang_thai.theta, trang_thai.theta_dot
+
+        if tiem is not None:
+            goc_do, toc_do_do = tiem.measure(goc_do, toc_do_do, t)
 
         u = float(
             controller.step(
@@ -314,8 +447,15 @@ def run_scenario(
                 control_period_s,
             )
         )
+        if biet_an_toan and _trang_thai_an_toan(controller):
+            da_vao_an_toan = True
+
         if actuator is not None:
             u = actuator.apply(u, trang_thai, control_period_s)
+        if tiem is not None:
+            # Nguồn sụt áp SAU mô hình chấp hành: nó làm yếu lực thật sự ra
+            # được, chứ không sửa lệnh mà bộ điều khiển nghĩ mình đã phát.
+            u = tiem.actuate(u, t)
         u += nhieu.get(i, 0.0)
 
         for _ in range(substeps):
@@ -344,6 +484,17 @@ def run_scenario(
     }
     if actuator is not None:
         so_lieu["step_slips"] = float(getattr(actuator, "slips", 0))
+
+    if tiem is not None:
+        so_lieu["faults_injected"] = float(len(scenario.faults))
+        so_lieu["fault_cycles"] = float(sum(tiem.applied.values()))
+        # -1 = KHÔNG KIỂM ĐƯỢC (bộ điều khiển không báo trạng thái an toàn).
+        # Tách khỏi 0 = đã kiểm và KHÔNG vào. Gộp hai cái ấy vào một cờ nhị
+        # phân là đúng chỗ thông tin bị mất — cùng lỗi với "nạp không báo lỗi
+        # nghĩa là nạp đúng" ở N-075.
+        so_lieu["safe_state_entered"] = (
+            float(da_vao_an_toan) if biet_an_toan else -1.0
+        )
 
     vi_pham = _cham_diem(scenario, so_lieu, da_nga)
     return SimResult(
@@ -381,13 +532,42 @@ def _cham_diem(scenario: Scenario, so_lieu: dict[str, float], da_nga: bool) -> l
     """
     vi_pham: list[str] = []
 
+    # Kịch bản tiêm lỗi đòi chế độ an toàn thì phép kiểm ấy chạy TRƯỚC cả phép
+    # kiểm ngã: một hệ ngã mà không kịp vào chế độ an toàn hỏng theo hai cách,
+    # và cách thứ hai mới là cách nguy hiểm — nó nghĩa là cơ cấu chấp hành vẫn
+    # đang được cấp lệnh trong lúc mọi thứ đã sai.
+    if scenario.thresholds.get("require_safe_state"):
+        vao = so_lieu.get("safe_state_entered", -1.0)
+        if vao < 0:
+            vi_pham.append(
+                "kịch bản đòi vào chế độ an toàn nhưng bộ điều khiển KHÔNG báo "
+                "trạng thái an toàn (thiếu thuộc tính 'safe' hoặc 'is_safe()'), "
+                "nên KHÔNG kiểm được — không phải là đạt"
+            )
+        elif vao == 0:
+            vi_pham.append(
+                "đã tiêm lỗi mà hệ KHÔNG vào chế độ an toàn — cơ cấu chấp hành "
+                "vẫn nhận lệnh trong lúc số đo đã hỏng"
+            )
+
     if da_nga:
-        vi_pham.append(
-            f"robot ảo NGÃ trong kịch bản {scenario.name!r} — góc vượt biên cứu vãn"
-        )
+        # Ngoại lệ duy nhất, và nó có lý do vật lý chứ không phải lý do tiện
+        # tay: một kịch bản tiêm lỗi ĐÒI chế độ an toàn thì chế độ ấy đúng
+        # nghĩa là cắt lệnh chấp hành — và một robot bị cắt lệnh thì ngã. Đòi
+        # nó vừa vào chế độ an toàn vừa đứng vững là đòi hai điều loại trừ
+        # nhau, và kịch bản sẽ không bao giờ đạt dù firmware làm đúng.
+        #
+        # Ngã ở đây vẫn được GHI vào số liệu; chỉ phán quyết là khác.
+        an_toan_da_vao = so_lieu.get("safe_state_entered", -1.0) == 1.0
+        if not (scenario.thresholds.get("require_safe_state") and an_toan_da_vao):
+            vi_pham.append(
+                f"robot ảo NGÃ trong kịch bản {scenario.name!r} — góc vượt biên cứu vãn"
+            )
         return vi_pham
 
     for ten, nguong in scenario.thresholds.items():
+        if ten == "require_safe_state":
+            continue
         nguong = float(nguong)
         if ten == "max_slips":
             do_duoc = so_lieu.get("step_slips", 0.0)

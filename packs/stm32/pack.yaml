@@ -51,6 +51,17 @@ tool_requirements:
   st-flash: ">=1.7"
   cppcheck: ">=2.10"
 
+# Khuôn sinh tệp tiêu đề module (N-041). Giao diện được sinh TRƯỚC phần thân,
+# nên hai module phụ thuộc nhau viết song song được — mỗi bên chỉ trông vào
+# hợp đồng gọi bên kia đã hứa. Engine cấp dữ liệu (tên hàm, hợp đồng), pack
+# cấp cú pháp: macro chống nạp trùng và cách viết chú thích là chuyện nền tảng.
+interfaces:
+  template: templates/module.h.tmpl
+  output: "{module}.h"
+  function_line: "{signature};"
+  comment_line: "/* {comment} */"
+  include_line: '#include "{header}"'
+
 capabilities:
 
   compile:
@@ -165,3 +176,18 @@ capabilities:
     parse:
       success_exit_codes: [0]
       error_regex: "^(?:.*)\\b(?:ERROR|Error)\\b[:\\s]+(?P<msg>.+)$"
+
+  flash_verify:
+    description: >-
+      Đọc ngược Flash qua ST-LINK và so từng byte với ảnh vừa gửi. Chỉ đọc,
+      không đổi gì trên thiết bị, nên không cần một lần xác nhận riêng — nó
+      chạy ngay sau lần nạp mà người đã xác nhận (N-075).
+    command:
+      - st-flash
+      - verify
+      - "{binary}"
+      - "{flash_origin}"
+    timeout_s: 180
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^(?:.*)\\b(?:ERROR|Error|verification failed)\\b[:\\s]*(?P<msg>.+)$"

@@ -32,6 +32,17 @@ diagnostics:
   output: diag_{scenario}.c
   image_name: diag_{scenario}
 
+# Khuôn sinh tệp tiêu đề module (N-041). Giao diện được sinh TRƯỚC phần thân,
+# nên hai module phụ thuộc nhau viết song song được — mỗi bên chỉ trông vào
+# hợp đồng gọi bên kia đã hứa. Engine cấp dữ liệu (tên hàm, hợp đồng), pack
+# cấp cú pháp: macro chống nạp trùng và cách viết chú thích là chuyện nền tảng.
+interfaces:
+  template: templates/module.h.tmpl
+  output: "{module}.h"
+  function_line: "{signature};"
+  comment_line: "/* {comment} */"
+  include_line: '#include "{header}"'
+
 capabilities:
 
   compile:
@@ -104,3 +115,10 @@ capabilities:
     requires_confirmation: true
     command: ["{python}", "{pack_dir}/tools/fake_flash.py", "{binary}"]
     timeout_s: 60
+
+  flash_verify:
+    command: ["{python}", "{pack_dir}/tools/fake_flash_verify.py", "{binary}"]
+    timeout_s: 60
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^verify: error: (?P<msg>.+)$"

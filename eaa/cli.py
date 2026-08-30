@@ -475,6 +475,7 @@ def _tao_llm(state: Any, project: Path) -> Any:
 
 def build_context(project: Path, *, llm: Any = None) -> AppContext:
     """Nối dây toàn bộ một dự án từ thư mục của nó."""
+    from eaa.budget import ResourceBudget, TokenBudget
     from eaa.composer import PromptComposer
     from eaa.gates import HumanGate
     from eaa.graph import KnowledgeGraph
@@ -523,9 +524,15 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
     module_hien_tai = state.current_module or (
         state.backlog[0].id if state.backlog else ""
     )
+    ngan_sach = ResourceBudget.from_constraints(kb.constraints)
     chain = [
         CompileGate(runner),
-        SizeGate(runner, limits=kb.constraints.limits),
+        SizeGate(
+            runner,
+            limits=kb.constraints.limits,
+            budget=ngan_sach,
+            module=module_hien_tai,
+        ),
         StaticGate(
             runner=runner,
             manifest=manifest,
@@ -534,7 +541,15 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
             registers=graph.registers_for(module_hien_tai) if module_hien_tai else [],
             allowed_chunk_ids=[c.id for c in kb.datasheets.active()],
         ),
-        UnitTestGate(tests_dir=project / "tests", work_dir=project),
+        UnitTestGate(
+            tests_dir=project / "tests",
+            work_dir=project,
+            # Để cổng nêu được ĐÍCH DANH phần nó không kiểm tới (N-053). Không
+            # có ba tham số này thì nó vẫn chạy y như trước, chỉ im lặng hơn.
+            module=module_hien_tai,
+            graph=graph,
+            constraints=kb.constraints,
+        ),
     ]
 
     orchestrator = Orchestrator(
@@ -550,6 +565,7 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
         gate_chain=chain,
         config=OrchestratorConfig(actor=_nguoi_dung()),
         runs_dir=project / ".eaa" / "runs",
+        token_budget=TokenBudget.from_constraints(kb.constraints),
     )
 
     return AppContext(
@@ -1552,6 +1568,7 @@ def _tao_versions(project: Path, repo: Any = None) -> Any:
 
 def cmd_build(args: argparse.Namespace) -> int:
     """Ráp các module đã merge thành firmware nạp được — công đoạn E."""
+    from eaa.budget import ResourceBudget
     from eaa.firmware import ASSEMBLY_FILE, AssemblyPlan, FirmwareAssembler, FirmwareError
     from eaa.tools.compile import SizeGate
 
@@ -1588,7 +1605,13 @@ def cmd_build(args: argparse.Namespace) -> int:
     bao_cao = FirmwareAssembler(
         runner=ctx.runner,
         source_dir=project / "firmware",
-        size_gate=SizeGate(ctx.runner, limits=ctx.kb.constraints.limits),
+        size_gate=SizeGate(
+            ctx.runner,
+            limits=ctx.kb.constraints.limits,
+            # Ở tầm firmware, bản chia ngân sách còn dùng để SUY RA khoảng trống
+            # ngăn xếp (N-071) — thứ không công cụ nào in ra sẵn.
+            budget=ResourceBudget.from_constraints(ctx.kb.constraints),
+        ),
     ).run(plan)
 
     print()
@@ -1702,7 +1725,7 @@ def _chon_cong(project: Path, hardware: Any, chi_dinh: str) -> str:
 def cmd_flash(args: argparse.Namespace) -> int:
     """Nạp firmware xuống thiết bị — LUÔN cần người xác nhận (FR-DIA-02)."""
     from eaa.firmware import ASSEMBLY_FILE, AssemblyPlan, FirmwareError
-    from eaa.flash import FLASH_LOG, FlashError, FlashLog, Flasher
+    from eaa.flash import FLASH_LOG, FlashError, FlashLog, Flasher, VerifyResult
 
     project = resolve_project(args.project)
     nhat_ky = FlashLog(project / FLASH_LOG)
@@ -1774,6 +1797,7 @@ def cmd_flash(args: argparse.Namespace) -> int:
 
     print(f"Đã nạp {ban_ghi.image_digest[:19]}… lên {ban_ghi.port}.")
     print(f"Commit đang chạy trên thiết bị: {ban_ghi.commit[:10]}")
+    print(VerifyResult(ban_ghi.verify_status, ban_ghi.verify_detail).render())
     print(
         "\nTừ đây mọi số đo lấy về đều gắn với commit trên. Xem lại lịch sử:\n"
         "  eaa flash --history"
@@ -2172,6 +2196,372 @@ def cmd_safety(args: argparse.Namespace) -> int:
     raise CliError(f"Hành động không hợp lệ: {args.safety_action!r}")
 
 
+def cmd_interface(args: argparse.Namespace) -> int:
+    """N-041 — sinh hợp đồng gọi TRƯỚC khi sinh thân module."""
+    from eaa.interfaces import (
+        InterfaceError,
+        InterfaceGenerator,
+        LlmInterfaceDesigner,
+    )
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    state = ctx.store.load()
+
+    muc = state.module(args.module)
+    if muc is None:
+        co = ", ".join(m.id for m in state.backlog) or "(backlog trống)"
+        raise CliError(
+            f"Module {args.module!r} không có trong backlog. Đang có: {co}.\n"
+            "    Giao diện là hợp đồng của một module đã khai, không phải của "
+            "một cái tên bất kỳ."
+        )
+
+    try:
+        spec = LlmInterfaceDesigner(llm=ctx.llm).design(
+            module_id=muc.id,
+            purpose=getattr(muc, "note", "") or getattr(muc, "purpose", ""),
+            uses=tuple(muc.uses),
+            constraints=ctx.kb.constraints,
+        )
+        _in_tieu_de(f"Giao diện {muc.id} — ĐỀ XUẤT")
+        print(spec.render())
+
+        if args.write:
+            duong_dan = InterfaceGenerator(ctx.runner.manifest).write(
+                spec, project / "firmware"
+            )
+            print(f"\n  Đã ghi: {duong_dan}")
+            print(
+                "  Tệp mang dòng đầu nói rõ đây là GIAO DIỆN ĐỀ XUẤT — dòng ấy đi\n"
+                "  thẳng vào prompt của module phụ thuộc (lớp K3), nên mô hình biết\n"
+                "  nó đang dựa vào một lời hứa chứ không vào mã đã kiểm."
+            )
+        else:
+            print("\n  Chưa ghi tệp. Thêm --write để sinh tệp tiêu đề vào firmware/.")
+    except InterfaceError as exc:
+        raise CliError(str(exc)) from exc
+
+    return EXIT_WAITING_GATE
+
+
+def cmd_sources(args: argparse.Namespace) -> int:
+    """N-004, N-030 — cần tài liệu nào, và cần trang nào trong đó."""
+    from eaa.docplan import DocPlanError, LlmDocLookup, plan_documents, plan_pages
+    from eaa.ingest import SourceRegistry
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+
+    try:
+        if args.sources_action == "need":
+            ke_hoach = plan_documents(ctx.kb.hardware, silicon_rev=args.rev)
+            kho = SourceRegistry(project / "sources.jsonl")
+            ke_hoach = ke_hoach.match_provided(kho)
+
+            if args.lookup:
+                print("  Đang tra trang chính thức của hãng…")
+                ke_hoach = ke_hoach.with_sources(LlmDocLookup(llm=ctx.llm).sources(ke_hoach))
+
+            _in_tieu_de("Tài liệu cần — ĐÍCH DANH")
+            print(ke_hoach.render())
+            if not args.lookup:
+                print(
+                    "\n  Chưa tra đường dẫn trang hãng. Thêm --lookup để Agent đi tìm\n"
+                    "  (chỉ trong danh sách nguồn cho phép)."
+                )
+            return EXIT_WAITING_GATE if ke_hoach.missing else EXIT_OK
+
+        if args.sources_action == "pages":
+            state = ctx.store.load()
+            muc = state.module(args.module) if args.module else None
+            ke_hoach = plan_pages(
+                hardware=ctx.kb.hardware,
+                graph=ctx.graph,
+                datasheets=ctx.kb.datasheets,
+                module_id=args.module,
+                uses=tuple(muc.uses) if muc else (),
+            )
+            _in_tieu_de("Trang cần trích — ĐÍCH DANH")
+            print(ke_hoach.render())
+            return EXIT_WAITING_GATE if ke_hoach.requests else EXIT_OK
+    except DocPlanError as exc:
+        raise CliError(str(exc)) from exc
+
+    raise CliError(f"Hành động không hợp lệ: {args.sources_action!r}")
+
+
+def cmd_errata(args: argparse.Namespace) -> int:
+    """N-037 — errata theo đúng rev silicon, và module nào chạm vào."""
+    from eaa.docplan import ERRATA_FILE, DocPlanError, ErrataAnalysis, LlmDocLookup
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    duong_dan = project / ERRATA_FILE
+    state = ctx.store.load()
+
+    try:
+        if args.errata_action == "show":
+            ban = ErrataAnalysis.load(duong_dan)
+            if ban is None:
+                ban = ErrataAnalysis(
+                    part=str((ctx.kb.hardware.mcu or {}).get("part", "")), looked_up=False
+                )
+            _in_tieu_de("Errata")
+            print(ban.render(ctx.kb.hardware, state.backlog))
+            if not ban.looked_up:
+                print("\n  Tra bằng: eaa errata lookup --rev <rev in trên chip>")
+            return EXIT_OK if ban.looked_up and ban.rev_known else EXIT_WAITING_GATE
+
+        if args.errata_action == "lookup":
+            ma_chip = str((ctx.kb.hardware.mcu or {}).get("part", ""))
+            if not ma_chip:
+                raise CliError("Hồ sơ phần cứng chưa khai 'mcu.part'.")
+            if not args.rev:
+                print(
+                    "  Chưa có rev silicon. Vẫn tra được, nhưng kết luận sẽ áp cho\n"
+                    "  MỌI rev — có thể thừa hoặc thiếu. Rev in trên mặt chip.\n"
+                )
+            ngoai_vi = [str(p.get("id", "")) for p in ctx.kb.hardware.peripherals]
+            ban = LlmDocLookup(llm=ctx.llm).errata(
+                part=ma_chip,
+                silicon_rev=args.rev,
+                peripherals=[x for x in ngoai_vi if x],
+            )
+            _in_tieu_de("Errata — ĐỀ XUẤT")
+            print(ban.render(ctx.kb.hardware, state.backlog))
+            ban.save(duong_dan)
+            print(f"\n  Đã ghi: {duong_dan}")
+            print("  Mọi mục ở đây là proposed fact — duyệt tại G2 trước khi dựa vào.")
+            return EXIT_WAITING_GATE
+    except DocPlanError as exc:
+        raise CliError(str(exc)) from exc
+
+    raise CliError(f"Hành động không hợp lệ: {args.errata_action!r}")
+
+
+def cmd_propose(args: argparse.Namespace) -> int:
+    """N-006, N-010, N-011, N-014 — Agent đề xuất, người chốt tại gate."""
+    import yaml as _yaml
+
+    from eaa.propose import (
+        SCOPE_FILE,
+        LlmProposer,
+        ProposeError,
+        ScopeProposal,
+    )
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    muc_tieu = args.goal or _muc_tieu_tu_ho_so(project)
+
+    def _khoi(nhan: str, du_lieu: Any) -> None:
+        print(f"\nChép khối sau vào {nhan}:\n")
+        print(_yaml.safe_dump(du_lieu, allow_unicode=True, sort_keys=False))
+
+    try:
+        if args.propose_action == "scope":
+            duong_dan = project / SCOPE_FILE
+            if duong_dan.is_file() and not args.force:
+                ban = ScopeProposal.load(duong_dan)
+                _in_tieu_de("Phạm vi dự án")
+                print(ban.render() if ban else "")
+                print(f"\n  Đọc từ: {duong_dan}")
+                print("  Dựng lại có chủ ý: eaa propose scope --force")
+                return EXIT_OK if ban and not ban.gaps() else EXIT_WAITING_GATE
+
+            ban = LlmProposer(llm=ctx.llm).scope(
+                goal=muc_tieu, hardware=ctx.kb.hardware
+            )
+            _in_tieu_de("Phạm vi dự án — ĐỀ XUẤT")
+            print(ban.render())
+            ban.save(duong_dan)
+            print(f"\n  Đã ghi: {duong_dan}")
+            print("  Chốt cùng ràng buộc và kiến trúc: eaa gate approve G1")
+            return EXIT_WAITING_GATE
+
+        if args.propose_action == "constraints":
+            ban = LlmProposer(llm=ctx.llm).constraints(
+                goal=muc_tieu, plant=args.plant, hardware=ctx.kb.hardware
+            )
+            _in_tieu_de("Ràng buộc cứng — ĐỀ XUẤT")
+            print(ban.render())
+            print(
+                "\nMỗi ràng buộc kèm HỆ QUẢ để người duyệt có căn cứ mà BÁC, không\n"
+                "chỉ có căn cứ mà gật. Đọc phần 'vi phạm' trước phần con số."
+            )
+            _khoi("'limits' của constraints.yaml", {"limits": ban.to_limits()})
+            if ban.forbidden:
+                _khoi("'forbidden' của constraints.yaml", {"forbidden": list(ban.forbidden)})
+            return EXIT_WAITING_GATE
+
+        if args.propose_action == "acceptance":
+            ban = LlmProposer(llm=ctx.llm).acceptance(
+                goal=muc_tieu, constraints=ctx.kb.constraints
+            )
+            _in_tieu_de("Tiêu chí nghiệm thu — ĐỀ XUẤT")
+            print(ban.render())
+            print(
+                "\nMỗi tiêu chí là MỘT CON SỐ, có ĐƠN VỊ, và có CÁCH ĐO. Phần\n"
+                "'TỪ CHỐI' là phần đáng đọc nhất: đó là những yêu cầu nghe thì\n"
+                "hợp lý mà tới lúc bàn giao không ai chứng minh được."
+            )
+            _khoi("'acceptance' của constraints.yaml", {"acceptance": ban.to_acceptance()})
+            return EXIT_WAITING_GATE
+
+        if args.propose_action == "plant":
+            if not args.plant:
+                raise CliError(
+                    "Chưa nêu đối tượng điều khiển. Ví dụ:\n"
+                    "    eaa propose plant --plant 'con lắc ngược hai bánh'\n"
+                    "    Engine KHÔNG đoán đối tượng từ hồ sơ phần cứng: cùng một\n"
+                    "    bo mạch dùng cho một cánh tay máy và cho một bộ điều nhiệt."
+                )
+            ban = LlmProposer(llm=ctx.llm).plant_model(
+                plant=args.plant, goal=muc_tieu, hardware=ctx.kb.hardware
+            )
+            _in_tieu_de("Mô hình đối tượng — ĐỀ XUẤT")
+            print(ban.render())
+            if ban.to_assumption_log():
+                _khoi(
+                    "'assumptions' của hardware_profile.yaml",
+                    {"assumptions": ban.to_assumption_log()},
+                )
+            return EXIT_WAITING_GATE
+
+        if args.propose_action == "pinmap":
+            ban = LlmProposer(llm=ctx.llm).pin_map(
+                hardware=ctx.kb.hardware, goal=muc_tieu
+            )
+            _in_tieu_de("Bảng chân — ĐỀ XUẤT")
+            print(ban.render(ctx.kb.hardware.pin_functions))
+            _khoi("'pin_map' của hardware_profile.yaml", {"pin_map": ban.to_pin_map()})
+            return EXIT_WAITING_GATE
+    except ProposeError as exc:
+        raise CliError(str(exc)) from exc
+
+    raise CliError(f"Hành động không hợp lệ: {args.propose_action!r}")
+
+
+def cmd_budget(args: argparse.Namespace) -> int:
+    """N-015, N-071, N-904 — chia ngân sách trước khi viết mã, không đo sau."""
+    import yaml as _yaml
+
+    from eaa.budget import (
+        BudgetError,
+        DerivedMetric,
+        ResourceBudget,
+        TokenBudget,
+        propose_split,
+        spent_tokens,
+        weights_from_modules,
+    )
+    from eaa.kpi import KpiLogger
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+
+    try:
+        ngan_sach = ResourceBudget.from_constraints(ctx.kb.constraints)
+        tran_token = TokenBudget.from_constraints(ctx.kb.constraints)
+    except BudgetError as exc:
+        raise CliError(str(exc)) from exc
+
+    if args.budget_action == "show":
+        _in_tieu_de("Ngân sách tài nguyên")
+        if ngan_sach is None:
+            print(
+                "  constraints.yaml chưa có khối 'budget'.\n"
+                "  Đang chỉ có trần TỔNG ở 'limits' — phép kiểm ấy đúng nhưng chỉ\n"
+                "  trả lời được vào lúc liên kết, tức là lúc muộn nhất.\n\n"
+                "  Đề xuất một bản chia: eaa budget propose"
+            )
+            return EXIT_WAITING_GATE
+        print(ngan_sach.render())
+        if tran_token is not None:
+            print(
+                f"\nTrần token mỗi module: {tran_token.per_module:,} "
+                f"(cảnh báo từ {tran_token.warn_at_pct:g}%)"
+                + (f", đơn giá theo {tran_token.currency}" if tran_token.currency else "")
+            )
+        return EXIT_OK if not ngan_sach.validate() else EXIT_WAITING_GATE
+
+    if args.budget_action == "tokens":
+        kpi = KpiLogger(project / "kpi_log.csv")
+        _in_tieu_de("Token và chi phí theo module")
+        if tran_token is None:
+            print(
+                "  Chưa khai 'budget.tokens' trong constraints.yaml, nên KHÔNG có\n"
+                "  trần nào đang được thi hành. Số dưới đây chỉ là thống kê."
+            )
+            tran_token = TokenBudget()
+        state = ctx.store.load()
+        ten_module = [args.module] if args.module else sorted(
+            {r["module"] for r in kpi.rows() if r.get("module")}
+            | {m.id for m in state.backlog}
+        )
+        if not ten_module:
+            print("  Chưa module nào gọi mô hình.")
+            return EXIT_OK
+        vuot = 0
+        for ten in ten_module:
+            kiem = tran_token.check(spent_tokens(kpi, ten))
+            print("  " + kiem.render().replace("\n", "\n  "))
+            vuot += 1 if kiem.blocked else 0
+        return EXIT_WAITING_GATE if vuot else EXIT_OK
+
+    if args.budget_action == "propose":
+        state = ctx.store.load()
+        if not state.backlog:
+            raise CliError(
+                "Backlog trống — chưa có module nào để chia phần.\n"
+                "    Ngân sách chia cho những việc đã biết tên; chia cho một danh\n"
+                "    sách rỗng thì chỉ là chia cho dự phòng.\n"
+                "    Khai module trước: 'eaa plan add', hoặc 'eaa plan propose'."
+            )
+        if ngan_sach is None or not ngan_sach.capacity:
+            raise CliError(
+                "constraints.yaml chưa khai 'budget.capacity' — không có mẫu số thì\n"
+                "    không chia được. Lấy dung lượng từ hardware_profile.yaml và khai\n"
+                "    lại ở đây, vì đây là nơi nó được dùng để chia."
+            )
+
+        so_lieu = list(args.metric) or [
+            k for k in ngan_sach.capacity if k in ngan_sach.capacity
+        ]
+        try:
+            de_xuat = propose_split(
+                weights_from_modules(state.backlog),
+                ngan_sach.capacity,
+                metrics=so_lieu,
+                reserve_pct=ngan_sach.reserve_pct,
+                derived=ngan_sach.derived,
+            )
+        except BudgetError as exc:
+            raise CliError(str(exc)) from exc
+
+        _in_tieu_de("Ngân sách tài nguyên — ĐỀ XUẤT")
+        print(de_xuat.render())
+        print(
+            "\nBản chia này là ĐỀ XUẤT, suy từ dữ liệu đã khai (số tài nguyên mỗi\n"
+            "module dùng, có chạy định kỳ hay không) chứ không từ mô hình. Nó\n"
+            "chắc chắn còn thô: một module cấu hình nhiều thanh ghi mà ít mã, và\n"
+            "một module ít thanh ghi mà nhiều tính toán, sẽ nhận cùng một phần.\n"
+            "Sửa nó là việc của người, và sửa xong thì duyệt lại tại G1."
+        )
+        print("\nChép khối sau vào 'budget.modules' của constraints.yaml:\n")
+        print(
+            _yaml.safe_dump(
+                {"modules": de_xuat.to_yaml_block()["modules"]},
+                allow_unicode=True,
+                sort_keys=True,
+            )
+        )
+        return EXIT_WAITING_GATE
+
+    raise CliError(f"Hành động không hợp lệ: {args.budget_action!r}")
+
+
 def cmd_resolve(args: argparse.Namespace) -> int:
     """Đi TÌM thứ bảng kiểm còn thiếu — P7 bước 3, thang ba bậc."""
     from eaa.gapsearch import SEARCH_LEDGER, GapResolver, GapSearchError, SearchLedger
@@ -2568,7 +2958,379 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         print(ket_luan.render())
         return EXIT_OK if ket_luan.verdict in ("không phát hiện lỗi",) else EXIT_WAITING_GATE
 
+    if args.diagnose_action == "measure":
+        kich_ban = thu_vien.get(args.scenario)
+        if not kich_ban.manual:
+            raise CliError(
+                f"Kịch bản {kich_ban.id} không khai phép đo tay nào.\n"
+                "    Kênh này dành cho đại lượng không con chip nào tự đo được "
+                "về chính nó\n"
+                "    — dòng tổng, sụt áp trên dây, nhiệt độ vỏ linh kiện (N-084)."
+            )
+
+        so_do = _doc_so_do_tay(args.value or [])
+        _in_tieu_de(f"Đo bằng dụng cụ — {kich_ban.id}")
+
+        if not so_do:
+            print(f"  {kich_ban.title}\n")
+            if kich_ban.motion:
+                print("  ⚠ Kịch bản này làm THIẾT BỊ CHUYỂN ĐỘNG. Checklist an toàn:")
+                for muc in kich_ban.safety_checklist:
+                    print(f"      [ ] {muc}")
+                print()
+            for m in kich_ban.manual:
+                print(m.instructions())
+                print()
+            print("Nhập số đo về:")
+            for m in kich_ban.manual:
+                print(f"  --value {m.key}=<số {m.unit}>")
+            print(
+                "\nAgent KHÔNG đoán những con số này. Không có ai cầm dụng cụ thì\n"
+                "phần này của kịch bản là chưa đo, chứ không phải là đạt."
+            )
+            return EXIT_WAITING_GATE
+
+        thieu = [m.key for m in kich_ban.manual if m.key not in so_do]
+        vi_pham: list[str] = []
+        for m in kich_ban.manual:
+            if m.key not in so_do:
+                continue
+            dat, mo_ta = m.evaluate(so_do[m.key])
+            print(f"  {'✓' if dat else '✗'} {m.key}: {mo_ta}")
+            if not dat:
+                vi_pham.append(f"{m.quantity}: {mo_ta}")
+
+        if thieu:
+            print(f"\n  CHƯA ĐO: {', '.join(thieu)}")
+            print("  Một bản ghi thiếu số đo trông y hệt một bản ghi đủ — nên nó")
+            print("  được nói ra, không được im lặng bỏ qua.")
+
+        _ghi_so_do_tay(project, kich_ban.id, so_do)
+        print(f"\n  Đã ghi vào {project / 'measurements.jsonl'}")
+        return EXIT_OK if not (vi_pham or thieu) else EXIT_WAITING_GATE
+
     raise CliError(f"Hành động không hợp lệ: {args.diagnose_action!r}")
+
+
+def _doc_so_do_tay(cap: Sequence[str]) -> dict[str, float]:
+    """Đọc các cặp ``khóa=số`` từ dòng lệnh."""
+    ket_qua: dict[str, float] = {}
+    for muc in cap:
+        if "=" not in muc:
+            raise CliError(f"Số đo phải có dạng khóa=giá_trị, nhận {muc!r}")
+        khoa, gia_tri = muc.split("=", 1)
+        try:
+            ket_qua[khoa.strip()] = float(gia_tri.strip().replace(",", "."))
+        except ValueError as exc:
+            raise CliError(
+                f"Số đo {khoa.strip()!r} không phải một con số: {gia_tri.strip()!r}"
+            ) from exc
+    return ket_qua
+
+
+def _ghi_so_do_tay(project: Path, scenario: str, values: dict[str, float]) -> None:
+    """Ghi số đo tay vào Measurement Records — append-only như mọi kho khác."""
+    import json as _json
+    from datetime import datetime, timezone
+
+    duong_dan = project / "measurements.jsonl"
+    ban_ghi = {
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "scenario": scenario,
+        "channel": "dong_ho_do",
+        "actor": _nguoi_dung(),
+        "values": values,
+    }
+    with open(duong_dan, "a", encoding="utf-8") as f:
+        f.write(_json.dumps(ban_ghi, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def cmd_scope_image(args: argparse.Namespace) -> int:
+    """TC-23 — đọc số đo từ ảnh màn hiện sóng; người sửa được trước khi lưu."""
+    from eaa.ingest import IngestError, MediaStore, ScopeImageReader
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+
+    try:
+        de_xuat = ScopeImageReader(
+            llm=ctx.llm, media=MediaStore(project / "media")
+        ).read(args.image, expect=tuple(args.expect or []))
+    except IngestError as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de("Số đo đọc từ ảnh — ĐỀ XUẤT")
+    if not de_xuat:
+        print(
+            "  Không đọc được số đo nào từ ảnh này.\n"
+            "  Đó là một kết cục hợp lệ: một con số bịa ra kèm đơn vị đúng còn\n"
+            "  tệ hơn không có con số nào."
+        )
+        return EXIT_WAITING_GATE
+
+    for m in de_xuat:
+        print(m.render())
+
+    chot = _doc_so_do_tay(args.accept or [])
+    if not chot:
+        print(
+            "\nCHƯA LƯU. Số đọc từ ảnh là ĐỀ XUẤT, không tự vào Measurement Records.\n"
+            "Đối chiếu từng con số với ảnh gốc rồi chốt:\n"
+        )
+        for m in de_xuat:
+            print(f"  --accept {m.key}={m.value:g}      # giữ nguyên số Agent đọc")
+        print(
+            "\nSửa được giá trị trước khi chốt — bản ghi giữ CẢ HAI con số, để về sau\n"
+            "câu 'máy đọc ra bao nhiêu, người sửa thành bao nhiêu' trả lời được."
+        )
+        return EXIT_WAITING_GATE
+
+    import json as _json
+
+    nguoi = args.actor or _nguoi_dung()
+    duong_dan = project / "measurements.jsonl"
+    da_luu = 0
+    with open(duong_dan, "a", encoding="utf-8") as f:
+        for m in de_xuat:
+            if m.key not in chot:
+                continue
+            ban_ghi = m.accept(chot[m.key], actor=nguoi)
+            f.write(_json.dumps(ban_ghi, ensure_ascii=False) + "\n")
+            da_luu += 1
+            nhan = " (người SỬA)" if ban_ghi["edited"] else ""
+            print(f"  ✓ {m.key} = {ban_ghi['value']:g} {m.unit}{nhan}")
+        f.flush()
+        os.fsync(f.fileno())
+
+    print(f"\nĐã ghi {da_luu} số đo vào {duong_dan}, người chốt: {nguoi}")
+    return EXIT_OK
+
+
+def cmd_deviations(args: argparse.Namespace) -> int:
+    """N-905 — Agent tự phát hiện chỗ mã và tài liệu kể hai câu chuyện khác nhau."""
+    from eaa.deviation import DeviationError, scan
+
+    goc = Path(__file__).resolve().parent.parent
+
+    # Danh sách lệnh lấy từ CHÍNH bộ phân tích đối số đang chạy, không chép tay:
+    # chép tay thì nó lệch ngay lần thêm lệnh tiếp theo, và một bộ dò sai lệch
+    # tự nó lệch là thứ tệ hơn không có.
+    bo_phan_tich = build_parser()
+    lenh: list[str] = []
+    for hanh_dong in bo_phan_tich._subparsers._group_actions if bo_phan_tich._subparsers else []:
+        lenh.extend(getattr(hanh_dong, "choices", {}) or {})
+
+    try:
+        ket_qua = scan(goc, cli_commands=sorted(set(lenh)))
+    except DeviationError as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de("Sai lệch so với thiết kế")
+    print(ket_qua.render())
+
+    if args.draft and ket_qua.found:
+        print("\n" + "─" * 70)
+        print("Nháp để dán vào docs/SAI_LECH_THIET_KE.md:\n")
+        print(ket_qua.draft_all())
+
+    return EXIT_OK if ket_qua.clean else EXIT_WAITING_GATE
+
+
+def cmd_handover(args: argparse.Namespace) -> int:
+    """N-094, N-101, N-103 — bàn giao, đổi linh kiện, cập nhật hiện trường."""
+    from eaa.handover import (
+        HandoverError,
+        LlmSwapAnalyst,
+        OperationsHandbook,
+        RolloutPlan,
+    )
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    state = ctx.store.load()
+
+    try:
+        if args.handover_action == "doc":
+            from eaa.diagnostics import ScenarioLibrary
+            from eaa.docplan import ERRATA_FILE, ErrataAnalysis
+            from eaa.flash import FLASH_LOG, FlashLog
+            from eaa.safety import SAFETY_FILE, SafetyAnalysis
+
+            thu_vien = (
+                ScenarioLibrary.load(project / "diagnostics.yaml")
+                if (project / "diagnostics.yaml").is_file()
+                else None
+            )
+            so_tay = OperationsHandbook(
+                project=project.name,
+                hardware=ctx.kb.hardware,
+                constraints=ctx.kb.constraints,
+                scenarios=thu_vien.scenarios if thu_vien else (),
+                safety=SafetyAnalysis.load(project / SAFETY_FILE),
+                errata=ErrataAnalysis.load(project / ERRATA_FILE),
+                flash_log=FlashLog(project / FLASH_LOG),
+            )
+            van_ban = so_tay.render()
+
+            if args.publish:
+                from eaa.registry import ArtifactRegistry
+
+                kho = ArtifactRegistry(project / "deliverables")
+                pham_xuat = kho.publish(
+                    family="tai_lieu_van_hanh",
+                    kind="md",
+                    title=f"Tài liệu vận hành — {project.name}",
+                    content=van_ban,
+                    description="Sinh từ dữ liệu dự án bằng 'eaa handover doc'.",
+                    lineage={
+                        "constraints_version": ctx.kb.constraints.content_version,
+                        "hardware_version": ctx.kb.hardware.content_version,
+                    },
+                )
+                print(f"Đã đăng ký phẩm xuất: {pham_xuat.id} → {pham_xuat.path}")
+            else:
+                print(van_ban)
+                print(
+                    "\n<!-- Chưa đăng ký vào kho phẩm xuất. Thêm --publish để lưu "
+                    "bản có phiên bản và có dòng dõi dữ liệu. -->"
+                )
+            return EXIT_OK if not so_tay.limitations() else EXIT_WAITING_GATE
+
+        if args.handover_action == "swap":
+            ngoai_vi = [str(p.get("id", "")) for p in ctx.kb.hardware.peripherals]
+            thanh_ghi = sorted(
+                {
+                    r
+                    for nv in ngoai_vi
+                    if nv
+                    for r in ctx.kb.hardware.registers_of(nv)
+                }
+            )
+            ban = LlmSwapAnalyst(llm=ctx.llm).compare(
+                old_part=args.old,
+                new_part=args.new,
+                used_for=args.used_for,
+                registers=thanh_ghi,
+            )
+            _in_tieu_de("Đổi linh kiện — ĐỀ XUẤT")
+            print(ban.render(ctx.kb.hardware, state.backlog, ctx.graph))
+            return EXIT_WAITING_GATE
+
+        if args.handover_action == "rollout":
+            from eaa.versions import VersionRegistry
+
+            hien_tai = ctx.repo.head()
+            known_good = args.rollback_to
+            if not known_good:
+                # Bản để quay lui phải là bản ĐÃ TỪNG chạy trên thiết bị, nên
+                # nó lấy từ known_good.lock — nơi chỉ được cập nhật tại G4 sau
+                # khi có số đo vật lý (FR-VER-02), chứ không lấy từ commit nào
+                # đó trông có vẻ ổn định.
+                known_good = str(VersionRegistry(project).known_good().get("firmware", ""))
+
+            ke_hoach = RolloutPlan.default(
+                from_commit=args.from_commit or known_good,
+                to_commit=args.to_commit or hien_tai,
+                rollback_to=known_good,
+            )
+            _in_tieu_de("Cập nhật thiết bị đã triển khai — ĐỀ XUẤT")
+            print(ke_hoach.render())
+            print(
+                "\nCon số ở mỗi bậc là ĐỀ XUẤT: quy mô triển khai thật là thứ engine\n"
+                "không biết. Điều KHÔNG thương lượng là bậc đầu có đúng một thiết bị."
+            )
+            return EXIT_OK if ke_hoach.ok else EXIT_WAITING_GATE
+    except HandoverError as exc:
+        raise CliError(str(exc)) from exc
+
+    raise CliError(f"Hành động không hợp lệ: {args.handover_action!r}")
+
+
+def cmd_field(args: argparse.Namespace) -> int:
+    """N-102 — chẩn đoán sự cố ngoài hiện trường."""
+    from eaa.diagnostics import (
+        CHUA_THU,
+        KHONG_TAI_HIEN,
+        TAI_HIEN_DUOC,
+        DiagnosticError,
+        FieldCase,
+        ScenarioLibrary,
+    )
+
+    project = resolve_project(args.project)
+    try:
+        thu_vien = ScenarioLibrary.load(project / "diagnostics.yaml")
+    except DiagnosticError as exc:
+        raise CliError(str(exc)) from exc
+
+    dieu_kien: dict[str, Any] = {}
+    for muc in args.condition or []:
+        if "=" not in muc:
+            raise CliError(f"Điều kiện phải có dạng khóa=giá_trị, nhận {muc!r}")
+        khoa, gia_tri = muc.split("=", 1)
+        dieu_kien[khoa.strip()] = gia_tri.strip()
+
+    ca = FieldCase(
+        symptom=args.symptom,
+        conditions=dieu_kien,
+        occurrences=args.occurrences,
+        reproduced={
+            "co": TAI_HIEN_DUOC,
+            "khong": KHONG_TAI_HIEN,
+            "chua": CHUA_THU,
+        }[args.reproduced],
+        scenarios=tuple(args.scenario or []),
+    )
+
+    _in_tieu_de("Chẩn đoán sự cố hiện trường")
+    print(ca.render(thu_vien))
+    return EXIT_OK if ca.reproduced == TAI_HIEN_DUOC else EXIT_WAITING_GATE
+
+
+def cmd_endurance(args: argparse.Namespace) -> int:
+    """N-086 — chạy dài, phát hiện reset qua bộ đếm thời gian chạy."""
+    from eaa.endurance import analyse
+    from eaa.telemetry import load_frame_spec, read_capture
+
+    project = resolve_project(args.project)
+    _in_tieu_de("Kiểm độ bền dài hạn")
+
+    if args.replay:
+        ban_thu = read_capture(args.replay, load_frame_spec(project / "diagnostics.yaml"))
+    else:
+        if not args.seconds:
+            raise CliError(
+                "Chưa nêu chạy bao lâu. Ví dụ: eaa endurance --seconds 600\n"
+                "    Con số này là thứ quyết định kết luận nói được về quãng nào,\n"
+                "    nên nó không có mặc định."
+            )
+        ban_thu = _thu_telemetry(project, args.port, args.seconds)
+        if args.save:
+            ban_thu.write(args.save)
+
+    print(ban_thu.render())
+    print()
+
+    yeu_cau = args.required
+    if yeu_cau <= 0:
+        # Lấy từ tiêu chí nghiệm thu của dự án nếu có — ngưỡng đã chốt ở G1
+        # đáng tin hơn một con số gõ vội trên dòng lệnh.
+        ctx_kb = _nap_kho(Constraints.load, project / "constraints.yaml")
+        for m in (ctx_kb.acceptance.get("measurements") or []):
+            if str(m.get("key")) == args.key and m.get("min") is not None:
+                yeu_cau = float(m["min"])
+                break
+
+    bao_cao = analyse(
+        ban_thu,
+        uptime_key=args.key,
+        required_s=yeu_cau,
+        drift_keys=tuple(args.drift or []),
+    )
+    print(bao_cao.render())
+    return EXIT_OK if bao_cao.ok else EXIT_WAITING_GATE
 
 
 def _doc_tra_loi_nguoi(cap: Sequence[str]) -> dict[str, bool]:
@@ -2637,6 +3399,44 @@ def cmd_report(args: argparse.Namespace) -> int:
         kho = _tao_versions(project, ctx.repo)
         _in_tieu_de("Phiên bản mã theo hạng chất lượng")
         print(kho.report())
+        return EXIT_OK
+
+    if args.report_kind == "retrieval":
+        from eaa.goldenset import GOLDEN_FILE, GoldenSet, GoldenSetError
+
+        ctx = build_context(project)
+        try:
+            bo_chuan = GoldenSet.load(project / GOLDEN_FILE)
+        except GoldenSetError as exc:
+            raise CliError(str(exc)) from exc
+        if bo_chuan is None:
+            raise CliError(
+                f"Dự án chưa có bộ chuẩn truy xuất ({project / GOLDEN_FILE}).\n"
+                "    Với module nào thì trích đoạn nào ĐÚNG LÀ liên quan — câu ấy\n"
+                "    do người viết ra một lần, rồi máy đối chiếu mãi."
+            )
+
+        sai = bo_chuan.check_ids(ctx.kb.datasheets)
+        if sai:
+            raise CliError(
+                "Bộ chuẩn trỏ tới chunk không có thật:\n"
+                + "\n".join(f"    · {s}" for s in sai)
+                + "\n    Một đáp án trỏ vào hư không kéo precision xuống mãi mãi mà"
+                "\n    chẳng vì lỗi nào của bộ chọn — và người ta sẽ đi sửa bộ chọn."
+            )
+
+        _in_tieu_de("Bộ chuẩn truy xuất")
+        bao_cao = bo_chuan.evaluate(ctx.graph)
+        print(bao_cao.render())
+        return EXIT_OK if bao_cao.ok else EXIT_REPAIR_LIMIT
+
+    if args.report_kind == "review":
+        from eaa.ledger import ErrorLedger
+
+        kpi = KpiLogger(project / "kpi_log.csv")
+        so_ao_giac = ErrorLedger(project / "error_ledger.jsonl")
+        _in_tieu_de("Tự đánh giá quy trình")
+        print(kpi.weak_points(ledger=so_ao_giac).render())
         return EXIT_OK
 
     if args.report_kind != "kpi":
@@ -2797,7 +3597,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     # UC09 — báo cáo
     p_report = sub.add_parser("report", help="Xuất báo cáo KPI (UC09)")
-    p_report.add_argument("report_kind", choices=["kpi", "versions"], nargs="?", default="kpi")
+    p_report.add_argument(
+        "report_kind",
+        choices=["kpi", "versions", "review", "retrieval"],
+        nargs="?",
+        default="kpi",
+        help=(
+            "kpi = số liệu thô · versions = hạng chất lượng · "
+            "review = khâu nào hay hỏng (N-906) · retrieval = bộ chuẩn truy xuất (TC-20)"
+        ),
+    )
     p_report.add_argument("--csv", help="Xuất ra tệp CSV")
     p_report.add_argument("--module", help="Lọc theo module")
     p_report.set_defaults(func=cmd_report)
@@ -2927,6 +3736,118 @@ def build_parser() -> argparse.ArgumentParser:
     safety_sub.add_parser("show", help="Xem bản hiện có và chỗ còn hở")
     p_safety.set_defaults(func=cmd_safety)
 
+    # N-041 — sinh giao diện trước thân
+    p_iface = sub.add_parser(
+        "interface",
+        help="Sinh hợp đồng gọi của module TRƯỚC khi sinh thân (N-041)",
+        description=(
+            "Giao diện có trước thì hai thân module viết song song được, mỗi "
+            "bên chỉ trông vào lời hứa của bên kia. Mỗi hàm phải trả lời ba "
+            "câu chữ ký không nói được: gọi trong ngắt được không, có chặn "
+            "không, tái nhập được không."
+        ),
+    )
+    p_iface.add_argument("module", help="Mã module trong backlog")
+    p_iface.add_argument(
+        "--write", action="store_true", help="Ghi tệp tiêu đề vào firmware/"
+    )
+    p_iface.set_defaults(func=cmd_interface)
+
+    # N-004, N-030 — tài liệu đích danh và trang đích danh
+    p_sources = sub.add_parser(
+        "sources",
+        help="Tài liệu cần và trang cần trích, nêu đích danh (N-004, N-030)",
+        description=(
+            "Không phải 'hãy đưa datasheet' mà là một danh sách đích danh — và "
+            "trong mỗi tài liệu, đích danh phần cần trích. Một datasheet vài "
+            "trăm trang chỉ cho ra vài chục trích đoạn có ích."
+        ),
+    )
+    sources_sub = p_sources.add_subparsers(
+        dest="sources_action", required=True, metavar="<hành động>"
+    )
+    sn = sources_sub.add_parser("need", help="Danh sách tài liệu cần, và cái còn thiếu")
+    sn.add_argument("--rev", default="", help="Rev silicon in trên mặt chip")
+    sn.add_argument(
+        "--lookup",
+        action="store_true",
+        help="Agent đi tìm đường dẫn trang chính thức (chỉ trong danh sách cho phép)",
+    )
+    sp2 = sources_sub.add_parser("pages", help="Phần tài liệu còn phải trích")
+    sp2.add_argument("module", nargs="?", default="", help="Chỉ xét một module")
+    p_sources.set_defaults(func=cmd_sources)
+
+    # N-037 — errata theo đúng rev silicon
+    p_errata = sub.add_parser(
+        "errata",
+        help="Lỗi chip đã công bố, theo đúng rev silicon (N-037)",
+        description=(
+            "Mã ĐÚNG THEO DATASHEET vẫn có thể chạy sai nếu chip có lỗi đã công "
+            "bố — loại lỗi mọi cổng kiểm chứng đều cho qua, vì mã thật sự đúng "
+            "với thứ nó được bảo. Danh sách trống KHÔNG có nghĩa là chip sạch."
+        ),
+    )
+    errata_sub = p_errata.add_subparsers(
+        dest="errata_action", required=True, metavar="<hành động>"
+    )
+    errata_sub.add_parser("show", help="Xem kho errata và module nào chạm vào")
+    el = errata_sub.add_parser("lookup", help="Agent tra errata cho đúng rev")
+    el.add_argument("--rev", default="", help="Rev silicon in trên mặt chip")
+    p_errata.set_defaults(func=cmd_errata)
+
+    # N-006, N-010, N-011, N-014 — Agent đề xuất, người chốt tại gate
+    p_propose = sub.add_parser(
+        "propose",
+        help="Agent đề xuất phạm vi / ràng buộc / tiêu chí / bảng chân (G0–G1)",
+        description=(
+            "Đối chiếu là việc dễ hơn: nó bắt đầu từ một danh sách đã có. Đề "
+            "xuất phải bắt đầu từ trang trắng — và đó đúng là chỗ người mới vào "
+            "nghề mắc kẹt. Cả bốn bản đều dừng ở ĐỀ XUẤT."
+        ),
+    )
+    propose_sub = p_propose.add_subparsers(
+        dest="propose_action", required=True, metavar="<hành động>"
+    )
+    for ten, tro_giup in (
+        ("scope", "Phạm vi và cái KHÔNG làm, kèm lý do (N-006)"),
+        ("constraints", "Ràng buộc cứng, mỗi cái kèm hệ quả nếu vi phạm (N-010)"),
+        ("acceptance", "Tiêu chí nghiệm thu đo được: số + đơn vị + cách đo (N-011)"),
+        ("pinmap", "Bảng chân, kèm kiểm chức năng thay thế (N-014)"),
+        ("plant", "Mô hình đối tượng, kèm hiện tượng nó bỏ qua (N-060)"),
+    ):
+        sp = propose_sub.add_parser(ten, help=tro_giup)
+        sp.add_argument("--goal", default="", help="Mục tiêu hệ thống")
+        if ten == "scope":
+            sp.add_argument("--force", action="store_true", help="Dựng lại dù đã có bản cũ")
+        if ten in ("constraints", "plant"):
+            sp.add_argument("--plant", default="", help="Đối tượng điều khiển")
+    p_propose.set_defaults(func=cmd_propose)
+
+    # N-015, N-071, N-904 — ngân sách tài nguyên và token theo module
+    p_budget = sub.add_parser(
+        "budget",
+        help="Ngân sách flash/RAM/token chia theo module (N-015, N-904)",
+        description=(
+            "Trần TỔNG trả lời 'còn chỗ không?' vào lúc liên kết — lúc muộn "
+            "nhất. Chia phần trước thì câu hỏi thành 'module này có ở trong "
+            "phần của nó không?', và trả lời được ngay ở module đầu tiên."
+        ),
+    )
+    budget_sub = p_budget.add_subparsers(
+        dest="budget_action", required=True, metavar="<hành động>"
+    )
+    budget_sub.add_parser("show", help="Xem bản chia hiện hành và chỗ tự mâu thuẫn")
+    bp = budget_sub.add_parser("propose", help="Agent đề xuất cách chia theo backlog")
+    bp.add_argument(
+        "--metric",
+        action="append",
+        default=[],
+        help="Số liệu cần chia (mặc định: mọi khóa trong budget.capacity)",
+    )
+    bt = budget_sub.add_parser("tokens", help="Token đã tiêu và chi phí theo module")
+    bt.add_argument("module", nargs="?", default="", help="Chỉ xem một module")
+    p_budget.set_defaults(func=cmd_budget)
+
     # N-001..N-006 — khởi tạo dự án bằng hội thoại
     p_brief = sub.add_parser(
         "brief",
@@ -3031,6 +3952,117 @@ def build_parser() -> argparse.ArgumentParser:
     p_rb.add_argument("--actor")
     p_rb.set_defaults(func=cmd_rollback)
 
+    # FR-ING-03, TC-23 — ảnh màn hiện sóng thành số đo
+    p_si = sub.add_parser(
+        "scope-image",
+        help="Đọc số đo từ ảnh màn hiện sóng, người chốt trước khi lưu (TC-23)",
+        description=(
+            "Số đọc từ ảnh là ĐỀ XUẤT kèm sai số đọc ảnh, không tự vào "
+            "Measurement Records. Người đối chiếu với ảnh gốc, sửa được giá "
+            "trị, rồi mới chốt — và bản ghi giữ cả hai con số."
+        ),
+    )
+    p_si.add_argument("image", help="Đường dẫn ảnh")
+    p_si.add_argument(
+        "--expect", action="append", help="Đại lượng cần đọc; lặp lại được"
+    )
+    p_si.add_argument(
+        "--accept", action="append",
+        help="Chốt một số đo, dạng khóa=giá_trị; không có thì chỉ in đề xuất",
+    )
+    p_si.add_argument("--actor", default="", help="Người chốt số đo")
+    p_si.set_defaults(func=cmd_scope_image)
+
+    # N-905 — Agent tự phát hiện sai lệch thiết kế
+    p_dev = sub.add_parser(
+        "deviations",
+        help="Quét chỗ mã và tài liệu kể hai câu chuyện khác nhau (N-905)",
+        description=(
+            "Sổ sai lệch ghi được những lệch mà người viết NHỚ RA. Phép quét "
+            "này đối chiếu danh sách module và lệnh với tài liệu — nó bắt được "
+            "'có trong mã mà không có trong tài liệu', và KHÔNG bắt được một "
+            "module làm khác điều tài liệu mô tả."
+        ),
+    )
+    p_dev.add_argument(
+        "--draft", action="store_true", help="In khung mục để dán vào sổ sai lệch"
+    )
+    p_dev.set_defaults(func=cmd_deviations)
+
+    # N-094, N-101, N-103 — bàn giao và vận hành
+    p_ho = sub.add_parser(
+        "handover",
+        help="Tài liệu vận hành, đổi linh kiện, cập nhật hiện trường (G9–G10)",
+        description=(
+            "Ba việc của giai đoạn cuối, và cả ba đều là viết ra thứ đã biết. "
+            "Tài liệu vận hành gom từ dữ liệu dự án; đổi linh kiện bắc cầu trên "
+            "đồ thị tài nguyên; cập nhật hiện trường bắt đầu từ MỘT thiết bị."
+        ),
+    )
+    ho_sub = p_ho.add_subparsers(dest="handover_action", required=True, metavar="<hành động>")
+    hd = ho_sub.add_parser("doc", help="Sinh tài liệu vận hành, kèm mục KHÔNG làm được")
+    hd.add_argument("--publish", action="store_true", help="Đăng ký vào kho phẩm xuất")
+    hs = ho_sub.add_parser("swap", help="So linh kiện thay thế, chỉ đích danh mã bị chạm")
+    hs.add_argument("--old", required=True, help="Linh kiện đang dùng")
+    hs.add_argument("--new", required=True, help="Linh kiện thay thế")
+    hs.add_argument("--used-for", default="", dest="used_for", help="Dự án dùng nó để làm gì")
+    hr = ho_sub.add_parser("rollout", help="Kế hoạch cập nhật có đường lui")
+    hr.add_argument("--from-commit", default="", dest="from_commit")
+    hr.add_argument("--to-commit", default="", dest="to_commit")
+    hr.add_argument("--rollback-to", default="", dest="rollback_to")
+    p_ho.set_defaults(func=cmd_handover)
+
+    # N-102 — sự cố ngoài hiện trường
+    p_field = sub.add_parser(
+        "field",
+        help="Chẩn đoán sự cố ngoài hiện trường (N-102)",
+        description=(
+            "Khác một phiên trên bàn ở đúng một điểm, và điểm ấy quyết định mọi "
+            "thứ: hiện tượng không xảy ra trước mặt ta. Bước đầu không phải là "
+            "đo mà là DỰNG LẠI ĐIỀU KIỆN."
+        ),
+    )
+    p_field.add_argument("symptom", help="Người ở hiện trường mô tả thế nào")
+    p_field.add_argument(
+        "--condition", action="append",
+        help="Điều kiện lúc xảy ra, dạng khóa=giá_trị; lặp lại được",
+    )
+    p_field.add_argument("--occurrences", type=int, default=1, help="Đã gặp bao nhiêu lần")
+    p_field.add_argument(
+        "--reproduced", choices=["co", "khong", "chua"], default="chua",
+        help="Dựng lại trên bàn được chưa",
+    )
+    p_field.add_argument(
+        "--scenario", action="append", help="Chỉ định kịch bản thay vì để Agent chọn"
+    )
+    p_field.set_defaults(func=cmd_field)
+
+    # N-086 — kiểm độ bền dài hạn
+    p_end = sub.add_parser(
+        "endurance",
+        help="Chạy dài, phát hiện reset và trôi (N-086)",
+        description=(
+            "Ba thứ chỉ lộ ra khi chạy dài: reset ngầm, trôi, rò bộ nhớ. Báo "
+            "cáo luôn mở đầu bằng THỜI GIAN đã quan sát thật — 10 phút không "
+            "kết luận được cho 10 giờ."
+        ),
+    )
+    p_end.add_argument("--port", default="", help="Cổng nối tiếp")
+    p_end.add_argument("--seconds", type=float, default=0.0, help="Thu bao lâu")
+    p_end.add_argument("--replay", help="Phân tích lại một bản thu đã có")
+    p_end.add_argument("--save", help="Ghi bản thu ra tệp")
+    p_end.add_argument(
+        "--key", default="uptime_s", help="Khóa bộ đếm thời gian chạy trong telemetry"
+    )
+    p_end.add_argument(
+        "--required", type=float, default=0.0,
+        help="Yêu cầu chạy liên tục bao lâu (mặc định lấy từ acceptance của dự án)",
+    )
+    p_end.add_argument(
+        "--drift", action="append", help="Khóa cần theo dõi trôi; lặp lại được"
+    )
+    p_end.set_defaults(func=cmd_endurance)
+
     # AIS §7 — chẩn đoán phần cứng
     p_dg = sub.add_parser(
         "diagnose",
@@ -3048,6 +4080,21 @@ def build_parser() -> argparse.ArgumentParser:
         "build", help="Dựng firmware đo của một kịch bản (AIS §7)"
     )
     db.add_argument("scenario")
+
+    dm = dg_sub.add_parser(
+        "measure",
+        help="Hướng dẫn đo bằng dụng cụ, và nhận số đo về (N-084)",
+        description=(
+            "Kênh thứ ba, bên cạnh kênh máy và kênh quan sát. Dòng tổng, sụt "
+            "áp trên dây, nhiệt độ vỏ linh kiện — không con chip nào tự đo "
+            "được về chính nó. Gọi không kèm --value thì in hướng dẫn đo."
+        ),
+    )
+    dm.add_argument("scenario")
+    dm.add_argument(
+        "--value", action="append",
+        help="Số đo về, dạng khóa=giá_trị; lặp lại cho từng mục",
+    )
 
     dr = dg_sub.add_parser("run", help="Chạy một kịch bản và kết luận")
     dr.add_argument("scenario")

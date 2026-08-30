@@ -73,8 +73,14 @@ def test_do_thi_dung_tu_dong_tu_ho_so_phan_cung(kg: KnowledgeGraph) -> None:
 def test_chi_chunk_da_duyet_G2_co_mat_trong_do_thi(kg: KnowledgeGraph) -> None:
     """Chunk proposed không vào đồ thị → Graph-RAG không thể chọn phải nó."""
     chunks = set(kg.nodes_of_kind("chunk"))
-    assert chunks == {"ds-012", "ds-021", "ds-022", "ds-031", "ds-041"}
+    assert {"ds-012", "ds-021", "ds-022", "ds-031", "ds-041"} <= chunks
     assert "ds-032" not in chunks
+
+    # ds-023 và ds-051 là chunk NHIỄU của bộ chuẩn TC-20. Chúng có mặt ở đây
+    # đúng như mong muốn: một chunk nhiễu bị lọc ngay ở tầng đồ thị thì nó
+    # không thử được bộ chọn. Việc loại chúng khỏi kết quả là việc của xếp
+    # hạng, không phải của phép nạp.
+    assert {"ds-023", "ds-051"} <= chunks
 
 
 def test_thanh_ghi_noi_toi_chunk_tai_lieu_hoa_no(kg: KnowledgeGraph) -> None:
@@ -234,8 +240,17 @@ def test_module_khong_dung_tai_nguyen_nao_thi_khong_co_chunk(kg: KnowledgeGraph)
 
 def test_thanh_ghi_cua_module_di_qua_bus_cua_linh_kien(kg: KnowledgeGraph) -> None:
     kg.add_module("drv_i2c_imu", uses=["imu"])
-    # Linh kiện gắn trên bus kéo theo thanh ghi của chính bus đó.
-    assert set(kg.registers_for("drv_i2c_imu")) == {"TWBR", "TWCR", "TWSR", "TWDR"}
+    thanh_ghi = set(kg.registers_for("drv_i2c_imu"))
+
+    # Hai nguồn, và cả hai đều cần.
+    #
+    # Bus mà linh kiện nằm trên: không cấu hình được bus thì không nói chuyện
+    # được với linh kiện.
+    assert {"TWBR", "TWCR", "TWSR", "TWDR"} <= thanh_ghi
+    # Thanh ghi của CHÍNH linh kiện. Cạnh này thêm vào ở TC-20: thiếu nó, trích
+    # đoạn về con cảm biến không có đường nào để được xếp hạng cao, và bị một
+    # trích đoạn cùng bus đẩy ra khỏi ba chỗ của prompt.
+    assert {"WHO_AM_I", "PWR_MGMT_1"} <= thanh_ghi
 
 
 def test_chan_cua_module_lay_tu_linh_kien(kg: KnowledgeGraph) -> None:

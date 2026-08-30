@@ -41,6 +41,14 @@ PACK_DEMO = REPO / "tests" / "fixtures" / "packs" / "demo"
 DU_AN_MAU = REPO / "projects" / "robot_balance"
 BAN_GHI = REPO / "tests" / "fixtures" / "llm_calls" / "demo_two_modules.jsonl"
 
+#: Ràng buộc, hồ sơ phần cứng và trích đoạn tài liệu ĐÃ ĐÓNG BĂNG — bản chụp
+#: tại thời điểm ghi ``BAN_GHI`` bằng mô hình thật. Xem
+#: ``tests/fixtures/e2e_project/README.md`` để biết vì sao chúng không đọc
+#: thẳng từ dự án mẫu: phản hồi trong fixture được sinh ra DƯỚI ĐÚNG bộ ràng
+#: buộc này, nên ghép ràng buộc mới với phản hồi cũ là dựng một cảnh chưa từng
+#: xảy ra.
+DAU_VAO_DONG_BANG = REPO / "tests" / "fixtures" / "e2e_project"
+
 
 @pytest.fixture()
 def moi_truong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -53,19 +61,16 @@ def moi_truong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     project = home / "projects" / "demo_project"
     project.mkdir(parents=True)
     for ten in ("constraints.yaml", "hardware_profile.yaml"):
-        shutil.copy(DU_AN_MAU / ten, project / ten)
-    shutil.copytree(DU_AN_MAU / "datasheets", project / "datasheets")
+        shutil.copy(DAU_VAO_DONG_BANG / ten, project / ten)
+    shutil.copytree(DAU_VAO_DONG_BANG / "datasheets", project / "datasheets")
+    # Mô hình mô phỏng KHÔNG vào prompt, nên nó đọc thẳng từ dự án mẫu: đóng
+    # băng thứ không ảnh hưởng băm chỉ tạo ra một bản sao nữa để quên cập nhật.
     shutil.copytree(DU_AN_MAU / "sim", project / "sim")
 
-    rb = project / "constraints.yaml"
-    rb.write_text(
-        "\n".join(
-            "platform: demo" if d.startswith("platform:") else d
-            for d in rb.read_text(encoding="utf-8").splitlines()
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    # Không sửa gì thêm vào constraints.yaml sau khi chép. Trước bản này ở đây
+    # có một lệnh thay dòng ``platform:`` — và nó khiến tệp được băm KHÁC tệp
+    # nằm trong kho, nên không cách nào đối chiếu bản ghi với đầu vào. Bản đóng
+    # băng đã mang sẵn ``platform: demo``.
     (project / "tests").mkdir()
     (project / "tests" / "test_smoke.py").write_text(
         "def test_khung_du_an():\n    assert True\n", encoding="utf-8"
@@ -108,6 +113,57 @@ def _den_pha_D(capsys) -> None:
 # --------------------------------------------------------------------------
 # TC-15 — hai module đi trọn vòng
 # --------------------------------------------------------------------------
+
+
+def test_dau_vao_anh_huong_bam_prompt_deu_da_dong_bang() -> None:
+    """TC-15 không được đọc đầu vào-sinh-prompt từ dự án mẫu đang sống.
+
+    Đây là phép kiểm canh chính cái vừa được sửa. Trước đó, ràng buộc, hồ sơ
+    phần cứng và trích đoạn tài liệu được chép thẳng từ ``projects/robot_balance``
+    — nên mọi lần sửa dự án mẫu đều làm trượt băm prompt và đòi ghi lại fixture
+    bằng một lượt gọi API thật, kể cả khi thay đổi ấy chẳng liên quan gì tới
+    thứ TC-15 chứng minh.
+
+    Bộ mô phỏng thì vẫn đọc từ dự án mẫu, có chủ ý: nó KHÔNG vào prompt, nên
+    đóng băng nó chỉ tạo thêm một bản sao nữa để quên cập nhật.
+    """
+    for ten in ("constraints.yaml", "hardware_profile.yaml"):
+        assert (DAU_VAO_DONG_BANG / ten).is_file(), f"thiếu đầu vào đóng băng: {ten}"
+    assert list((DAU_VAO_DONG_BANG / "datasheets").glob("*.md")), "thiếu trích đoạn đóng băng"
+
+    # Chỉ soi các dòng THẬT SỰ chép tệp vào dự án thử; các dòng khác nhắc tới
+    # tên hằng số (kể cả chính phép kiểm này) không phải thứ đang bàn.
+    nguon = Path(__file__).read_text(encoding="utf-8")
+    dung_du_an_mau = [
+        d.strip()
+        for d in nguon.splitlines()
+        if "DU_AN_MAU /" in d and d.lstrip().startswith("shutil.")
+    ]
+    assert dung_du_an_mau == ['shutil.copytree(DU_AN_MAU / "sim", project / "sim")'], (
+        "TC-15 chỉ được lấy bộ mô phỏng từ dự án mẫu. Mọi đầu vào khác đi vào "
+        "prompt, nên phải lấy từ tests/fixtures/e2e_project/.\n"
+        f"Đang lấy thêm: {dung_du_an_mau}"
+    )
+
+
+def test_ban_ghi_mang_du_truy_vet_de_doi_chieu_ve_sau() -> None:
+    """Mỗi bản ghi phải nói nó sinh ra dưới mô hình nào và ràng buộc phiên bản nào.
+
+    Cố ý KHÔNG đòi ``constraints_version`` trùng băm tệp hiện tại. Băm nội dung
+    phủ toàn bộ tệp — kể cả chú thích và mục ``acceptance`` — trong khi prompt
+    chỉ mang ``limits``/``forbidden``/``style``. Đòi trùng sẽ bắt ghi lại
+    fixture vì những sửa đổi chứng minh được là không đổi prompt, tức là đúng
+    thứ phiền phức mà bản đóng băng này vừa gỡ bỏ.
+
+    Phép kiểm thật nằm ở chính bộ phát lại: nó tra theo BĂM PROMPT và cố ý
+    không bịa phản hồi khi trượt.
+    """
+    ban_ghi = CallLog(BAN_GHI).all()
+    assert ban_ghi, "fixture không được rỗng"
+    for r in ban_ghi:
+        assert r.model, "bản ghi phải nói nó do mô hình nào sinh ra"
+        assert r.prompt_hash.startswith("sha256:")
+        assert r.constraints_version.startswith("sha256:")
 
 
 def test_tc15_hai_module_demo_qua_du_cong_va_merge_sau_G3(

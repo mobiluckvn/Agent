@@ -334,6 +334,11 @@ class SizeGate:
     #: ``constraints.limits`` — engine chỉ đọc quy ước ``_max`` / ``_min``.
     limits: dict[str, Any] = field(default_factory=dict)
     name: str = "size"
+    #: Bản chia ngân sách theo module (``eaa.budget.ResourceBudget``), nếu dự án
+    #: có khai. Không có thì cổng này lui về đúng hành vi cũ: chỉ trần TỔNG.
+    budget: Any = None
+    #: Module đang đo — để tra phần được chia cho đúng nó (N-015).
+    module: str = ""
 
     def run(
         self,
@@ -372,17 +377,45 @@ class SizeGate:
         if not bao_cao.passed:
             return bao_cao
 
+        # Số liệu suy ra chỉ có nghĩa ở tầm firmware (N-071): "dung lượng trừ
+        # phần đã dùng" là một câu về CẢ ảnh sẽ nạp, không phải về một module
+        # lẻ — module lẻ chưa biết những module khác sẽ ăn bao nhiêu.
+        if self.budget is not None and scope == SCOPE_FIRMWARE:
+            bao_cao.metrics.update(self.budget.derive(bao_cao.metrics))
+
         vi_pham = self._doi_chieu_nguong(bao_cao.metrics)
+        canh_bao = list(bao_cao.warnings)
+
+        if self.budget is not None and self.module and scope == SCOPE_MODULE:
+            kiem = self.budget.check_module(self.module, bao_cao.metrics)
+            vi_pham += [
+                ToolError(
+                    f"{u.metric} = {u.used:,.0f} vượt phần {u.cap:,.0f} đã chia cho "
+                    f"module {self.module!r} trong budget.modules "
+                    f"({u.pct:.0f}% phần của nó).",
+                )
+                for u in kiem.over
+            ]
+            canh_bao += [
+                ToolError(
+                    f"{u.metric} = {u.used:,.0f} đã dùng {u.pct:.0f}% phần được chia "
+                    f"({u.cap:,.0f}). Còn kịp đổi hướng.",
+                    severity=Severity.WARNING,
+                )
+                for u in kiem.warnings
+            ]
+
         if vi_pham:
             return ToolReport(
                 gate=self.name,
                 passed=False,
                 errors=vi_pham,
-                warnings=bao_cao.warnings,
+                warnings=canh_bao,
                 metrics=bao_cao.metrics,
                 raw_output=bao_cao.raw_output,
                 duration_s=bao_cao.duration_s,
             )
+        bao_cao.warnings = canh_bao
         return bao_cao
 
     def _doi_chieu_nguong(self, so_lieu: dict[str, Any]) -> list[ToolError]:

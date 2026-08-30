@@ -183,8 +183,22 @@ class KnowledgeGraph:
                 kind="component",
                 shareable=bool(linh_kien.get("shareable", False)),
                 part=str(linh_kien.get("part", "")),
-                **_attrs(linh_kien, exclude=("part", "pins")),
+                **_attrs(linh_kien, exclude=("part", "pins", "configured_by")),
             )
+
+            # Linh kiện cũng có thanh ghi của riêng nó, và cạnh này là cách duy
+            # nhất để bộ chọn trích đoạn biết điều đó.
+            #
+            # Thiếu nó thì một trích đoạn về đúng con cảm biến module đang đọc
+            # chỉ được nối qua quan hệ "module dùng linh kiện" — một liên kết
+            # yếu hơn hẳn — và sẽ bị đẩy ra khỏi top-k bởi một trích đoạn chỉ
+            # tình cờ chia sẻ MỘT thanh ghi của bus. Bộ chuẩn TC-20 phát hiện
+            # đúng cảnh ấy trên dự án mẫu.
+            for reg in linh_kien.get("configured_by") or []:
+                reg = str(reg).upper()
+                g.add_node(reg, kind="register")
+                g.add_edge(cid, reg, kind="configured_by")
+
             if linh_kien.get("bus") and g.has_node(str(linh_kien["bus"])):
                 g.add_edge(cid, str(linh_kien["bus"]), kind="on_bus")
             for _vai_tro, chan in (linh_kien.get("pins") or {}).items():

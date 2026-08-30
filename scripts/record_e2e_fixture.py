@@ -37,6 +37,10 @@ from eaa.cli import load_env_file, main  # noqa: E402
 FIXTURE = REPO / "tests" / "fixtures" / "llm_calls" / "demo_two_modules.jsonl"
 PACK_DEMO = REPO / "tests" / "fixtures" / "packs" / "demo"
 DU_AN_MAU = REPO / "projects" / "robot_balance"
+#: Đầu vào ảnh hưởng băm prompt, đã đóng băng cạnh fixture. Muốn ghi lại theo
+#: một bộ ràng buộc mới thì chép từ dự án mẫu vào đó TRƯỚC — hai bước, có chủ
+#: ý. Xem tests/fixtures/e2e_project/README.md.
+DAU_VAO_DONG_BANG = REPO / "tests" / "fixtures" / "e2e_project"
 
 #: Hai module demo của TC-15, theo đúng thứ tự bộ test chạy.
 MODULES = (
@@ -58,19 +62,12 @@ def dung_moi_truong(home: Path) -> Path:
     project = home / "projects" / "demo_project"
     project.mkdir(parents=True)
     for ten in ("constraints.yaml", "hardware_profile.yaml"):
-        shutil.copy(DU_AN_MAU / ten, project / ten)
-    shutil.copytree(DU_AN_MAU / "datasheets", project / "datasheets")
+        shutil.copy(DAU_VAO_DONG_BANG / ten, project / ten)
+    shutil.copytree(DAU_VAO_DONG_BANG / "datasheets", project / "datasheets")
     shutil.copytree(DU_AN_MAU / "sim", project / "sim")
 
-    rb = project / "constraints.yaml"
-    rb.write_text(
-        "\n".join(
-            "platform: demo" if d.startswith("platform:") else d
-            for d in rb.read_text(encoding="utf-8").splitlines()
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    # Bản đóng băng đã mang sẵn ``platform: demo`` — không sửa gì sau khi chép,
+    # để tệp được băm đúng bằng tệp nằm trong kho.
     (project / "tests").mkdir()
     (project / "tests" / "test_smoke.py").write_text(
         "def test_khung_du_an():\n    assert True\n", encoding="utf-8"

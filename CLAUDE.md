@@ -1,8 +1,12 @@
 # CLAUDE.md — Embedded AIDD Agent (EAA)
 
 Dự án: xây dựng **Agent lập trình nhúng tổng quát** (Embedded AIDD Agent) theo bộ tài liệu thiết kế
-trong `docs/`. Đây là sản phẩm phần mềm của đề án tốt nghiệp Thạc sĩ Kỹ thuật (Kỹ thuật Điện tử, PTIT)
-của Vũ Trí Công. Thiết kế đã ĐÓNG BĂNG (design freeze) — code bám thiết kế; nếu buộc phải lệch,
+trong `docs/`. Đây là sản phẩm phần mềm của đề án tốt nghiệp Thạc sĩ Kỹ thuật (Kỹ thuật Điện tử, PTIT).
+
+- **Học viên thực hiện:** Vũ Trí Công
+- **Giảng viên hướng dẫn:** TS. Nguyễn Trung Hiếu
+
+Thiết kế đã ĐÓNG BĂNG (design freeze) — code bám thiết kế; nếu buộc phải lệch,
 ghi rõ và cập nhật tài liệu tương ứng, không lệch ngầm.
 
 ## Đọc tài liệu theo thứ tự này

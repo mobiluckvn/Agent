@@ -12,6 +12,21 @@ lại của sản phẩm.
 
 Không có bộ test nào là KHÔNG ĐẠT, không phải đạt-vì-không-có-gì-để-chạy: một
 cổng trả về "đạt" khi chưa ai viết test là cổng báo tin giả.
+
+Và một cổng "đạt" mà không nói mình KHÔNG kiểm gì cũng là một loại tin giả nhẹ
+hơn (N-053)
+------------------------------------------------------------------------------
+
+Chạy trên máy chủ qua lớp phần cứng giả kiểm được tính toán và máy trạng thái —
+phần lớn chỗ hay sai. Nhưng nó KHÔNG kiểm được: giá trị thật ghi vào thanh ghi,
+độ trễ ngắt, hành vi của ngoại vi, và chu kỳ thật của vòng điều khiển. Một dòng
+"12 passed" không phân biệt hai loại ấy, nên người đọc dễ mang cảm giác đã phủ
+hết sang bước tiếp theo.
+
+Nên cổng này còn liệt kê ĐÍCH DANH phần nó không với tới, suy từ đồ thị tài
+nguyên của chính module đang kiểm. Đó là cảnh báo, không phải lỗi: thiếu sót ấy
+không sửa được bằng cách viết thêm test trên máy chủ — nó được đóng ở cổng mô
+phỏng và ở nghiệm thu vật lý tại G4.
 """
 
 from __future__ import annotations
@@ -23,13 +38,74 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from eaa.tools.base import CodeArtifact, ToolError, ToolReport
+from typing import Any, Sequence
 
-__all__ = ["UnitTestGate"]
+from eaa.tools.base import CodeArtifact, Severity, ToolError, ToolReport
+
+__all__ = ["UnitTestGate", "host_gaps"]
 
 _TOM_TAT = re.compile(
     r"(?:(?P<passed>\d+) passed)|(?:(?P<failed>\d+) failed)|(?:(?P<errors>\d+) error)"
 )
+
+
+def host_gaps(
+    *,
+    module_id: str = "",
+    graph: Any = None,
+    constraints: Any = None,
+    registers: Sequence[str] = (),
+    resources: Sequence[str] = (),
+) -> list[str]:
+    """Điều bộ test trên máy chủ KHÔNG kiểm được, nêu đích danh (N-053).
+
+    Suy từ dữ liệu của chính module: nó cấu hình thanh ghi nào, chiếm ngoại vi
+    nào, và dự án có ràng buộc thời gian nào. Ba nguồn ấy cho ra ba loại thiếu
+    sót khác nhau, và tách chúng ra có ích vì mỗi loại được đóng ở một chỗ
+    khác: thanh ghi ở nghiệm thu vật lý, ngoại vi ở chẩn đoán hai kênh, thời
+    gian ở cổng mô phỏng rồi tới G4.
+
+    Cố ý KHÔNG cố liệt kê cho đủ mọi thứ. Một danh sách dài và chung chung sẽ
+    được lướt qua; ba dòng gọi đúng tên thanh ghi của module này thì không.
+    """
+    thieu: list[str] = []
+
+    ten_thanh_ghi = list(registers)
+    tai_nguyen = list(resources)
+    if module_id and graph is not None:
+        if not ten_thanh_ghi and hasattr(graph, "registers_for"):
+            ten_thanh_ghi = list(graph.registers_for(module_id))
+        if not tai_nguyen and hasattr(graph, "resources_of"):
+            tai_nguyen = list(graph.resources_of(module_id))
+
+    if ten_thanh_ghi:
+        thieu.append(
+            "Giá trị thật ghi vào "
+            + ", ".join(sorted(ten_thanh_ghi)[:8])
+            + (" …" if len(ten_thanh_ghi) > 8 else "")
+            + " — lớp phần cứng giả nhận mọi giá trị, kể cả giá trị chip thật "
+            "sẽ từ chối. Chỉ nghiệm thu trên thiết bị mới đóng được chỗ này."
+        )
+    if tai_nguyen:
+        thieu.append(
+            "Hành vi thật của "
+            + ", ".join(sorted(tai_nguyen))
+            + " — thời điểm cờ dựng, thứ tự sự kiện, và cách ngoại vi phản ứng "
+            "khi bị dùng sai. Đóng ở chẩn đoán hai kênh (eaa diagnose)."
+        )
+
+    gioi_han = getattr(constraints, "limits", {}) or {}
+    thoi_gian = sorted(
+        k for k in gioi_han if k.endswith(("_ms", "_us", "_ns")) or "loop" in k
+    )
+    if thoi_gian:
+        thieu.append(
+            "Ràng buộc thời gian ("
+            + ", ".join(thoi_gian)
+            + ") — máy chủ chạy nhanh hơn chip nhiều bậc, nên mọi số đo thời "
+            "gian ở đây đều vô nghĩa. Đóng ở cổng mô phỏng rồi ở G4."
+        )
+    return thieu
 
 
 @dataclass
@@ -42,6 +118,10 @@ class UnitTestGate:
     #: Cho phép cổng đạt khi dự án chưa có test nào. Mặc định KHÔNG cho phép.
     allow_empty: bool = False
     name: str = "unittests"
+    #: Module đang kiểm, để suy ra phần không kiểm được trên máy chủ (N-053).
+    module: str = ""
+    graph: Any = None
+    constraints: Any = None
 
     def run(self, artifact: CodeArtifact | None = None) -> ToolReport:
         tests_dir = Path(self.tests_dir)
@@ -100,10 +180,22 @@ class UnitTestGate:
             ]
         )
 
+        # Phần KHÔNG kiểm được, nêu kể cả khi mọi test đều xanh — nhất là khi
+        # mọi test đều xanh, vì đó đúng là lúc người đọc dễ mang cảm giác đã
+        # phủ hết sang bước tiếp theo (N-053).
+        khong_kiem_duoc = host_gaps(
+            module_id=self.module, graph=self.graph, constraints=self.constraints
+        )
+        so_lieu["host_gaps"] = len(khong_kiem_duoc)
+
         return ToolReport(
             gate=self.name,
             passed=dat,
             errors=loi,
+            warnings=[
+                ToolError(f"KHÔNG kiểm được trên máy chủ: {t}", severity=Severity.INFO)
+                for t in khong_kiem_duoc
+            ],
             metrics=so_lieu,
             raw_output=dau_ra,
             duration_s=time.monotonic() - bat_dau,

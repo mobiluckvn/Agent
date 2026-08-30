@@ -76,6 +76,21 @@ def _checker(du_an: Path) -> ReadinessChecker:
     return ReadinessChecker(kb=kb, graph=graph)
 
 
+def _go_tai_lieu_twi(du_an: Path) -> None:
+    """Dựng cảnh "không còn trích đoạn nào về bus hai dây".
+
+    Phải gỡ CẢ chunk chế độ slave (ds-023, thêm ở TC-20 làm nhiễu). Nó nói về
+    TWCR, nên để lại thì thanh ghi ấy vẫn được coi là có tài liệu, và cảnh đang
+    dựng không còn là cảnh muốn dựng.
+    """
+    for ten in (
+        "atmega328p__twi_bitrate.md",
+        "atmega328p__twi_status.md",
+        "atmega328p__twi_slave.md",
+    ):
+        (du_an / "datasheets" / ten).unlink()
+
+
 # --------------------------------------------------------------------------
 # Đủ thông tin thì vòng sinh mã mở
 # --------------------------------------------------------------------------
@@ -112,8 +127,7 @@ def test_module_khong_dung_tai_nguyen_nao_thi_bang_kiem_rong(du_an: Path) -> Non
 
 
 def test_tc24_xoa_chunk_bat_buoc_thi_vong_sinh_ma_khong_mo(du_an: Path) -> None:
-    (du_an / "datasheets" / "atmega328p__twi_bitrate.md").unlink()
-    (du_an / "datasheets" / "atmega328p__twi_status.md").unlink()
+    _go_tai_lieu_twi(du_an)
 
     with pytest.raises(NotReady) as loi:
         _checker(du_an).check("drv_bus_sensor", uses=["twi"])
@@ -125,8 +139,7 @@ def test_tc24_xoa_chunk_bat_buoc_thi_vong_sinh_ma_khong_mo(du_an: Path) -> None:
 
 def test_tc24_bao_DICH_DANH_thanh_ghi_con_thieu(du_an: Path) -> None:
     """Không được báo "thiếu tài liệu" chung chung — phải nêu tên thanh ghi."""
-    (du_an / "datasheets" / "atmega328p__twi_bitrate.md").unlink()
-    (du_an / "datasheets" / "atmega328p__twi_status.md").unlink()
+    _go_tai_lieu_twi(du_an)
 
     with pytest.raises(NotReady) as loi:
         _checker(du_an).check("drv_bus_sensor", uses=["twi"])
@@ -140,8 +153,7 @@ def test_tc24_bao_DICH_DANH_thanh_ghi_con_thieu(du_an: Path) -> None:
 
 
 def test_tc24_goi_y_du_ba_bac_tim_kiem(du_an: Path) -> None:
-    (du_an / "datasheets" / "atmega328p__twi_bitrate.md").unlink()
-    (du_an / "datasheets" / "atmega328p__twi_status.md").unlink()
+    _go_tai_lieu_twi(du_an)
 
     with pytest.raises(NotReady) as loi:
         _checker(du_an).check("drv_bus_sensor", uses=["twi"])

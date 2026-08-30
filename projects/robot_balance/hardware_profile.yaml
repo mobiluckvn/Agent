@@ -52,6 +52,21 @@ components:
     provides: [accel_xyz, gyro_xyz, temperature]
     whoami_register: 0x75
     whoami_expected: 0x68
+    # Thanh ghi của CHÍNH linh kiện này, không phải của bus nó nằm trên.
+    #
+    # Thiếu khai báo này, đồ thị không có đường nào nối module tới trích đoạn
+    # nói về con cảm biến — và bộ chuẩn truy xuất (TC-20) cho thấy hậu quả:
+    # một trích đoạn về chế độ slave của bus, chỉ vì tình cờ chia sẻ một thanh
+    # ghi, đẩy trích đoạn khởi động cảm biến ra khỏi ba chỗ của prompt.
+    #
+    # Danh sách này CỐ Ý chỉ có bốn thanh ghi của phần nhận dạng và khởi động —
+    # đúng phần mà trích đoạn ds-031 đã qua G2. Thanh ghi cấu hình dải đo
+    # (ACCEL_CONFIG, GYRO_CONFIG) thuộc ds-032, còn đang ở trạng thái proposed
+    # vì chưa đối chiếu xong hệ số nhạy. Khai chúng ở đây bây giờ sẽ khiến
+    # Readiness Check chặn vòng sinh mã — và chặn ĐÚNG: module không được viết
+    # mã đặt dải đo khi tài liệu về dải đo chưa ai duyệt. Thêm chúng vào cùng
+    # lúc duyệt ds-032, không sớm hơn.
+    configured_by: [WHO_AM_I, PWR_MGMT_1, SMPLRT_DIV, CONFIG]
   - id: motor_driver_left
     part: a4988
     microstep: 16
@@ -99,6 +114,31 @@ pin_map:
   PC5: {net: SCL, direction: out, peripheral: twi}
   PD0: {net: UART_RX, direction: in, peripheral: usart0}
   PD1: {net: UART_TX, direction: out, peripheral: usart0}
+
+# Bảng chức năng thay thế — trích từ bảng *alternate functions* của datasheet.
+#
+# Đây là dữ liệu để engine ĐỐI CHIẾU: một chân được gán chức năng mà nó không
+# hỗ trợ là loại lỗi chỉ lộ ra sau khi đã hàn, và sửa trên giấy rẻ hơn sửa
+# trên bo (N-014). Không có bảng này thì phép kiểm ấy trả về "chưa kiểm được"
+# — trung thực, nhưng vô dụng.
+#
+# Engine KHÔNG biết chân nào làm được gì và không được biết: tri thức này
+# thuộc về đúng một họ vi điều khiển, nên nó nằm ở tầng dự án (FR-PLT-01).
+pin_functions:
+  PB0: [gpio, icp1, clko]
+  PB1: [gpio, oc1a]
+  PB2: [gpio, oc1b, ss]
+  PB3: [gpio, mosi, oc2a]
+  PB4: [gpio, miso]
+  PB5: [gpio, sck]
+  PC4: [gpio, sda, adc4]
+  PC5: [gpio, scl, adc5]
+  PD0: [gpio, rxd]
+  PD1: [gpio, txd]
+  PD2: [gpio, int0]
+  PD3: [gpio, int1, oc2b]
+  PD5: [gpio, oc0b, t1]
+  PD6: [gpio, oc0a, ain0]
 
 power:
   # Rủi ro brown-out đã lường trước ở thiết kế B2; kịch bản chẩn đoán DS-05

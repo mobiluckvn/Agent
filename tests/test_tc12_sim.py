@@ -114,11 +114,17 @@ def _cong(du_an: Path, runner: ToolRunner, controller: str = "", **ghi_de) -> Si
 
 
 def test_bo_dieu_khien_tham_chieu_giu_duoc_can_bang(du_an: Path, runner: ToolRunner) -> None:
+    """Cổng chạy MỌI kịch bản dự án khai, và mọi kịch bản phải xanh.
+
+    Số kịch bản không cố định trong test: dự án thêm một kịch bản là thêm một
+    phép kiểm, và một con số cứng ở đây sẽ biến việc thêm phép kiểm thành việc
+    làm đỏ bộ test. Từ N-063, dự án mẫu có thêm ba kịch bản tiêm lỗi.
+    """
     bao_cao = _cong(du_an, runner).run()
 
     assert bao_cao.passed, bao_cao.raw_output
-    assert bao_cao.metrics["scenarios_run"] == 3
-    assert bao_cao.metrics["scenarios_stable"] == 3
+    assert bao_cao.metrics["scenarios_run"] >= 3
+    assert bao_cao.metrics["scenarios_stable"] == bao_cao.metrics["scenarios_run"]
     # Biên độ dao động xác lập phải sát ngưỡng ±1° của Gate G4.
     assert bao_cao.metrics["steady_state_deg"] < 1.0
 

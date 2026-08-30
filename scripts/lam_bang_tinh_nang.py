@@ -60,9 +60,9 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "Engine gọi toolchain chỉ qua eaa/platform.py; pack khai báo năng lực bằng YAML",
      "eaa/platform.py", "test_platform_pack.py", DA, ""),
     ("B. Kiến trúc ba tầng", "Thêm họ MCU mới không sửa engine (NFR-05)",
-     "Cấu trúc đã tách đúng, nhưng mới có duy nhất pack AVR",
-     "packs/avr/", "—", PHAN,
-     "Chưa có pack thứ hai (STM32/ESP32) để chứng minh bằng thực nghiệm"),
+     "Pack thứ hai (STM32 Cortex-M4F) thêm vào KHÔNG sinh một nhánh rẽ nào trong eaa/",
+     "packs/avr/ + packs/stm32/", "TC-47", DA,
+     ""),
 
     # -- C. Tri thức, RAG, vòng đời ----------------------------------------
     ("C. Tri thức & RAG", "Kho ràng buộc + hồ sơ phần cứng + thư viện prompt",
@@ -315,9 +315,8 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "eaa telemetry --replay", "TC-43d", DA, ""),
     ("J. Mạch thật & chẩn đoán", "Sinh firmware chẩn đoán từ mẫu",
      "Bộ khung ở pack + phần đo ở dự án, ghép bằng liên kết; eaa diagnose build",
-     "eaa/firmware.py", "TC-44 (18 test)", PHAN,
-     "2/6 kịch bản đã có phần đo (DS-01, DS-04); bốn kịch bản còn lại báo rõ "
-     "'chưa khai phần đo' thay vì im lặng"),
+     "eaa/firmware.py", "TC-44, TC-58a", DA,
+     ""),
     ("J. Mạch thật & chẩn đoán", "Không dựng firmware chẩn đoán rỗng",
      "Kịch bản chưa khai phần đo thì dừng — ảnh im lặng không phân biệt được với mạch hỏng",
      "eaa/firmware.py", "TC-44b", DA, ""),
@@ -338,7 +337,89 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "Đặt điểm dừng, đọc thanh ghi lúc chạy",
      "—", "—", CHUA,
      "Ngoài phạm vi đề án; UART + nạp lại là đủ cho vòng chẩn đoán hai kênh"),
+
+    ("J. Mạch thật & chẩn đoán", "Kiểm sau khi nạp: đọc ngược bộ nhớ",
+     "Ba kết cục — khớp / lệch (lần nạp bị coi là trượt) / không kiểm được; "
+     "'nạp không báo lỗi' KHÔNG được đọc thành 'nạp đúng'",
+     "eaa/flash.py + năng lực flash_verify", "TC-52 (12 test)", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Đo tay bằng dụng cụ — kênh thứ ba",
+     "Dòng tổng, sụt áp trên dây, nhiệt độ vỏ: hướng dẫn đích danh đo cái gì, "
+     "ở đâu, điều kiện nào, chờ đợi bao nhiêu",
+     "eaa/diagnostics.py ManualMeasurement", "TC-58c, TC-58d", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Đo đặc tính thời gian thực, kể cả xấu nhất",
+     "Chu kỳ trung bình, chu kỳ DÀI NHẤT, dao động, tải CPU — ràng buộc áp lên "
+     "trường hợp xấu nhất chứ không lên trung bình",
+     "projects/*/diagnostics/DS-06.c", "TC-58b", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Kiểm độ bền dài hạn",
+     "Phát hiện reset qua bộ đếm thời gian chạy tụt; báo cáo không suy rộng "
+     "quá quãng đã quan sát",
+     "eaa/endurance.py + eaa endurance", "TC-58e..g", DA, ""),
+    ("J. Mạch thật & chẩn đoán", "Chẩn đoán sự cố ngoài hiện trường",
+     "Dựng lại điều kiện trước khi đo; không tái hiện được thì nói CHƯA KẾT "
+     "LUẬN ĐƯỢC thay vì đoán",
+     "eaa/diagnostics.py FieldCase", "TC-59e, TC-59f", DA, ""),
+
+    ("A. Khởi tạo & phạm vi", "Agent đề xuất phạm vi, ràng buộc, tiêu chí, bảng chân",
+     "Bốn bản đề xuất của G0/G1; mỗi ràng buộc kèm HỆ QUẢ, mỗi tiêu chí là số "
+     "+ đơn vị + cách đo, mỗi chân được kiểm chức năng thay thế",
+     "eaa/propose.py", "TC-54 (38 test)", DA, ""),
+    ("A. Khởi tạo & phạm vi", "Danh sách tài liệu và trang cần trích, đích danh",
+     "Suy từ hồ sơ phần cứng và đồ thị; chỉ xin phần CÒN THIẾU trích đoạn",
+     "eaa/docplan.py", "TC-55a..e", DA, ""),
+    ("A. Khởi tạo & phạm vi", "Errata theo đúng rev silicon",
+     "'Chưa tra' khác hẳn 'chip sạch'; module chạm lỗi đã công bố được gọi tên",
+     "eaa/docplan.py ErrataAnalysis", "TC-55f..h", DA, ""),
+
+    ("C. Tri thức & RAG", "Bộ chuẩn đánh giá truy xuất (golden set)",
+     "precision@3 trên bộ chuẩn của dự án, kèm chunk nhiễu có chủ ý",
+     "eaa/goldenset.py + eaa report retrieval", "TC-20 (10 test)", DA, ""),
+    ("C. Tri thức & RAG", "Ảnh màn hiện sóng thành số đo đề xuất",
+     "Kèm sai số đọc ảnh; người sửa được giá trị trước khi lưu, bản ghi giữ cả hai số",
+     "eaa/ingest.py ScopeImageReader", "TC-23 (10 test)", DA, ""),
+
+    ("D. Sinh mã", "Sinh giao diện TRƯỚC khi sinh thân",
+     "Hợp đồng gọi trả lời ba câu chữ ký không nói được: ngắt / chặn / tái nhập",
+     "eaa/interfaces.py + khuôn của pack", "TC-56a..e", DA, ""),
+    ("D. Sinh mã", "Ngân sách tài nguyên và token chia theo module",
+     "Cảnh báo khi một module ăn quá phần; trần token tích lũy chặn TRƯỚC khi gọi mô hình",
+     "eaa/budget.py + eaa budget", "TC-53 (30 test)", DA, ""),
+
+    ("E. Kiểm chứng & cổng", "Nêu đích danh phần KHÔNG kiểm được trên máy chủ",
+     "Thanh ghi, ngoại vi, ràng buộc thời gian — mỗi loại chỉ ra nơi nó được đóng",
+     "eaa/tools/unittests.py host_gaps", "TC-56f, TC-56g", DA, ""),
+    ("E. Kiểm chứng & cổng", "Khoảng trống ngăn xếp ở tầm firmware",
+     "Số liệu SUY RA từ dung lượng trừ phần đã dùng; chỉ có nghĩa sau khi liên kết",
+     "eaa/budget.py derived", "TC-53d", DA, ""),
+
+    ("F. Mô phỏng", "Tiêm lỗi trong mô phỏng",
+     "Bốn kiểu hỏng đặt tên theo hành vi; kiểm hệ có vào chế độ an toàn không",
+     "eaa/tools/sim_runner.py FaultSpec", "TC-57a..e", DA, ""),
+    ("F. Mô phỏng", "Đề xuất mô hình đối tượng",
+     "Tham số chưa đo vào Assumption Log; mô hình BẮT BUỘC nêu hiện tượng nó bỏ qua",
+     "eaa/propose.py PlantModelProposal", "TC-57f, TC-57g", DA, ""),
+
+    ("K. Bàn giao & vận hành", "Tài liệu vận hành sinh từ dữ liệu dự án",
+     "Kèm mục 'điều hệ thống KHÔNG làm được', dựng từ chỗ hở thật chứ không viết tay",
+     "eaa/handover.py + eaa handover doc", "TC-59a, TC-59b", DA, ""),
+    ("K. Bàn giao & vận hành", "Đánh giá ảnh hưởng khi đổi linh kiện",
+     "So hai linh kiện rồi bắc cầu trên đồ thị ra module bị chạm",
+     "eaa/handover.py SwapAnalysis", "TC-59c, TC-59d", DA, ""),
+    ("K. Bàn giao & vận hành", "Cập nhật thiết bị đã triển khai",
+     "Bậc đầu ĐÚNG MỘT thiết bị; phải có đường lui lấy từ known_good.lock",
+     "eaa/handover.py RolloutPlan", "TC-59g, TC-59h", DA, ""),
+
+    ("L. Siêu nghiệp vụ", "Bộ từ vựng mức tin cậy dùng chung",
+     "ĐÃ KIỂM / SUY RA / GIẢ ĐỊNH / KHÔNG KIỂM ĐƯỢC — một bộ cho toàn hệ",
+     "eaa/confidence.py", "TC-60a..c", PHAN,
+     "Năm chỗ đã quy về bộ từ vựng chung; các đầu ra còn lại chưa gắn nhãn"),
+    ("L. Siêu nghiệp vụ", "Agent tự phát hiện sai lệch thiết kế",
+     "Đối chiếu module và lệnh với tài liệu; dựng nháp mục cho sổ sai lệch",
+     "eaa/deviation.py + eaa deviations", "TC-60d..f", DA, ""),
+    ("L. Siêu nghiệp vụ", "Tự đánh giá quy trình",
+     "Chỉ ra cổng hay trượt nhất; mỗi đề xuất gắn với một con số quan sát được",
+     "eaa/kpi.py weak_points + eaa report review", "TC-60g..i", DA, ""),
 ]
+
 
 # --------------------------------------------------------------------------
 # Lộ trình nối mạch thật — thứ tự có ý nghĩa, mỗi bước mở khóa bước sau
@@ -450,7 +531,11 @@ def dung_bang(dich: Path) -> Path:
     nhom = sorted({t[0] for t in TINH_NANG})
     ws.append(["Embedded AIDD Agent — thống kê tính năng"])
     ws["A1"].font = Font(bold=True, size=16, color="2F5597")
-    ws.append([f"Vũ Trí Công · đề án Thạc sĩ Kỹ thuật, PTIT · cập nhật {_hom_nay()}"])
+    ws.append([
+        "Đề án Thạc sĩ Kỹ thuật (Kỹ thuật Điện tử, PTIT) · "
+        "Học viên: Vũ Trí Công · Giảng viên hướng dẫn: TS. Nguyễn Trung Hiếu · "
+        f"cập nhật {_hom_nay()}"
+    ])
     ws["A2"].font = Font(italic=True, color="7F7F7F")
     ws.append([])
 

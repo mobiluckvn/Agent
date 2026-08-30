@@ -38,6 +38,7 @@ __all__ = [
     "StaticRule",
     "FirmwareTemplates",
     "DiagnosticTemplates",
+    "InterfaceTemplates",
     "PackManifest",
     "PlatformPack",
     "PackError",
@@ -53,7 +54,13 @@ __all__ = [
 #: * ``size``    — đo chiếm dụng bộ nhớ chương trình và bộ nhớ dữ liệu.
 #: * ``static``  — phân tích tĩnh theo bộ quy tắc của nền tảng.
 #: * ``flash``   — nạp ảnh nhị phân xuống thiết bị.
+#: * ``flash_verify`` — đọc ngược bộ nhớ chương trình và so với ảnh vừa gửi.
 #: * ``sim``     — cầu nối sang bộ mô phỏng để chạy cổng SIL.
+#:
+#: ``flash_verify`` tách khỏi ``flash`` có chủ ý. Không phải mạch nạp nào cũng
+#: đọc ngược được, và một pack thiếu năng lực này phải nói ra là *không kiểm
+#: được* chứ không được để câu "nạp không báo lỗi" âm thầm đóng vai câu "nạp
+#: đúng" (N-075). Gộp hai năng lực làm một thì sự khác nhau ấy biến mất.
 #:
 #: ``compile`` và ``link`` tách rời có chủ ý. Vòng lặp chuẩn kiểm từng module,
 #: mà một module driver không có ``main()``; pack nào để lệnh dịch liên kết
@@ -66,6 +73,7 @@ CAPABILITIES: tuple[str, ...] = (
     "size",
     "static",
     "flash",
+    "flash_verify",
     "sim",
 )
 
@@ -314,6 +322,45 @@ class DiagnosticTemplates:
 
 
 @dataclass(frozen=True)
+class InterfaceTemplates:
+    """Khuôn sinh tệp tiêu đề của một module — N-041.
+
+    Cùng ranh giới với :class:`FirmwareTemplates`: engine biết module hứa cung
+    cấp những hàm nào và mỗi hàm có hợp đồng gọi ra sao; nó KHÔNG biết viết một
+    tệp tiêu đề C. Macro chống nạp trùng, cú pháp chú thích, cách khai báo —
+    đều là chuyện của nền tảng.
+    """
+
+    template: Path
+    #: Tên tệp sinh ra; ``{module}`` được thay bằng mã module.
+    output: str = "{module}.h"
+    #: Mẫu một dòng khai báo hàm. Chỗ giữ: ``{signature}``.
+    function_line: str = "{signature};"
+    #: Mẫu một dòng chú thích. Chỗ giữ: ``{comment}``.
+    comment_line: str = "/* {comment} */"
+    #: Mẫu một dòng nạp tệp tiêu đề khác. Chỗ giữ: ``{header}``.
+    include_line: str = "#include <{header}>"
+
+    @classmethod
+    def from_dict(cls, du_lieu: Any, root: Path, path: Path) -> "InterfaceTemplates":
+        if not isinstance(du_lieu, dict):
+            raise PackError(f"{path}: 'interfaces' phải là ánh xạ khóa–giá trị")
+        khuon = du_lieu.get("template")
+        if not khuon:
+            raise PackError(
+                f"{path}: 'interfaces' phải nêu 'template' — tệp khuôn tiêu đề module"
+            )
+        mac_dinh = cls(template=root / str(khuon))
+        return cls(
+            template=root / str(khuon),
+            output=str(du_lieu.get("output", mac_dinh.output)),
+            function_line=str(du_lieu.get("function_line", mac_dinh.function_line)),
+            comment_line=str(du_lieu.get("comment_line", mac_dinh.comment_line)),
+            include_line=str(du_lieu.get("include_line", mac_dinh.include_line)),
+        )
+
+
+@dataclass(frozen=True)
 class PackManifest:
     """Nội dung ``pack.yaml`` đã được kiểm tra lược đồ."""
 
@@ -333,6 +380,8 @@ class PackManifest:
     firmware: "FirmwareTemplates | None" = None
     #: Bộ khung firmware chẩn đoán — xem :class:`DiagnosticTemplates`.
     diagnostics: "DiagnosticTemplates | None" = None
+    #: Khuôn sinh tệp tiêu đề module — xem :class:`InterfaceTemplates`.
+    interfaces: "InterfaceTemplates | None" = None
 
     def has(self, capability: str) -> bool:
         return capability in self.capabilities
@@ -419,6 +468,11 @@ def load_manifest(path: str | Path) -> PackManifest:
         diagnostics=(
             DiagnosticTemplates.from_dict(du_lieu["diagnostics"], root, path)
             if du_lieu.get("diagnostics")
+            else None
+        ),
+        interfaces=(
+            InterfaceTemplates.from_dict(du_lieu["interfaces"], root, path)
+            if du_lieu.get("interfaces")
             else None
         ),
         tool_requirements={

@@ -20,13 +20,32 @@ Bốn phép kiểm trước khi nạp, và cả bốn đều là "không" chứ 
    không được diễn giải thành một người đã đồng ý — cùng nguyên tắc với Human
    Gate, và ở đây hậu quả là vật lý.
 
+Nạp xong chưa phải là xong (N-075)
+-----------------------------------
+
+Một mạch nạp trả mã thoát 0 mới chỉ nói *nó đã gửi xong*, chứ chưa nói *thứ nằm
+trên chip đúng bằng thứ đã gửi*. Khoảng cách giữa hai câu ấy là chỗ mà dây tín
+hiệu chập chờn, nguồn yếu, hay một khối flash mòn sẽ lọt qua — và lọt qua im
+lặng, vì mọi lớp phía trên đều đọc mã thoát 0 là "đạt".
+
+Nên sau mỗi lần nạp thành công, Agent đọc ngược bộ nhớ và so với ảnh, qua năng
+lực ``flash_verify`` của pack. Ba kết cục, và cả ba đều được nói thẳng:
+
+* ``khop``            — đã đọc ngược và trùng khớp. Đây là câu *đã kiểm*.
+* ``lech``            — đọc ngược và KHÔNG khớp. Lần nạp bị coi là trượt.
+* ``khong-kiem-duoc`` — mạch nạp không hỗ trợ, hoặc thiếu công cụ. Bản ghi nói
+  rõ là chưa kiểm, chứ không mượn mã thoát của bước nạp làm bằng chứng.
+
+Kết cục thứ ba là lý do chính khiến phần này tồn tại. Sự cám dỗ là để trống và
+coi như đạt; hậu quả là mọi số đo sau đó gắn vào một giả định chưa ai kiểm.
+
 Bản ghi nạp là append-only
 ---------------------------
 
 Mỗi lần nạp ghi lại: commit nào, ảnh nào (kèm băm), cổng nào, ai xác nhận, lúc
-nào. Khi một thí nghiệm ở Chương 3 cho số lạ, câu đầu tiên phải trả lời được là
-"hôm ấy trên mạch đang chạy bản nào" — và nó phải trả lời được mà không cần ai
-nhớ.
+nào, và kiểm sau khi nạp ra sao. Khi một thí nghiệm ở Chương 3 cho số lạ, câu
+đầu tiên phải trả lời được là "hôm ấy trên mạch đang chạy bản nào" — và nó phải
+trả lời được mà không cần ai nhớ.
 """
 
 from __future__ import annotations
@@ -47,10 +66,21 @@ __all__ = [
     "FlashLog",
     "Flasher",
     "PreflightResult",
+    "VerifyResult",
+    "VERIFY_KHOP",
+    "VERIFY_LECH",
+    "VERIFY_KHONG_KIEM_DUOC",
 ]
 
 #: Nhật ký nạp, cạnh Project State.
 FLASH_LOG = "flash_log.jsonl"
+
+#: Đã đọc ngược bộ nhớ và nội dung trùng ảnh đã gửi — câu "đã kiểm".
+VERIFY_KHOP = "khop"
+#: Đã đọc ngược và KHÔNG trùng. Lần nạp bị coi là trượt.
+VERIFY_LECH = "lech"
+#: Chưa đọc ngược được: pack không khai năng lực, hoặc thiếu công cụ trên máy.
+VERIFY_KHONG_KIEM_DUOC = "khong-kiem-duoc"
 
 
 class FlashError(Exception):
@@ -70,6 +100,50 @@ def _bam_tep(path: Path) -> str:
 
 
 @dataclass(frozen=True)
+class VerifyResult:
+    """Kết quả đọc ngược bộ nhớ sau khi nạp (N-075).
+
+    ``checked`` tách khỏi ``ok`` có chủ ý: "chưa kiểm" và "đã kiểm và hỏng" là
+    hai điều khác hẳn nhau, gộp chúng vào một cờ nhị phân là đúng chỗ mà thông
+    tin bị mất.
+    """
+
+    status: str
+    detail: str = ""
+
+    @property
+    def checked(self) -> bool:
+        """Đã thật sự đọc ngược bộ nhớ chưa."""
+        return self.status in (VERIFY_KHOP, VERIFY_LECH)
+
+    @property
+    def ok(self) -> bool:
+        """Có bằng chứng thứ trên chip đúng bằng thứ đã gửi không."""
+        return self.status == VERIFY_KHOP
+
+    @property
+    def confidence(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903)."""
+        from eaa.confidence import DA_KIEM, KHONG_KIEM_DUOC
+
+        return DA_KIEM if self.status == VERIFY_KHOP else KHONG_KIEM_DUOC
+
+    def render(self) -> str:
+        from eaa.confidence import DA_KIEM, KHONG_KIEM_DUOC
+
+        if self.status == VERIFY_KHOP:
+            return f"Kiểm sau khi nạp: {DA_KIEM} — đọc ngược khớp ảnh. {self.detail}".strip()
+        if self.status == VERIFY_LECH:
+            return f"Kiểm sau khi nạp: KHÔNG KHỚP — {self.detail}"
+        return (
+            f"Kiểm sau khi nạp: {KHONG_KIEM_DUOC} — "
+            f"{self.detail}\n"
+            "    'Nạp không báo lỗi' KHÔNG có nghĩa là 'nạp đúng'. Mọi số đo "
+            "lấy về sau đây dựa trên một giả định chưa ai kiểm."
+        )
+
+
+@dataclass(frozen=True)
 class FlashRecord:
     """Một lần nạp đã xảy ra."""
 
@@ -82,6 +156,9 @@ class FlashRecord:
     passed: bool
     programmer: str = ""
     note: str = ""
+    #: Kết cục của phép đọc ngược — xem :class:`VerifyResult`.
+    verify_status: str = VERIFY_KHONG_KIEM_DUOC
+    verify_detail: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -94,6 +171,8 @@ class FlashRecord:
             "passed": self.passed,
             "programmer": self.programmer,
             "note": self.note,
+            "verify_status": self.verify_status,
+            "verify_detail": self.verify_detail,
         }
 
     @classmethod
@@ -108,13 +187,27 @@ class FlashRecord:
             passed=bool(d.get("passed", False)),
             programmer=str(d.get("programmer", "")),
             note=str(d.get("note", "")),
+            # Bản ghi cũ (trước N-075) không có trường này. Mặc định phải là
+            # "không kiểm được" chứ không phải "khớp": suy diễn ngược lại sẽ
+            # gán một bằng chứng chưa từng tồn tại cho các lần nạp đã qua.
+            verify_status=str(d.get("verify_status", VERIFY_KHONG_KIEM_DUOC)),
+            verify_detail=str(d.get("verify_detail", "")),
         )
+
+    @property
+    def verified(self) -> bool:
+        """Có bằng chứng đọc ngược khớp không."""
+        return self.verify_status == VERIFY_KHOP
 
     def render(self) -> str:
         ket = "ĐẠT" if self.passed else "KHÔNG ĐẠT"
+        nhan_kiem = {
+            VERIFY_KHOP: "đã kiểm",
+            VERIFY_LECH: "ĐỌC NGƯỢC LỆCH",
+        }.get(self.verify_status, "chưa kiểm")
         return (
             f"{self.flashed_at}  {ket:<10} commit {self.commit[:10]}  "
-            f"cổng {self.port}  người {self.actor}"
+            f"cổng {self.port}  người {self.actor}  [{nhan_kiem}]"
         )
 
 
@@ -270,6 +363,17 @@ class Flasher:
             "flash", tham_so, gate_name="flash", confirmed_by=actor
         )
 
+        # Đọc ngược chỉ có nghĩa khi bước gửi đã xong. Nạp trượt rồi mà vẫn đi
+        # so nội dung thì cái "lệch" đọc được chỉ là hệ quả của lần trượt ấy,
+        # không phải một dữ kiện mới.
+        kiem_sau = (
+            self.verify(anh, tham_so)
+            if bao_cao.passed
+            else VerifyResult(
+                VERIFY_KHONG_KIEM_DUOC, "bước nạp đã trượt nên không đọc ngược."
+            )
+        )
+
         ban_ghi = FlashRecord(
             image=str(anh),
             image_digest=_bam_tep(anh),
@@ -277,15 +381,72 @@ class Flasher:
             port=port,
             actor=actor,
             flashed_at=_now(),
-            passed=bao_cao.passed,
+            # Đọc ngược lệch thì lần nạp này KHÔNG đạt, dù công cụ nạp đã trả
+            # về 0. Đây là toàn bộ điểm của N-075: mã thoát của công cụ nạp
+            # không phải bằng chứng về nội dung nằm trên chip.
+            passed=bao_cao.passed and kiem_sau.status != VERIFY_LECH,
             programmer=programmer,
-            note="" if bao_cao.passed else _tom_tat_loi(bao_cao),
+            note=(
+                _tom_tat_loi(bao_cao)
+                if not bao_cao.passed
+                else (kiem_sau.detail if kiem_sau.status == VERIFY_LECH else "")
+            ),
+            verify_status=kiem_sau.status,
+            verify_detail=kiem_sau.detail,
         )
         if self.log is not None:
             # Ghi cả lần nạp HỎNG: "đã thử nạp và trượt" là dữ kiện cần cho
             # chẩn đoán y như "đã nạp xong".
             self.log.append(ban_ghi)
         return ban_ghi
+
+    def verify(self, image: str | Path, params: dict[str, Any] | None = None) -> VerifyResult:
+        """Đọc ngược bộ nhớ chương trình và so với ảnh vừa nạp (N-075).
+
+        Không ném ngoại lệ: mọi kết cục — kể cả "không kiểm được" — là một dữ
+        kiện phải đi vào bản ghi nạp. Ném ra ngoài thì lần nạp mất luôn phần
+        ghi chép, mà thứ đã nằm trên chip thì vẫn nằm đó.
+        """
+        image = Path(image)
+        manifest = getattr(self.runner, "manifest", None)
+
+        if manifest is None or not manifest.has("flash_verify"):
+            ten = getattr(manifest, "name", "?")
+            return VerifyResult(
+                VERIFY_KHONG_KIEM_DUOC,
+                f"pack {ten!r} không khai năng lực 'flash_verify' — mạch nạp "
+                "này không đọc ngược được, hoặc pack chưa khai cách đọc.",
+            )
+
+        if hasattr(self.runner, "available") and not self.runner.available("flash_verify"):
+            return VerifyResult(
+                VERIFY_KHONG_KIEM_DUOC,
+                "thiếu công cụ đọc ngược trên máy này. Chạy 'eaa doctor'.",
+            )
+
+        goc = Path(self.runner.work_dir)
+        tham_so = {**(params or {}), "binary": self._tuong_doi(image, goc)}
+        try:
+            bao_cao = self.runner.run("flash_verify", tham_so, gate_name="flash_verify")
+        except Exception as exc:  # lắp lệnh sai, thiếu tham số của pack…
+            return VerifyResult(
+                VERIFY_KHONG_KIEM_DUOC, f"không chạy được phép đọc ngược: {exc}"
+            )
+
+        if bao_cao.metrics.get("env_error"):
+            return VerifyResult(
+                VERIFY_KHONG_KIEM_DUOC,
+                f"thiếu công cụ {bao_cao.metrics.get('missing_tool', '?')} trên máy này.",
+            )
+        if bao_cao.passed:
+            return VerifyResult(
+                VERIFY_KHOP, f"({image.name}, băm {_bam_tep(image)[:19]}…)"
+            )
+        return VerifyResult(
+            VERIFY_LECH,
+            "nội dung đọc về từ chip KHÔNG trùng ảnh đã gửi: "
+            + (_tom_tat_loi(bao_cao) or "công cụ báo không khớp"),
+        )
 
     # -- phần bên trong -----------------------------------------------------
 

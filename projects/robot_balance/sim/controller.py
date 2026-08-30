@@ -73,9 +73,31 @@ class PidController:
     integral_limit: float = 1.5
     filter: ComplementaryFilter = field(default_factory=ComplementaryFilter)
 
+    # -- chế độ an toàn (N-017), và cách phát hiện để vào nó (N-016) ---------
+    #
+    # Ba cửa vào, tương ứng ba kiểu hỏng ở safety.yaml. Cửa thứ hai là cửa khó:
+    # một cảm biến KẸT trả về giá trị hoàn toàn hợp lý, nên kiểm biên không bắt
+    # được — chỉ có "số đo không đổi một chút nào suốt nửa giây" mới bắt được,
+    # và câu ấy chỉ đúng vì cảm biến thật luôn có nhiễu nền.
+    #
+    #: Ngoài dải này thì số đo là rác, không phải một góc.
+    sane_angle_rad: float = 1.6          # ~92°, quá xa biên cứu vãn
+    #: Số chu kỳ số đo bất động liên tiếp thì coi là cảm biến kẹt hoặc mất mẫu.
+    #:
+    #: 10 chu kỳ = 100 ms, và con số ấy do TIÊM LỖI chọn ra chứ không do trực
+    #: giác. Bản đầu đặt 50 chu kỳ (0,5 s) vì nghe có vẻ hợp lý; kịch bản
+    #: `loi_cam_bien_ket` cho thấy robot đã ngã trước khi bộ phát hiện kịp bật.
+    #: Quét lại thì thấy vách đứng nằm giữa 20 và 30 chu kỳ — tức là cửa sổ chỉ
+    #: khoảng 200 ms. Chọn 10 để còn biên, và 10 mẫu GIỐNG HỆT nhau liên tiếp
+    #: là điều gần như không xảy ra với một cảm biến còn sống, vì nhiễu nền.
+    stuck_cycles: int = 10               # 100 ms ở chu kỳ 10 ms
+
     _integral: float = field(default=0.0, init=False)
     _last_measurement: float = field(default=0.0, init=False)
     _primed: bool = field(default=False, init=False)
+    _safe: bool = field(default=False, init=False)
+    _last_raw: float | None = field(default=None, init=False)
+    _bat_dong: int = field(default=0, init=False)
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> "PidController":
@@ -93,7 +115,49 @@ class PidController:
         self._integral = 0.0
         self._last_measurement = 0.0
         self._primed = False
+        self._safe = False
+        self._last_raw = None
+        self._bat_dong = 0
         self.filter.reset()
+
+    def is_safe(self) -> bool:
+        """Bộ chạy mô phỏng hỏi câu này để biết hệ đã vào chế độ an toàn chưa.
+
+        Hợp đồng do engine đặt (``eaa/tools/sim_runner.py``) và cố ý tối giản:
+        một thuộc tính hoặc một phương thức không tham số. Không có nó thì kịch
+        bản tiêm lỗi báo *không kiểm được* chứ không báo *không vào*.
+        """
+        return self._safe
+
+    def _kiem_so_do(self, goc_do: float, toc_do: float) -> bool:
+        """Số đo này còn tin được không — ba cửa vào chế độ an toàn.
+
+        Trả về True nếu phải vào chế độ an toàn. Một khi đã vào thì KHÔNG tự
+        ra: điều kiện ra là một quyết định của người (safety.yaml nói rõ chỉ
+        thoát bằng khởi động lại nguồn), không phải của một dòng mã trong vòng
+        điều khiển.
+        """
+        if self._safe:
+            return True
+
+        # Cửa 1 — số đo ngoài dải vật lý. Bắt được rác, không bắt được kẹt.
+        if not math.isfinite(goc_do) or abs(goc_do) > self.sane_angle_rad:
+            self._safe = True
+            return True
+
+        # Cửa 2 — số đo bất động. Cảm biến quán tính thật luôn có nhiễu nền,
+        # nên một chuỗi giá trị GIỐNG HỆT nhau là dấu hiệu của kẹt hoặc mất
+        # mẫu, chứ không phải của một robot đứng rất yên.
+        if self._last_raw is not None and goc_do == self._last_raw:
+            self._bat_dong += 1
+        else:
+            self._bat_dong = 0
+        self._last_raw = goc_do
+        if self._bat_dong >= self.stuck_cycles:
+            self._safe = True
+            return True
+
+        return False
 
     def step(self, measurement: dict[str, float], dt: float) -> float:
         """Một chu kỳ điều khiển. ``measurement`` mang ``angle`` và ``rate``.
@@ -109,11 +173,16 @@ class PidController:
         dấu vẫn biên dịch sạch, vẫn qua phân tích tĩnh, và chỉ lộ ra khi robot
         lao đi theo hướng ngược lại rồi ngã.
         """
-        goc = self.filter.update(
-            float(measurement.get("angle", 0.0)),
-            float(measurement.get("rate", 0.0)),
-            dt,
-        )
+        goc_do = float(measurement.get("angle", 0.0))
+        toc_do_do = float(measurement.get("rate", 0.0))
+
+        # Chế độ an toàn đứng TRƯỚC mọi phép tính điều khiển: điều khiển bằng
+        # một số đo đã hỏng còn tệ hơn không điều khiển. Ra lệnh 0 và giữ đó.
+        if self._kiem_so_do(goc_do, toc_do_do):
+            self._integral = 0.0
+            return 0.0
+
+        goc = self.filter.update(goc_do, toc_do_do, dt)
 
         # Vòng ngoài: nghiêng ngược chiều chuyển động để hãm vận tốc trôi.
         van_toc = float(measurement.get("speed", 0.0))

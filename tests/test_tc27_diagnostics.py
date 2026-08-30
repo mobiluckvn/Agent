@@ -350,21 +350,48 @@ def test_thieu_truong_telemetry_la_khong_dat(phien: DiagnosticSession) -> None:
     assert any("không có trường" in b for b in ket_luan.machine_evidence)
 
 
+#: Một phiên DS-06 đầy đủ. Từ N-083, kịch bản này đo cả trường hợp XẤU NHẤT và
+#: tải CPU chứ không chỉ trung bình — nên telemetry thiếu chúng là telemetry
+#: thiếu, và cổng phải nói thế.
+_DS06_DAY_DU = {
+    "isr_period_ms": 10.05,
+    "isr_period_max_ms": 10.3,
+    "jitter_us": 180,
+    "cpu_load_pct": 42,
+    "samples": 200,
+}
+
+
 def test_bang_chung_kenh_may_neu_ro_tung_tieu_chi(phien: DiagnosticSession) -> None:
-    ket_luan = phien.diagnose(
-        "DS-06", telemetry={"isr_period_ms": 10.05, "jitter_us": 180}
-    )
+    ket_luan = phien.diagnose("DS-06", telemetry=dict(_DS06_DAY_DU))
+
     assert ket_luan.verdict == Verdict.OK
-    assert len(ket_luan.machine_evidence) == 2
+    assert len(ket_luan.machine_evidence) == 5
     assert all(b.startswith("✓") for b in ket_luan.machine_evidence)
 
 
 def test_chu_ky_ngat_lech_nguong_bi_bat(phien: DiagnosticSession) -> None:
     ket_luan = phien.diagnose(
-        "DS-06", telemetry={"isr_period_ms": 12.4, "jitter_us": 180}
+        "DS-06", telemetry={**_DS06_DAY_DU, "isr_period_ms": 12.4}
     )
     assert ket_luan.verdict == Verdict.CODE
     assert any("✗" in b and "isr_period_ms" in b for b in ket_luan.machine_evidence)
+
+
+def test_trung_binh_dep_ma_truong_hop_xau_nhat_hong_van_bi_bat(
+    phien: DiagnosticSession,
+) -> None:
+    """Đây đúng là cảnh mà N-083 sinh ra để bắt.
+
+    Chu kỳ trung bình 10,05 ms nghe hoàn hảo, nhưng cứ vài giây lại có một chu
+    kỳ 23 ms — và với con lắc ngược thì chính chu kỳ ấy quyết định robot đứng
+    hay ngã. Trước bản này, kịch bản không đo con số ấy nên nó lọt sạch.
+    """
+    ket_luan = phien.diagnose(
+        "DS-06", telemetry={**_DS06_DAY_DU, "isr_period_max_ms": 23.0}
+    )
+    assert not ket_luan.machine_passed
+    assert any("✗" in b and "isr_period_max_ms" in b for b in ket_luan.machine_evidence)
 
 
 # --------------------------------------------------------------------------

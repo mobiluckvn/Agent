@@ -120,6 +120,7 @@ class Orchestrator:
         gate_chain: Sequence[Any] = (),
         config: OrchestratorConfig | None = None,
         runs_dir: Any = None,
+        token_budget: Any = None,
     ) -> None:
         self.state_store = state_store
         self.composer = composer
@@ -130,6 +131,10 @@ class Orchestrator:
         self.kpi = kpi
         self.ledger = ledger
         self.readiness = readiness
+        #: ``eaa.budget.TokenBudget`` — trần token tích lũy theo module (N-904).
+        #: Không có thì vòng lặp chạy y như trước; trần ở đây là thêm một phép
+        #: kiểm, không phải một điều kiện mới để hệ thống chạy được.
+        self.token_budget = token_budget
         self.gate_chain = list(gate_chain)
         self.config = config or OrchestratorConfig()
         self.runs_dir = (
@@ -171,6 +176,13 @@ class Orchestrator:
 
         # Bước 1–2: tiền điều kiện và mức phân quyền.
         self._kiem_tien_dieu_kien(state, module_id)
+
+        # Trần token tích lũy — kiểm TRƯỚC khi tiêu thêm, cùng nguyên tắc với
+        # ngân sách prompt: một trần chỉ kiểm sau khi gọi thì không phải trần.
+        chan = self._kiem_tran_token(module_id)
+        if chan is not None:
+            return chan
+
         muc = self._tra_policy(state)
         self._dat_trang_thai(module_id, "in_gen")
         self._kpi("module_start", module_id, note=f"mức phân quyền {muc}")
@@ -444,6 +456,52 @@ class Orchestrator:
                 self.readiness.check(module_id, uses=muc.uses)
             except NotReady as exc:
                 raise PreconditionFailed(str(exc)) from exc
+
+    def _kiem_tran_token(self, module_id: str) -> "ModuleOutcome | None":
+        """Module này đã ăn hết phần token của nó chưa (N-904).
+
+        Dừng ở đây thay vì cắt giữa chừng: một module bị chặn TRƯỚC khi gọi mô
+        hình thì trạng thái của nó vẫn nguyên vẹn và người quyết định được
+        trong yên tĩnh. Cắt giữa vòng tự sửa thì để lại một nhánh dở dang mà
+        không ai biết nên tiếp hay bỏ.
+
+        Vượt trần KHÔNG có cờ nào bỏ qua. Nới trần là sửa
+        ``budget.tokens.per_module`` trong ``constraints.yaml`` — tệp có phiên
+        bản và phải duyệt lại tại G1.
+        """
+        if self.token_budget is None or self.kpi is None:
+            return None
+
+        from eaa.budget import spent_tokens
+
+        kiem = self.token_budget.check(spent_tokens(self.kpi, module_id))
+        if not kiem.blocked:
+            if kiem.status != "trong-phan":
+                self._kpi(
+                    "module_start",
+                    module_id,
+                    tokens_in=kiem.usage.tokens_in,
+                    tokens_out=kiem.usage.tokens_out,
+                    cost_est=round(kiem.cost, 6) if kiem.currency else "",
+                    note="sắp chạm trần token của module",
+                )
+            return None
+
+        self._kpi(
+            "handoff",
+            module_id,
+            result="fail",
+            tokens_in=kiem.usage.tokens_in,
+            tokens_out=kiem.usage.tokens_out,
+            cost_est=round(kiem.cost, 6) if kiem.currency else "",
+            note="vượt trần token theo module",
+        )
+        return ModuleOutcome(
+            module_id=module_id,
+            status="handoff",
+            exit_code=EXIT_REPAIR_LIMIT,
+            message=kiem.render(),
+        )
 
     def _gate_con_thieu(self, state: Any) -> str:
         for gate in ("G1", "G2"):

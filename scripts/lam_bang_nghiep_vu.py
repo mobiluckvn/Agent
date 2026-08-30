@@ -610,15 +610,15 @@ DOI_CHIEU = [
  ("N-001", DU, "eaa/brief.py QUESTIONS + eaa brief · TC-49c", "", "T1"),
  ("N-002", DU, "eaa/brief.py probe_hardware · TC-49a", "", "T4"),
  ("N-003", DU, "eaa/brief.py identify_board · TC-49b", "", "T1"),
- ("N-004", PHAN, "eaa/ingest.py (PdfIngestor, check_web_source) · TC-22", "Không liệt kê đích danh tài liệu cần; không hỏi rev silicon; không hỏi errata.", "T1"),
+ ("N-004", DU, "eaa/docplan.py plan_documents · TC-55a,b", "", "T1"),
  ("N-005", DU, "eaa/brief.py ProjectDraft.gia_dinh · TC-49d", "", "T3"),
- ("N-006", CHUA, "—", "Không có bước chốt phạm vi và cái không làm.", "T0"),
- ("N-010", PHAN, "eaa/kb.py Constraints + G1 · TC-04", "Đọc/kiểm/duyệt được, nhưng Agent KHÔNG đề xuất bộ ràng buộc — người viết trước.", "T0"),
- ("N-011", PHAN, "eaa/acceptance.py · TC-45", "Đối chiếu tiêu chí thì đủ; Agent không đề xuất tiêu chí và không ép 'phải đo được'.", "T0"),
+ ("N-006", DU, "eaa/propose.py ScopeProposal · TC-54a", "", "T1"),
+ ("N-010", DU, "eaa/propose.py ConstraintProposal · TC-54b", "", "T1"),
+ ("N-011", DU, "eaa/propose.py AcceptanceProposal · TC-54c,d", "", "T1"),
  ("N-012", DU, "eaa/options.py + eaa decide · TC-46", "", "T1"),
  ("N-013", DU, "eaa/graph.py check_module · TC-18", "", "T3"),
- ("N-014", PHAN, "hardware_profile.yaml → graph · TC-18", "Đọc được pin_map; không trích từ schematic, không đề xuất, không kiểm chân có hỗ trợ chức năng cần.", "T0"),
- ("N-015", PHAN, "constraints.limits + SizeGate · TC-40d", "Kiểm được TỔNG; không chia ngân sách theo module, không cảnh báo module ăn quá phần.", "T3"),
+ ("N-014", DU, "eaa/propose.py PinMapProposal + pin_functions · TC-54e,f", "", "T1"),
+ ("N-015", DU, "eaa/budget.py ResourceBudget · TC-53a,b,c,g", "", "T1"),
  ("N-016", DU, "eaa/safety.py + eaa safety propose · TC-51 (29 test)", "", "T1"),
  ("N-017", DU, "eaa/safety.py SafeState · TC-51c, TC-51d", "", "T1"),
  ("N-020", DU, "eaa/doctor.py + toolsearch.derive_requirements · TC-34, TC-39", "", "T4"),
@@ -626,60 +626,60 @@ DOI_CHIEU = [
  ("N-022", DU, "eaa doctor --fix · TC-34, TC-37", "", "T2"),
  ("N-023", DU, "eaa/doctor.py EnvLock · TC-36", "", "T3"),
  ("N-024", DU, "eaa/vcs.py · TC-01", "", "T3"),
- ("N-030", PHAN, "eaa datasheet ingest · TC-22", "Người chọn trang (đúng thiết kế), nhưng Agent không nêu ĐÍCH DANH trang cần trích.", "T0"),
+ ("N-030", DU, "eaa/docplan.py plan_pages · TC-55d,e", "", "T1"),
  ("N-031", DU, "eaa/ingest.py → G2 · TC-22", "", "T2"),
  ("N-032", DU, "eaa/graph.py · TC-18", "", "T4"),
  ("N-033", DU, "eaa/readiness.py conflict + chuẩn hóa số · TC-26", "", "T1"),
  ("N-034", DU, "eaa/readiness.py · TC-24", "", "T3"),
  ("N-035", DU, "eaa/gapsearch.py + eaa resolve · TC-48 (26 test)", "", "T2"),
  ("N-036", DU, "eaa/lifecycle.py (3 đường truy ngược) · TC-29", "", "T3"),
- ("N-037", CHUA, "—", "Không hỏi rev silicon, không tra errata, không đối chiếu với ngoại vi đang dùng.", "T0"),
+ ("N-037", DU, "eaa/docplan.py ErrataAnalysis · TC-55f,g,h", "", "T1"),
  ("N-040", DU, "eaa/decompose.py + eaa plan propose · TC-50 (32 test)", "", "T1"),
- ("N-041", PHAN, "decompose.ModuleProposal.provides + composer K3 · TC-50a", "Đề xuất được DANH SÁCH hàm mỗi module cung cấp; chưa SINH tệp tiêu đề trước khi sinh thân.", "T1"),
+ ("N-041", DU, "eaa/interfaces.py + khuôn interfaces của pack · TC-56a..e", "", "T2"),
  ("N-042", DU, "decompose.order()/parallel_groups() · TC-50b", "", "T3"),
  ("N-043", DU, "decompose: chu kỳ + tải CPU + 3 phép kiểm · TC-50c", "", "T1"),
  ("N-050", DU, "eaa/composer.py + orchestrator · TC-04, TC-17", "", "T2"),
  ("N-051", DU, "eaa/tools/compile.py CompileGate · TC-40", "", "T4"),
  ("N-052", DU, "eaa/tools/static.py · TC-07", "", "T4"),
- ("N-053", PHAN, "eaa/tools/unittests.py · TC-07", "Chạy được; không nêu rõ phần nào KHÔNG kiểm được trên máy chủ.", "T4"),
+ ("N-053", DU, "eaa/tools/unittests.py host_gaps · TC-56f,g", "", "T4"),
  ("N-054", DU, "eaa/tools/compile.py SizeGate + size_scope · TC-40d", "", "T4"),
  ("N-055", DU, "eaa/orchestrator.py · TC-06, TC-19", "", "T3"),
  ("N-056", DU, "eaa/gates.py + vcs.py content_digest · TC-01", "", "T2"),
  ("N-057", DU, "eaa/ledger.py · TC-10", "", "T3"),
- ("N-060", PHAN, "projects/robot_balance/sim/", "Dự án mẫu có mô hình con lắc; Agent không đề xuất mô hình cho đối tượng mới.", "T0"),
+ ("N-060", DU, "eaa/propose.py PlantModelProposal · TC-57f,g", "", "T1"),
  ("N-061", DU, "eaa/tools/sim.py, sim_runner.py · TC-12", "", "T4"),
  ("N-062", DU, "eaa sim --sweep · TC-12", "", "T1"),
- ("N-063", CHUA, "—", "Không tiêm lỗi trong mô phỏng.", "T0"),
+ ("N-063", DU, "sim_runner FaultSpec + require_safe_state · TC-57a..e", "", "T3"),
  ("N-064", COY, "—", "Cố ý để ngoài chuỗi tự động: nối vào mà không thật sự chạy artifact thì cổng sẽ 'đạt' mà chẳng kiểm gì.", "T0"),
  ("N-070", DU, "eaa/firmware.py + eaa build · TC-41", "", "T2"),
- ("N-071", PHAN, "SizeGate scope=firmware · TC-41e", "Đo được flash/RAM ở tầm firmware; KHÔNG kiểm khoảng trống ngăn xếp còn lại.", "T4"),
+ ("N-071", DU, "budget.derived + stack_headroom_bytes_min · TC-53d", "", "T4"),
  ("N-072", DU, "eaa/flash.py preflight · TC-42b", "", "T2"),
  ("N-073", DU, "eaa/serialport.py match_confirmed · TC-47d", "", "T3"),
  ("N-074", DU, "eaa/flash.py + FlashLog · TC-42d", "", "T2"),
- ("N-075", CHUA, "—", "Không đọc ngược/so kiểm tổng sau khi nạp. 'Nạp không báo lỗi' đang bị ngầm hiểu là 'nạp đúng'.", "T0"),
+ ("N-075", DU, "eaa/flash.py VerifyResult + năng lực flash_verify · TC-52", "", "T3"),
  ("N-080", DU, "eaa/telemetry.py + eaa telemetry · TC-43", "", "T3"),
- ("N-081", PHAN, "eaa/firmware.py DiagnosticFirmwareBuilder · TC-44", "Cơ chế đủ; mới 2/6 kịch bản có phần đo (DS-01, DS-04).", "T2"),
+ ("N-081", DU, "đủ 6 kịch bản khai firmware_template · TC-58a", "", "T2"),
  ("N-082", DU, "eaa/diagnostics.py · TC-27", "", "T1"),
- ("N-083", PHAN, "acceptance loop_period_ms + telemetry", "Có kênh và có tiêu chí; CHƯA có firmware đo dao động chu kỳ và tải CPU, chưa báo trường hợp xấu nhất.", "T0"),
- ("N-084", CHUA, "diagnostics.yaml DS-05 (mới khai, chưa có phần đo)", "Không có hướng dẫn đo đích danh, không có chỗ nhập số đo tay.", "T0"),
+ ("N-083", DU, "DS-06 đo cả trường hợp xấu nhất và tải CPU · TC-58b", "", "T3"),
+ ("N-084", DU, "ManualMeasurement + eaa diagnose measure · TC-58c,d", "", "T0"),
  ("N-085", CHUA, "—", "Ngoài phạm vi đề án (đã ghi từ trước).", "T0"),
- ("N-086", PHAN, "acceptance uptime_s ≥ 600 · TC-45", "Có tiêu chí; không có cơ chế chạy dài, không phát hiện reset qua bộ đếm thời gian chạy.", "T0"),
+ ("N-086", DU, "eaa/endurance.py + eaa endurance · TC-58e,f,g", "", "T3"),
  ("N-090", DU, "eaa/acceptance.py · TC-45", "", "T2"),
  ("N-091", DU, "eaa/versions.py + check_device_commit · TC-30, TC-45a", "", "T2"),
  ("N-092", DU, "eaa/versions.py + eaa rollback · TC-30", "", "T3"),
  ("N-093", DU, "eaa/kpi.py + llm/calllog.py + registry.py · TC-09, TC-15", "", "T3"),
- ("N-094", PHAN, "eaa/registry.py (kho phẩm xuất) · TC-32", "Lưu/gửi lại phẩm xuất được; KHÔNG sinh tài liệu vận hành từ dữ liệu dự án.", "T0"),
+ ("N-094", DU, "eaa/handover.py OperationsHandbook · TC-59a,b", "", "T1"),
  ("N-100", DU, "eaa/lifecycle.py · TC-29", "", "T1"),
- ("N-101", CHUA, "—", "Không so sánh linh kiện thay thế.", "T0"),
- ("N-102", PHAN, "eaa diagnose select + hai kênh · TC-27", "Chọn kịch bản từ triệu chứng được; không dựng lại điều kiện sự cố, không xử lý ca không tái hiện.", "T1"),
- ("N-103", CHUA, "—", "Không có cập nhật firmware cho thiết bị đã triển khai.", "T0"),
+ ("N-101", DU, "eaa/handover.py SwapAnalysis · TC-59c,d", "", "T1"),
+ ("N-102", DU, "eaa/diagnostics.py FieldCase · TC-59e,f", "", "T1"),
+ ("N-103", DU, "eaa/handover.py RolloutPlan · TC-59g,h", "", "T2"),
  ("N-900", DU, "TC-38 (quét mỗi commit) + TC-47a (không rẽ nhánh theo pack)", "", "T4"),
  ("N-901", DU, "eaa/llm/base.py mask_secrets · TC-14 + tests/conftest.py", "", "T4"),
  ("N-902", DU, "eaa/gates.py, doctor, flash — không cờ bỏ qua · TC-01, TC-42c", "", "T2"),
- ("N-903", PHAN, "serialport.match_confirmed, telemetry.bad_ratio, AssumptionLog", "Có ở vài chỗ; CHƯA nhất quán toàn hệ — nhiều đầu ra không nói mức tin cậy.", "T3"),
- ("N-904", PHAN, "eaa/kpi.py (tokens_in/out) · TC-09", "Ghi được token; không có trần theo module, không quy ra chi phí, không cảnh báo.", "T3"),
- ("N-905", PHAN, "docs/SAI_LECH_THIET_KE.md (40 mục)", "Nhật ký đầy đủ, nhưng do TÔI ghi tay — Agent không tự phát hiện và không tự ghi.", "T0"),
- ("N-906", PHAN, "eaa report + kpi.summary · TC-09", "Tổng hợp được chỉ số; không chỉ ra khâu hay hỏng, không đề xuất sửa prompt/quy tắc.", "T0"),
+ ("N-903", PHAN, "eaa/confidence.py — bộ từ vựng chung · TC-60a,b,c", "Đã có MỘT bộ từ vựng và năm chỗ quy về nó (kiểm sau nạp, errata, tham số mô hình, bảng chân, chạy dài); các đầu ra còn lại vẫn chưa gắn nhãn.", "T3"),
+ ("N-904", DU, "eaa/budget.py TokenBudget · TC-53e,f", "", "T3"),
+ ("N-905", DU, "eaa/deviation.py + eaa deviations · TC-60d,e,f", "", "T3"),
+ ("N-906", DU, "kpi.weak_points + eaa report review · TC-60g,h,i", "", "T1"),
  ("N-907", DU, "eaa/state.py ghi nguyên tử + eaa resume · TC-03", "", "T4"),
 ]
 
@@ -761,11 +761,17 @@ def dung_bang(dich: Path) -> Path:
         "mà một Agent lập trình nhúng phải làm, và cách làm để tự chủ cao nhất."
     ])
     ws["A2"].font = Font(italic=True, color="7F7F7F")
+    ws.append([
+        "Đề án Thạc sĩ Kỹ thuật (Kỹ thuật Điện tử, PTIT) · "
+        "Học viên: Vũ Trí Công · Giảng viên hướng dẫn: TS. Nguyễn Trung Hiếu"
+    ])
+    ws["A3"].font = Font(italic=True, color="7F7F7F")
     ws.append([])
     ws.append(["Thang mức tự chủ — cột quan trọng nhất của bảng"])
-    ws["A4"].font = Font(bold=True, size=12, color="2F5597")
+    ws[f"A{ws.max_row}"].font = Font(bold=True, size=12, color="2F5597")
     ws.append(["Mức", "Nghĩa", "Khi nào dùng"])
-    for o in ws[5]:
+    hang_tieu_de = ws.max_row
+    for o in ws[hang_tieu_de]:
         o.font = TRANG_DAM
         o.fill = NEN_TIEU_DE
         o.border = VIEN
@@ -776,7 +782,7 @@ def dung_bang(dich: Path) -> Path:
         o.font = Font(bold=True)
     for i, r in enumerate([10, 42, 82], 1):
         ws.column_dimensions[get_column_letter(i)].width = r
-    for hang in ws.iter_rows(min_row=5, max_row=ws.max_row):
+    for hang in ws.iter_rows(min_row=hang_tieu_de, max_row=ws.max_row):
         for o in hang:
             o.alignment = TREN_TRAI
             o.border = VIEN

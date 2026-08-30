@@ -58,6 +58,7 @@ scenarios:
       không nói được: số liệu "đẹp" vẫn có thể gắn nhầm trục.
     motion: false
     symptoms: [không phản ứng khi nghiêng, góc sai, trôi góc, cảm biến]
+    firmware_template: diagnostics/DS-02.c
     machine:
       - key: who_am_i
         description: Mã nhận dạng thiết bị
@@ -94,6 +95,7 @@ scenarios:
       - Không có vật cản hay tay người trong vùng bánh quay
       - Nguồn động lực đã cấp đúng điện áp và dòng giới hạn đã chỉnh
     symptoms: [động cơ không quay, trục không quay, quay ngược, giật, trượt bước]
+    firmware_template: diagnostics/DS-03.c
     machine:
       - key: pulses_emitted
         description: Số xung bước đã phát
@@ -138,6 +140,7 @@ scenarios:
       - Robot đã được kê lên giá, bánh KHÔNG chạm đất
       - Đồng hồ đo đã kẹp đúng điểm đo nguồn logic
     symptoms: [reset ngẫu nhiên, tự khởi động lại, brown-out, sụt áp]
+    firmware_template: diagnostics/DS-05.c
     machine:
       - key: vcc_min_v
         description: Điện áp logic thấp nhất khi động cơ chạy
@@ -152,6 +155,46 @@ scenarios:
         question: Đèn báo nguồn có sáng ổn định, không chớp không?
       - key: driver_khong_qua_nong
         question: Driver động cơ có ở nhiệt độ chạm tay được không?
+    # Kênh thứ ba — người cầm dụng cụ (N-084).
+    #
+    # Ba đại lượng dưới đây không con chip nào tự đo được về chính nó: dòng
+    # tổng chạy qua dây nguồn, sụt áp TRÊN DÂY (khác với điện áp tại chân
+    # chip), và nhiệt độ vỏ linh kiện. Bỏ trống chúng thì "kiểm nguồn dưới
+    # tải" chỉ kiểm được nửa mình đo được, và nửa ấy lại là nửa ít nói nhất.
+    #
+    # Mỗi mục trả lời đủ bốn câu: đo cái gì, ở đâu, trong điều kiện nào, chờ
+    # đợi bao nhiêu. Thiếu một câu thì hai người đo ra hai kết quả, không ai sai.
+    manual:
+      - key: dong_dong_luc_a
+        quantity: Dòng tiêu thụ của nhánh động lực khi cả hai động cơ tăng tốc
+        instrument: Ampe kìm một chiều, hoặc đồng hồ vạn năng mắc nối tiếp thang 10 A
+        where: Dây dương từ pin 3S tới cụm driver, trước điểm rẽ vào LDO
+        condition: Robot kê trên giá, chạy kịch bản DS-03 cho cả hai động cơ
+        unit: A
+        high: 2.5
+        note: >-
+          Vượt 2,5 A nghĩa là dòng giới hạn của driver đang đặt quá cao — kiểm
+          Vref trước khi kết luận về pin.
+      - key: sut_ap_tren_day_v
+        quantity: Chênh lệch điện áp giữa cực pin và chân cấp nguồn của driver
+        instrument: Đồng hồ vạn năng, thang một chiều 20 V, hai que đo hai điểm
+        where: Que đỏ ở cực dương pin, que đen ở chân VMOT của driver
+        condition: Đúng lúc động cơ đang tăng tốc, không phải lúc đứng yên
+        unit: V
+        high: 0.4
+        note: >-
+          Đây là phép đo mà ADC nội KHÔNG thay được: nó đo điện áp tại chân
+          chip, còn sụt áp nằm trên đoạn dây trước đó.
+      - key: nhiet_driver_c
+        quantity: Nhiệt độ vỏ driver động cơ sau khi chạy liên tục
+        instrument: Nhiệt kế hồng ngoại, hoặc cặp nhiệt dán lên vỏ
+        where: Mặt trên vỏ driver, giữa tản nhiệt
+        condition: Sau 5 phút chạy DS-03 lặp lại liên tục, không có quạt
+        unit: °C
+        high: 85
+        note: >-
+          Ngưỡng 85 °C là mức bắt đầu vào vùng bảo vệ nhiệt của phần lớn driver
+          bước; tra đúng tài liệu của linh kiện đang dùng trước khi tin con số này.
 
   - id: DS-06
     title: Kiểm timing ngắt
@@ -160,16 +203,35 @@ scenarios:
       cứng 10 ms của dự án.
     motion: false
     symptoms: [chu kỳ sai, jitter, trễ, timing, điều khiển không ổn định]
+    firmware_template: diagnostics/DS-06.c
     machine:
       - key: isr_period_ms
-        description: Chu kỳ ngắt đo được
+        description: Chu kỳ ngắt trung bình
         op: in_range
         low: 9.8
         high: 10.2
+      # Trường hợp XẤU NHẤT, không phải trung bình (N-083).
+      #
+      # Trung bình gần như luôn đẹp. Một vòng 10 ms trung bình vẫn có thể có
+      # một chu kỳ 23 ms mỗi vài giây, và với con lắc ngược thì chính chu kỳ ấy
+      # quyết định robot đứng hay ngã. Ràng buộc control_loop_ms = 10 ms vì thế
+      # được đối chiếu với con số này.
+      - key: isr_period_max_ms
+        description: Chu kỳ DÀI NHẤT quan sát được
+        op: max
+        high: 10.5
       - key: jitter_us
-        description: Độ trôi chu kỳ
+        description: Dao động chu kỳ, biên độ lệch lớn nhất so với danh định
         op: max
         high: 250
+      - key: cpu_load_pct
+        description: Phần thời gian CPU bận trong một chu kỳ điều khiển
+        op: max
+        high: 70
+      - key: samples
+        description: Số chu kỳ đã quan sát
+        op: min
+        low: 200
 
 # Ma trận chẩn đoán — AIS §7.4, bài toán "động cơ không quay".
 #

@@ -72,6 +72,66 @@ scenarios:
       steady_state_deg: 1.2
       max_slips: 0
 
+  # ---- Tiêm lỗi (N-063) -------------------------------------------------
+  #
+  # Ba kịch bản dưới đây lấy thẳng từ danh sách hỏng hóc ở safety.yaml (N-016).
+  # Câu hỏi không phải "robot có ngã không" — với cảm biến hỏng thì ngã là
+  # chuyện bình thường — mà là **hệ có kịp vào chế độ an toàn không**. Một
+  # robot ngã trong chế độ an toàn đã cắt lệnh động cơ khác hẳn một robot ngã
+  # trong lúc mạch công suất vẫn đang nhận lệnh từ một số đo rác.
+  #
+  # Vì thế `require_safe_state: true`, và ngưỡng góc/thời gian không có mặt:
+  # đòi hỏi giữ thăng bằng khi cảm biến đã hỏng là đòi hỏi một điều không thể.
+
+  - name: loi_cam_bien_tra_rac
+    description: >-
+      Cảm biến bắt đầu trả giá trị ngoài mọi dải vật lý ở giây thứ 2. Kiểm
+      firmware nhận ra bằng kiểm biên và vào chế độ an toàn.
+    duration_s: 6.0
+    initial:
+      theta_deg: 0.0
+    faults:
+      - kind: garbage
+        at_s: 2.0
+    thresholds:
+      require_safe_state: true
+
+  - name: loi_cam_bien_ket
+    description: >-
+      Cảm biến kẹt ở giá trị cuối từ giây thứ 2 — kiểu hỏng KHÓ NHẤT, vì số đo
+      vẫn nằm trong dải hợp lý và kiểm biên không bắt được. Chỉ phát hiện được
+      bằng "số đo không đổi một chút nào suốt nửa giây", và câu ấy chỉ đúng vì
+      cảm biến quán tính thật luôn có nhiễu nền.
+    duration_s: 6.0
+    initial:
+      theta_deg: 0.0
+    faults:
+      - kind: stuck
+        at_s: 2.0
+    thresholds:
+      require_safe_state: true
+
+  - name: loi_nguon_sut_ap
+    description: >-
+      Nguồn động lực sụt còn 30% trong 1 giây rồi hồi phục. Đây là kịch bản
+      KHÔNG đòi chế độ an toàn: sụt áp ngắn khi động cơ tăng tốc là điều hệ
+      phải chịu được, không phải điều nó được bỏ cuộc.
+
+      Thời lượng 1 giây do quét chọn, không do trực giác. Ở mức còn 30%: chịu
+      được 1,0 s (đỉnh 1,2°) và NGÃ ở 2,0 s. Đặt kịch bản ngay dưới vách ấy thì
+      nó còn nói được điều gì đó — đặt ở 0,3 s thì mọi bộ tham số đều qua và
+      phép kiểm thành trang trí.
+    duration_s: 8.0
+    initial:
+      theta_deg: 0.0
+    faults:
+      - kind: power_sag
+        at_s: 2.0
+        duration_s: 1.0
+        magnitude: 0.3        # phần lực CÒN LẠI, không phải phần mất đi
+    thresholds:
+      max_angle_deg: 3.0
+
 # Dải quét tham số cho chế độ MIL (TC-13). Quét thô để khoanh vùng ổn định
 # trước, rồi mới tinh chỉnh bằng tay trên robot thật ở công đoạn E2 — máy khoanh
 # vùng, người chọn điểm.

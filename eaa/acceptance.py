@@ -211,6 +211,9 @@ class DeviceCheck:
     #: Có mâu thuẫn tới mức phải dừng không.
     blocking: bool = False
     message: str = ""
+    #: Lần nạp ấy có được đọc ngược và khớp không (N-075). Commit khớp mà chưa
+    #: đọc ngược thì vẫn còn một khoảng chưa kiểm, và khoảng ấy phải nói ra.
+    readback_verified: bool = False
 
     def __bool__(self) -> bool:
         return self.verified
@@ -253,4 +256,17 @@ def check_device_commit(head_commit: str, flash_log: Any) -> DeviceCheck:
                 "    Nạp lại bản hiện tại rồi đo: 'eaa flash'"
             ),
         )
-    return DeviceCheck(verified=True)
+
+    doc_nguoc = bool(getattr(lan_cuoi, "verified", False))
+    if doc_nguoc:
+        return DeviceCheck(verified=True, readback_verified=True)
+    return DeviceCheck(
+        verified=True,
+        readback_verified=False,
+        message=(
+            "Commit khớp nhật ký nạp, nhưng lần nạp ấy KHÔNG được đọc ngược "
+            f"({getattr(lan_cuoi, 'verify_detail', '') or 'không rõ lý do'}).\n"
+            "    Nghĩa là: đã kiểm 'gửi đi bản nào', chưa kiểm 'trên chip đang "
+            "có đúng bản ấy không'. Số đo dưới đây gắn với giả định đó."
+        ),
+    )

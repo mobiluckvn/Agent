@@ -1,0 +1,46 @@
+# Bộ chuẩn đánh giá truy xuất — TC-20.
+#
+# Với module này thì trích đoạn nào ĐÚNG LÀ liên quan. Câu trả lời do người
+# viết ra một lần, rồi máy đối chiếu mãi.
+#
+# Vì sao cần: kho tri thức lớn dần, mỗi trích đoạn mới là một ứng viên nữa
+# cạnh tranh ba chỗ trong prompt. Không có gì bảo đảm bộ chọn vẫn chọn đúng
+# khi kho có 60 chunk như khi nó có 6 — và đó là kiểu thoái lui KHÔNG làm đỏ
+# một test nào: mã vẫn chạy, prompt vẫn lắp được, chỉ là nội dung dần kém liên
+# quan. Hậu quả hiện ra ở chỗ khác hẳn, dưới dạng mô hình bịa giá trị thanh
+# ghi vì thứ nó cần không có trong prompt.
+#
+# Chạy: eaa report retrieval
+
+version: 1
+top_k: 3
+
+# Chunk cố ý KHÔNG liên quan tới ca nào. Xem phần `note` trong từng tệp để
+# biết vì sao mỗi cái được chọn làm nhiễu — một cái khó, một cái dễ.
+noise:
+  - ds-023      # TWI chế độ slave: đúng, cùng ngoại vi, chia sẻ TWCR, vẫn vô can
+  - ds-051      # SPI: dự án không dùng ngoại vi này
+
+cases:
+  - module: drv_bus_sensor
+    uses: [twi, imu]
+    relevant: [ds-021, ds-022, ds-031]
+    note: >-
+      Driver đọc cảm biến qua bus hai dây ở chế độ master. Cần tốc độ bit
+      (ds-021), mã trạng thái master (ds-022), và trình tự khởi động cảm biến
+      (ds-031). KHÔNG cần chế độ slave (ds-023) dù nó cùng ngoại vi.
+
+  - module: drv_timer_tick
+    uses: [timer1]
+    relevant: [ds-012]
+    note: >-
+      Chỉ một trích đoạn liên quan, và đó là điều bình thường. Ca này đo một
+      thứ khác các ca kia: bộ chọn có biết DỪNG khi không còn gì liên quan,
+      hay nó lấp đủ ba chỗ bằng bất cứ thứ gì gần nhất.
+
+  - module: drv_uart_telemetry
+    uses: [usart0]
+    relevant: [ds-041]
+    note: >-
+      Kênh telemetry. Chunk SPI (ds-051) cũng nói về "giao tiếp nối tiếp", nên
+      đây là ca sẽ đỏ trước tiên nếu ai đó đổi bộ chọn sang so khớp từ ngữ.

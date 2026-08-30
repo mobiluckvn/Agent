@@ -457,6 +457,20 @@ class HardwareProfile:
         return dict(self.raw.get("pin_map") or {})
 
     @property
+    def pin_functions(self) -> dict[str, list[str]]:
+        """Bảng chức năng thay thế: tên chân → các chức năng chân ấy làm được.
+
+        Trích từ bảng *alternate functions* của datasheet, do DỰ ÁN khai. Engine
+        không được biết chân nào làm được gì — biết là ghim một họ vi điều khiển
+        vào engine (FR-PLT-01). Không khai thì phép kiểm ở N-014 trả về "chưa
+        kiểm được", chứ không trả về "đạt".
+        """
+        return {
+            str(k): [str(x) for x in (v or [])]
+            for k, v in (self.raw.get("pin_functions") or {}).items()
+        }
+
+    @property
     def power(self) -> dict[str, Any]:
         return dict(self.raw.get("power") or {})
 

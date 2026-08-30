@@ -48,6 +48,11 @@ __all__ = [
     "Verdict",
     "MachineCriterion",
     "HumanCheck",
+    "ManualMeasurement",
+    "FieldCase",
+    "TAI_HIEN_DUOC",
+    "KHONG_TAI_HIEN",
+    "CHUA_THU",
     "Scenario",
     "ScenarioLibrary",
     "MatrixRow",
@@ -141,6 +146,77 @@ class HumanCheck:
 
 
 @dataclass(frozen=True)
+class ManualMeasurement:
+    """Một phép đo bằng dụng cụ, do NGƯỜI thực hiện — N-084.
+
+    Kênh thứ ba, bên cạnh kênh máy và kênh quan sát. Nó tồn tại vì có những đại
+    lượng không con chip nào tự đo được về chính nó: dòng tiêu thụ tổng, sụt áp
+    trên dây, nhiệt độ vỏ linh kiện. Bỏ trống chúng thì phần "kiểm nguồn dưới
+    tải" chỉ kiểm được nửa mà mình đo được, và nửa ấy lại là nửa ít nói nhất.
+
+    Bốn trường bắt buộc là bốn câu mà một hướng dẫn đo phải trả lời: **đo cái
+    gì, ở đâu, trong điều kiện nào, và chờ đợi con số bao nhiêu**. Thiếu một
+    trong bốn thì hai người đo sẽ ra hai kết quả và không ai sai.
+    """
+
+    key: str
+    quantity: str
+    instrument: str
+    where: str
+    condition: str
+    unit: str
+    low: float | None = None
+    high: float | None = None
+    note: str = ""
+
+    def __post_init__(self) -> None:
+        for ten, gia_tri in (
+            ("quantity", self.quantity),
+            ("instrument", self.instrument),
+            ("where", self.where),
+            ("condition", self.condition),
+            ("unit", self.unit),
+        ):
+            if not str(gia_tri).strip():
+                raise DiagnosticError(
+                    f"Phép đo tay {self.key!r} thiếu {ten!r}. Một hướng dẫn đo "
+                    "phải trả lời đủ bốn câu — đo cái gì, ở đâu, trong điều kiện "
+                    "nào, chờ đợi bao nhiêu — nếu không thì hai người đo sẽ ra "
+                    "hai kết quả và không ai sai."
+                )
+        if self.low is None and self.high is None:
+            raise DiagnosticError(
+                f"Phép đo tay {self.key!r} không có ngưỡng nào. Một số đo không "
+                "có ngưỡng thì ghi lại được nhưng không kết luận được gì."
+            )
+
+    def expected_text(self) -> str:
+        if self.low is not None and self.high is not None:
+            return f"{self.low:g}–{self.high:g} {self.unit}"
+        if self.low is not None:
+            return f"≥ {self.low:g} {self.unit}"
+        return f"≤ {self.high:g} {self.unit}"
+
+    def evaluate(self, value: float) -> tuple[bool, str]:
+        if self.low is not None and value < self.low:
+            return False, f"{value:g} {self.unit} dưới sàn {self.low:g}"
+        if self.high is not None and value > self.high:
+            return False, f"{value:g} {self.unit} vượt trần {self.high:g}"
+        return True, f"{value:g} {self.unit} trong khoảng {self.expected_text()}"
+
+    def instructions(self) -> str:
+        """Hướng dẫn đo đích danh, đủ để người khác lặp lại được."""
+        dong = [f"  [{self.key}] {self.quantity}"]
+        dong.append(f"      dụng cụ    : {self.instrument}")
+        dong.append(f"      đo ở đâu   : {self.where}")
+        dong.append(f"      điều kiện  : {self.condition}")
+        dong.append(f"      chờ đợi    : {self.expected_text()}")
+        if self.note:
+            dong.append(f"      lưu ý      : {self.note}")
+        return "\n".join(dong)
+
+
+@dataclass(frozen=True)
 class Scenario:
     """Một kịch bản chẩn đoán — DS-01..06 của dự án."""
 
@@ -152,6 +228,8 @@ class Scenario:
     safety_checklist: tuple[str, ...] = ()
     machine: tuple[MachineCriterion, ...] = ()
     human: tuple[HumanCheck, ...] = ()
+    #: Phép đo bằng dụng cụ, do người thực hiện — kênh thứ ba (N-084).
+    manual: tuple[ManualMeasurement, ...] = ()
     #: Mẫu firmware đo dùng để sinh; rỗng nghĩa là chưa có.
     firmware_template: str = ""
     #: Triệu chứng gợi tới kịch bản này — dùng để chọn kịch bản từ mô tả người.
@@ -159,7 +237,18 @@ class Scenario:
 
     @property
     def fully_automatic(self) -> bool:
-        return not self.human
+        return not self.human and not self.manual
+
+    @property
+    def buildable(self) -> bool:
+        """Dựng được firmware đo cho kịch bản này chưa.
+
+        Kịch bản chưa khai phần đo thì DỪNG, không dựng một firmware rỗng
+        (N-081): một ảnh nạp được mà chẳng đo gì sẽ chạy trơn tru và trả về
+        không có gì, và "không có gì" thì không phân biệt được với "đo xong,
+        mọi thứ bình thường".
+        """
+        return bool(self.firmware_template)
 
 
 class ScenarioLibrary:
@@ -222,6 +311,20 @@ class ScenarioLibrary:
                 )
                 for h in (d.get("human") or [])
             ),
+            manual=tuple(
+                ManualMeasurement(
+                    key=str(m["key"]),
+                    quantity=str(m.get("quantity", "")),
+                    instrument=str(m.get("instrument", "")),
+                    where=str(m.get("where", "")),
+                    condition=str(m.get("condition", "")),
+                    unit=str(m.get("unit", "")),
+                    low=m.get("low"),
+                    high=m.get("high"),
+                    note=str(m.get("note", "")),
+                )
+                for m in (d.get("manual") or [])
+            ),
             firmware_template=str(d.get("firmware_template", "")),
             symptoms=tuple(str(x) for x in (d.get("symptoms") or [])),
         )
@@ -246,6 +349,113 @@ class ScenarioLibrary:
             s for s in self.scenarios if any(t.lower() in van_ban for t in s.symptoms)
         ]
         return khop or []
+
+
+#: Sự cố hiện trường có dựng lại được trên bàn không — ba trạng thái.
+TAI_HIEN_DUOC = "tai-hien-duoc"
+KHONG_TAI_HIEN = "khong-tai-hien"
+CHUA_THU = "chua-thu"
+
+
+@dataclass
+class FieldCase:
+    """Một sự cố ngoài hiện trường, và đường đi từ triệu chứng tới kết luận — N-102.
+
+    Khác với một phiên chẩn đoán trên bàn ở đúng một điểm, và điểm ấy quyết
+    định mọi thứ: **hiện tượng không xảy ra trước mặt ta.** Nên bước đầu không
+    phải là đo, mà là DỰNG LẠI ĐIỀU KIỆN — và nếu dựng lại không ra thì kết
+    luận trung thực là *chưa kết luận được*, không phải một chẩn đoán nghe hợp
+    lý dựa trên nửa dữ kiện.
+    """
+
+    symptom: str
+    #: Điều kiện lúc sự cố xảy ra: nhiệt độ, tải, thời gian chạy, nguồn cấp…
+    conditions: dict[str, Any] = field(default_factory=dict)
+    #: Đã gặp bao nhiêu lần. Một lần và hai mươi lần là hai bài toán khác nhau.
+    occurrences: int = 1
+    reproduced: str = CHUA_THU
+    scenarios: tuple[str, ...] = ()
+    notes: str = ""
+    reported_at: str = field(default_factory=_now)
+
+    def missing_context(self) -> list[str]:
+        """Điều kiện nào còn thiếu để dựng lại được cảnh ấy.
+
+        Danh sách cố ý NGẮN và cố định: đây là những thứ mà thiếu chúng thì
+        gần như không dựng lại được sự cố nào, chứ không phải mọi thứ có thể
+        hỏi. Một bảng hỏi dài sẽ không ai điền.
+        """
+        can = {
+            "uptime": "thiết bị đã chạy bao lâu thì xảy ra",
+            "load": "lúc ấy đang tải nặng hay nhẹ",
+            "power": "nguồn cấp thế nào (pin yếu? vừa cắm? vừa mất điện?)",
+            "environment": "nhiệt độ / độ ẩm / rung khác thường không",
+            "recent_change": "trước đó có ai đổi gì không (firmware, dây, linh kiện)",
+        }
+        return [
+            f"{khoa}: {mo_ta}" for khoa, mo_ta in can.items() if khoa not in self.conditions
+        ]
+
+    def plan(self, library: "ScenarioLibrary") -> list[Scenario]:
+        """Kịch bản nên chạy, chọn từ triệu chứng người mô tả."""
+        if self.scenarios:
+            return [library.get(x) for x in self.scenarios]
+        return library.select(self.symptom)
+
+    def verdict(self) -> str:
+        if self.reproduced == TAI_HIEN_DUOC:
+            return (
+                "TÁI HIỆN ĐƯỢC — chạy kịch bản chẩn đoán trên cảnh vừa dựng lại, "
+                "kết luận sẽ có căn cứ như mọi phiên trên bàn."
+            )
+        if self.reproduced == KHONG_TAI_HIEN:
+            return (
+                "CHƯA KẾT LUẬN ĐƯỢC — không dựng lại được sự cố trên bàn.\n"
+                "    Mọi kết luận lúc này đều dựa trên lời kể, và lời kể về một "
+                "hiện tượng không lặp lại là dữ kiện yếu nhất trong chẩn đoán.\n"
+                "    Việc cần làm KHÔNG phải đoán nguyên nhân mà là ĐI LẤY THÊM "
+                "DỮ KIỆN: nạp firmware có ghi telemetry liên tục rồi trả thiết bị "
+                "về hiện trường, và chờ nó xảy ra lần nữa — lần này có số liệu."
+            )
+        return (
+            "CHƯA THỬ DỰNG LẠI — bước đầu tiên của một ca hiện trường không phải "
+            "là đo mà là dựng lại điều kiện, vì hiện tượng không xảy ra trước mặt ta."
+        )
+
+    def render(self, library: "ScenarioLibrary | None" = None) -> str:
+        dong = [f"Ca hiện trường: {self.symptom}", ""]
+        dong.append(f"  Đã gặp     : {self.occurrences} lần")
+        if self.conditions:
+            dong.append("  Điều kiện  :")
+            dong += [f"      {k} = {v}" for k, v in sorted(self.conditions.items())]
+
+        thieu = self.missing_context()
+        if thieu:
+            dong += ["", "  CÒN THIẾU để dựng lại được cảnh ấy:"]
+            dong += [f"      ? {t}" for t in thieu]
+            dong.append(
+                "      Hỏi người ở hiện trường. Không có những mục này thì việc"
+            )
+            dong.append(
+                "      dựng lại chỉ là đoán, và đoán trúng một lần không chứng minh gì."
+            )
+
+        if library is not None:
+            ke_hoach = self.plan(library)
+            dong += ["", "  Kịch bản nên chạy:"]
+            dong += [
+                f"      {s.id} — {s.title}" for s in ke_hoach
+            ] or ["      (không kịch bản nào khớp triệu chứng này)"]
+            if not ke_hoach:
+                dong.append(
+                    "      Triệu chứng chưa có kịch bản nào phủ. Đây cũng là một"
+                )
+                dong.append(
+                    "      dữ kiện: bổ sung một kịch bản sau khi tìm ra nguyên nhân."
+                )
+
+        dong += ["", self.verdict()]
+        return "\n".join(dong)
 
 
 @dataclass(frozen=True)

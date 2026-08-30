@@ -52,6 +52,8 @@ __all__ = [
     "AssumptionLog",
     "MediaStore",
     "ProposedChunk",
+    "ProposedMeasurement",
+    "ScopeImageReader",
     "PdfIngestor",
     "WEB_WHITELIST",
     "check_web_source",
@@ -410,6 +412,195 @@ class MediaStore:
             encoding="utf-8",
         )
         return dich
+
+
+# --------------------------------------------------------------------------
+# Ảnh màn hiện sóng → số đo đề xuất — FR-ING-03, TC-23
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ProposedMeasurement:
+    """Một số đo Agent đọc được từ ảnh — ĐỀ XUẤT, chưa phải bản ghi.
+
+    Ba trường quyết định tệp này có ích hay có hại:
+
+    * ``uncertainty`` — sai số ĐỌC ẢNH, khai bằng chính đơn vị của số đo. Một
+      con số đọc từ màn hiện sóng không bao giờ chính xác bằng con số máy đo
+      gửi qua đường truyền: nó phụ thuộc vào việc con trỏ đặt ở đâu và lưới
+      chia bao nhiêu ô. Bỏ trường này thì số đọc từ ảnh trông y hệt số đo được.
+    * ``reading`` — Agent thấy GÌ trên ảnh để ra con số ấy (mấy ô, mỗi ô bao
+      nhiêu). Đây là thứ cho phép người kiểm lại mà không cần tin.
+    * ``status`` — luôn là ``proposed``. Không có đường nào để một số đo từ ảnh
+      tự vào Measurement Records.
+    """
+
+    key: str
+    value: float
+    unit: str
+    #: Sai số đọc ảnh, cùng đơn vị với ``value``. 0 nghĩa là mô hình không khai
+    #: — và engine coi đó là chưa khai chứ không phải là chính xác tuyệt đối.
+    uncertainty: float = 0.0
+    #: Cơ sở đọc: "3,2 ô × 5 ms/ô" — để người đối chiếu với ảnh.
+    reading: str = ""
+    source_image: str = ""
+    status: str = PROPOSED
+
+    def __post_init__(self) -> None:
+        if not self.key.strip():
+            raise IngestError("số đo từ ảnh không có khóa")
+        if not self.unit.strip():
+            raise IngestError(f"{self.key!r}: số đo từ ảnh không có đơn vị")
+        if self.uncertainty < 0:
+            raise IngestError(f"{self.key!r}: sai số âm")
+
+    @property
+    def uncertainty_declared(self) -> bool:
+        return self.uncertainty > 0
+
+    def interval(self) -> tuple[float, float]:
+        return (self.value - self.uncertainty, self.value + self.uncertainty)
+
+    def render(self) -> str:
+        dong = [f"  {self.key} = {self.value:g} ± {self.uncertainty:g} {self.unit}"]
+        if not self.uncertainty_declared:
+            dong.append(
+                "      ⚠ CHƯA KHAI SAI SỐ. Một con số đọc từ ảnh không bao giờ "
+                "chính xác bằng\n"
+                "        con số máy đo gửi qua đường truyền — thiếu sai số thì "
+                "hai loại ấy trông giống nhau."
+            )
+        if self.reading:
+            dong.append(f"      đọc từ ảnh: {self.reading}")
+        if self.source_image:
+            dong.append(f"      ảnh gốc   : {self.source_image}")
+        return "\n".join(dong)
+
+    def accept(self, value: float | None = None, *, actor: str) -> dict[str, Any]:
+        """Người chốt số đo — sửa được giá trị trước khi lưu (TC-23).
+
+        ``value`` là giá trị NGƯỜI chốt. Truyền ``None`` nghĩa là giữ nguyên
+        con số Agent đọc được. Bản ghi luôn giữ CẢ HAI, và giữ cả hai mới là
+        điểm chính: nếu về sau số đo này gây tranh cãi, câu "máy đọc ra bao
+        nhiêu, người sửa thành bao nhiêu" phải trả lời được từ dữ liệu.
+        """
+        if not actor.strip():
+            raise IngestError(
+                f"{self.key!r}: lưu số đo phải ghi tên người chốt. Số đọc từ ảnh "
+                "là ĐỀ XUẤT; không có người chốt thì nó không thành bản ghi."
+            )
+        chot = self.value if value is None else float(value)
+        return {
+            "ts": _now(),
+            "key": self.key,
+            "value": chot,
+            "unit": self.unit,
+            "channel": "anh_man_hien_song",
+            "actor": actor,
+            "proposed_value": self.value,
+            "uncertainty": self.uncertainty,
+            "edited": chot != self.value,
+            "reading": self.reading,
+            "source_image": self.source_image,
+        }
+
+
+_LUOC_DO_ANH = """{
+  "measurements": [
+    {
+      "key": "<tên số đo, khớp khóa trong tiêu chí nghiệm thu nếu có>",
+      "value": <trị số đọc được>,
+      "unit": "<đơn vị — BẮT BUỘC>",
+      "uncertainty": <sai số ĐỌC ẢNH, cùng đơn vị; BẮT BUỘC, đừng để 0>,
+      "reading": "<thấy gì trên ảnh để ra con số ấy: mấy ô, mỗi ô bao nhiêu>"
+    }
+  ]
+}"""
+
+
+@dataclass
+class ScopeImageReader:
+    """Đọc số đo từ ảnh màn hiện sóng — FR-ING-03, TC-23.
+
+    Mọi thứ trả về là *proposed fact*. Ảnh gốc được giữ lại ở ``MediaStore``
+    trước khi trích, vì câu "máy đọc nhầm ảnh" chỉ kiểm chứng lại được khi ảnh
+    còn đó.
+    """
+
+    llm: Any
+    media: MediaStore | None = None
+    budget: int = 1500
+
+    def read(self, image: str | Path, *, expect: Sequence[str] = ()) -> list[ProposedMeasurement]:
+        from eaa.llm.base import LLMError, Prompt, PromptLayer
+
+        image = Path(image)
+        if not image.is_file():
+            raise IngestError(f"Không tìm thấy ảnh: {image}")
+        if classify(image) != InputKind.IMAGE:
+            raise IngestError(
+                f"{image} không phải ảnh (nhận diện: {classify(image)}). Kịch bản "
+                "này đọc màn hiện sóng, không đọc tệp khác."
+            )
+
+        luu = self.media.store(image) if self.media is not None else image
+
+        prompt = Prompt(
+            system_instruction=(
+                "Bạn đọc số đo từ ảnh chụp màn hiện sóng. Với MỖI đại lượng, "
+                "nêu trị số, đơn vị, và SAI SỐ ĐỌC ẢNH — sai số là bắt buộc và "
+                "không được để 0: con trỏ đặt lệch nửa ô là đã lệch. Nói rõ bạn "
+                "thấy gì trên ảnh để ra con số ấy (mấy ô, mỗi ô bao nhiêu). "
+                "Không đọc được thì BỎ QUA đại lượng đó — một con số bịa ra kèm "
+                "đơn vị đúng còn tệ hơn không có con số nào."
+            ),
+            layers=[
+                PromptLayer(
+                    "task",
+                    f"Ảnh: {luu.name}\n"
+                    + (f"Cần đọc các đại lượng: {', '.join(expect)}\n" if expect else "")
+                    + "\nTrả về ĐÚNG một khối JSON theo lược đồ:\n\n"
+                    f"```json\n{_LUOC_DO_ANH}\n```",
+                    budget=self.budget,
+                    required=True,
+                )
+            ],
+            module="đọc màn hiện sóng",
+            budget=self.budget + 600,
+        )
+        prompt.image_path = str(luu)
+
+        try:
+            van_ban = (
+                self.llm.complete(prompt)
+                if hasattr(self.llm, "complete")
+                else self.llm.generate(prompt).raw_response
+            )
+        except LLMError as exc:
+            raise IngestError(f"Không đọc được ảnh: {exc}") from exc
+
+        from eaa.options import _boc_json
+
+        du_lieu = _boc_json(van_ban)
+        ket_qua: list[ProposedMeasurement] = []
+        for m in du_lieu.get("measurements") or []:
+            if not isinstance(m, dict):
+                continue
+            try:
+                gia_tri = float(m.get("value"))
+            except (TypeError, ValueError):
+                continue
+            ket_qua.append(
+                ProposedMeasurement(
+                    key=str(m.get("key", "")),
+                    value=gia_tri,
+                    unit=str(m.get("unit", "")),
+                    uncertainty=float(m.get("uncertainty") or 0.0),
+                    reading=str(m.get("reading", "")),
+                    source_image=str(luu),
+                )
+            )
+        return ket_qua
 
 
 # --------------------------------------------------------------------------

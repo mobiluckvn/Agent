@@ -192,6 +192,13 @@ class Prompt:
     #: gì. Đưa vào KPI để hiệu chỉnh top-k khi vòng tự sửa chạm N vì thiếu ngữ
     #: cảnh ("context miss", AIS §12).
     trimmed: list[str] = field(default_factory=list)
+    #: Ảnh gửi kèm — năng lực đa phương thức của AIS §6.1 (FR-ING-01/03).
+    #:
+    #: Là ĐƯỜNG DẪN chứ không phải nội dung ảnh: adapter tự quyết mã hóa thế
+    #: nào cho nhà cung cấp của nó, và giữ đường dẫn ở đây nghĩa là ảnh gốc vẫn
+    #: nằm nguyên trong kho — điều kiện để câu "máy đọc nhầm ảnh" kiểm chứng
+    #: lại được. Adapter không hỗ trợ ảnh thì bỏ qua trường này.
+    image_path: str = ""
 
     def layer(self, name: str) -> PromptLayer | None:
         for lop in self.layers:

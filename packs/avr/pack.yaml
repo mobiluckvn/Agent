@@ -46,6 +46,17 @@ tool_requirements:
   avrdude: ">=7.0"
   cppcheck: ">=2.10"
 
+# Khuôn sinh tệp tiêu đề module (N-041). Giao diện được sinh TRƯỚC phần thân,
+# nên hai module phụ thuộc nhau viết song song được — mỗi bên chỉ trông vào
+# hợp đồng gọi bên kia đã hứa. Engine cấp dữ liệu (tên hàm, hợp đồng), pack
+# cấp cú pháp: macro chống nạp trùng và cách viết chú thích là chuyện nền tảng.
+interfaces:
+  template: templates/module.h.tmpl
+  output: "{module}.h"
+  function_line: "{signature};"
+  comment_line: "/* {comment} */"
+  include_line: '#include "{header}"'
+
 capabilities:
 
   compile:
@@ -164,6 +175,29 @@ capabilities:
     parse:
       success_exit_codes: [0]
       error_regex: "^avrdude:\\s+(?:error|ERROR):\\s+(?P<msg>.+)$"
+
+  flash_verify:
+    description: >-
+      Đọc ngược Flash và so với ảnh vừa gửi. avrdude gọi đây là chế độ 'v'
+      (verify): nó đọc lại từng byte trên chip chứ không tin vào mã thoát của
+      lần ghi. Không cần xác nhận riêng — chỉ đọc, không đổi gì trên thiết bị,
+      và nó luôn chạy ngay sau một lần nạp mà người đã xác nhận.
+    command:
+      - avrdude
+      - -c
+      - "{programmer}"
+      - -p
+      - "{mcu}"
+      - -P
+      - "{port}"
+      - -b
+      - "{baud}"
+      - -U
+      - "flash:v:{binary}:e"
+    timeout_s: 180
+    parse:
+      success_exit_codes: [0]
+      error_regex: "^avrdude:\\s+(?:error|ERROR|verification error)[:\\s]+(?P<msg>.+)$"
 
   sim:
     description: >-
