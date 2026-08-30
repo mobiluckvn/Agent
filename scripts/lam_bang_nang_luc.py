@@ -43,9 +43,9 @@ CAO, VUA, THAP, KHONG = "Cao", "Vừa", "Thấp", "—"
 # (mã, nhóm, năng lực, trạng thái, bằng chứng trong mã, khoảng trống / ghi chú, ưu tiên)
 NEN: list[tuple[str, str, str, str, str, str, str]] = [
     # ---------------------------------------------------------------- C1 ---
-    ("C1.1", "1. Năng lực nền", "Hiểu và phân rã nhiệm vụ thành bước con, xác định mỗi bước cần loại công cụ gì", PHAN,
-     "eaa/agent.py AgentLoop chọn công cụ theo từng lượt; eaa/decompose.py + `eaa plan propose` phân rã bài toán thành module",
-     "Phân rã vẫn trong danh mục công cụ, NHƯNG từ SL-77 Agent tự VIẾT được công cụ mới khi việc cần làm không có lệnh nào sẵn (`tool propose`). Còn thiếu: nó chưa tự NHẬN RA lúc nào nên viết", VUA),
+    ("C1.1", "1. Năng lực nền", "Hiểu và phân rã nhiệm vụ thành bước con, xác định mỗi bước cần loại công cụ gì", DU,
+     "eaa/agent.py chọn công cụ theo lượt; eaa/decompose.py phân rã module; từ SL-77 tự VIẾT được công cụ mới, từ SL-81 tự RÚT được kỹ năng từ chuỗi đã lặp",
+     "", KHONG),
     ("C1.2", "1. Năng lực nền", "Lập kế hoạch & theo dõi tiến độ; dừng hỏi khi thiếu thông tin quyết định", DU,
      "eaa/ledger.py sổ module có trạng thái; eaa/state.py ghi nguyên tử (TC-03); `eaa plan list`; 5 gate + eaa/brief.py tự hỏi",
      "", KHONG),
@@ -197,8 +197,9 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
     ("C7.4", "7. Đăng ký & mở rộng năng lực", "Đánh giá chất lượng sau khi dùng thật (hay hỏng? chậm?)", PHAN,
      "kpi_log.csv đo vòng sinh mã; sổ tay lỗi đo tỉ lệ trúng từng CÁCH SỬA",
      "Chưa đo độ tin cậy từng công cụ tự sinh sau khi dùng thật", VUA),
-    ("C7.5", "7. Đăng ký & mở rộng năng lực", "Gộp chuỗi tool hay dùng thành tool cấp cao hơn (skill/workflow)", CHUA, "—",
-     "Hiện chuỗi ấy được đóng cứng trong quy trình G0→G10 thay vì được rút ra thành skill — xem C10.1", CAO),
+    ("C7.5", "7. Đăng ký & mở rộng năng lực", "Gộp chuỗi tool hay dùng thành tool cấp cao hơn (skill/workflow)", DU,
+     "eaa/skills.py: rút chuỗi việc đã lặp từ chat_log thành kỹ năng đặt tên được; ba cổng (quyền, tham số, chạy khô) rồi người duyệt · lệnh eaa skill list/add/mine/verify/approve/run · TC-71",
+     "", KHONG),
 
     # ---------------------------------------------------------------- C8 ---
     ("C8.1", "8. Ghi nhớ & học liên phiên", "Bộ nhớ dài hạn TRONG một dự án", DU,
@@ -213,9 +214,9 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
     ("C8.4", "8. Ghi nhớ & học liên phiên", "Cache kết quả tìm kiếm / đánh giá tool", DU,
      "WebCache ở memory/web_cache — lưu kèm băm và mốc thời gian: để tái lập trước, để nhanh sau",
      "", KHONG),
-    ("C8.5", "8. Ghi nhớ & học liên phiên", "Tự đánh giá cuối nhiệm vụ, đề xuất tạo tool/skill mới", PHAN,
-     "`eaa report kpi` + sổ tay lỗi tích luỹ",
-     "Chưa tự đề xuất 'nên tạo công cụ mới cho việc này'", VUA),
+    ("C8.5", "8. Ghi nhớ & học liên phiên", "Tự đánh giá cuối nhiệm vụ, đề xuất tạo tool/skill mới", DU,
+     "`eaa report kpi` + sổ tay lỗi + `eaa skill mine` đọc nhật ký thật và đề xuất rút chuỗi hay lặp thành kỹ năng",
+     "", KHONG),
 
     # ---------------------------------------------------------------- C9 ---
     ("C9.1", "9. Giao tiếp với người dùng", "Báo cáo ngắn theo mốc, không dội log thô", DU,
@@ -233,11 +234,11 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
 
     # --------------------------------------------------------------- C10 ---
     ("C10.1", "10. Không đóng cứng quy trình", "Dùng được cho việc NHỎ mà không bắt đi hết vòng đời", PHAN,
-     "`eaa scratch` sinh sẵn constraints + hardware_profile; 4 lệnh mới (environ/research/read + memory/playbook/tool) chạy KHÔNG cần dự án nào",
+     "`eaa scratch` sinh sẵn hồ sơ; 7 lệnh mới chạy không cần dự án; `eaa focus` nói rõ còn chặng nào",
      "Vẫn phải `eaa init` trước khi vào `eaa chat`", VUA),
-    ("C10.2", "10. Không đóng cứng quy trình", "Vào giữa quy trình, bỏ qua giai đoạn không cần", PHAN,
-     "`eaa resume` khôi phục sau gián đoạn (N-907)",
-     "Khôi phục ≠ bắt đầu giữa chừng. Không có đường vào thẳng G5 mà bỏ G0–G4", CAO),
+    ("C10.2", "10. Không đóng cứng quy trình", "Vào giữa quy trình, bỏ qua giai đoạn không cần", DU,
+     "eaa/focus.py: tính TOÀN BỘ tiền điều kiện tới eaa gen thay vì báo cái chặn đầu tiên; nói rõ chặng nào Agent lo được, --run dừng ở chặng đầu tiên của người · TC-72",
+     "", KHONG),
     ("C10.3", "10. Không đóng cứng quy trình", "Chế độ không cần toolchain / không cần phần cứng", PHAN,
      "Mô phỏng + MockLLM chạy không cần bo; `eaa scratch` nói rõ ràng buộc là GIẢ ĐỊNH",
      "Cổng compile/static vẫn đòi toolchain — đúng thiết kế cho bản bàn giao", THAP),

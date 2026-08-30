@@ -404,3 +404,43 @@ def test_ket_qua_in_ra_dung_ca_hai_loai():
     ra = kq.render()
     assert "    brew install cppcheck" in ra
     assert "    eaa doctor --fix" in ra
+
+
+# ═══ TC-61g — lệnh Agent chạy phải mang theo dự án đang làm việc ═══
+
+
+def test_lenh_agent_chay_gan_san_du_an(tmp_path):
+    """Kho nhiều dự án thì lệnh con không tự chọn được — Agent nhận mã 4.
+
+    Lỗi này chỉ hiện ra khi có hơn một dự án, nên nó đi lọt qua mọi bài test
+    dùng đúng một dự án. Đo được ở lần chạy live đầu tiên.
+    """
+    from eaa.agent import AgentLoop
+
+    da_chay = []
+
+    def bat(argv):
+        da_chay.append(list(argv))
+        return 0, "ok"
+
+    import eaa.agent as m
+
+    goc = m._chay_cli
+    m._chay_cli = bat
+    try:
+        vong = AgentLoop(project=tmp_path / "du_an_a", llm=None)
+        vong.runner(["status"])
+        vong.runner(["plan", "list"])
+    finally:
+        m._chay_cli = goc
+
+    assert da_chay[0] == ["--project", str(tmp_path / "du_an_a"), "status"]
+    assert da_chay[1] == ["--project", str(tmp_path / "du_an_a"), "plan", "list"]
+
+
+def test_runner_tiem_vao_thi_khong_bi_ghi_de(tmp_path):
+    """Bài test thay runner để kiểm vòng lặp mà không chạm hệ thống tệp."""
+    from eaa.agent import AgentLoop
+
+    rieng = lambda argv: (0, "gia")
+    assert AgentLoop(project=tmp_path, llm=None, runner=rieng).runner is rieng

@@ -894,3 +894,61 @@ eaa --project projects/robot_balance chat \
 Phải thấy Agent **tự nối chuỗi** `environ` → `packs` → `research`, rồi trả lời
 kèm lệnh cài cụ thể. Lệnh cài của hệ điều hành phải in ra **không có tiền tố
 `eaa`** (một `eaa brew install …` là lệnh không tồn tại).
+
+## B7. Còn gì chặn — cả quãng đường, một lần
+
+```bash
+eaa focus drv_i2c
+eaa focus drv_i2c --run
+```
+
+`focus` **không bỏ tiền điều kiện nào**. Nó chỉ đảo chiều thông tin: thay vì
+báo *cái chặn đầu tiên*, nó tính cả quãng đường và nói rõ ở mỗi chặng ai làm
+được. Cần kiểm:
+
+| Kiểm | Phải thấy |
+|---|---|
+| Kê đủ mọi chặng | chuỗi cổng · từng gate · backlog · xung đột · tri thức |
+| Phân đúng ai làm | gate luôn là **CẦN BẠN**; `plan add`, `resolve` là **tôi chạy được** |
+| `--run` dừng đúng chỗ | chạy các chặng của Agent rồi **dừng** ở chặng đầu tiên của người |
+| Không có chặng ma | cung B→C (không gate) **không** hiện thành một mục riêng |
+
+Thử phá: sửa `project_state.json` cho gate G1 về `pending`. `focus` phải hiện
+G1 là chặng của bạn, và `--run` phải **không** chạy gì cả.
+
+## B8. Kỹ năng — gộp chuỗi việc hay lặp
+
+```bash
+eaa skill add xem_module --purpose "Xem một module đang mắc gì" \
+    --step "focus {module}" --step "sources pages {module}" \
+    --step "ledger list" --optional "ledger list"
+eaa skill verify xem_module
+eaa skill approve xem_module --actor "<tên bạn>"
+eaa skill run xem_module --args '{"module":"drv_i2c"}'
+```
+
+Hoặc để Agent tự tìm chuỗi bạn đã lặp:
+
+```bash
+eaa skill mine --min-count 2 --save <tên>
+```
+
+**Bài kiểm quan trọng nhất** — cổng quyền. Thử tạo một kỹ năng có bước cấm:
+
+```bash
+eaa skill add chot_nhanh --step "focus x" --step "gate approve G1"
+eaa skill verify chot_nhanh
+```
+
+Phải trượt ở cổng 1 kèm nguyên văn lý do vì sao `gate approve` là của người.
+Nếu nó **qua**, đó là một lỗi nghiêm trọng: kỹ năng đã trở thành đường vòng
+cấp quyền.
+
+Thử phá tiếp: duyệt một kỹ năng hợp lệ, rồi **sửa tay** `skills.yaml` chèn
+thêm `gate approve` vào giữa. Trạng thái vẫn là `approved`, nhưng `skill run`
+phải **từ chối chạy** — cổng quyền chạy lại ngay trước khi chạy, không chỉ lúc
+duyệt.
+
+Một điểm dễ hiểu nhầm: bước trả **mã 2** (đang chờ người) **không** làm đứt
+chuỗi — đó là một trạng thái của dự án, không phải lỗi của lệnh. Chỉ mã 1, 3,
+4 mới dừng.

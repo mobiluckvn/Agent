@@ -1154,6 +1154,36 @@ Ba loại:
 | **Cần cập nhật** | EAA-AIS-05 §9.2: đề xuất công cụ có hai mức bằng chứng |
 
 
+## SL-81 · BỔ SUNG · `eaa/skills.py` — kỹ năng: GỘP quyền đã có, không cấp quyền mới
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9, §11; FR-ORC-01, NFR-08 |
+| **Chỗ trống** | Agent đã tự viết được **công cụ** (SL-77). Nhưng phần lớn việc lặp lại không thiếu công cụ — nó thiếu **cách gọi một chuỗi công cụ đã có**. Trả lời "module này còn thiếu tri thức gì" luôn là cùng bốn lệnh theo cùng thứ tự; mỗi lần hỏi, Agent lại đi lại từ đầu và tốn một lượt gọi mô hình cho mỗi bước. Chuỗi ấy hiện bị đóng cứng trong quy trình G0→G10 hoặc nằm trong đầu người dùng |
+| **Code làm** | `Skill`, `SkillStep`, `SkillRegistry`, `verify_skill()`, `mine()`; lệnh `eaa skill list/mine/verify/approve/run` |
+| **BẤT BIẾN TRUNG TÂM của module** | **Mọi bước phải nằm trong `eaa/agent.py` `TOOLBOX`.** Không có nó, một kỹ năng tên "chốt xong module" với `gate approve` nhét ở giữa sẽ cấp cho Agent đúng cái quyền mà cả sản phẩm này dựng ra để giữ cho con người — bằng một dòng YAML không ai đọc kỹ. Kỹ năng là cách **gộp** quyền đã có, không phải cách **cấp** quyền mới |
+| **Cổng quyền chạy HAI lần** | Lúc duyệt, và **lại lúc chạy**. Sổ là một tệp YAML sửa tay được: một kỹ năng đã duyệt rồi bị chèn thêm bước vẫn mang trạng thái `approved`. Cổng lúc duyệt bảo vệ quy trình; cổng lúc chạy bảo vệ lượt chạy này (có test canh) |
+| **Ba cổng** | ① quyền ② tham số — chỗ giữ và khai báo khớp **cả hai chiều**; một tham số không ai dùng là một tham số người gọi sẽ điền nhầm chỗ ③ chạy khô — dựng đủ chuỗi lệnh cuối cùng để thấy chính xác cái gì sẽ chạy trước khi có gì chạy |
+| **Khai thác từ nhật ký, không từ trí tưởng tượng** | `mine()` đọc `chat_log.jsonl` tìm chuỗi **thật sự đã lặp**. Đề xuất cho việc chưa ai làm bao giờ là đoán; đề xuất cho việc đã làm bốn lần là quan sát. Bỏ chuỗi con không mang thêm thông tin |
+| **Dừng ở bước đầu tiên không đạt** | Bước sau chạy trên kết quả của bước trước hỏng là chạy trên nền cát. Bước khai `optional` thì được bỏ qua |
+| **Sổ đặt ở DỰ ÁN, không ở gốc kho** | Khác sổ công cụ: "module nào còn thiếu tri thức" chỉ có nghĩa khi có backlog. Đặt chung thì một kỹ năng của dự án này hiện ra ở dự án khác và chạy hỏng vì thiếu dữ liệu, chứ không phải vì nó sai |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/skills.py`, lệnh `eaa skill` |
+
+## SL-82 · BỔ SUNG · `eaa/focus.py` — đảo chiều thông tin, không nới quyền
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-PLT-03, EAA-SAD-02 §3; UC04 |
+| **Chỗ trống** | `eaa resume` khôi phục sau gián đoạn, nhưng khôi phục **không phải** bắt đầu giữa chừng. Người dùng muốn "sinh mã cho module này" và nhận được một thông báo tiền điều kiện: sai pha. Sửa xong thì tới cái sau: module chưa có trong backlog. Rồi cái sau nữa. Mỗi lần một câu, và mỗi câu chỉ nói về **cái vừa chặn**, không nói về **cả quãng đường** — người dùng đi mò từng bước trong một quy trình họ không nhìn thấy hình dạng |
+| **Code làm** | `Precondition`, `FocusPlan`, `analyse()`; lệnh `eaa focus <module> [--run]` |
+| **KHÔNG bỏ tiền điều kiện nào** | Cùng bộ luật của `Orchestrator._kiem_tien_dieu_kien`, chỉ khác chỗ nó **không ném** ở cái chặn đầu tiên mà đi hết. Cách "dễ" hơn — một cờ nhảy thẳng vào pha D — phá đúng bất biến trung tâm, và nó sẽ được dùng vào đúng lúc gấp |
+| **Không phát biểu lại luật nào** | `analyse()` **nhận** dữ kiện đã đo sẵn thay vì tự đi đọc. Trùng luật ở hai chỗ là cách chúng lệch nhau về sau, và cái lỏng hơn sẽ luôn là cái được dùng |
+| **Ranh giới agent/người là ranh giới CŨ** | `_ai_chay()` đọc từ chính `TOOLBOX`. Một chặng "người" không bao giờ tự chuyển thành "agent" bằng cách đi qua `focus` (có test canh) |
+| **`agent_steps` CẮT ở chặng người đầu tiên** | Không lấy hết những chặng agent rải rác phía sau: một chặng "người" ở giữa nghĩa là mọi chặng sau nó phụ thuộc vào một quyết định chưa có. Chạy trước chúng là làm việc trên một giả định người dùng chưa đưa ra |
+| **Cung không gate không phải một chặng** | B→C tự chuyển ngay sau khi G1 duyệt (engine đi hết những bước gate vừa mở). Liệt nó ra là bịa thêm một bước cho người dùng — và tệ hơn, một bước không có lệnh nào gỡ được. Nó thành ghi chú gắn vào gate đứng trước |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/focus.py`, lệnh `eaa focus` |
+
+
 ---
 
 ## Chưa lệch nhưng cần bổ sung tài liệu sau

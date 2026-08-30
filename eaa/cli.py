@@ -3433,6 +3433,210 @@ def cmd_tool_run(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _so_ky_nang(args: argparse.Namespace):
+    from eaa.skills import SkillRegistry
+
+    return SkillRegistry(resolve_project(args.project))
+
+
+def cmd_skill_list(args: argparse.Namespace) -> int:
+    """Sổ kỹ năng của dự án (C7.5)."""
+    from eaa.confidence import SUY_RA, header
+
+    ds = _so_ky_nang(args).all()
+    print("Kỹ năng — chuỗi việc đã đặt tên")
+    print()
+    print(header(SUY_RA))
+    print()
+    if not ds:
+        print("  (chưa có cái nào)")
+        print()
+        print("  Tìm chuỗi việc bạn đã lặp:  eaa skill mine")
+        return EXIT_OK
+    for s in ds:
+        print(s.render())
+    print()
+    print(f"{sum(1 for s in ds if s.runnable)}/{len(ds)} đã được người duyệt và chạy được.")
+    return EXIT_OK
+
+
+def cmd_skill_mine(args: argparse.Namespace) -> int:
+    """Tìm chuỗi việc ĐÃ lặp trong nhật ký hội thoại (C7.5)."""
+    from eaa.agent import CHAT_LOG
+    from eaa.skills import SkillRegistry, mine
+
+    project = resolve_project(args.project)
+    ds = mine(project / CHAT_LOG, min_count=args.min_count)
+
+    print("Chuỗi việc đã lặp trong nhật ký hội thoại")
+    print()
+    if not ds:
+        print(f"  (chưa thấy chuỗi nào lặp từ {args.min_count} lần trở lên)")
+        print()
+        print("  Đề xuất một kỹ năng cho việc chưa ai làm bao giờ là đoán.")
+        print("  Cứ dùng 'eaa chat' bình thường; chỗ này bồi lên theo thói quen thật của bạn.")
+        return EXIT_OK
+
+    for d in ds:
+        print(d.render())
+        print()
+
+    if args.save:
+        kn = ds[0].to_skill(name=args.save, source=CHAT_LOG)
+        SkillRegistry(project).save(kn)
+        print(f"Đã lưu đề xuất thứ nhất thành kỹ năng {kn.name!r} (trạng thái: đề xuất).")
+        print(f"Bước tiếp: eaa skill verify {kn.name}")
+    else:
+        print("Lưu một cái lại:  eaa skill mine --save <tên>")
+    return EXIT_OK
+
+
+def cmd_skill_add(args: argparse.Namespace) -> int:
+    """Tự viết một kỹ năng (C7.5).
+
+    ``mine`` chỉ phát hiện được thứ đã lặp. Người dùng biết trước mình muốn
+    chuỗi nào thì không có lý do gì bắt họ lặp bốn lần rồi mới được đặt tên.
+    """
+    from eaa.skills import Skill, SkillStep, _now
+
+    tuy_chon = {s.strip() for s in args.optional}
+    buoc = tuple(
+        SkillStep(argv=tuple(s.split()), optional=s.strip() in tuy_chon)
+        for s in args.step if s.strip()
+    )
+    if not buoc:
+        raise CliError("Kỹ năng phải có ít nhất một bước (--step)")
+
+    kn = Skill(
+        name=args.name,
+        purpose=args.purpose or f"Chuỗi {len(buoc)} bước",
+        steps=buoc,
+        params=tuple(sorted({p for b in buoc for p in b.params})),
+        source="viết tay",
+        created_at=_now(),
+    )
+    _so_ky_nang(args).save(kn)
+    print(f"Đã lưu kỹ năng {kn.name!r} (trạng thái: đề xuất).")
+    print(kn.render())
+    print(f"\nBước tiếp: eaa skill verify {kn.name}")
+    return EXIT_OK
+
+
+def cmd_skill_verify(args: argparse.Namespace) -> int:
+    from eaa.skills import SkillError
+
+    try:
+        bao_cao = _so_ky_nang(args).verify(args.name)
+    except SkillError as exc:
+        raise CliError(str(exc)) from None
+    print(bao_cao.render())
+    if bao_cao.passed:
+        print(f"\nBước tiếp — CHỈ bạn làm được: eaa skill approve {args.name} --actor <tên bạn>")
+        return EXIT_OK
+    return EXIT_WAITING_GATE
+
+
+def cmd_skill_approve(args: argparse.Namespace) -> int:
+    """Người duyệt một kỹ năng. KHÔNG nằm trong danh mục Agent tự gọi."""
+    from eaa.skills import SkillError
+
+    try:
+        s = _so_ky_nang(args).approve(args.name, by=args.actor or os.environ.get("USER", ""))
+    except SkillError as exc:
+        raise CliError(str(exc)) from None
+    print(f"Đã duyệt kỹ năng {s.name} — {s.approved_by} lúc {s.approved_at}")
+    print(f"Gọi nó:  eaa skill run {s.name}"
+          + (f" --args '{{\"{s.params[0]}\": ...}}'" if s.params else ""))
+    return EXIT_OK
+
+
+def cmd_skill_run(args: argparse.Namespace) -> int:
+    from eaa.options import OptionError, boc_json
+    from eaa.skills import SkillError
+
+    try:
+        tham_so = boc_json(args.args) if args.args.strip() not in ("", "{}") else {}
+    except OptionError as exc:
+        raise CliError(f"--args phải là JSON: {exc}") from None
+    try:
+        lan = _so_ky_nang(args).run(args.name, tham_so)
+    except SkillError as exc:
+        raise CliError(str(exc)) from None
+    print(lan.render(full=args.full))
+    return EXIT_OK if lan.ok else EXIT_WAITING_GATE
+
+
+def cmd_focus(args: argparse.Namespace) -> int:
+    """Còn gì chặn giữa đây và việc muốn làm — cả quãng đường, một lần (C10.2)."""
+    from eaa.focus import analyse
+    from eaa.orchestrator import OrchestratorConfig
+    from eaa.policy import GATE_PURPOSE
+    from eaa.readiness import NotReady
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    state = ctx.store.load()
+
+    # Đo từng câu hỏi Ở ĐÂY rồi truyền xuống, để eaa/focus.py không phát biểu
+    # lại luật nào — trùng luật ở hai chỗ là cách chúng lệch nhau về sau.
+    ten_cong = {
+        getattr(g, "name", type(g).__name__) for g in ctx.orchestrator.gate_chain
+    }
+    thieu_cong = [c for c in OrchestratorConfig().required_gates if c not in ten_cong]
+
+    muc = state.module(args.module_id)
+    xung_dot: list = []
+    loi_tri_thuc = ""
+    if muc is not None:
+        xung_dot = list(ctx.graph.check_module(
+            args.module_id, uses=muc.uses, depends_on=muc.depends_on))
+        if not xung_dot and ctx.readiness is not None:
+            try:
+                ctx.readiness.check(args.module_id, uses=muc.uses)
+            except NotReady as exc:
+                loi_tri_thuc = str(exc)
+
+    lo_trinh = analyse(
+        module_id=args.module_id,
+        state=state,
+        gate_purpose=GATE_PURPOSE,
+        missing_chain_gates=thieu_cong,
+        conflicts=xung_dot,
+        readiness_error=loi_tri_thuc,
+    )
+    print(lo_trinh.render())
+
+    if lo_trinh.ready:
+        print()
+        print(f"    eaa gen {args.module_id}")
+        return EXIT_OK
+
+    if not args.run:
+        return EXIT_WAITING_GATE
+
+    tu_lo = lo_trinh.agent_steps
+    if not tu_lo:
+        print()
+        print("Không chặng nào tôi tự lo được — chặng kế tiếp phải là bạn.")
+        return EXIT_WAITING_GATE
+
+    from eaa.agent import _chay_cli
+
+    print()
+    _in_tieu_de("Chạy những chặng tôi tự lo được")
+    for p in tu_lo:
+        ma, dau_ra = _chay_cli(list(p.fix))
+        print(f"  {'✓' if ma == 0 else '✗'} eaa {' '.join(p.fix)}   (mã {ma})")
+        if ma != 0:
+            print(f"      {dau_ra.strip().splitlines()[-1][:200] if dau_ra.strip() else ''}")
+            print("\nDừng ở đây: chặng sau chạy trên kết quả của chặng này.")
+            return EXIT_WAITING_GATE
+
+    print()
+    print("Chạy lại 'eaa focus' để xem quãng đường còn lại.")
+    return EXIT_WAITING_GATE
+
+
 def cmd_scratch(args: argparse.Namespace) -> int:
     """Dựng chỗ làm nháp (C10.1)."""
     from eaa.scratch import ScratchError, create_scratch, warning_banner
@@ -4545,6 +4749,66 @@ def build_parser() -> argparse.ArgumentParser:
     p_scr.add_argument("--platform", default="avr")
     p_scr.add_argument("--force", action="store_true")
     p_scr.set_defaults(func=cmd_scratch)
+
+    p_skill = sub.add_parser(
+        "skill",
+        help="Kỹ năng: chuỗi việc hay lặp, đặt tên để gọi lại bằng một câu",
+        description=(
+            "Kỹ năng GỘP quyền đã có, KHÔNG cấp quyền mới: mọi bước bắt buộc "
+            "nằm trong danh mục Agent vốn đã được gọi. Ba cổng — quyền, tham "
+            "số, chạy khô — rồi mới tới người duyệt."
+        ),
+    )
+    sub_skill = p_skill.add_subparsers(dest="skill_cmd", required=True)
+    s_ls = sub_skill.add_parser("list", help="Sổ kỹ năng và trạng thái")
+    s_ls.set_defaults(func=cmd_skill_list)
+    s_mine = sub_skill.add_parser("mine", help="Tìm chuỗi việc ĐÃ lặp trong nhật ký hội thoại")
+    s_mine.add_argument("--min-count", type=int, default=2, help="Số lần lặp tối thiểu")
+    s_mine.add_argument("--save", default="", help="Lưu đề xuất thứ nhất thành kỹ năng tên này")
+    s_mine.set_defaults(func=cmd_skill_mine)
+    s_add = sub_skill.add_parser(
+        "add",
+        help="Tự viết một kỹ năng khi bạn đã biết mình muốn chuỗi nào",
+        description=(
+            "Không phải kỹ năng nào cũng cần đợi 'mine' phát hiện. Dùng "
+            "{tên} trong bước để khai tham số: --step 'resolve {module}'."
+        ),
+    )
+    s_add.add_argument("name")
+    s_add.add_argument("--step", action="append", required=True, default=[],
+                       help="Một bước, lặp lại được. Ví dụ: --step 'plan list'")
+    s_add.add_argument("--purpose", default="", help="Một câu: kỹ năng này để làm gì")
+    s_add.add_argument("--optional", action="append", default=[],
+                       help="Bước được phép hỏng mà vẫn đi tiếp (chép nguyên văn bước ấy)")
+    s_add.set_defaults(func=cmd_skill_add)
+
+    s_vf = sub_skill.add_parser("verify", help="Cho một kỹ năng đi qua ba cổng")
+    s_vf.add_argument("name")
+    s_vf.set_defaults(func=cmd_skill_verify)
+    s_ap = sub_skill.add_parser("approve", help="NGƯỜI duyệt — chỉ đi được từ 'verified'")
+    s_ap.add_argument("name")
+    s_ap.add_argument("--actor", default="")
+    s_ap.set_defaults(func=cmd_skill_approve)
+    s_run = sub_skill.add_parser("run", help="Chạy một kỹ năng ĐÃ DUYỆT")
+    s_run.add_argument("name")
+    s_run.add_argument("--args", default="{}", help="Tham số dạng JSON")
+    s_run.add_argument("--full", action="store_true", help="In cả đầu ra từng bước")
+    s_run.set_defaults(func=cmd_skill_run)
+
+    p_focus = sub.add_parser(
+        "focus",
+        help="Còn gì chặn giữa đây và việc bạn muốn làm — cả quãng đường, một lần",
+        description=(
+            "KHÔNG bỏ tiền điều kiện nào, không tự duyệt gate nào. Nó đảo chiều "
+            "thông tin: thay vì báo CÁI CHẶN ĐẦU TIÊN, nó tính TOÀN BỘ quãng "
+            "đường và nói rõ ở mỗi chặng ai làm được. '--run' chạy những chặng "
+            "trong danh mục Agent rồi DỪNG ở chặng đầu tiên phải là bạn."
+        ),
+    )
+    p_focus.add_argument("module_id", help="Module muốn sinh mã")
+    p_focus.add_argument("--run", action="store_true",
+                         help="Chạy luôn những chặng tôi tự lo được")
+    p_focus.set_defaults(func=cmd_focus)
 
     # FR-ING-01, N-004 — đọc kho nén hồ sơ dự án
     p_survey = sub.add_parser(

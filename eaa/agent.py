@@ -246,6 +246,31 @@ TOOLBOX: tuple[Tool, ...] = (
         "có hồ sơ dự án nào. Cổng và gate vẫn chạy đủ",
         takes="[--name X]", writes=True,
     ),
+
+    # -- nhìn cả quãng đường, và gộp việc hay lặp ---------------------------
+    Tool(
+        ("focus",),
+        "CÒN GÌ CHẶN giữa đây và việc sinh mã cho một module — CẢ quãng đường "
+        "một lần, kèm ai làm được chặng nào. Gọi cái này khi người dùng hỏi "
+        "'sao chưa làm được' hoặc 'giờ tôi phải làm gì'",
+        takes="mã module",
+    ),
+    Tool(("skill", "list"), "Kỹ năng đã đặt tên: chuỗi việc gọi lại được bằng một câu"),
+    Tool(
+        ("skill", "mine"),
+        "Tìm chuỗi việc bạn ĐÃ lặp trong nhật ký hội thoại, để rút thành kỹ năng",
+        takes="[--save <tên>]",
+    ),
+    Tool(
+        ("skill", "run"),
+        "Chạy một kỹ năng ĐÃ ĐƯỢC NGƯỜI DUYỆT (xem 'skill list')",
+        takes="tên kỹ năng [--args '{...}']", writes=True,
+    ),
+    Tool(
+        ("skill", "verify"),
+        "Cho một kỹ năng đi qua ba cổng: quyền, tham số, chạy khô",
+        takes="tên kỹ năng", writes=True,
+    ),
 )
 
 #: Lệnh Agent KHÔNG BAO GIỜ được tự gọi, kèm lý do nói cho người nghe.
@@ -274,6 +299,10 @@ NGOAI_DANH_MUC: dict[str, str] = {
     "rollback": "Quay lui đổi mã đang chạy trên thiết bị — quyết định của bạn.",
     "endurance": "Lệnh này chiếm cổng nối tiếp và chạy hàng giờ; bạn nên tự bố trí.",
     "build": "Ráp firmware là bước trước khi nạp; bạn chạy để còn kiểm ảnh sinh ra.",
+    "skill approve": (
+        "Cho phép một kỹ năng được chạy là mở rộng quyền của tôi. Tôi rút được "
+        "chuỗi việc ra và cho nó qua ba cổng; bước cuối phải là bạn."
+    ),
     "tool approve": (
         "Cho phép một công cụ tự sinh được CHẠY là mở rộng quyền của tôi, không "
         "phải mở rộng việc tôi làm. Tôi viết được nó và cho nó qua ba cổng; "
@@ -378,9 +407,10 @@ def _mo_ta_danh_muc() -> str:
         "Với `datasheet` và `docs` bạn chỉ có `list`; các hành động khác của "
         "hai lệnh ấy là việc của người.",
         "",
-        "Với `tool` bạn KHÔNG có `approve`. Bạn viết được công cụ mới và cho nó "
-        "qua ba cổng, nhưng bước cuối — cho phép nó chạy — là của người. Bạn mở "
-        "rộng được CÁI BẠN LÀM, không mở rộng được QUYỀN BẠN CÓ.",
+        "Với `tool` và `skill` bạn KHÔNG có `approve`. Bạn viết được công cụ "
+        "mới, rút được kỹ năng mới, và cho cả hai qua ba cổng — nhưng bước cuối, "
+        "cho phép nó chạy, là của người. Bạn mở rộng được CÁI BẠN LÀM, không mở "
+        "rộng được QUYỀN BẠN CÓ.",
         "",
         "## THỨ TỰ NÊN THEO KHI THIẾU THÔNG TIN",
         "",
@@ -577,7 +607,16 @@ class AgentLoop:
     def __post_init__(self) -> None:
         self.project = Path(self.project)
         if self.runner is None:
-            self.runner = _chay_cli
+            # Gắn sẵn dự án đang làm việc vào mọi lệnh Agent chạy.
+            #
+            # Không có bước này thì lệnh con tự đi tìm dự án lại từ đầu, và khi
+            # kho có nhiều hơn một dự án nó không chọn được — Agent gọi đúng
+            # lệnh, nhận mã thoát 4, rồi kể lại cho người dùng một lỗi môi
+            # trường thay vì câu trả lời. Lỗi ấy chỉ hiện ra ở kho nhiều dự án,
+            # nên nó đi lọt qua mọi bài test dùng đúng một dự án.
+            self.runner = lambda argv: _chay_cli(
+                ["--project", str(self.project), *argv]
+            )
 
     # -- vòng --------------------------------------------------------------
 
