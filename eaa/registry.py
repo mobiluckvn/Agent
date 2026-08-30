@@ -310,6 +310,70 @@ class ArtifactRegistry:
 
         return sorted(ket_qua, key=lambda a: (a.created_at, a.version), reverse=True)
 
+    def find_smart(
+        self,
+        description: str = "",
+        *,
+        llm: Any = None,
+        kind: str | None = None,
+        on_date: str = "",
+        status: str | None = None,
+    ) -> tuple[list[Artifact], str]:
+        """Như :meth:`find`, nhưng trượt thì hỏi mô hình — FR-DOC-03.
+
+        Trả về ``(danh_sách, bậc)`` với bậc là ``tu-khoa`` hoặc ``mo-hinh``.
+        Bậc đi kèm chứ không bị nuốt: người hỏi "cho tôi bản báo cáo hôm nọ"
+        mà nhận về một tệp cần biết nó được tìm ra bằng cách nào — khớp đúng
+        chữ họ gõ, hay một mô hình đoán ý họ.
+
+        Bậc 1 chạy trước và luôn thắng khi nó có kết quả: nó tất định, và với
+        một kho phẩm xuất có tiêu đề ngắn thì nó đúng gần như mọi lúc.
+        """
+        khop = self.find(description, kind=kind, on_date=on_date, status=status)
+        if khop or not description.strip() or llm is None:
+            return khop, "tu-khoa"
+
+        ung_vien = self.find(kind=kind, on_date=on_date, status=status)
+        if not ung_vien:
+            return [], "tu-khoa"
+
+        from eaa.llm.base import LLMError, Prompt, PromptLayer
+        from eaa.options import boc_json
+
+        danh_sach = "\n".join(
+            f"- {a.id}: {a.title} ({a.kind}, {a.created_at[:10]}) — {a.description}"
+            for a in ung_vien[:40]
+        )
+        prompt = Prompt(
+            system_instruction=(
+                "Bạn tìm phẩm xuất khớp mô tả của người dùng. CHỈ chọn trong "
+                "danh sách được cho; không bịa mã. Không cái nào hợp thì trả "
+                "danh sách rỗng."
+            ),
+            layers=[
+                PromptLayer(
+                    "task",
+                    f"Người dùng tìm: {description}\n\nĐang có:\n{danh_sach}\n\n"
+                    'Trả về ĐÚNG một khối JSON: {"chon": ["<mã>", "..."]}',
+                    budget=1500,
+                    required=True,
+                )
+            ],
+            module="truy hồi phẩm xuất",
+            budget=2300,
+        )
+        try:
+            van_ban = (
+                llm.complete(prompt)
+                if hasattr(llm, "complete")
+                else llm.generate(prompt).raw_response
+            )
+        except LLMError as exc:
+            raise RegistryError(f"Không truy hồi được: {exc}") from exc
+
+        chon = {str(x) for x in (boc_json(van_ban, RegistryError).get("chon") or [])}
+        return [a for a in ung_vien if a.id in chon], "mo-hinh"
+
     # ----------------------------------------------------------------------
     # TC-32 — gửi lại bản đã phát hành
     # ----------------------------------------------------------------------

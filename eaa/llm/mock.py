@@ -181,12 +181,42 @@ class MockLLM:
             raise LLMError("MockLLM được cấu hình với dãy phản hồi rỗng")
         return nguon[min(lan, len(nguon) - 1)]
 
+    @staticmethod
+    def _doi_luoc_do_json(prompt: Prompt) -> bool:
+        """Prompt này có đòi một khối JSON theo lược đồ không.
+
+        Nhận biết bằng chính khối ```json mà mọi lệnh cố vấn nhúng vào phần
+        việc — không đoán theo tên module, vì tên module là chuỗi tự do.
+        """
+        return "```json" in prompt.render()
+
     # -- interface LLMClient ----------------------------------------------
 
     def complete(self, prompt: Prompt) -> str:
         """Văn bản thô, không đòi khối ```file: — xem GeminiClient.complete."""
         if self.enforce_budget:
             prompt.check_budget(self.count_tokens)
+
+        if self.responses is None and self._doi_luoc_do_json(prompt):
+            # Nói thẳng thay vì trả mã C rồi để bộ bóc JSON vấp.
+            #
+            # Đây là cảnh của một người vừa clone kho về, chưa có khóa API, và
+            # gõ thử `eaa propose scope`. Trước bản này họ nhận một traceback
+            # về JSON hỏng — một thông báo đúng sự thật mà nói về triệu chứng
+            # chứ không nói về nguyên nhân.
+            raise LLMError(
+                "MockLLM chỉ trả mã nguồn theo kịch bản dựng sẵn; nó KHÔNG trả "
+                "lời prompt dạng lược đồ JSON.\n"
+                "    Lệnh này cần mô hình thật. Đặt EAA_LLM_KEY (hoặc điền vào "
+                ".env) rồi:\n"
+                "        eaa init --provider gemini\n"
+                "    Cố ý không bịa một phản hồi trông hợp lệ: một bản đề xuất "
+                "do mock dựng ra\n"
+                "    sẽ trông y hệt một bản do mô hình phân tích thật — và đó "
+                "đúng là thứ\n"
+                "    sản phẩm này sinh ra để chặn."
+            )
+
         van_ban = self._response_for(prompt)
         self.calls.append(
             MockCall(

@@ -122,7 +122,7 @@ class VerifyResult:
         return self.status == VERIFY_KHOP
 
     @property
-    def confidence(self) -> str:
+    def confidence_level(self) -> str:
         """Mức tin cậy theo bộ từ vựng chung của hệ (N-903)."""
         from eaa.confidence import DA_KIEM, KHONG_KIEM_DUOC
 

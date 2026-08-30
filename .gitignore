@@ -19,6 +19,11 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Tệp khóa tạm Excel sinh ra khi mở một bảng trong docs/. Không phải sản phẩm
+# của quy trình, và nó làm 'kiểm không làm bẩn kho' đỏ vì một lý do chẳng liên
+# quan gì tới sản phẩm.
+~$*
+
 # NFR-06: khóa API chỉ đọc từ biến môi trường EAA_LLM_KEY, không bao giờ vào repo.
 .env
 *.key
@@ -43,3 +48,19 @@ projects/*/error_ledger.jsonl
 projects/*/gates/
 projects/*/firmware/
 projects/*/.eaa/
+
+# Bộ đệm trang web. Bộ nhớ liên dự án (memory/facts.jsonl, memory/playbook.jsonl)
+# THÌ theo dõi bằng Git — đó là tri thức tích luỹ, và nó chỉ có giá trị khi
+# mang được sang máy khác. Còn bản sao các trang đã tải thì tái tạo được, nặng,
+# và riêng của từng máy.
+memory/web_cache/
+
+# Hồ sơ gốc người dùng cung cấp và bản giải nén của nó. Hàng trăm MB tài liệu
+# nhà sản xuất không thuộc về lịch sử kho mã; chúng là ĐẦU VÀO của một lần
+# chạy, và đường dẫn tới chúng đã được ghi trong sources.yaml.
+data/
+projects/*/sources/
+
+# Nhật ký hội thoại của một phiên làm việc.
+projects/*/chat_log.jsonl
+projects/*/llm_calls.jsonl

@@ -272,6 +272,17 @@ class DocumentPlan:
             )
         return hoi
 
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Suy từ hồ sơ phần cứng — đúng theo thứ dự án đã khai, chưa ai kiểm là đủ.
+        """
+        from eaa.confidence import SUY_RA
+
+        return SUY_RA
+
     def render(self) -> str:
         dong = [f"Tài liệu cần — {len(self.needs)} mục, còn thiếu {len(self.missing)}", ""]
         for n in self.needs:
@@ -411,6 +422,17 @@ class PagePlan:
                 if x not in ten:
                     ten.append(x)
         return tuple(ten)
+
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Bắc cầu trên đồ thị tài nguyên và kho trích đoạn hiện có.
+        """
+        from eaa.confidence import SUY_RA
+
+        return SUY_RA
 
     def render(self) -> str:
         tieu_de = (
@@ -812,9 +834,9 @@ class LlmDocLookup:
         except LLMError as exc:
             raise DocPlanError(f"Không tra được {module}: {exc}") from exc
 
-        from eaa.options import _boc_json
+        from eaa.options import boc_json
 
-        return _boc_json(van_ban)
+        return boc_json(van_ban, DocPlanError)
 
     def sources(self, plan: DocumentPlan) -> dict[str, str]:
         """Tìm đường dẫn trang chính thức cho từng tài liệu cần."""

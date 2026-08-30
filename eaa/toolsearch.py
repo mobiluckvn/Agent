@@ -201,6 +201,10 @@ class ToolProposal:
     #: Mô hình nào đề xuất, để truy vết như mọi tri thức khác (NFR-07).
     proposed_by: str = ""
     proposed_at: str = field(default_factory=_now)
+    #: Trang ĐÃ TẢI VỀ mà đề xuất này dựa trên. Rỗng nghĩa là đề xuất chỉ dựa
+    #: vào trí nhớ mô hình — người duyệt cần biết điều đó, vì hai thứ ấy đáng
+    #: tin khác hẳn nhau và trông giống hệt nhau khi in ra.
+    evidence: tuple[str, ...] = ()
 
     def to_manifest_entry(self) -> dict[str, Any]:
         muc: dict[str, Any] = {
@@ -223,6 +227,8 @@ class ToolProposal:
         if self.download:
             muc["download"] = self.download
             muc["checksum"] = self.checksum
+        if self.evidence:
+            muc["evidence"] = list(self.evidence)
         return muc
 
     def to_dict(self) -> dict[str, Any]:
@@ -251,6 +257,7 @@ class ToolProposal:
             "scope": self.scope,
             "proposed_by": self.proposed_by,
             "proposed_at": self.proposed_at,
+            "evidence": list(self.evidence),
         }
 
     @classmethod
@@ -276,6 +283,7 @@ class ToolProposal:
             scope=str(d.get("scope", "engine")),
             proposed_by=str(d.get("proposed_by", "")),
             proposed_at=str(d.get("proposed_at", "")) or _now(),
+            evidence=tuple(str(x) for x in d.get("evidence", ())),
         )
 
     @property
@@ -307,6 +315,18 @@ class ToolProposal:
             dong.append(f"  Tải trực tiếp: {self.download}")
             dong.append(f"  Checksum     : {self.checksum}")
         dong += ["", f"  Lý do        : {self.rationale}", f"  Đề xuất bởi  : {self.proposed_by}"]
+
+        # Người duyệt phải phân biệt được hai loại đề xuất trông giống hệt
+        # nhau: một cái dựa trên trang đã tải về, một cái dựa trên trí nhớ mô
+        # hình. Cái thứ hai không sai hơn, nhưng nó cần được đọc kỹ hơn hẳn.
+        if self.evidence:
+            dong.append("  Dựa trên trang ĐÃ TẢI:")
+            dong += [f"    - {u}" for u in self.evidence]
+        else:
+            dong.append(
+                "  ⚠ Không tải được trang nào — đề xuất này dựa vào TRÍ NHỚ của "
+                "mô hình. Kiểm tên gói và lệnh cài kỹ trước khi duyệt."
+            )
         return "\n".join(dong)
 
 
@@ -441,6 +461,31 @@ class LlmToolResearcher:
     llm: Any
     #: Ngân sách cho một lần tra cứu — nhỏ, vì đây là câu hỏi tra cứu ngắn.
     budget: int = 2000
+    #: Bộ tra web (``eaa.websearch.WebResearcher``). Có thì đề xuất dựa trên
+    #: TRANG CÀI ĐẶT THẬT; không có thì dựa vào trí nhớ mô hình, và đề xuất tự
+    #: nói ra điều đó khi in ra để người duyệt biết mình đang đọc loại nào.
+    researcher: Any = None
+
+    def _doc_trang_cai(self, requirement: ToolRequirement, os_key: str) -> Any:
+        """Đi đọc trang cài đặt chính thức. Trả ``None`` khi không đọc được.
+
+        Không đọc được KHÔNG phải lỗi: đề xuất vẫn dựng được từ trí nhớ mô
+        hình, chỉ là nó phải mang nhãn khác. Chặn hẳn ở đây sẽ làm chế độ tìm
+        công cụ ngừng hoạt động mỗi khi mạng chập, mà đó đúng lúc người ta cần
+        nó nhất.
+        """
+        if self.researcher is None:
+            return None
+        from eaa.web import WebError
+        from eaa.websearch import SearchError, build_query
+
+        cau = build_query(
+            requirement.program, "official installation guide", os_key or "", "package"
+        )
+        try:
+            return self.researcher.research(cau, max_docs=2)
+        except (SearchError, WebError):
+            return None
 
     def propose(self, requirement: ToolRequirement, *, os_key: str = "") -> ToolProposal:
         from eaa.llm.base import Prompt, PromptLayer
@@ -451,6 +496,29 @@ class LlmToolResearcher:
             if requirement.min_version
             else ""
         )
+        tra_cuu = self._doc_trang_cai(requirement, os_key)
+        lop: list[Any] = []
+        if tra_cuu is not None and tra_cuu.documents:
+            lop.append(PromptLayer(
+                "sources",
+                "Trang cài đặt đã tải về — ưu tiên thông tin trong đây hơn trí "
+                "nhớ của bạn:\n\n" + tra_cuu.context(per_doc=1800),
+                budget=4200,
+                required=False,
+            ))
+
+        lop.append(PromptLayer(
+            "task",
+            f"Platform Pack {requirement.pack!r} gọi chương trình "
+            f"{requirement.program!r} để phục vụ năng lực: {cong}.\n"
+            f"Hệ điều hành đang dùng: {os_key or 'không rõ'}.\n"
+            f"{rang_buoc}\n"
+            "Trả về ĐÚNG một khối JSON theo lược đồ sau, không kèm giải "
+            f"thích ngoài khối:\n\n```json\n{_LUOC_DO}\n```",
+            budget=self.budget,
+            required=True,
+        ))
+
         prompt = Prompt(
             system_instruction=(
                 "Bạn tra cứu công cụ dòng lệnh cho một quy trình phát triển phần "
@@ -459,21 +527,9 @@ class LlmToolResearcher:
                 "TUYỆT ĐỐI không đề xuất lệnh tải rồi chạy script. Nếu không "
                 "chắc công cụ tồn tại, nói rõ là không chắc thay vì đoán."
             ),
-            layers=[
-                PromptLayer(
-                    "task",
-                    f"Platform Pack {requirement.pack!r} gọi chương trình "
-                    f"{requirement.program!r} để phục vụ năng lực: {cong}.\n"
-                    f"Hệ điều hành đang dùng: {os_key or 'không rõ'}.\n"
-                    f"{rang_buoc}\n"
-                    "Trả về ĐÚNG một khối JSON theo lược đồ sau, không kèm giải "
-                    f"thích ngoài khối:\n\n```json\n{_LUOC_DO}\n```",
-                    budget=self.budget,
-                    required=True,
-                )
-            ],
+            layers=lop,
             module=f"tra cứu công cụ {requirement.program}",
-            budget=self.budget + 800,
+            budget=self.budget + 5000,
         )
 
         van_ban = self._goi(prompt)
@@ -499,6 +555,7 @@ class LlmToolResearcher:
             gates=requirement.capabilities,
             scope=f"pack:{requirement.pack}" if requirement.pack else "engine",
             proposed_by=getattr(self.llm, "model", "") or getattr(self.llm, "provider", ""),
+            evidence=tuple(d.url for d in tra_cuu.documents) if tra_cuu else (),
         )
 
     def _goi(self, prompt: Any) -> str:

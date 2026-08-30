@@ -204,11 +204,15 @@ class _LlmGia:
 
     def __init__(self, tra_ve: str) -> None:
         self.tra_ve = tra_ve
+        #: Giữ lại prompt để kiểm được rằng bậc 3 đưa NỘI DUNG TRANG cho mô
+        #: hình, chứ không chỉ đưa câu hỏi rồi nhận lại thứ mô hình nhớ được.
+        self.prompts: list = []
 
     def count_tokens(self, text: str) -> int:
         return len(text) // 4
 
     def complete(self, prompt) -> str:
+        self.prompts.append(prompt)
         return self.tra_ve
 
 
@@ -225,47 +229,112 @@ def test_bac3_tat_mac_dinh(moi_truong) -> None:
     assert _bac(bao_cao, "TWBR", 3).outcome == SKIPPED
 
 
-def test_bac3_nguon_hop_le_thi_thanh_de_xuat(moi_truong, tmp_path: Path) -> None:
-    kb, so = moi_truong
-    llm = _LlmGia(
-        _json(
-            source="https://ww1.microchip.com/downloads/tài-liệu.pdf",
-            topic="Tốc độ bit",
-            registers=["TWBR"],
-            body="| TWBR | 7:0 | 12 |",
+class _TraGia:
+    """Bộ tra web giả: trả về đúng những trang bài test dựng sẵn.
+
+    Bậc 3 giờ ĐỌC trang thật rồi mới trích. Kiểm nó bằng mạng thật thì bài test
+    hỏng theo nhịp của máy chủ người khác, nên bộ tra được tiêm vào.
+    """
+
+    def __init__(self, *trang, hut=()):
+        from eaa.web import CHINH_CHU, MO, WebDocument
+
+        self.documents = tuple(
+            WebDocument(url=u, requested=u, status=200, content_type="text/html",
+                        text=t, title="tài liệu", tier=CHINH_CHU if chinh_chu else MO,
+                        fetched_at="2026-08-30T00:00:00+00:00")
+            for u, t, chinh_chu in trang
         )
-    )
+        self.hut = tuple(hut)
+        self.da_tim = []
+
+    def research(self, query, **kw):
+        from eaa.websearch import ResearchResult
+
+        self.da_tim.append(query)
+        return ResearchResult(query=query, hits=(), documents=self.documents,
+                              failures=self.hut)
+
+
+TRANG_GOC = "https://ww1.microchip.com/downloads/tai-lieu.html"
+
+
+def test_bac3_trich_tu_trang_da_tai_thi_thanh_de_xuat(moi_truong, tmp_path: Path) -> None:
+    kb, so = moi_truong
+    tra = _TraGia((TRANG_GOC, "TWBR la thanh ghi toc do bit, 8 bit", True))
+    llm = _LlmGia(_json(source=TRANG_GOC, topic="Tốc độ bit",
+                        registers=["TWBR"], body="| TWBR | 7:0 | 12 |"))
+
     bao_cao = GapResolver(
-        kb=kb, ledger=so, llm=llm, allow_web=True, datasheets_dir=tmp_path / "datasheets"
+        kb=kb, ledger=so, llm=llm, allow_web=True, researcher=tra,
+        datasheets_dir=tmp_path / "datasheets",
     ).resolve(_ric("TWBR"))
 
     assert len(bao_cao.proposals) == 1
-    assert "microchip.com" in bao_cao.proposals[0].source
+    assert bao_cao.proposals[0].source == TRANG_GOC
+
+
+def test_bac3_dua_noi_dung_that_cho_mo_hinh_khong_hoi_tri_nho(moi_truong) -> None:
+    """Cả điểm của bậc 3 mới: mô hình TRÍCH từ trang, không NHỚ lại."""
+    kb, so = moi_truong
+    tra = _TraGia((TRANG_GOC, "noi dung that cua trang", True))
+    llm = _LlmGia(_json(source=TRANG_GOC, body="x"))
+
+    GapResolver(kb=kb, ledger=so, llm=llm, allow_web=True, researcher=tra).resolve(_ric("TWBR"))
+
+    assert "noi dung that cua trang" in llm.prompts[0].full_text()
+
+
+def test_bac3_nguon_ngoai_tap_trang_da_tai_thi_bo(moi_truong) -> None:
+    """Cái chặn quan trọng nhất: nêu URL lạ nghĩa là vừa quay về trả lời từ trí nhớ."""
+    kb, so = moi_truong
+    tra = _TraGia((TRANG_GOC, "noi dung", True))
+    llm = _LlmGia(_json(source="https://www.microchip.com/mot-trang-khac", body="x"))
+
+    b3 = _bac(
+        GapResolver(kb=kb, ledger=so, llm=llm, allow_web=True, researcher=tra).resolve(_ric("TWBR")),
+        "TWBR", 3,
+    )
+    assert b3.outcome == NOT_FOUND
+    assert "không nằm trong" in b3.detail
 
 
 def test_bac3_khong_nguon_thi_bo(moi_truong) -> None:
     """Một câu trả lời trôi chảy trông y hệt một trích đoạn tra được."""
     kb, so = moi_truong
+    tra = _TraGia((TRANG_GOC, "noi dung", True))
     llm = _LlmGia(_json(source="", body="| TWBR | 7:0 | 12 |"))
 
-    bao_cao = GapResolver(kb=kb, ledger=so, llm=llm, allow_web=True).resolve(_ric("TWBR"))
+    bao_cao = GapResolver(kb=kb, ledger=so, llm=llm, allow_web=True, researcher=tra).resolve(_ric("TWBR"))
     b3 = _bac(bao_cao, "TWBR", 3)
 
     assert b3.outcome == NOT_FOUND
-    assert "không kèm nguồn" in b3.detail
+    assert "không nằm trong" in b3.detail
     assert not bao_cao.proposals
 
 
-def test_bac3_nguon_ngoai_mien_cho_phep_thi_bo(moi_truong) -> None:
+def test_bac3_trang_hang_mo_khong_duoc_dung_lam_nguon_tri_thuc(moi_truong) -> None:
     kb, so = moi_truong
+    tra = _TraGia(("https://dien-dan-linh-tinh.net/twbr", "co ai biet khong", False))
     llm = _LlmGia(_json(source="https://dien-dan-linh-tinh.net/twbr", body="x"))
 
     b3 = _bac(
-        GapResolver(kb=kb, ledger=so, llm=llm, allow_web=True).resolve(_ric("TWBR")),
+        GapResolver(kb=kb, ledger=so, llm=llm, allow_web=True, researcher=tra).resolve(_ric("TWBR")),
         "TWBR", 3,
     )
     assert b3.outcome == NOT_FOUND
-    assert "ngoài danh sách" in b3.detail
+    assert "không trang chính chủ nào đọc được" in b3.detail
+
+
+def test_bac3_doc_hut_duoc_ke_lai(moi_truong) -> None:
+    kb, so = moi_truong
+    tra = _TraGia(hut=(("https://www.microchip.com/x", "HTTP 404"),))
+    b3 = _bac(
+        GapResolver(kb=kb, ledger=so, llm=_LlmGia(""), allow_web=True, researcher=tra).resolve(_ric("TWBR")),
+        "TWBR", 3,
+    )
+    assert b3.outcome == NOT_FOUND
+    assert "1 trang đọc hụt" in b3.detail
 
 
 def test_bac3_mo_hinh_noi_khong_chac_thi_ton_trong(moi_truong) -> None:
@@ -273,14 +342,37 @@ def test_bac3_mo_hinh_noi_khong_chac_thi_ton_trong(moi_truong) -> None:
     import json as _json
 
     kb, so = moi_truong
+    tra = _TraGia((TRANG_GOC, "noi dung", True))
     llm = _LlmGia("```json\n" + _json.dumps({"found": False}) + "\n```")
 
     b3 = _bac(
-        GapResolver(kb=kb, ledger=so, llm=llm, allow_web=True).resolve(_ric("TWBR")),
+        GapResolver(kb=kb, ledger=so, llm=llm, allow_web=True, researcher=tra).resolve(_ric("TWBR")),
         "TWBR", 3,
     )
     assert b3.outcome == NOT_FOUND
-    assert "không chắc" in b3.detail
+    assert "không trang nào nói điều đang hỏi" in b3.detail
+
+
+def test_bac3_khong_co_nguon_tim_kiem_thi_noi_ro_cach_bat(moi_truong, monkeypatch) -> None:
+    from eaa.websearch import SEARCH_URL_ENV
+
+    monkeypatch.delenv(SEARCH_URL_ENV, raising=False)
+    kb, so = moi_truong
+    b3 = _bac(
+        GapResolver(kb=kb, ledger=so, llm=_LlmGia(""), allow_web=True).resolve(_ric("TWBR")),
+        "TWBR", 3,
+    )
+    assert b3.outcome == NOT_FOUND
+    assert SEARCH_URL_ENV in b3.detail
+
+
+def test_bac3_cau_tim_hep_lai_theo_goi_y_nha_san_xuat(moi_truong) -> None:
+    kb, so = moi_truong
+    tra = _TraGia((TRANG_GOC, "noi dung", True))
+    GapResolver(kb=kb, ledger=so, llm=_LlmGia(_json(source=TRANG_GOC, body="x")),
+                allow_web=True, researcher=tra, vendor_hint="ho-chip-x").resolve(_ric("TWBR"))
+    assert "ho-chip-x" in tra.da_tim[0]
+    assert "TWBR" in tra.da_tim[0]
 
 
 def test_bac3_khong_co_mo_hinh_thi_bao_ro(moi_truong) -> None:

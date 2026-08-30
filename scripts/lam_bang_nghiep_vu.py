@@ -676,7 +676,7 @@ DOI_CHIEU = [
  ("N-900", DU, "TC-38 (quét mỗi commit) + TC-47a (không rẽ nhánh theo pack)", "", "T4"),
  ("N-901", DU, "eaa/llm/base.py mask_secrets · TC-14 + tests/conftest.py", "", "T4"),
  ("N-902", DU, "eaa/gates.py, doctor, flash — không cờ bỏ qua · TC-01, TC-42c", "", "T2"),
- ("N-903", PHAN, "eaa/confidence.py — bộ từ vựng chung · TC-60a,b,c", "Đã có MỘT bộ từ vựng và năm chỗ quy về nó (kiểm sau nạp, errata, tham số mô hình, bảng chân, chạy dài); các đầu ra còn lại vẫn chưa gắn nhãn.", "T3"),
+ ("N-903", DU, "eaa/confidence.py + Judged · TC-60a-c, TC-63a-e", "", "T3"),
  ("N-904", DU, "eaa/budget.py TokenBudget · TC-53e,f", "", "T3"),
  ("N-905", DU, "eaa/deviation.py + eaa deviations · TC-60d,e,f", "", "T3"),
  ("N-906", DU, "kpi.weak_points + eaa report review · TC-60g,h,i", "", "T1"),

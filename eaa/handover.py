@@ -355,6 +355,17 @@ class SwapAnalysis:
                     )
         return ket_qua
 
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        So sánh do mô hình tra; phải đối chiếu tài liệu hãng trước khi đặt hàng.
+        """
+        from eaa.confidence import GIA_DINH
+
+        return GIA_DINH
+
     def render(self, hardware: Any = None, modules: Iterable[Any] = (), graph: Any = None) -> str:
         dong = [f"Đổi linh kiện: {self.old_part}  →  {self.new_part}", ""]
         if self.drop_in and not self.deltas:
@@ -451,9 +462,9 @@ class LlmSwapAnalyst:
         except LLMError as exc:
             raise HandoverError(f"Không so được hai linh kiện: {exc}") from exc
 
-        from eaa.options import _boc_json
+        from eaa.options import boc_json
 
-        du_lieu = _boc_json(van_ban)
+        du_lieu = boc_json(van_ban, HandoverError)
         return SwapAnalysis(
             old_part=old_part,
             new_part=new_part,

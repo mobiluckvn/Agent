@@ -227,6 +227,17 @@ class ScopeProposal:
             raise ProposeError(f"{path}: YAML không hợp lệ — {exc}") from exc
         return ScopeProposal.from_dict(du_lieu)
 
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Bản đề xuất chưa qua G1. Lập luận tốt tới đâu thì nó vẫn là một đề xuất.
+        """
+        from eaa.confidence import GIA_DINH
+
+        return GIA_DINH
+
     def render(self) -> str:
         dong = [f"Phạm vi — {len(self.in_scope)} trong, {len(self.out_of_scope)} ngoài"]
         if self.goal:
@@ -314,6 +325,17 @@ class ConstraintProposal:
         gọi mô hình về sau.
         """
         return {i.key: i.value for i in self.items}
+
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Suy từ năng lực chip và động lực học, nhưng chưa ai chốt — vẫn là đề xuất.
+        """
+        from eaa.confidence import GIA_DINH
+
+        return GIA_DINH
 
     def render(self) -> str:
         dong = [f"Ràng buộc cứng — {len(self.items)} mục đề xuất", ""]
@@ -452,6 +474,17 @@ class AcceptanceProposal:
             "scenarios": list(self.scenarios),
             "measurements": [c.to_dict() for c in self.criteria],
         }
+
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Tiêu chí chưa được chốt tại G1 thì chưa ràng buộc ai.
+        """
+        from eaa.confidence import GIA_DINH
+
+        return GIA_DINH
 
     def render(self) -> str:
         dong = [f"Tiêu chí nghiệm thu — {len(self.criteria)} số đo", ""]
@@ -602,6 +635,17 @@ class PlantModelProposal:
             }
             for p in self.assumptions
         ]
+
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Mô hình chưa đối chiếu với số đo thật của đối tượng.
+        """
+        from eaa.confidence import GIA_DINH
+
+        return GIA_DINH
 
     def render(self) -> str:
         dong = [f"Mô hình đối tượng — {self.kind or '(chưa nêu loại)'}", ""]
@@ -785,6 +829,17 @@ class PinMapProposal:
             if len(fn) > 1
         ]
 
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Bảng chân chưa được người xác nhận với sơ đồ nguyên lý trong tay.
+        """
+        from eaa.confidence import GIA_DINH
+
+        return GIA_DINH
+
     def render(self, pin_functions: Any = None) -> str:
         dong = [f"Bảng chân — {len(self.assignments)} chân ({self.source})", ""]
         dong.append(f"  {'chân':<10} {'chức năng':<16} kiểm chức năng thay thế")
@@ -923,9 +978,9 @@ class LlmProposer:
         except LLMError as exc:
             raise ProposeError(f"Không dựng được đề xuất {module}: {exc}") from exc
 
-        from eaa.options import _boc_json
+        from eaa.options import boc_json
 
-        return _boc_json(van_ban)
+        return boc_json(van_ban, ProposeError)
 
     @property
     def _ten_mo_hinh(self) -> str:

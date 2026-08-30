@@ -169,6 +169,20 @@ class ModuleBudgetCheck:
     def ok(self) -> bool:
         return not self.over
 
+    def _co_so_do(self) -> bool:
+        return bool(self.usages)
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Đây là SỐ ĐO đối chiếu với ngưỡng đã khai — không có chỗ nào để suy
+        diễn. Chưa có số đo nào thì không kết luận được gì.
+        """
+        from eaa.confidence import DA_KIEM, KHONG_KIEM_DUOC
+
+        return DA_KIEM if self._co_so_do() else KHONG_KIEM_DUOC
+
     def render(self) -> str:
         if not self.usages:
             return f"{self.module}: chưa có số đo nào để đối chiếu ngân sách."
@@ -547,6 +561,20 @@ class TokenBudgetCheck:
     @property
     def blocked(self) -> bool:
         return self.status == VUOT_PHAN
+
+    def _co_so_do(self) -> bool:
+        return self.usage.calls > 0
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Đây là SỐ ĐO đối chiếu với ngưỡng đã khai — không có chỗ nào để suy
+        diễn. Chưa có số đo nào thì không kết luận được gì.
+        """
+        from eaa.confidence import DA_KIEM, KHONG_KIEM_DUOC
+
+        return DA_KIEM if self._co_so_do() else KHONG_KIEM_DUOC
 
     def render(self) -> str:
         tien = f"  ≈ {self.cost:,.4f} {self.currency}" if self.currency else ""

@@ -198,6 +198,26 @@ class Ric:
     def ready(self) -> bool:
         return not any(i.blocking for i in self.items)
 
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Do MỤC YẾU NHẤT quyết định, không do đa số. Một bảng kiểm có mười mục
+        CÓ và một mục MÂU THUẪN thì cả bảng chỉ chắc tới mức mục mâu thuẫn ấy
+        — vì module sắp sinh ra sẽ dùng đúng giá trị đang tranh chấp.
+        """
+        from eaa.confidence import DA_KIEM, GIA_DINH, KHONG_KIEM_DUOC, SUY_RA
+
+        if not self.items:
+            return SUY_RA
+        if self.conflicts:
+            return KHONG_KIEM_DUOC
+        if self.missing_must:
+            return GIA_DINH
+        if any(i.status == ItemStatus.MISSING for i in self.items):
+            return SUY_RA
+        return DA_KIEM
+
     def render(self) -> str:
         dong = [f"Bảng kiểm thông tin cần — {self.module_id}", ""]
         if not self.items:

@@ -337,3 +337,24 @@ def _boc_json(van_ban: str) -> dict[str, Any]:
     if not isinstance(du_lieu, dict):
         raise OptionError("JSON trả về không phải một đối tượng")
     return du_lieu
+
+
+def boc_json(van_ban: str, loi: type[Exception] = OptionError) -> dict[str, Any]:
+    """Bóc khối JSON, rồi ĐỔI loại ngoại lệ sang loại của module gọi tới.
+
+    Vì sao cần lớp vỏ này: tám module dùng chung bộ bóc JSON, nhưng CLI bắt
+    ngoại lệ THEO MODULE (``ProposeError``, ``InterfaceError``, …). Ném thẳng
+    ``OptionError`` từ trong ``eaa propose`` khiến nó lọt qua mọi lớp bắt lỗi và
+    đổ ra một traceback thô — người dùng thấy một vệt stack thay vì một câu nói
+    rõ chuyện gì vừa xảy ra.
+
+    Lỗi ấy chỉ lộ ra khi chạy bằng MockLLM: adapter giả lập không trả lời prompt
+    dạng lược đồ JSON, và đó chính là cảnh của một người thử sản phẩm khi chưa
+    có khóa API — tức là cảnh đầu tiên họ gặp.
+    """
+    try:
+        return _boc_json(van_ban)
+    except OptionError as exc:
+        if loi is OptionError:
+            raise
+        raise loi(str(exc)) from exc

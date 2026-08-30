@@ -389,9 +389,9 @@ class LlmDecomposer:
         except LLMError as exc:
             raise DecomposeError(f"Không đề xuất được phân rã: {exc}") from exc
 
-        from eaa.options import _boc_json
+        from eaa.options import boc_json
 
-        du_lieu = _boc_json(van_ban)
+        du_lieu = boc_json(van_ban, DecomposeError)
         module = tuple(ModuleProposal.from_dict(m) for m in (du_lieu.get("modules") or []))
         canh_bao = _kiem_tai_nguyen(module, hardware) + _kiem_chu_ky(module, constraints)
 

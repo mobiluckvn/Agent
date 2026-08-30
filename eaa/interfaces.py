@@ -224,6 +224,17 @@ class InterfaceSpec:
                 thieu.append(f"{f.name}: chưa nói hàm này làm gì")
         return thieu
 
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Hợp đồng gọi là một lời hứa; thân module chưa sinh nên chưa ai giữ nó.
+        """
+        from eaa.confidence import GIA_DINH
+
+        return GIA_DINH
+
     def render(self) -> str:
         dong = [f"Giao diện {self.module_id} — {len(self.functions)} hàm"]
         if self.purpose:
@@ -383,9 +394,9 @@ class LlmInterfaceDesigner:
         except LLMError as exc:
             raise InterfaceError(f"Không dựng được giao diện {module_id}: {exc}") from exc
 
-        from eaa.options import _boc_json
+        from eaa.options import boc_json
 
-        du_lieu = _boc_json(van_ban)
+        du_lieu = boc_json(van_ban, InterfaceError)
         return InterfaceSpec(
             module_id=module_id,
             purpose=str(du_lieu.get("purpose", "")) or purpose,

@@ -52,3 +52,19 @@ def khong_cham_mang(monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
     monkeypatch.setattr(urllib.request, "urlopen", _chan)
+
+
+@pytest.fixture(autouse=True)
+def moi_truong_mang_xac_dinh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Xóa công tắc ngắt mạng khỏi môi trường của mọi bài test.
+
+    Cùng lý do với chốt phía trên, chỉ ngược chiều. ``EAA_NO_NET=1`` trong
+    shell của người phát triển làm 34 bài test về lớp truy cập mạng đổi kết
+    quả — chúng tiêm lớp vận chuyển giả nên không hề chạm mạng, nhưng công tắc
+    ngắt bắn TRƯỚC lớp ấy và chúng thất bại vì một lý do không liên quan gì tới
+    thứ chúng kiểm.
+
+    Bài nào cần kiểm chính công tắc thì tự bật lại bằng ``monkeypatch.setenv``
+    — và như thế nó nói rõ mình đang kiểm cái gì.
+    """
+    monkeypatch.delenv("EAA_NO_NET", raising=False)

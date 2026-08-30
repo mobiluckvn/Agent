@@ -213,6 +213,19 @@ class SafetyAnalysis:
     proposed_at: str = field(default_factory=_now)
 
     @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Bản phân tích an toàn là ĐỀ XUẤT cho tới khi người chốt tại G1, nên
+        mức cao nhất nó đạt được là GIẢ ĐỊNH. Còn kiểu hỏng nào chưa có cách
+        phát hiện thì tụt xuống KHÔNG KIỂM ĐƯỢC — đúng nghĩa đen: hỏng ấy xảy
+        ra mà firmware không có cách nào biết.
+        """
+        from eaa.confidence import GIA_DINH, KHONG_KIEM_DUOC
+
+        return KHONG_KIEM_DUOC if self.undetectable else GIA_DINH
+
+    @property
     def undetectable(self) -> list[FailureMode]:
         """Hỏng hóc không có cách phát hiện — điều hay thiếu nhất."""
         return [m for m in self.modes if not m.detectable]
@@ -436,9 +449,9 @@ class LlmSafetyAnalyst:
         except LLMError as exc:
             raise SafetyError(f"Không dựng được phân tích an toàn: {exc}") from exc
 
-        from eaa.options import _boc_json
+        from eaa.options import boc_json
 
-        du_lieu = _boc_json(van_ban)
+        du_lieu = boc_json(van_ban, SafetyError)
         an_toan = du_lieu.get("safe_state")
         return SafetyAnalysis(
             modes=tuple(

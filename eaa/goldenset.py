@@ -154,6 +154,17 @@ class RetrievalReport:
     def ok(self) -> bool:
         return self.precision_at_k >= PRECISION_TOI_THIEU and not self.noise_leaks
 
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Đây là SỐ ĐO trên bộ chuẩn, không phải nhận định.
+        """
+        from eaa.confidence import DA_KIEM
+
+        return DA_KIEM
+
     def render(self) -> str:
         dong = [
             f"Bộ chuẩn truy xuất — {len(self.cases)} ca, top-{self.top_k}",
@@ -242,15 +253,32 @@ class GoldenSet:
                 thieu.append(f"chunk nhiễu {cid!r} không có trong kho")
         return thieu
 
-    def evaluate(self, graph: Any, *, top_k: int | None = None) -> RetrievalReport:
-        """Chạy bộ chuẩn trên đồ thị tri thức hiện hành."""
+    def evaluate(
+        self, graph: Any, *, top_k: int | None = None, datasheets: Any = None
+    ) -> RetrievalReport:
+        """Chạy bộ chuẩn trên ĐÚNG đường truy xuất mà prompt dùng.
+
+        Truyền ``datasheets`` thì bộ chuẩn đo cả hai tầng (quan hệ + BM25) —
+        tức đúng thứ Composer lắp vào prompt. Bỏ trống thì chỉ đo tầng quan
+        hệ, tiện để so xem tầng 2 thêm hay bớt được gì.
+
+        Đo đúng đường thật là điều kiện để con số này có nghĩa: một bộ chuẩn đo
+        một nhánh khác với nhánh chạy thật sẽ xanh trong khi prompt đang hỏng.
+        """
+        from eaa.rag import select_chunks
+
         k = top_k or self.top_k
         ket_qua: list[CaseResult] = []
 
         for ca in self.cases:
             if not graph.graph.has_node(ca.module_id):
                 graph.add_module(ca.module_id, uses=ca.uses)
-            chon = tuple(graph.chunks_for(ca.module_id, top_k=k))
+            chon = tuple(
+                r.chunk_id
+                for r in select_chunks(
+                    graph, datasheets, ca.module_id, top_k=k, enable_bm25=datasheets is not None
+                )
+            )
             ket_qua.append(
                 CaseResult(
                     module_id=ca.module_id,

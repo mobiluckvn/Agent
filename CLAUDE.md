@@ -42,6 +42,33 @@ Bản gốc Word/PDF/hình trong `docs/docx/`, `docs/EAA_Full_Design.pdf`, `docs
 - Project State ghi nguyên tử, sống sót qua crash. (TC-03)
 - LLM: Gemini Pro 3.1, ghim phiên bản, stateless mỗi lần gọi; Sprint 1–3 dùng MockLLM, chưa gọi API thật.
 
+### Bất biến của lớp truy cập mạng (thêm 30/08/2026, SL-71..SL-80)
+
+Agent ĐƯỢC ra Internet. Bốn luật đi kèm, mỗi luật có test:
+
+- **Hai hạng nguồn, không một danh sách trắng.** `chính chủ` (miền nhà sản xuất) mới được
+  thành trích đoạn tri thức; `mở` chỉ là manh mối để gỡ lỗi và so công cụ.
+  `WebDocument.usable_as_knowledge` là chỗ cưỡng chế, không phải lời dặn trong prompt. (TC-65)
+- **Hạng tính theo URL CUỐI sau chuyển hướng.** Một miền chính chủ chuyển hướng ra ngoài phải
+  mất hạng — nếu không thì danh sách trắng chỉ là trang trí. (TC-65)
+- **Tìm kiếm trả ĐỊA CHỈ, không trả kết luận.** Nội dung luôn do `eaa/web.py` tải về. Bậc 3 của
+  `gapsearch` bắt buộc dẫn nguồn nằm TRONG tập trang đã tải; nêu URL lạ là bị bỏ. (TC-66, TC-48)
+- **Trang chính chủ vẫn là SUY RA, không phải ĐÃ KIỂM.** Ta kiểm được nguồn, không kiểm được
+  nội dung. Lên ĐÃ KIỂM chỉ sau gate tri thức.
+
+Công tắc ngắt: `EAA_NO_NET=1`. Bộ test tự xóa biến này (conftest) để không phụ thuộc shell.
+
+### Bất biến của công cụ Agent tự viết (SL-77)
+
+- **Agent mở rộng CÁI NÓ LÀM, không mở rộng QUYỀN NÓ CÓ.** Quyền chạy là một mục tĩnh
+  `tool run` trong `TOOLBOX` — nằm trong Git. Danh sách công cụ là dữ liệu, và mỗi mục chỉ
+  chạy được sau khi một người bấm duyệt.
+- **Ba cổng, dừng sớm khi trượt**: cấu tạo → an toàn → chạy thử. Trượt cổng an toàn thì
+  KHÔNG chạy mã. `eaa tool approve` không nằm trong `TOOLBOX`. (TC-70)
+- **Cổng an toàn quét theo cây cú pháp, không theo chuỗi con.** Một cổng hay báo nhầm sớm
+  muộn cũng bị tắt đi, và lúc ấy nó không bảo vệ được gì nữa.
+- Danh sách cấm trong prompt được **sinh ra từ chính bộ luật** của cổng, không chép tay.
+
 ## Kế hoạch — bắt đầu từ Sprint 0 (MDD §6)
 
 S0 khung xương (state, policy, cli, doctor tối thiểu) → S1 tri thức (KB, graph, composer, MockLLM)

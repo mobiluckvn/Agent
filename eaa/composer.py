@@ -355,14 +355,26 @@ class PromptComposer:
         return "## PHẦN CỨNG LIÊN QUAN\n" + "\n".join(f"- {d}" for d in su_kien)
 
     def _chon_chunk(self, task: Task) -> list[Chunk]:
-        """K7 — Graph-RAG chọn chunk theo quan hệ, không theo độ giống từ ngữ."""
+        """K7 — Graph-RAG chọn chunk, BM25 bổ trợ khi quan hệ chưa lấp đủ.
+
+        Hai tầng theo ADR-07, và thứ tự không đảo được: đồ thị chỉ đích danh
+        trước, BM25 chỉ lấp chỗ còn trống và chỉ nhận ứng viên vượt sàn điểm.
+        Xem ``eaa/rag.py`` để biết vì sao sàn ấy là thứ giữ tầng 2 khỏi thành
+        tầng nhiễu.
+        """
+        from eaa.rag import select_chunks
+
         if not self.graph.graph.has_node(task.module_id):
             self.graph.add_module(
                 task.module_id, uses=task.uses, depends_on=task.depends_on
             )
-        return self.graph.select_chunks(
-            task.module_id, self.kb.datasheets, top_k=self.config.top_k_chunks
+        chon = select_chunks(
+            self.graph,
+            self.kb.datasheets,
+            task.module_id,
+            top_k=self.config.top_k_chunks,
         )
+        return [self.kb.datasheets.get(r.chunk_id) for r in chon]
 
     def _lop_chunk(self, chunks: Sequence[Chunk]) -> str:
         """K2 — chunk đã ở dạng bảng thanh ghi–bit từ lúc nạp kho."""

@@ -225,6 +225,12 @@ class GapResolver:
     datasheets_dir: Path | None = None
     #: Bật bậc 3. Tắt mặc định: bậc 3 tốn lời gọi mô hình và cần mạng.
     allow_web: bool = False
+    #: Bộ tra web (``eaa.websearch.WebResearcher``). Tiêm được để kiểm bậc 3
+    #: mà không chạm mạng; ``None`` thì dựng bộ mặc định từ ``llm``.
+    researcher: Any = None
+    #: Tên nhà sản xuất / họ chip, ghép vào câu tìm cho hẹp lại. Là DỮ LIỆU do
+    #: bên gọi truyền xuống, không phải hằng số trong engine (FR-PLT-01).
+    vendor_hint: str = ""
 
     # -- điều phối ---------------------------------------------------------
 
@@ -354,34 +360,84 @@ class GapResolver:
     # -- bậc 3 -------------------------------------------------------------
 
     def _bac3_tra_web(self, muc: RicItem) -> TierResult:
+        """Đi TÌM và ĐỌC, rồi mới trích — không hỏi mô hình xem nó nhớ được gì.
+
+        Bậc này trước đây mang tên "tra web" nhưng thực chất là hỏi mô hình rồi
+        lọc tên miền của URL mà chính mô hình khai ra. Hai chỗ hỏng theo cách
+        khó thấy:
+
+        * URL do mô hình sinh có thể không tồn tại, hoặc tồn tại mà không nói
+          điều mô hình bảo nó nói. Bộ lọc miền không phát hiện được cả hai.
+        * Tài liệu công bố sau ngày cắt dữ liệu huấn luyện thì mô hình không có
+          gì để khai, và nó sẽ khai một thứ trông hợp lý.
+
+        Bây giờ thứ tự bị đảo lại: tìm địa chỉ → TẢI trang về → đưa **nội dung
+        thật** cho mô hình trích xuất. Và nguồn ghi vào chunk bắt buộc phải là
+        một trong những URL ĐÃ TẢI ĐƯỢC, không phải một URL mô hình nêu ra.
+        """
         if not self.allow_web:
             return TierResult(muc.key, 3, SKIPPED, "bậc web chưa bật (--web)")
         if self.llm is None:
             return TierResult(muc.key, 3, SKIPPED, "dự án chưa nối với mô hình nền")
 
-        from eaa.ingest import SourceRejected, check_web_source
+        from eaa.ingest import WEB_WHITELIST
         from eaa.llm.base import LLMError, Prompt, PromptLayer
+        from eaa.web import WebError
+        from eaa.websearch import (
+            SearchError,
+            WebResearcher,
+            build_query,
+            default_backend,
+        )
 
+        tra = self.researcher
+        if tra is None:
+            tra = WebResearcher(backend=default_backend(llm=self.llm), official_only=True)
+
+        cau_tim = build_query(self.vendor_hint, muc.key, muc.detail or "", "datasheet register")
+        try:
+            ket = tra.research(cau_tim, sites=list(WEB_WHITELIST))
+        except (SearchError, WebError) as exc:
+            return TierResult(muc.key, 3, NOT_FOUND, f"không tra được: {exc}")
+
+        doc_duoc = [d for d in ket.documents if d.usable_as_knowledge]
+        if not doc_duoc:
+            ly_do = "không trang chính chủ nào đọc được"
+            if ket.failures:
+                ly_do += f" ({len(ket.failures)} trang đọc hụt)"
+            return TierResult(muc.key, 3, NOT_FOUND, ly_do)
+
+        cho_phep = {d.url for d in doc_duoc}
         prompt = Prompt(
             system_instruction=(
-                "Bạn tra cứu tài liệu kỹ thuật vi điều khiển. Chỉ trả lời khi "
-                "CHẮC CHẮN và nêu được nguồn là trang chính thức của nhà sản "
-                "xuất. Không chắc thì đặt found=false — một giá trị thanh ghi "
-                "sai còn tệ hơn không có giá trị nào, vì nó sẽ đi qua mọi cổng "
-                "kiểm chứng phía sau. TUYỆT ĐỐI không suy đoán giá trị bit."
+                "Bạn TRÍCH XUẤT từ trích đoạn tài liệu được cung cấp bên dưới. "
+                "Bạn KHÔNG được dùng kiến thức sẵn có của mình: nếu trích đoạn "
+                "không nói điều đang hỏi, đặt found=false. Trường 'source' phải "
+                "là một trong các URL đã liệt kê, chép đúng nguyên văn — không "
+                "được nêu một URL khác. Một giá trị thanh ghi sai còn tệ hơn "
+                "không có giá trị nào, vì nó sẽ đi qua mọi cổng kiểm chứng phía "
+                "sau. TUYỆT ĐỐI không suy đoán giá trị bit."
             ),
             layers=[
                 PromptLayer(
+                    "sources",
+                    ket.context(per_doc=2200),
+                    budget=5200,
+                    required=True,
+                ),
+                PromptLayer(
                     "task",
                     f"Cần: {self._cau_hoi(muc)}\n\n"
-                    f"Trả về ĐÚNG một khối JSON theo lược đồ:\n\n"
+                    "URL được phép ghi vào trường 'source':\n"
+                    + "\n".join(f"  - {u}" for u in sorted(cho_phep))
+                    + f"\n\nTrả về ĐÚNG một khối JSON theo lược đồ:\n\n"
                     f"```json\n{_JSON_CHUNK}\n```",
-                    budget=2000,
+                    budget=1600,
                     required=True,
-                )
+                ),
             ],
             module=f"tra cứu {muc.key}",
-            budget=2800,
+            budget=7600,
         )
 
         try:
@@ -391,21 +447,25 @@ class GapResolver:
                 else self.llm.generate(prompt).raw_response
             )
         except LLMError as exc:
-            return TierResult(muc.key, 3, NOT_FOUND, f"lỗi tra cứu: {exc}")
+            return TierResult(muc.key, 3, NOT_FOUND, f"lỗi trích xuất: {exc}")
 
         du_lieu = _boc_json(van_ban)
         if not du_lieu or not du_lieu.get("found"):
-            return TierResult(muc.key, 3, NOT_FOUND, "mô hình nói không chắc")
+            return TierResult(
+                muc.key, 3, NOT_FOUND,
+                f"đọc {len(doc_duoc)} trang chính chủ nhưng không trang nào nói điều đang hỏi",
+            )
 
         nguon = str(du_lieu.get("source", "")).strip()
-        if not nguon:
+        if nguon not in cho_phep:
+            # Đây là cái chặn quan trọng nhất của cả bậc 3. Mô hình nêu một URL
+            # ngoài tập đã tải nghĩa là nó vừa quay về trả lời từ trí nhớ, và
+            # nội dung kèm theo không còn chỗ nào kiểm được.
             return TierResult(
-                muc.key, 3, NOT_FOUND, "kết quả không kèm nguồn nên bị bỏ"
+                muc.key, 3, NOT_FOUND,
+                f"kết quả dẫn nguồn {nguon or '(rỗng)'!r} — không nằm trong "
+                f"{len(cho_phep)} trang đã tải, nên bị bỏ",
             )
-        try:
-            check_web_source(nguon)
-        except SourceRejected as exc:
-            return TierResult(muc.key, 3, NOT_FOUND, f"nguồn ngoài danh sách: {exc}")
 
         de_xuat = self._ghi_de_xuat(
             muc,

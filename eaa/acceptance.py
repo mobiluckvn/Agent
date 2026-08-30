@@ -218,6 +218,20 @@ class DeviceCheck:
     def __bool__(self) -> bool:
         return self.verified
 
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Ba mức, và mức giữa là mức hay bị đọc nhầm thành mức trên: commit khớp
+        nhật ký nạp mà lần nạp ấy KHÔNG được đọc ngược thì ta mới biết "đã gửi
+        đi bản nào", chưa biết "trên chip đang có đúng bản ấy không".
+        """
+        from eaa.confidence import DA_KIEM, KHONG_KIEM_DUOC, SUY_RA
+
+        if not self.verified:
+            return KHONG_KIEM_DUOC
+        return DA_KIEM if self.readback_verified else SUY_RA
+
 
 def check_device_commit(head_commit: str, flash_log: Any) -> DeviceCheck:
     """Commit sắp phong hạng có đúng là commit đang chạy trên thiết bị không.

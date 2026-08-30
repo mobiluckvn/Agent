@@ -50,6 +50,9 @@ __all__ = [
     "HumanCheck",
     "ManualMeasurement",
     "FieldCase",
+    "ScenarioMatch",
+    "TU_KHOA",
+    "MO_HINH",
     "TAI_HIEN_DUOC",
     "KHONG_TAI_HIEN",
     "CHUA_THU",
@@ -343,12 +346,146 @@ class ScenarioLibrary:
         Trả về TỔ HỢP kịch bản chứ không một cái: "robot không phản ứng khi
         nghiêng" cần cả quét bus lẫn kiểm cảm biến, vì hỏng ở khâu nào cũng cho
         ra cùng một triệu chứng.
+
+        Đây là bậc 1: khớp chuỗi con với danh sách ``symptoms`` dự án đã khai.
+        Tất định, rẻ, và **kiểm lại được** — nhìn là biết từ nào đã khớp. Nó
+        chỉ trượt khi người dùng gọi tên hiện tượng bằng chữ khác; bậc 2 ở
+        :meth:`select_smart` lo phần ấy.
         """
         van_ban = symptom.lower()
         khop = [
             s for s in self.scenarios if any(t.lower() in van_ban for t in s.symptoms)
         ]
         return khop or []
+
+    def select_smart(
+        self, symptom: str, llm: Any = None
+    ) -> "list[ScenarioMatch]":
+        """Bậc 1 khớp từ khóa; trượt thì bậc 2 hỏi mô hình (N-903, AIS §7.3).
+
+        Thứ tự này quan trọng và không đảo được. Bậc 1 cho kết quả **tất định
+        và kiểm lại được**: người đọc thấy đúng từ nào đã khớp, và cùng một câu
+        hỏi luôn cho cùng một kết quả — điều kiện để thực nghiệm Chương 3 tái
+        lập. Hỏi mô hình trước sẽ ném bỏ tính chất ấy để đổi lấy một thứ ta chỉ
+        cần khi bậc 1 trượt.
+
+        Kết quả của hai bậc KHÔNG được trộn lẫn: mỗi mục mang theo bậc đã tìm
+        ra nó, vì một kịch bản do mô hình đoán là một khẳng định yếu hơn hẳn
+        một kịch bản khớp đúng từ dự án đã khai.
+        """
+        khop = self.select(symptom)
+        if khop:
+            van_ban = symptom.lower()
+            return [
+                ScenarioMatch(
+                    scenario=s,
+                    tier=TU_KHOA,
+                    evidence=", ".join(t for t in s.symptoms if t.lower() in van_ban),
+                )
+                for s in khop
+            ]
+
+        if llm is None or not self.scenarios:
+            return []
+        return self._hoi_mo_hinh(symptom, llm)
+
+    def _hoi_mo_hinh(self, symptom: str, llm: Any) -> "list[ScenarioMatch]":
+        from eaa.llm.base import LLMError, Prompt, PromptLayer
+        from eaa.options import boc_json
+
+        danh_sach = "\n".join(
+            f"- {s.id}: {s.title} — dùng khi: "
+            + (", ".join(s.symptoms) or "(chưa khai triệu chứng)")
+            for s in self.scenarios
+        )
+        prompt = Prompt(
+            system_instruction=(
+                "Bạn chọn kịch bản chẩn đoán phù hợp với triệu chứng người dùng "
+                "mô tả. CHỈ chọn trong danh sách được cho; không bịa mã kịch "
+                "bản. Không kịch bản nào hợp thì trả danh sách rỗng — đó là một "
+                "câu trả lời đúng, và nó nói rằng dự án còn thiếu một kịch bản."
+            ),
+            layers=[
+                PromptLayer(
+                    "task",
+                    f"Người dùng mô tả: {symptom}\n\n"
+                    f"Kịch bản có sẵn:\n{danh_sach}\n\n"
+                    'Trả về ĐÚNG một khối JSON: {"chon": [{"id": "<mã>", '
+                    '"vi_sao": "<một câu>"}]}',
+                    budget=1500,
+                    required=True,
+                )
+            ],
+            module="chọn kịch bản chẩn đoán",
+            budget=2300,
+        )
+        try:
+            van_ban = (
+                llm.complete(prompt)
+                if hasattr(llm, "complete")
+                else llm.generate(prompt).raw_response
+            )
+        except LLMError as exc:
+            raise DiagnosticError(f"Không chọn được kịch bản: {exc}") from exc
+
+        du_lieu = boc_json(van_ban, DiagnosticError)
+        ket_qua: list[ScenarioMatch] = []
+        for m in du_lieu.get("chon") or []:
+            if not isinstance(m, dict):
+                continue
+            try:
+                kb = self.get(str(m.get("id", "")))
+            except DiagnosticError:
+                # Mô hình bịa mã kịch bản thì bỏ, không tạo ra một mục trỏ vào
+                # hư không. Bịa ở đây đặc biệt tệ: người sẽ đi nạp một firmware
+                # chẩn đoán không tồn tại.
+                continue
+            ket_qua.append(
+                ScenarioMatch(scenario=kb, tier=MO_HINH, evidence=str(m.get("vi_sao", "")))
+            )
+        return ket_qua
+
+
+#: Bậc 1 — khớp chuỗi con với danh sách triệu chứng dự án đã khai. Tất định.
+TU_KHOA = "tu-khoa"
+#: Bậc 2 — mô hình đoán ý người dùng. Cần người xác nhận trước khi chạy.
+MO_HINH = "mo-hinh"
+
+
+@dataclass(frozen=True)
+class ScenarioMatch:
+    """Một kịch bản được chọn, kèm BẬC đã tìm ra nó.
+
+    Mang theo bậc chứ không trả về kịch bản trần: một kịch bản khớp đúng từ dự
+    án đã khai và một kịch bản mô hình đoán ra là hai khẳng định có sức nặng
+    khác hẳn nhau. Trộn chúng vào một danh sách là làm mất đúng điều người đọc
+    cần để quyết định có tin hay không.
+    """
+
+    scenario: "Scenario"
+    tier: str
+    evidence: str = ""
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903)."""
+        from eaa.confidence import GIA_DINH, SUY_RA
+
+        return SUY_RA if self.tier == TU_KHOA else GIA_DINH
+
+    def render(self) -> str:
+        if self.tier == TU_KHOA:
+            return (
+                f"  {self.scenario.id} — {self.scenario.title}\n"
+                f"      khớp triệu chứng đã khai: {self.evidence}"
+            )
+        return (
+            f"  {self.scenario.id} — {self.scenario.title}\n"
+            f"      [mô hình đoán] {self.evidence}\n"
+            "      Không khớp từ nào dự án đã khai, nên đây là PHỎNG ĐOÁN về ý "
+            "bạn.\n"
+            "      Đọc lại mô tả kịch bản trước khi chạy."
+        )
 
 
 #: Sự cố hiện trường có dựng lại được trên bàn không — ba trạng thái.
@@ -515,9 +652,33 @@ class Diagnosis:
         """
         return self.verdict == Verdict.CODE
 
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Chẩn đoán là phép GIAO của hai kênh, nên mức tin cậy của nó do kênh yếu
+        hơn quyết định:
+
+        * Đủ cả hai kênh → ĐÃ KIỂM. Có số đo từ mạch và có quan sát của người.
+        * Thiếu kênh người → SUY RA. Máy chỉ biết nó đã phát xung, không biết
+          trục có quay — kết luận rút ra khi thiếu nửa ấy là một phép bắc cầu.
+        * Kênh máy không đạt và cũng không có quan sát người → KHÔNG KIỂM ĐƯỢC.
+        """
+        from eaa.confidence import DA_KIEM, KHONG_KIEM_DUOC, SUY_RA
+
+        if self.human_answers and self.machine_evidence:
+            return DA_KIEM
+        if not self.machine_evidence and not self.human_answers:
+            return KHONG_KIEM_DUOC
+        return SUY_RA
+
     def render(self) -> str:
+        from eaa.confidence import header
+
         dong = [
             f"── Kết luận chẩn đoán {self.scenario} ──",
+            header(self.confidence_level),
+            "",
             f"Vùng lỗi: {self.verdict}",
             "",
             f"Kênh máy: {'ĐẠT' if self.machine_passed else 'KHÔNG ĐẠT'}",

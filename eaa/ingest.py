@@ -579,9 +579,9 @@ class ScopeImageReader:
         except LLMError as exc:
             raise IngestError(f"Không đọc được ảnh: {exc}") from exc
 
-        from eaa.options import _boc_json
+        from eaa.options import boc_json
 
-        du_lieu = _boc_json(van_ban)
+        du_lieu = boc_json(van_ban, IngestError)
         ket_qua: list[ProposedMeasurement] = []
         for m in du_lieu.get("measurements") or []:
             if not isinstance(m, dict):

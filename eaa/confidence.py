@@ -43,7 +43,7 @@ NÀO đang ở mức nào.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Protocol, Sequence, runtime_checkable
 
 __all__ = [
     "DA_KIEM",
@@ -54,7 +54,10 @@ __all__ = [
     "ConfidenceError",
     "Claim",
     "ClaimSet",
+    "Judged",
     "label",
+    "describe",
+    "header",
 ]
 
 #: Có bằng chứng trực tiếp — một phép đo, một lần đọc ngược, một cổng đã chạy.
@@ -80,6 +83,50 @@ def label(level: str, statement: str) -> str:
     if level not in LEVELS:
         raise ConfidenceError(f"Mức tin cậy không hợp lệ: {level!r} (hợp lệ: {list(LEVELS)})")
     return f"[{level}] {statement}"
+
+
+#: Một dòng giải thích mỗi mức, để đầu ra nào cũng tự nói được ý nghĩa nhãn của
+#: nó mà không bắt người đọc đi tra tài liệu.
+_GIAI_THICH: dict[str, str] = {
+    DA_KIEM: "có bằng chứng trực tiếp — một phép đo, một lần đọc ngược, một cổng đã chạy",
+    SUY_RA: "bắc cầu đúng trên dữ liệu dự án đã khai, nhưng chưa ai kiểm ở đời thật",
+    GIA_DINH: "chưa có căn cứ; cần người duyệt hoặc cần đi đo trước khi dựa vào",
+    KHONG_KIEM_DUOC: "đã thử và không với tới — cần cách khác hoặc dụng cụ khác",
+}
+
+
+def describe(level: str) -> str:
+    """Giải thích một mức bằng một dòng."""
+    if level not in LEVELS:
+        raise ConfidenceError(f"Mức tin cậy không hợp lệ: {level!r}")
+    return _GIAI_THICH[level]
+
+
+def header(level: str, title: str = "") -> str:
+    """Dòng mở đầu của một báo cáo, nói ngay kết luận này đáng tin tới đâu.
+
+    Đặt ở ĐẦU chứ không ở cuối: người đọc quyết định tin tới đâu trước khi đọc
+    nội dung, không phải sau. Một bản đề xuất đọc hết rồi mới thấy dòng "đây
+    chỉ là phỏng đoán" thì dòng ấy tới muộn.
+    """
+    dau = f"[{level}]"
+    if title:
+        dau += f" {title}"
+    return f"{dau}\n    {describe(level)}"
+
+
+@runtime_checkable
+class Judged(Protocol):
+    """Vật thể mang kết luận thì phải nói được kết luận ấy ở mức nào.
+
+    Đây là hợp đồng của N-903. Nó cố ý nhỏ: một thuộc tính. Nhờ vậy mọi lớp
+    sinh ra kết luận đều theo được mà không phải kế thừa gì, và một bài test
+    duyệt qua danh sách các lớp ấy để chắc không lớp nào bị bỏ quên khi thêm
+    tính năng mới.
+    """
+
+    @property
+    def confidence_level(self) -> str: ...
 
 
 @dataclass(frozen=True)

@@ -103,8 +103,8 @@ def test_cac_module_hien_co_quy_ve_dung_bon_muc() -> None:
     from eaa.propose import DA_DO, UOC_LUONG, PinCheck, PlantParameter
     from eaa.propose import PIN_KHONG_KIEM_DUOC
 
-    assert VerifyResult(VERIFY_KHOP).confidence == DA_KIEM
-    assert VerifyResult(VERIFY_KHONG_KIEM_DUOC, "x").confidence == KHONG_KIEM_DUOC
+    assert VerifyResult(VERIFY_KHOP).confidence_level == DA_KIEM
+    assert VerifyResult(VERIFY_KHONG_KIEM_DUOC, "x").confidence_level == KHONG_KIEM_DUOC
 
     assert ErrataAnalysis(looked_up=False).confidence_level == KHONG_KIEM_DUOC
     assert ErrataAnalysis(looked_up=True, silicon_rev="D").confidence_level == DA_KIEM

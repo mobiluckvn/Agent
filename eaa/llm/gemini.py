@@ -287,6 +287,71 @@ class GeminiClient:
         except (GeminiError, MissingApiKey, LLMTimeout):
             return estimate_tokens(text)
 
+    def search_web(self, query: str, *, k: int = 8) -> list[dict[str, str]]:
+        """Tìm trên web bằng công cụ tìm kiếm gắn sẵn của nhà cung cấp.
+
+        Trả danh sách ``{"title", "url", "snippet"}``. Đây là **địa chỉ**, không
+        phải **nội dung**: phần đọc nội dung do ``eaa/web.py`` làm, và làm qua
+        bộ kiểm nguồn. Tách hai việc ấy là có chủ ý — một đoạn tóm tắt do mô
+        hình viết lại trông y hệt một trích đoạn từ trang gốc, và đó đúng là
+        loại nhầm lẫn AIS §12 gọi tên.
+
+        Không đi qua ``_goi_mo_hinh``: lời gọi này không có ngân sách prompt để
+        kiểm (câu truy vấn dài vài chục ký tự) và không sinh mã, nên ép nó vào
+        khuôn ``Prompt`` chỉ thêm một lớp không dùng tới.
+        """
+        cau = (query or "").strip()
+        if not cau:
+            return []
+
+        # ĐO ĐƯỢC trên model thật (30/08/2026): gửi thẳng câu truy vấn kèm công
+        # cụ tìm kiếm thì model KHÔNG tìm — nó trả lời từ trí nhớ và
+        # ``groundingMetadata`` rỗng. Cũng câu ấy, thêm một câu lệnh tìm rõ ràng
+        # thì có 14–16 ``groundingChunks``. Công cụ được bật không có nghĩa là
+        # công cụ được dùng, và đây đúng là kiểu hỏng im lặng tệ nhất: hàm vẫn
+        # trả về, chỉ là trả về thứ lấy từ trí nhớ chứ không từ web. Nên câu
+        # lệnh tìm nằm ở đây, trong adapter, không để bên gọi tự nhớ.
+        chi_dan = (
+            "Search the web for this and list the sources you used. "
+            "Do not answer from memory.\n\n" + cau
+        )
+
+        phan_hoi = self._post(
+            "generateContent",
+            {
+                "contents": [{"role": "user", "parts": [{"text": chi_dan}]}],
+                "tools": [{"google_search": {}}],
+                "generationConfig": {"temperature": 0.0, "candidateCount": 1},
+            },
+        )
+
+        ung_vien = (phan_hoi.get("candidates") or [{}])[0]
+        nen = ung_vien.get("groundingMetadata", {}) or {}
+        ket: list[dict[str, str]] = []
+        da_co: set[str] = set()
+        for manh in nen.get("groundingChunks", []) or []:
+            trang = manh.get("web") or {}
+            url = (trang.get("uri") or "").strip()
+            if not url or url in da_co:
+                continue
+            da_co.add(url)
+            ket.append({
+                "title": (trang.get("title") or "").strip(),
+                "url": url,
+                "snippet": "",
+            })
+            if len(ket) >= k:
+                break
+
+        # Đoạn văn mô hình viết ra được gắn vào ô snippet của kết quả mà nó
+        # trích — để người đọc thấy vì sao địa chỉ này được nêu, chứ không để
+        # dùng thay nội dung trang.
+        phan = (ung_vien.get("content", {}) or {}).get("parts", []) or []
+        tom = "".join(p.get("text", "") for p in phan).strip()
+        if tom and ket:
+            ket[0]["snippet"] = tom[:600]
+        return ket
+
     def complete(self, prompt: Prompt) -> str:
         """Gọi mô hình và trả VĂN BẢN THÔ, không đòi khối ```file:.
 

@@ -99,9 +99,8 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "Trả về CÓ / THIẾU / MÂU THUẪN; chuẩn hóa số nên 0b00 == 0x00 == 0",
      "eaa/readiness.py", "TC-24 (18 test)", DA, ""),
     ("C. Tri thức & RAG", "BM25 bổ trợ truy xuất theo từ khóa",
-     "Tầng 2 của AIS §4.2",
-     "eaa/rag.py (chưa có)", "—", CHUA,
-     "Đã hoãn có chủ ý: đồ thị + khớp tên thanh ghi đang đủ cho phạm vi MVP"),
+     "Tầng 2 của AIS §4.2: quan hệ trước, BM25 lấp chỗ trống, ngưỡng là ĐỘ PHỦ từ khóa",
+     "eaa/rag.py", "TC-64 (20 test)", DA, ""),
 
     # -- D. Sinh mã ---------------------------------------------------------
     ("D. Sinh mã", "Vòng lặp chuẩn 13 bước",
@@ -262,10 +261,16 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
     ("I. Tương tác", "Phương án bị loại vẫn tra lại được",
      "Quyết định mang cả tập, kể cả cái bị loại; từ chối cả tập cũng được lưu",
      "eaa/gates.py", "TC-46d", DA, ""),
-    ("I. Tương tác", "Giao diện hội thoại / TUI",
-     "Hiện là CLI từng lệnh rời",
-     "—", "—", CHUA,
-     "Không chặn gì về kỹ thuật; là tiện dụng, nên xếp sau các mắt xích mạch thật"),
+    ("I. Tương tác", "Giao diện hội thoại",
+     "Nói bằng tiếng Việt; Agent tự chọn và chạy lệnh, đọc kết quả, lặp, rồi trả lời",
+     "eaa/agent.py + eaa chat", "TC-61 (39 test)", DA, ""),
+    ("I. Tương tác", "Gate và phần cứng ngoài tầm với của vòng hội thoại",
+     "Danh mục công cụ KHÔNG chứa gate approve, flash, doctor --fix, tune, gen — "
+     "chặn bằng cấu tạo, không bằng lời dặn trong prompt",
+     "eaa/agent.py TOOLBOX", "TC-61b, TC-61c", DA, ""),
+    ("I. Tương tác", "Hiểu ngữ nghĩa khi khớp từ khóa trượt",
+     "Bậc 2 dùng mô hình cho chọn kịch bản và truy hồi phẩm xuất; kết quả đánh dấu PHỎNG ĐOÁN",
+     "diagnostics.select_smart, registry.find_smart", "TC-62 (19 test)", DA, ""),
 
     # -- J. Chẩn đoán & mạch thật -------------------------------------------
     ("J. Mạch thật & chẩn đoán", "Chẩn đoán hai kênh",
@@ -409,9 +414,11 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str]] = [
      "eaa/handover.py RolloutPlan", "TC-59g, TC-59h", DA, ""),
 
     ("L. Siêu nghiệp vụ", "Bộ từ vựng mức tin cậy dùng chung",
-     "ĐÃ KIỂM / SUY RA / GIẢ ĐỊNH / KHÔNG KIỂM ĐƯỢC — một bộ cho toàn hệ",
-     "eaa/confidence.py", "TC-60a..c", PHAN,
-     "Năm chỗ đã quy về bộ từ vựng chung; các đầu ra còn lại chưa gắn nhãn"),
+     "ĐÃ KIỂM / SUY RA / GIẢ ĐỊNH / KHÔNG KIỂM ĐƯỢC — 23 lớp kết luận cùng dùng",
+     "eaa/confidence.py", "TC-60a..c, TC-63a..e", DA, ""),
+    ("L. Siêu nghiệp vụ", "Test canh ĐỘ PHỦ của nhãn tin cậy",
+     "Thêm lớp sinh kết luận mà quên gắn nhãn thì bộ test đỏ ngay",
+     "tests/test_tc63_confidence_coverage.py", "TC-63a", DA, ""),
     ("L. Siêu nghiệp vụ", "Agent tự phát hiện sai lệch thiết kế",
      "Đối chiếu module và lệnh với tài liệu; dựng nháp mục cho sổ sai lệch",
      "eaa/deviation.py + eaa deviations", "TC-60d..f", DA, ""),

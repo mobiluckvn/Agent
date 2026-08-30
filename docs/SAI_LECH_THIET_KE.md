@@ -927,6 +927,235 @@ Ba loại:
 
 ---
 
+## SL-65 · LỆCH THẬT · `eaa/agent.py` — vòng hội thoại, và trí nhớ phiên
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-MDD-00 §"quyết định đã chốt": *"không trí nhớ hội thoại — stateless call + Project State"*; EAA-AIS-05 §2; ADR-03 |
+| **Thiết kế nói** | Mô hình được gọi **stateless** mỗi lần; ngữ cảnh lắp lại từ Knowledge Base + Project State. Mặt tiếp xúc là các lệnh CLI rời |
+| **Code làm** | Thêm `eaa chat`: người nói bằng tiếng Việt, Agent tự chọn và chạy lệnh, đọc kết quả, lặp, rồi trả lời |
+| **Phần LỆCH** | Xuất hiện một lớp ngữ cảnh mới — **bản ghi phiên** — mà thiết kế gốc không có |
+| **Phần KHÔNG lệch** | Mỗi lượt vẫn là MỘT lời gọi độc lập. "Trí nhớ" nằm ở phía engine, dựng lại mỗi lượt từ Project State + bản ghi phiên bị cắt theo ngân sách token, đúng cách Composer vẫn lắp ngữ cảnh. **Không có trạng thái nào nằm phía nhà cung cấp mô hình** — đó mới là điều quyết định ấy bảo vệ |
+| **Ghi vết** | Toàn bộ lượt hỏi ghi ra `chat_log.jsonl`: câu hỏi, lệnh đã chạy, mã thoát, đầu ra, câu trả lời. Phiên nào cũng dựng lại được |
+
+### Hàng rào dựng bằng cấu tạo, không bằng lời dặn
+
+| | |
+|---|---|
+| **Rủi ro** | Tầng hội thoại là đúng loại thứ phá được bất biến trung tâm một cách êm ái: mô hình "hiểu" rằng người dùng muốn duyệt, rồi tự gọi `gate approve` |
+| **Cách chặn** | `TOOLBOX` — danh mục lệnh Agent được gọi — **không chứa** `gate approve/reject`, `flash`, `doctor --fix`, `tune`, `rollback`, `endurance`, `build`, `gen`, `telemetry`, `ports`, `scope-image`, `datasheet add`, `docs regen`. Vòng lặp từ chối mọi thứ ngoài danh mục |
+| **Vì sao là cấu tạo** | Danh mục là **dữ liệu**: đọc được, kiểm được bằng test, và thêm một lệnh vào đó là một thay đổi nhìn thấy trong lịch sử Git — không phải một nhánh rẽ trong hàm. Prompt cũng dặn, nhưng lời dặn chỉ là hàng rào thứ hai |
+| **`gen` bị loại có lý do riêng** | Nó ghi vào `kpi_log.csv`, và những dòng ấy là **dữ liệu thí nghiệm của Chương 3**. Agent tự khởi động sẽ chèn vào bảng số liệu những lượt chạy người làm thí nghiệm không định chạy |
+| **Từ chối phải kèm lệnh** | Khi người nhờ làm việc ngoài quyền, Agent BẮT BUỘC dùng `de_nghi_nguoi_chay` và soạn lệnh cụ thể. Một lời từ chối không kèm lệnh bắt người đi tra tài liệu — đúng việc Agent có mặt để làm thay |
+| **Trần số bước** | 8 bước mỗi lượt. Cùng tinh thần với vòng tự sửa ≤ 3: một vòng lặp không có trần là vòng lặp quay tới lúc hết tiền |
+| **Giao thức JSON, không dùng function-calling** | Adapter Gemini gửi một lượt `contents` và trả văn bản. Dựng vòng lặp trên `complete()` khiến nó chạy với **mọi** adapter theo interface `LLMClient`, kể cả MockLLM và bộ phát lại — đúng điều ADR-03 đòi |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/agent.py`, `chat_log.jsonl`, lệnh `eaa chat`; EAA-MDD-00: ghi chú quyết định "không trí nhớ hội thoại" áp cho phía nhà cung cấp, không cấm engine tự dựng lại ngữ cảnh phiên |
+| **Test** | TC-61a..g |
+
+---
+
+## SL-66 · BỔ SUNG · `eaa/rag.py` — BM25 làm tầng 2 của truy xuất (ADR-07)
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §4.2, ADR-07; **SL-06** ghi module này là "hoãn có chủ ý" từ Sprint 1 |
+| **Chỗ trống** | Truy xuất chỉ có tầng quan hệ. Trích đoạn có nội dung liên quan mà đồ thị chưa có cạnh nào dẫn tới thì không bao giờ vào được prompt — và đó đúng là cảnh xảy ra khi dự án quên khai `configured_by` cho một linh kiện, chính là lỗi TC-20 tìm ra ở SL-63 |
+| **Code làm** | `Bm25Index` (cài thẳng theo công thức, không phụ thuộc thư viện ngoài), `select_chunks` hai tầng; Composer và bộ chuẩn TC-20 đều đi qua nó |
+| **Thứ tự không đảo được** | Quan hệ trước — nó đúng theo định nghĩa, không theo xác suất. BM25 chỉ lấp chỗ CÒN TRỐNG và không đẩy được ai ra. Chạy BM25 trước sẽ đưa một trích đoạn "gần giống" lên trên một trích đoạn mà đồ thị chỉ đích danh |
+| **Không tách theo gạch dưới** | Tên thanh ghi là một định danh nguyên khối; tách ra thì mỗi mảnh là một từ ba chữ cái trùng hàng chục thứ khác. Đây là chỗ bộ tách từ ngôn ngữ tự nhiên làm hỏng tài liệu kỹ thuật |
+
+### Một lỗi thiết kế phải trả giá mới thấy
+
+| | |
+|---|---|
+| **Bản đầu** | Dùng **sàn điểm BM25** tuyệt đối (1,0) để quyết định nhận hay loại |
+| **Sai ở đâu** | Điểm BM25 phụ thuộc cỡ kho qua thành phần idf. Test dựng kho hai tài liệu cho thấy một trích đoạn **khớp hoàn hảo** chỉ đạt ~0,29 điểm — dưới sàn, nên bị loại. Cùng mức khớp ấy trong kho năm mươi tài liệu sẽ đạt vài điểm |
+| **Hệ quả nếu để nguyên** | Sàn quá chặt lúc kho còn nhỏ và quá lỏng khi kho lớn lên — sai ở **cả hai đầu** vòng đời dự án, và sai theo cách chỉ lộ ra sau nhiều tháng |
+| **Sửa** | Ngưỡng nhận đổi sang **độ phủ từ khóa** (≥ 1/3 số từ khác nhau của câu truy vấn). Không phụ thuộc cỡ kho, và nói thẳng điều ta muốn hỏi. Điểm BM25 giữ lại nhưng chỉ để **xếp hạng** những ứng viên đã qua ngưỡng |
+| **Hai đại lượng, hai việc** | Độ phủ quyết định *có nhận không*; điểm quyết định *xếp trước hay sau*. Dùng một đại lượng cho cả hai việc là chỗ bản đầu sai |
+| **Đo được** | precision@3 trên bộ chuẩn giữ nguyên 1,000; `drv_timer_tick` vẫn chỉ trả 1 trích đoạn — bộ chọn vẫn "biết dừng" |
+| **Test** | TC-64a..g |
+
+## SL-67 · BỔ SUNG · Bậc hai hiểu ngữ nghĩa cho chọn kịch bản và truy hồi phẩm xuất
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7.3 ("chọn kịch bản từ mô tả triệu chứng"), FR-DOC-03 ("truy hồi bằng mô tả tự nhiên") |
+| **Khoảng cách** | Cả hai chỗ nhận câu tiếng Việt tự do nhưng xử lý bằng **khớp chuỗi con**. Tài liệu gọi là "mô tả tự nhiên", nên người đọc dễ hiểu thành hiểu ngữ nghĩa — trong khi *"bánh xe đứng im"* trượt sạch dù nghĩa y hệt *"động cơ không quay"* |
+| **Code làm** | `ScenarioLibrary.select_smart`, `ArtifactRegistry.find_smart` |
+| **Bậc 1 vẫn chạy trước và vẫn thắng** | Tất định, rẻ, và **kiểm lại được** — nhìn là biết từ nào đã khớp. Hỏi mô hình cho mọi câu sẽ ném bỏ tính chất ấy để đổi lấy thứ chỉ cần khi bậc 1 trượt, và tốn tiền cho những ca một phép so chuỗi đã trả lời đúng |
+| **Không trộn hai bậc** | Mỗi kết quả mang theo bậc đã tìm ra nó. Kết quả bậc 2 được in kèm chữ *PHỎNG ĐOÁN* và mức tin cậy GIẢ ĐỊNH, vì một kịch bản mô hình đoán ra là khẳng định yếu hơn hẳn một kịch bản khớp đúng từ dự án đã khai |
+| **Mô hình bịa mã thì bị loại** | Bịa ở đây đặc biệt tệ: người sẽ đi nạp một firmware chẩn đoán không tồn tại |
+| **Test** | TC-62a..f |
+
+## SL-68 · BỔ SUNG · `Judged` — hợp đồng mức tin cậy, và test canh độ phủ (N-903)
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1, §12; nghiệp vụ N-903 |
+| **Trạng thái trước** | SL-57 dựng bộ từ vựng chung nhưng mới năm chỗ dùng nó; N-903 vẫn ở mức MỘT PHẦN vì "mọi đầu ra" chưa kiểm được |
+| **Code làm** | Protocol `Judged`, hàm `describe()` và `header()`; **23 lớp mang kết luận** expose `confidence_level` |
+| **Cách "mọi đầu ra" trở nên kiểm được** | TC-63 liệt kê các lớp kết luận và đòi từng lớp có nhãn hợp lệ. Thêm một tính năng sinh kết luận mới mà quên gắn nhãn thì test đỏ — chứ không đợi ai đó tình cờ nhận ra |
+| **Test tự nó tìm ra hai chỗ** | `VerifyResult` đặt tên thuộc tính là `confidence` chứ không phải `confidence_level`; `DeviceCheck` chưa có nhãn nào |
+| **Mức do MỤC YẾU NHẤT quyết định** | Bảng kiểm mười mục CÓ và một mục MÂU THUẪN thì cả bảng chỉ chắc tới mức mục mâu thuẫn ấy — vì module sắp sinh ra sẽ dùng đúng giá trị đang tranh chấp |
+| **Nhãn đứng ở ĐẦU báo cáo** | Người đọc quyết định tin tới đâu **trước** khi đọc nội dung. Một bản đọc hết rồi mới thấy dòng "đây chỉ là phỏng đoán" thì dòng ấy tới muộn |
+| **Test** | TC-63a..e |
+
+---
+
+## SL-69 · BỔ SUNG · `eaa/archive.py` — Agent đọc được kho nén hồ sơ dự án
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1 (FR-ING-01: nhận và phân loại bốn loại đầu vào), §6.3; nghiệp vụ N-004 |
+| **Chỗ trống** | `ingest.py` nhận PDF, ảnh, mã nguồn — **từng tệp một**. Nhưng hồ sơ gốc của một dự án hiếm khi tới từng tệp: nó tới dưới dạng một kho nén. Người dùng phải tự giải, tự nhìn, tự chọn tệp nào đáng nạp — tức là làm xong phần khó trước khi nhờ được |
+| **Phát hiện bởi** | Bài test tổng hợp trên hồ sơ robot BLKLab (`docs/NHAT_KY_TEST_BLKLAB.md`). Vòng 0: Agent từ chối, **không bịa** mô tả mạch dù tên tệp thừa sức gợi ý |
+| **Code làm** | `ArchiveSurvey`, `read_archive`, `extract_archive`; lệnh `eaa survey <zip> [--extract]`; vào danh mục `eaa chat` |
+| **Ba việc** | ① giải nén an toàn — chặn zip-slip, liên kết mềm, bom nén, **trước khi ghi byte nào** ② phân loại theo bốn loại của FR-ING-01 ③ rút dữ kiện XÁC ĐỊNH từ mã nguồn bằng biểu thức chính quy, không dùng mô hình — nên chúng tất định và kiểm lại được |
+| **Tách mã dự án khỏi thư viện đi kèm** | Hồ sơ thật kèm cả cây `libraries/` của bên thứ ba, và mã ví dụ trong đó khai đủ thứ chân chẳng liên quan. Lượt chạy đầu trên hồ sơ BLKLab cho 68 "khai báo chân" trong đó phần lớn là của thư viện NeoPixel; tách ra còn **39 khai báo, 6 thư viện, 6 thanh ghi** — tất cả đều của con robot |
+| **Dữ kiện phải chỉ được nguồn** | Mỗi `CodeFact` mang tệp và số dòng. Một dữ kiện không chỉ được nguồn thì không hơn gì lời đồn |
+| **Điều nó KHÔNG làm** | Không kết luận "đây là bo X". Nó bày ra thứ đọc được và đánh dấu tất cả là *proposed*. Suy từ vài dòng `#define` ra một khẳng định về phần cứng là đúng loại bước nhảy sản phẩm này sinh ra để chặn — và đặc biệt dễ ở đây, vì một kho nén trông như một nguồn đáng tin |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/archive.py`, lệnh `eaa survey`; EAA-AIS-05 §6.1: kho nén là loại đầu vào thứ năm, hoặc là cái vỏ đựng bốn loại kia |
+
+## SL-70 · BỔ SUNG · `eaa capabilities` — một chỗ trả lời "Agent làm được gì"
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9 (môi trường công cụ), FR-ENV-01, NFR-05 |
+| **Chỗ trống** | Câu "Agent này làm được gì, cái nào đang chạy được" phải ghép từ **bốn chỗ**: `eaa --help`, `eaa/agent.py`, `eaa packs`, `eaa doctor`. Bốn chỗ đều đúng và không chỗ nào trả lời trọn — người mới đến phải đọc mã trước khi biết mình có gì trong tay |
+| **Code làm** | `survey_capabilities()`, `CapabilityReport`; lệnh `eaa capabilities [--verbose]`; vào danh mục `eaa chat` để Agent tự trả lời được câu ấy |
+| **Bốn tầng, bốn cách hỏng** | ① lệnh CLI — hỏng nghĩa là bản cài hỏng ② lệnh Agent tự gọi — ranh giới này là quyết định về QUYỀN, không về kỹ thuật ③ năng lực nền tảng — thiếu thì thêm pack, KHÔNG sửa engine ④ công cụ ngoài — thiếu thì `doctor --fix`. Bảng in ra **cả cách bổ sung cho từng tầng**, vì trộn chúng lại là cách nhanh nhất để người dùng đi sửa nhầm chỗ |
+| **Dựng từ dữ liệu thật** | Danh sách lệnh đọc từ chính bộ phân tích đối số, năng lực nền tảng đọc từ `pack.yaml`, công cụ ngoài kiểm bằng `shutil.which`. Chép tay thì bảng lệch ngay lần thêm lệnh sau — và một bảng năng lực tự nó sai còn tệ hơn không có bảng |
+| **Nói rõ giới hạn của chính nó** | Bảng kiểm **sự có mặt**, không chạy thử năng lực nào. Câu "nó chạy đúng không" thuộc về bộ test và `kiem_on_dinh.py`, và bảng nói thẳng điều đó thay vì để người đọc tưởng mình vừa được kiểm chứng |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/capabilities.py`, lệnh `eaa capabilities` |
+
+## SL-71 · BỔ SUNG · `eaa/web.py` — Agent đi đọc thật, không đọc từ trí nhớ mô hình
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.2 bậc 3, §9.2, §12; FR-GAP-02, NFR-06 |
+| **Chỗ trống** | Engine chỉ mở mạng tới đúng một nơi: API mô hình. Bậc 3 của `eaa/gapsearch.py` mang tên "tra nguồn trên web" nhưng thực chất là *hỏi mô hình rồi lọc tên miền của URL mà chính mô hình khai ra*. Kiểm nguồn thì có, **đi tìm thì không** — và tài liệu công bố sau ngày cắt dữ liệu huấn luyện thì mô hình không có gì để khai |
+| **Code làm** | `WebFetcher`, `WebDocument`, `WebCache`, `html_to_text`, `classify`; lệnh `eaa read` |
+| **Hai hạng, không một danh sách trắng** | `chính chủ` (miền nhà sản xuất) → nội dung được phép thành trích đoạn tri thức `proposed`. `mở` (phần còn lại) → tải được, đọc được, dùng để gỡ lỗi và so công cụ, nhưng `usable_as_knowledge` là `False`. Một danh sách trắng duy nhất buộc phải chọn giữa hai cái sai: chặt thì không tra được lỗi cài đặt, lỏng thì một bài blog thành nguồn cho giá trị thanh ghi |
+| **Bốn cái chặn** | ① chỉ http/https, phân giải tên miền TRƯỚC khi nối và từ chối mọi địa chỉ nội bộ (SSRF) ② **kiểm lại hạng ở từng chặng chuyển hướng** — một URL chính chủ chuyển hướng ra ngoài phải mất hạng, đây là cách một danh sách trắng bị vượt mà trông vẫn đúng ③ trần byte và trần thời gian ④ công tắc ngắt `EAA_NO_NET=1` |
+| **Chính chủ vẫn KHÔNG phải ĐÃ KIỂM** | Thứ kiểm được khi tải một trang là nó **từ đâu ra**, không phải nó **nói đúng không**. Nhãn là SUY RA; lên ĐÃ KIỂM chỉ sau khi qua gate tri thức |
+| **Bộ đệm để tái lập, không để nhanh** | Nội dung lưu kèm băm và mốc thời gian, nên "trang này lúc ấy nói gì" là câu trả lời được sau vài tháng |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/web.py`, lệnh `eaa read` |
+
+## SL-72 · BỔ SUNG · `eaa/websearch.py` — tìm kiếm trả ĐỊA CHỈ, không trả kết luận
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.2 bậc 3, §9.2, §12; FR-GAP-02, FR-ENV-03 |
+| **Chỗ trống** | Không có đường nào biến một khoảng trống năng lực thành một truy vấn rồi đi tìm |
+| **Code làm** | `SearchHit`, `JsonEndpointSearch`, `GeminiGroundedSearch`, `ChainSearch`, `WebResearcher`, `restrict_to_sites`; lệnh `eaa research`; `GeminiClient.search_web()` |
+| **Tách tìm khỏi đọc** | Máy tìm kiếm trả **địa chỉ**; nội dung do `eaa/web.py` tải về qua bộ kiểm nguồn. Gộp hai việc là quay lại đúng chỗ vừa rời khỏi: một đoạn văn trôi chảy do mô hình viết, đính kèm URL trông đàng hoàng, không ai biết đoạn văn có thật lấy từ URL ấy không |
+| **ĐO ĐƯỢC 30/08/2026 · công cụ được bật ≠ công cụ được dùng** | Gửi thẳng câu truy vấn kèm công cụ tìm kiếm thì model **không tìm** — nó trả lời từ trí nhớ và `groundingMetadata` rỗng. Cũng câu ấy, thêm một câu lệnh tìm rõ ràng thì có 14–16 `groundingChunks`. Đây là kiểu hỏng im lặng tệ nhất: hàm vẫn trả về, chỉ là trả về thứ lấy từ trí nhớ. Câu lệnh tìm vì thế nằm trong adapter, không để bên gọi tự nhớ |
+| **ĐO ĐƯỢC · URL bọc qua trạm chuyển hướng** | Công cụ tìm kiếm gắn sẵn KHÔNG trả URL thật mà trả `…/grounding-api-redirect/<mã>`. Phân hạng theo URL bọc thì **mọi** kết quả rơi xuống hạng mở, kể cả datasheet gốc, và bộ lọc "chỉ chính chủ" lọc sạch mọi thứ. Tên miền thật nằm ở trường tiêu đề → dùng làm gợi ý phân hạng, và gợi ý chỉ có hiệu lực cho URL bọc |
+| **ĐO ĐƯỢC · phải hỏi đúng nơi mới có cái để lọc** | Một câu hỏi về thanh ghi trả về gần như toàn diễn đàn và trang chia sẻ tài liệu — không trang nhà sản xuất nào trong tám kết quả đầu. Hạng tin cậy lọc được rác ấy *sau* khi tìm, nhưng lọc xong thì không còn gì. Nên `restrict_to_sites()` sửa **câu hỏi**, không sửa bộ lọc |
+| **Không nguồn nào thì BÁO LỖI** | `NullSearch` ném lỗi kèm cách bật, không trả danh sách rỗng — rỗng sẽ bị hiểu nhầm thành "tìm rồi, không có gì" |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/websearch.py`, lệnh `eaa research` |
+
+## SL-73 · BỔ SUNG · `eaa/environ.py` — máy này là máy gì
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.1, FR-ENV-01 |
+| **Chỗ trống** | `doctor` biết kiểm **những công cụ đã có trong Tool Manifest**, không biết gì về máy đang chạy nó: kiến trúc CPU, quyền quản trị, mạng, đĩa. Hệ quả không lý thuyết — một lệnh cài chép đúng từ tài liệu vẫn hỏng vì máy dùng chip ARM chứ không phải x86, và Agent chỉ biết sau khi đã chạy và đã hỏng |
+| **Code làm** | `EnvironmentReport`, `NetworkCheck`, `probe()`, `TRINH_QUAN_LY_GOI`; lệnh `eaa environ [--remember]` |
+| **Mạng là PHÉP ĐO** | Thử nối TCP thật, hạn giờ 3s → nhãn ĐÃ KIỂM. Khác hẳn đọc biến proxy rồi đoán. Kể từ khi có `eaa/web.py`, gần như mọi năng lực mới đều treo vào mạng; một Agent không biết mình có mạng hay không sẽ hứa "để tôi đi tra" rồi im lặng hỏng sau hai mươi giây |
+| **Nói ra HỆ QUẢ, không chỉ nói ra số** | Không có trình cài gói → `doctor --fix` sẽ không đề xuất được lệnh nào. Mất mạng → mọi năng lực tra cứu sẽ hỏng. Một bảng thông số mà người đọc phải tự suy ra điều đó là bảng chưa làm xong việc |
+| **Che thông tin đăng nhập trong proxy** | `http_proxy` hay chứa `user:mật_khẩu@host`. `mask_secrets` che thứ giống khóa API nhưng không biết gì về phần userinfo của URL — hai kiểu bí mật, hai bộ che (NFR-06) |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/environ.py`, lệnh `eaa environ` |
+
+## SL-74 · BỔ SUNG · `eaa/memory.py` — bộ nhớ liên dự án
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7, §11; FR-KB-04 |
+| **Chỗ trống** | Mọi kho tri thức đều nằm TRONG một dự án. Đúng cho tri thức phần cứng, nhưng có một lớp thứ hai không thuộc dự án nào: máy này có gì, công cụ nào đã cài, lỗi nào đã gặp. Lớp ấy bị dựng lại từ đầu ở mỗi dự án — một Agent quên sạch sau mỗi dự án thì mọi thứ nó "học" chỉ là cách nói |
+| **Code làm** | `MemoryFact`, `MemoryStore`, `scope_du_an()`, `scope_mcu()`; lệnh `eaa memory list/add` |
+| **Cùng kỷ luật với kho dự án** | Append-only + supersede, không ghi đè vật lý. `superseded_by` **không** nằm trong tệp — nó suy ra lúc đọc từ `supersedes` của bản sau; ghi nó vào tệp sẽ buộc sửa dòng cũ, đúng cái append-only sinh ra để cấm |
+| **Phạm vi phải khai rõ** | `toàn cục` / `mcu:<họ>` / `dự án:<tên>`. `relevant()` **không** trả về sự kiện của dự án khác — đó là chỗ một bộ nhớ dùng chung gây hại nhất: một bài học rút từ bo A đem áp lên bo B mà không ai kịp hỏi nó còn đúng không |
+| **Không bao giờ ĐÃ KIỂM** | Sự kiện nhớ từ lần trước có thể đã cũ: máy đã đổi, công cụ đã gỡ. Có bằng chứng → SUY RA; không có → GIẢ ĐỊNH |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/memory.py`, lệnh `eaa memory` |
+
+## SL-75 · BỔ SUNG · `eaa/playbook.py` — sổ tay lỗi
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7, §12; FR-KB-04, NFR-08 |
+| **Chỗ trống** | Vòng tự sửa sửa xong hàng trăm lỗi rồi vứt đi thứ đắt nhất nó vừa tạo ra: cặp **(lỗi này → cách sửa này đã hiệu quả)**. Lần sau gặp đúng lỗi ấy, Agent lại đốt một lượt gọi mô hình để nghĩ lại từ đầu |
+| **Code làm** | `PlaybookEntry`, `Playbook`, `signature()`, `normalise()`; lệnh `eaa playbook list/lookup/record` |
+| **Vân tay: bỏ phần thay đổi, giữ phần lặp** | Hai lần gặp cùng một lỗi thì thông báo gần như không bao giờ giống hệt: khác đường dẫn, số dòng, địa chỉ. Chuẩn hóa bỏ đường dẫn / số dòng / hex / phiên bản / chuỗi trong nháy, **giữ** từ mang nghĩa (`undefined reference`, `permission denied`) |
+| **Hai bộ đếm, không một** | Một cách sửa từng hiệu quả một lần không có nghĩa nó luôn hiệu quả. Xếp theo tỉ lệ trúng (làm mềm Laplace) chứ không theo thời gian. Một sổ tay chỉ ghi thành công sẽ tự tin dần lên theo hướng sai — và tự tin nhất đúng ở chỗ nó sai nhiều nhất |
+| **Không tự áp cách sửa** | `lookup()` trả gợi ý; patch vẫn phải qua đủ cổng. Bỏ qua cổng vì "lần trước cách này chạy được" là đúng loại lối tắt cả hệ thống này dựng ra để chặn |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/playbook.py`, lệnh `eaa playbook` |
+
+## SL-76 · BỔ SUNG · `eaa/installerr.py` — cài hỏng thì làm gì
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.2, §9.4; FR-ENV-02, FR-ENV-04 |
+| **Chỗ trống** | `doctor --fix` biết in lệnh cài và hỏi người, không biết gì về việc lệnh ấy hỏng: mọi thất bại ra cùng một dòng "lệnh trả mã khác 0" |
+| **Code làm** | `classify()`, `InstallDiagnosis`, `remedies()`, `rollback_command()`, `retry_delays()` |
+| **Sáu loại, sáu cách xử lý** | mạng (thử lại hợp lý) · quyền (thử lại vô ích, và mãi cũng vô ích) · phụ thuộc (phải cài thứ khác TRƯỚC) · build (thiếu trình biên dịch / tệp tiêu đề) · không tìm thấy (sai tên gói) · khác |
+| **Thứ tự mẫu quan trọng** | BUILD hẹp đứng **trước** "không tìm thấy": `Python.h: No such file or directory` chạm cả hai, và đọc nó thành "không có gói tên Python.h" đẩy người dùng đi tìm một gói không tồn tại. Ngược lại, `no such file or directory` trần bị **bỏ khỏi** bộ dấu hiệu — một dấu hiệu khớp mọi thứ là một dấu hiệu vô dụng |
+| **Thang gỡ luôn dừng ở con người** | Rẻ trước, đắt sau, và **không bậc nào cho Agent tự chạy lệnh cài** — cài phần mềm là đổi máy người dùng (N-022 ở mức T2). Đây không phải hạn chế tạm thời chờ ai gỡ |
+| **Quay lui suy ra, không chép** | `rollback_command()` suy lệnh gỡ từ chính lệnh cài; không suy được thì trả **rỗng**. Một lệnh gỡ đoán sai chạy với quyền quản trị tệ hơn hẳn không có lệnh gỡ nào |
+| **Cần cập nhật** | EAA-SDD-03 §2: thêm `eaa/installerr.py` |
+
+## SL-77 · BỔ SUNG · `eaa/toolforge.py` — Agent tự viết công cụ cho chính nó
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9, §12; FR-ENV-03, NFR-05, NFR-06 |
+| **Chỗ trống** | Agent sinh mã nhúng qua sáu cổng kiểm chứng, nhưng bốn mươi công cụ của **chính nó** đều do người gõ tay. Gặp một việc lặp lại mà chưa ai viết lệnh cho, nó chỉ biết bảo người dùng tự làm |
+| **Code làm** | `ForgedTool`, `ToolRegistry`, `ToolForge`, `check_structure()`, `check_safety()`, `run_tests()`; lệnh `eaa tool list/propose/verify/approve/run` |
+| **Mở rộng CÁI NÓ LÀM, không mở rộng QUYỀN NÓ CÓ** | Quyền chạy công cụ tự sinh là **một** mục tĩnh trong `TOOLBOX` (`tool run`), nằm trong Git, đổi bằng một commit. **Danh sách** công cụ là dữ liệu, và mỗi mục chỉ chạy được sau khi một người bấm duyệt. Hai thứ ấy hay bị gộp làm một, và gộp lại là mất luôn tính kiểm được |
+| **Ba cổng, dừng sớm khi trượt** | ① cấu tạo: phải có `run()`, `SCHEMA`, `MO_TA`, ít nhất một `test_` ② an toàn: quét cấu trúc cấm và bí mật nhúng ③ chạy thử: tiến trình riêng, thư mục riêng, hạn giờ, `EAA_NO_NET=1`, và **xóa khóa API khỏi môi trường con**. Trượt cổng 2 thì KHÔNG chạy cổng 3 — chạy một đoạn mã vừa trượt cổng an toàn là đúng thứ cổng ấy sinh ra để ngăn |
+| **Quét theo cây cú pháp, không theo chuỗi con** | Quét chuỗi con thì `compile` trong danh sách cấm chặn cả `re.compile` — cấu trúc hợp lệ phổ biến nhất của loại công cụ này — và `socket` chặn cả một dòng chú thích. **Một cổng an toàn hay báo nhầm thì sớm muộn cũng bị người ta tắt đi, và lúc ấy nó không bảo vệ được gì nữa** |
+| **Duyệt chỉ đi từ `verified`** | Không có đường tắt từ `proposed`: duyệt một công cụ chưa từng chạy thử thì chữ "duyệt" không nói lên điều gì |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/toolforge.py`, lệnh `eaa tool` |
+
+## SL-78 · BỔ SUNG · `eaa/scratch.py` — chỗ làm nháp, hạ cửa vào mà không hạ cổng
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-PLT-03, EAA-MDD-00 §6 |
+| **Chỗ trống** | **34/38 lệnh đòi một dự án đầy đủ** — `constraints.yaml` và `hardware_profile.yaml` phải có sẵn trước lệnh đầu tiên. Đúng cho sản phẩm sắp bàn giao, sai cho câu người ta thật sự mở công cụ ra để hỏi: *"viết giúp tôi một hàm đọc kênh này"*. Cửa vào cao ở đúng chỗ người dùng chưa có gì để điền |
+| **Code làm** | `create_scratch()`, `is_scratch()`, `warning_banner()`; lệnh `eaa scratch` |
+| **KHÔNG tắt cổng nào** | Chỗ làm nháp là một dự án **thật, đầy đủ**, chỉ khác ở chỗ phần YAML khuôn mẫu được sinh ra thay vì bắt người gõ. Rào cản hạ bằng cách giảm **việc phải gõ**, không phải giảm **việc phải kiểm** |
+| **Vì sao không làm cách dễ hơn** | Cách "dễ" — một cờ cho phép bỏ qua cổng khi làm nháp — phá đúng bất biến trung tâm: *merge chỉ khi toàn bộ `ToolReport.passed` và G3 approved*. Một cờ bỏ qua tồn tại là một cờ sẽ được dùng, và nó sẽ được dùng đúng vào lúc gấp |
+| **Ràng buộc sinh sẵn mang nhãn GIẢ ĐỊNH** | Ghi thẳng trong tệp và nhắc lại ở banner. Một con số mặc định trông y hệt một con số đã chốt, và đó là cách một bản nháp lặng lẽ trở thành một bản bàn giao |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/scratch.py`, lệnh `eaa scratch` |
+
+## SL-79 · LỆCH THẬT · Bậc 3 của `gapsearch` đổi hợp đồng: đọc trước, trích sau
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.2 bậc 3; TC-24, TC-48 |
+| **Trước** | Hỏi mô hình → mô hình trả JSON kèm một URL nó tự nêu → lọc tên miền của URL ấy → ghi thành chunk đề xuất |
+| **Sau** | Tìm địa chỉ (hẹp về miền nhà sản xuất) → **TẢI trang về** → đưa **nội dung thật** cho mô hình trích xuất → **nguồn ghi vào chunk bắt buộc phải là một trong các URL đã tải được** |
+| **Vì sao là LỆCH THẬT chứ không phải bổ sung** | Hợp đồng của bậc 3 đổi, và 4 bài TC-48 cũ phải viết lại. Hai chỗ hỏng của cách cũ: ① URL do mô hình sinh có thể không tồn tại, hoặc tồn tại mà không nói điều mô hình bảo nó nói — bộ lọc miền không phát hiện được cả hai ② tài liệu công bố sau ngày cắt dữ liệu thì mô hình không có gì để khai, và nó sẽ khai một thứ trông hợp lý |
+| **Cái chặn quan trọng nhất** | Mô hình nêu một URL ngoài tập đã tải nghĩa là nó vừa quay về trả lời từ trí nhớ, và nội dung kèm theo không còn chỗ nào kiểm được → bỏ kết quả |
+| **Bù lại** | `GapResolver` thêm `researcher` (tiêm được, để kiểm bậc 3 mà không chạm mạng) và `vendor_hint` (dữ liệu do bên gọi truyền xuống, không phải hằng số trong engine — FR-PLT-01) |
+| **Cần cập nhật** | EAA-AIS-05 §6.2: mô tả lại bậc 3 theo thứ tự tìm → đọc → trích |
+
+## SL-80 · BỔ SUNG · Đề xuất công cụ mang theo bằng chứng đã tải
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.2, §9.4 |
+| **Chỗ trống** | `LlmToolResearcher` đề xuất công cụ hoàn toàn từ trí nhớ mô hình. Người duyệt không phân biệt được đề xuất dựa trên trang cài đặt thật với đề xuất dựa trên trí nhớ — hai thứ đáng tin khác hẳn nhau và **trông giống hệt nhau khi in ra** |
+| **Code làm** | `ToolProposal.evidence`; `LlmToolResearcher.researcher` |
+| **Cách làm** | Có bộ tra web → tìm và đọc trang cài đặt chính thức, đưa nội dung vào prompt, ghi URL vào `evidence`. Không đọc được → vẫn đề xuất, nhưng bản in **nói thẳng** rằng nó dựa vào trí nhớ mô hình và cần đọc kỹ hơn |
+| **Không chặn khi mạng chập** | Chặn hẳn sẽ làm chế độ tìm công cụ ngừng hoạt động mỗi khi mạng hỏng — mà đó đúng lúc người ta cần nó nhất |
+| **Cần cập nhật** | EAA-AIS-05 §9.2: đề xuất công cụ có hai mức bằng chứng |
+
+
+---
+
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
 
 

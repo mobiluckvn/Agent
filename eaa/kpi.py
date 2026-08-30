@@ -186,6 +186,17 @@ class ProcessReview:
 
         return y_kien
 
+
+    @property
+    def confidence_level(self) -> str:
+        """Mức tin cậy theo bộ từ vựng chung của hệ (N-903).
+
+        Các con số đọc thẳng từ nhật ký. Riêng phần ĐỀ XUẤT ở cuối là suy diễn.
+        """
+        from eaa.confidence import DA_KIEM
+
+        return DA_KIEM
+
     def render(self) -> str:
         if not self.rows:
             return (

@@ -317,9 +317,9 @@ def identify_board(
     except LLMError as exc:
         raise BriefError(f"Không nhận dạng được bo: {exc}") from exc
 
-    from eaa.options import _boc_json  # dùng chung bộ bóc JSON
+    from eaa.options import boc_json  # dùng chung bộ bóc JSON
 
-    du_lieu = _boc_json(van_ban)
+    du_lieu = boc_json(van_ban, BriefError)
     return [BoardCandidate.from_dict(c) for c in (du_lieu.get("candidates") or [])]
 
 
