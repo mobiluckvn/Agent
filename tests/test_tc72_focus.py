@@ -229,3 +229,18 @@ def test_ke_hoach_rong_van_render_duoc():
 def test_tien_dieu_kien_dat_khong_in_lenh_go():
     p = Precondition("xong rồi", DAT, fix=("plan", "add"))
     assert "→" not in p.render()
+
+
+def test_focus_lay_bo_kiem_tri_thuc_tu_ORCHESTRATOR(tmp_path):
+    """AppContext không có 'readiness' — nó là một phần của vòng lặp chuẩn.
+
+    Lỗi này chỉ hiện ra khi module CÓ trong backlog: không có thì nhánh kiểm
+    tri thức bị bỏ qua, nên nó lọt qua mọi lần thử trước đó.
+    """
+    import inspect
+
+    from eaa import cli
+
+    src = inspect.getsource(cli.cmd_focus)
+    assert "ctx.orchestrator" in src
+    assert "ctx.readiness" not in src

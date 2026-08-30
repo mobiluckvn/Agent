@@ -3682,9 +3682,13 @@ def cmd_focus(args: argparse.Namespace) -> int:
     if muc is not None:
         xung_dot = list(ctx.graph.check_module(
             args.module_id, uses=muc.uses, depends_on=muc.depends_on))
-        if not xung_dot and ctx.readiness is not None:
+        # Bộ kiểm đủ-tri-thức thuộc về Orchestrator, không phải AppContext:
+        # nó là một phần của vòng lặp chuẩn, và nối dây nó ở hai chỗ là hai chỗ
+        # sẽ dùng hai bộ luật khác nhau.
+        kiem_tri_thuc = getattr(ctx.orchestrator, "readiness", None)
+        if not xung_dot and kiem_tri_thuc is not None:
             try:
-                ctx.readiness.check(args.module_id, uses=muc.uses)
+                kiem_tri_thuc.check(args.module_id, uses=muc.uses)
             except NotReady as exc:
                 loi_tri_thuc = str(exc)
 
