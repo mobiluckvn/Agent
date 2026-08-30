@@ -82,6 +82,28 @@ MAX_STEPS = 8
 #: nghìn dòng sẽ nuốt hết ngân sách ngữ cảnh và đẩy phần hỏi ra ngoài.
 MAX_OUTPUT_CHARS = 3200
 
+#: Ngân sách RIÊNG của vòng hội thoại — không mượn của vòng sinh mã.
+#:
+#: ``LAYER_BUDGETS`` trong ``eaa/llm/base.py`` chia 8.000 token theo Hình 1 của
+#: AIS §2, và cách chia ấy dành cho prompt SINH MÃ: chunk datasheet, hợp đồng
+#: giao diện, quy tắc lỗi, phần dự phòng cho vòng vá. Prompt hội thoại có hình
+#: dạng khác hẳn — phần lớn ngân sách của nó là DANH MỤC CÔNG CỤ, thứ không tồn
+#: tại trong prompt sinh mã.
+#:
+#: Nên hai bên khai ngân sách riêng. Mượn của nhau thì mỗi lần thêm một công cụ
+#: lại phải nới một con số thuộc về bản thiết kế của việc khác — và đó là cách
+#: một bảng ngân sách có căn cứ biến dần thành một bảng số ai cũng sửa được.
+#: Trần TỔNG vẫn là 8.000 và vẫn kiểm trước khi gọi (TC-16).
+NGAN_SACH_VAI_TRO = 1_400
+NGAN_SACH_DANH_MUC = 2_800
+
+#: Ngân sách cho đầu ra các lệnh vừa chạy.
+#:
+#: Nới lên từ 2.600 khi Agent đọc được PDF: nội dung một trang tài liệu dài hơn
+#: hẳn đầu ra của một lệnh trạng thái, và cắt nó xuống vừa ngân sách cũ thì
+#: đúng phần Agent cần đọc bị mất. Tổng vẫn dưới trần 8.000.
+NGAN_SACH_QUAN_SAT = 3_400
+
 
 class AgentError(Exception):
     """Vòng hội thoại không chạy được."""
@@ -162,8 +184,13 @@ TOOLBOX: tuple[Tool, ...] = (
     Tool(
         ("survey",),
         "Khảo sát một kho nén hồ sơ dự án: kiểm kê, phân loại, rút dữ kiện từ mã "
-        "nguồn kèm theo. Thêm --extract để giải ra đĩa",
-        takes="đường dẫn .zip [--extract]",
+        "nguồn. Thêm --extract để giải ra đĩa.\n"
+        "      Bản khảo sát tổng BỊ CẮT BỚT, nên sau khi giải nén hãy soi tiếp:\n"
+        "        --files '*.pdf'   liệt kê tệp khớp mẫu trong kho\n"
+        "        --read <tệp>      ĐỌC một tệp, kể cả PDF\n"
+        "      Hỏi về nội dung một tài liệu thì phải --read nó ra đã, đừng trả "
+        "lời từ tài liệu khác",
+        takes="đường dẫn .zip [--extract] | --files <mẫu> | --read <tệp>",
     ),
     # -- có ghi ra tệp, nhưng KHÔNG quyết định thay người --------------------
     Tool(("plan", "add"), "Khai một module vào backlog", takes="mã module --uses a,b", writes=True),
@@ -410,6 +437,122 @@ def _dong_lenh(lenh: str) -> str:
     return f"eaa {lenh.strip()}" if phan[0] in _lenh_cua_eaa() else lenh.strip()
 
 
+def _cat_vua(
+    van_ban: str, tran_token: int, dem: Callable[[str], int] | None = None
+) -> str:
+    """Cắt một chuỗi cho vừa số token, bằng CHÍNH bộ ước lượng.
+
+    Không quy đổi "mấy ký tự một token": bộ ước lượng của hệ này đếm theo TỪ,
+    nên mọi hằng số quy đổi đều sai — và sai theo hướng vượt trần, tức là hỏng
+    đúng thứ phép cắt sinh ra để tránh. Chia đôi dần thì đúng với bất kỳ công
+    thức ước lượng nào, kể cả khi nó đổi.
+    """
+    from eaa.llm.base import estimate_tokens
+
+    do = dem or estimate_tokens
+    if tran_token <= 0:
+        return ""
+    if do(van_ban) <= tran_token:
+        return van_ban
+
+    # Ước lượng chỗ cắt bằng bộ ĐO RẺ trước, rồi mới thu nhỏ dần bằng bộ đo
+    # thật. Chia đôi hoàn toàn bằng bộ đếm của nhà cung cấp là hàng chục lời
+    # gọi mạng cho một việc chuẩn bị prompt.
+    thap, cao = 0, len(van_ban)
+    while thap < cao:
+        giua = (thap + cao + 1) // 2
+        if estimate_tokens(van_ban[:giua]) <= tran_token:
+            thap = giua
+        else:
+            cao = giua - 1
+    cat = van_ban[:thap]
+
+    for _ in range(4):
+        thuc = do(cat)
+        if thuc <= tran_token or not cat:
+            break
+        cat = cat[: max(1, int(len(cat) * tran_token / thuc * 0.92))]
+    return cat
+
+
+def _lop_quan_sat(
+    quan_sat: Sequence[str],
+    budget: int = 0,
+    counter: Callable[[str], int] | None = None,
+) -> str:
+    """Dựng lớp quan sát sao cho VỪA ngân sách, thay vì để nó tràn.
+
+    Nới ngân sách mỗi lần một lệnh trả về nhiều chữ hơn là chạy theo đuôi:
+    ``MAX_OUTPUT_CHARS`` cho mỗi lệnh 3.200 ký tự, ba quan sát là 9.600 — quá
+    bất kỳ ngân sách hợp lý nào. Đọc được một trang PDF đưa lượt chạy vào đúng
+    tình huống ấy ngay lần đầu.
+
+    Nên lớp này **tự cắt**: giữ quan sát mới nhất trước, thêm ngược dần chừng
+    nào còn chỗ, và **nói ra đã bỏ bao nhiêu**. Bỏ im lặng thì mô hình tưởng
+    nó đã thấy hết những gì vừa chạy, và đó là cách nó kết luận trên một nửa
+    dữ liệu mà không biết.
+
+    Quan sát MỚI NHẤT không bao giờ bị bỏ, kể cả khi một mình nó đã quá dài —
+    khi ấy nó bị cắt đuôi. Bỏ hẳn thứ vừa chạy là bỏ đúng thứ mô hình đang cần.
+    """
+    from eaa.llm.base import estimate_tokens
+
+    # Đếm bằng CHÍNH bộ đếm sẽ kiểm, khi có.
+    #
+    # ``estimate_tokens`` cố ý ước lượng hơi CAO — nhưng cao so với tiếng Anh.
+    # Với tiếng Việt có dấu, bộ tách token thật cắt nhỏ hơn hẳn, nên ước lượng
+    # hoá ra THẤP. Đo được: một lớp quan sát ước lượng 3.400 token bị bộ đếm
+    # thật tính là 4.327. Cắt theo ước lượng rồi để bộ đếm thật chặn là cắt
+    # cho vui.
+    dem = counter or estimate_tokens
+    tran = budget or NGAN_SACH_QUAN_SAT
+    dau = "## KẾT QUẢ CÁC LỆNH BẠN VỪA CHẠY\n\n"
+
+    # Chừa chỗ cho ĐÚNG hai dòng ghi chú có thể thêm vào cuối, đo bằng chính
+    # bộ ước lượng. Chừa một con số tròn đoán bằng mắt thì lệch — và ở đây
+    # lệch một token cũng đủ làm cả lượt chạy hỏng trước khi gọi API.
+    ghi_chu = (
+        "\n…(cắt cho vừa ngân sách ngữ cảnh)"
+        "\n\n(đã bỏ 999 quan sát cũ hơn cho vừa ngân sách — nếu cần lại "
+        "thì chạy lại lệnh ấy)"
+    )
+    con_lai = tran - dem(dau) - dem(ghi_chu)
+
+    giu: list[str] = []
+    for q in reversed(quan_sat):
+        chi_phi = dem(q) + 2
+        if giu and chi_phi > con_lai:
+            break
+        if not giu and chi_phi > con_lai:
+            # Quan sát mới nhất mà đã quá dài: cắt đuôi chứ không bỏ.
+            giu.append(
+                _cat_vua(q, max(0, con_lai), dem)
+                + "\n…(cắt cho vừa ngân sách ngữ cảnh)"
+            )
+            con_lai = 0
+            break
+        giu.append(q)
+        con_lai -= chi_phi
+
+    bo = len(quan_sat) - len(giu)
+    than = dau + "\n\n".join(reversed(giu))
+    if bo > 0:
+        than += (
+            f"\n\n(đã bỏ {bo} quan sát cũ hơn cho vừa ngân sách — nếu cần lại "
+            "thì chạy lại lệnh ấy)"
+        )
+    return than
+
+
+def _danh_sach_nguon(gia_tri: Any) -> list[str]:
+    """Đọc trường ``nguon`` ở cả hai dạng: một chuỗi, hoặc danh sách chuỗi."""
+    if isinstance(gia_tri, str):
+        return [gia_tri] if gia_tri.strip() else []
+    if isinstance(gia_tri, (list, tuple)):
+        return [str(x) for x in gia_tri if str(x).strip()]
+    return []
+
+
 def tool_for(argv: Sequence[str]) -> Tool | None:
     """Tìm công cụ khớp phần đầu của argv, ưu tiên khớp dài nhất."""
     for t in sorted(TOOLBOX, key=lambda x: -len(x.argv)):
@@ -542,10 +685,27 @@ class ChatResult:
     #: Agent hỏi lại vì thiếu dữ kiện.
     clarifying: str = ""
     hit_limit: bool = False
+    #: Nguồn Agent tự khai cho câu trả lời — xem :attr:`unsourced`.
+    sources: tuple[str, ...] = ()
 
     @property
     def commands_run(self) -> list[str]:
         return [" ".join(s.argv) for s in self.steps if s.action == "chay_lenh" and not s.refused]
+
+    @property
+    def unsourced(self) -> bool:
+        """Có chạy lệnh, có trả lời, mà KHÔNG khai nguồn.
+
+        Đây là hình dạng của một lỗi đo được ngày 31/08/2026: người dùng hỏi
+        quy trình trong tài liệu của HỌ, Agent chạy ba lệnh đọc tài liệu của
+        DỰ ÁN NÀY, rồi tóm tắt thứ nó đọc được như thể đó là câu trả lời. Mọi
+        câu trong câu trả lời ấy đều đúng — chỉ là đúng về một tài liệu khác.
+
+        Không phép kiểm nào bắt được điều đó, vì lệnh chạy hợp lệ và đầu ra
+        hợp lệ. Thứ bắt được là **bắt Agent nói ra nó đang trả lời từ đâu**:
+        có dòng ấy thì chính người đọc nhận ra ngay nguồn không khớp câu hỏi.
+        """
+        return bool(self.answer) and bool(self.commands_run) and not self.sources
 
     def render(self) -> str:
         dong: list[str] = []
@@ -559,6 +719,17 @@ class ChatResult:
             dong.append(self.clarifying)
         elif self.answer:
             dong.append(self.answer)
+            if self.sources:
+                dong += ["", "Trả lời này dựa trên:"]
+                dong += [f"    · {n}" for n in self.sources]
+            elif self.unsourced:
+                dong += [
+                    "",
+                    "⚠ Tôi đã chạy lệnh nhưng KHÔNG khai câu trả lời dựa trên "
+                    "đầu ra nào. Hãy đọc nó dè dặt: một câu trả lời đúng về "
+                    "MỘT tài liệu vẫn sai nếu đó không phải tài liệu bạn hỏi.",
+                    f"    Lệnh đã chạy: {', '.join(self.commands_run)}",
+                ]
         if self.suggested:
             dong += ["", "Lệnh bạn cần tự chạy (tôi không được phép):"]
             dong += [f"    {_dong_lenh(c)}" for c in self.suggested]
@@ -603,6 +774,18 @@ Bốn luật, và luật đầu là luật không bao giờ được phá:
 3. Thiếu dữ kiện thì HỎI LẠI, đừng đoán. Một câu hỏi tốn một lượt; một phỏng
    đoán sai tốn cả buổi.
 4. Khi đã đủ dữ kiện thì trả lời, và nêu rõ điều bạn CHƯA kiểm được.
+5. NÊU NGUỒN. Trả lời dựa trên đầu ra của lệnh nào thì điền lệnh ấy vào
+   "nguon". Và trước khi trả lời, tự hỏi một câu:
+
+       nguồn tôi vừa đọc có đúng là thứ người ta hỏi không?
+
+   Đây là chỗ đã hỏng thật, nên nó thành luật. Người dùng hỏi quy trình trong
+   TÀI LIỆU CỦA HỌ; đã có lần chạy ba lệnh đọc tài liệu CỦA DỰ ÁN NÀY, rồi tóm
+   tắt thứ đọc được như thể đó là câu trả lời. Từng câu đều đúng — chỉ là đúng
+   về một tài liệu khác.
+
+   Hỏi về nội dung một tài liệu mà bạn CHƯA MỞ nó ra: nói thẳng là chưa đọc
+   được, nêu tên tệp cần mở. Đừng bao giờ thay bằng một tài liệu khác.
 
 Mỗi lượt bạn trả về ĐÚNG một khối JSON, không kèm chữ nào ngoài khối ấy:
 
@@ -611,12 +794,15 @@ Mỗi lượt bạn trả về ĐÚNG một khối JSON, không kèm chữ nào 
   "suy_nghi": "<một câu: bạn đang cần gì để trả lời>",
   "hanh_dong": "chay_lenh | tra_loi | hoi_lai | de_nghi_nguoi_chay",
   "lenh": ["<từng phần của lệnh>", "..."],
-  "noi_dung": "<câu trả lời, hoặc câu hỏi lại, tùy hành động>"
+  "noi_dung": "<câu trả lời, hoặc câu hỏi lại, tùy hành động>",
+  "nguon": ["<lệnh mà câu trả lời dựa trên đầu ra của nó>"]
 }
 ```
 
 * ``chay_lenh`` — điền "lenh", ví dụ ["budget","show"] hoặc ["resolve","drv_i2c"].
-* ``tra_loi`` — điền "noi_dung" bằng câu trả lời cuối cùng cho người dùng.
+* ``tra_loi`` — điền "noi_dung" bằng câu trả lời cuối cùng, VÀ điền "nguon"
+  bằng những lệnh mà câu trả lời dựa trên. Có chạy lệnh mà bỏ trống "nguon"
+  thì câu trả lời bị in ra kèm một dòng cảnh báo cho người đọc.
 * ``hoi_lai`` — điền "noi_dung" bằng câu hỏi.
 * ``de_nghi_nguoi_chay`` — điền "lenh" và "noi_dung" giải thích vì sao cần nó.
 """
@@ -668,6 +854,9 @@ class AgentLoop:
 
             if buoc.action == "tra_loi":
                 ket.answer = str(hanh_dong.get("noi_dung", "")).strip()
+                ket.sources = tuple(
+                    str(x).strip() for x in _danh_sach_nguon(hanh_dong.get("nguon"))
+                )
                 ket.steps.append(buoc)
                 break
 
@@ -720,7 +909,8 @@ class AgentLoop:
         from eaa.options import boc_json
 
         lop = [
-            PromptLayer("toolbox", _mo_ta_danh_muc(), budget=2200, required=True),
+            PromptLayer("toolbox", _mo_ta_danh_muc(), budget=NGAN_SACH_DANH_MUC,
+                        required=True),
             PromptLayer("state", self._tom_tat_du_an(), budget=400),
         ]
         # Công cụ tự sinh đã duyệt — phần động của danh mục. Không bắt buộc:
@@ -732,13 +922,11 @@ class AgentLoop:
         if ban_ghi:
             lop.append(PromptLayer("history", ban_ghi, budget=1200))
         if quan_sat:
-            # Chỉ giữ vài quan sát gần nhất: mô hình cần thứ vừa thấy, không
-            # cần toàn bộ lịch sử — và ngân sách ngữ cảnh thì có hạn.
             lop.append(
                 PromptLayer(
                     "observations",
-                    "## KẾT QUẢ CÁC LỆNH BẠN VỪA CHẠY\n\n" + "\n\n".join(quan_sat[-3:]),
-                    budget=2600,
+                    _lop_quan_sat(quan_sat, counter=self.llm.count_tokens),
+                    budget=NGAN_SACH_QUAN_SAT,
                 )
             )
         lop.append(
@@ -747,6 +935,7 @@ class AgentLoop:
 
         prompt = Prompt(
             system_instruction=_VAI_TRO,
+            system_budget=NGAN_SACH_VAI_TRO,
             layers=lop,
             module="hội thoại",
             budget=7_600,
@@ -765,6 +954,47 @@ class AgentLoop:
 
     # -- ngữ cảnh ----------------------------------------------------------
 
+    def _tom_tat_kho_tai_lieu(self) -> str:
+        """Nói cho mô hình biết dự án CÓ một kho hồ sơ đã giải nén, và có gì.
+
+        Không có mấy dòng này thì kho nằm trên đĩa mà Agent không biết là có.
+        Đo được ngày 31/08/2026: hỏi về quy trình trong tài liệu, Agent tra kho
+        tri thức của dự án, không thấy, rồi hỏi lại người dùng đường dẫn — trong
+        khi tệp cần đọc đã nằm sẵn ở ``sources/`` từ một lượt trước.
+
+        Chỉ đếm và nêu vài tên: một danh sách 308 mục sẽ nuốt hết lớp trạng
+        thái. Agent thấy có kho thì tự gọi ``survey --files`` để soi tiếp.
+        """
+        goc = self.project / "sources"
+        if not goc.is_dir():
+            return ""
+        try:
+            tep = [p for p in goc.rglob("*") if p.is_file()]
+        except OSError:
+            return ""
+        if not tep:
+            return ""
+
+        theo_duoi: dict[str, int] = {}
+        for p in tep:
+            theo_duoi[p.suffix.lower() or "(không đuôi)"] = (
+                theo_duoi.get(p.suffix.lower() or "(không đuôi)", 0) + 1
+            )
+        pho_bien = ", ".join(
+            f"{n}{d}" for d, n in sorted(theo_duoi.items(), key=lambda x: -x[1])[:8]
+        )
+        tai_lieu = [p for p in tep if p.suffix.lower() in (".pdf", ".md", ".txt")][:5]
+
+        dong = [
+            "",
+            f"- KHO HỒ SƠ đã giải nén ở sources/ — {len(tep)} tệp: {pho_bien}",
+            "  Soi tiếp: `survey --files '<mẫu>'` · Đọc một tệp: `survey --read '<đường dẫn>'`",
+        ]
+        if tai_lieu:
+            dong.append("  Tệp tài liệu thấy được:")
+            dong += [f"    {p.relative_to(goc)}" for p in tai_lieu]
+        return "\n".join(dong)
+
     def _tom_tat_du_an(self) -> str:
         """Vài dòng trạng thái — đủ để mô hình biết đang đứng ở đâu."""
         from eaa.state import StateStore
@@ -782,6 +1012,7 @@ class AgentLoop:
             f"- pha: {state.phase}\n"
             f"- gate: {gates}\n"
             f"- backlog: {backlog}"
+            + self._tom_tat_kho_tai_lieu()
         )
 
     def _tom_tat_ban_ghi(self) -> str:

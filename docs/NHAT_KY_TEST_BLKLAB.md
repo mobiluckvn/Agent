@@ -310,3 +310,157 @@ phải đúng hơn.
 
 Bài 3 vẫn giữ nguyên: không sửa gì: nó đang làm đúng.
 
+---
+
+## Vòng 2 — sau khi sửa ba việc rút từ vòng 1
+
+Chạy 31/08/2026. Ba việc đã làm, đúng thứ tự tôi đề ra ở cuối vòng 1:
+
+1. `eaa/pdftext.py` + `eaa survey --read` — đọc được nội dung PDF.
+2. Kỷ luật **nêu nguồn** — `ChatResult.sources`, trường `nguon`, luật thứ 5
+   trong vai trò, và cảnh báo khi trả lời mà không khai nguồn.
+3. `eaa survey --files` để soi kỹ một phần kho, và lớp trạng thái **nói cho
+   Agent biết dự án CÓ một kho đã giải nén**.
+
+### Bài 1 — giải nén và khai phá
+
+Cùng câu hỏi nguyên văn ba vòng.
+
+**Agent làm gì — sáu lệnh, tự chọn cả sáu:**
+
+```
+survey --read …/BLKLab_Balancing_Robot_Tong_Quan.pdf
+survey --read …/BLKLab_Balancing_Robot_Nguyen_Ly.pdf
+survey --files *.ino
+survey --read …/V0_Balancing_Hardware/V0_Balancing_Hardware.ino
+survey --read …/V1_Balancing_Robot_HC05_JQ6500/V1_…_JQ6500.ino
+survey --read …/BLKLab_Balancing_Robot_Nguyen_Ly.pdf     (đọc lại sơ đồ)
+```
+
+> **Agent trả lời:**
+>
+> **1. Vi điều khiển:** Arduino Nano.
+>
+> **2. Ngoại vi và linh kiện:** MPU6050 (IMU 6 trục) · **2 driver A4988** điều
+> khiển **2 động cơ bước Nema17 (42×38mm)** · Bluetooth HC-05 · module MP3
+> JQ6500 kèm **loa 1W 8Ω** · **4 LED RGB WS2812** · còi chip 5V · nguồn **2
+> cell Li-ion 18650** qua IC **78M05** · header chờ cho SRF04.
+>
+> **3. Nối chân:** MPU6050 I2C (SDA→A4, SCL→A5) · JQ6500 dùng TX/RX phần cứng
+> D0/D1 *(lưu ý tháo module khi nạp code)* · nút SET→D12 · WS2812→D11 ·
+> HC-05 SoftwareSerial D9 (RX), D11 (TX).
+>
+> *"Lưu ý: Trong code đang có sự trùng lặp chân D11 giữa TX của HC-05 và LED
+> WS2812, bạn cần kiểm tra lại thực tế mạch."*
+
+**Tôi kiểm chéo** vào chính tệp `V1_..._JQ6500.ino`:
+
+| Agent nói | Mã nguồn thật | |
+|---|---|---|
+| WS2812 ở D11, 4 LED | dòng 70–71: `const int ledPin = 11; const int numLeds = 4;` | ✓ |
+| HC-05 SoftwareSerial D9/D11 | dòng 68: `SoftwareSerial mySerial(9, 11); // RX, TX` | ✓ |
+| Nút SET ở D12 | dòng 58: `#define BUTTON_SET_PIN 12` | ✓ |
+| **Xung đột chân D11** | cả hai dòng trên cùng dùng 11 | ✓ **có thật** |
+
+**Nhận xét.** Hơn hẳn vòng 1 ở ba điểm:
+
+- **Độ phủ.** Vòng 1 đọc một bản tóm tắt cắt sẵn và bỏ sót cảm biến. Vòng 2 nó
+  *tự đi tìm tiếp* — liệt kê `.ino`, chọn hai tệp, đọc thẳng — và ra được cả
+  A4988, Nema17, 18650, 78M05, 78M05, số lượng LED. Đây đúng là thứ `--files`
+  và `--read` sinh ra để cho phép.
+- **Nó tìm ra một lỗi trong mã của người khác.** Xung đột D11 là thật, và nó
+  nêu kèm câu *"bạn cần kiểm tra lại thực tế mạch"* — không khẳng định là lỗi,
+  vì SoftwareSerial TX của HC-05 có thể không bao giờ được dùng. Đây là hành vi
+  đúng: chỉ ra chỗ đáng nhìn, không phán.
+- **Nó khai nguồn**, và khai đúng hai tệp mang thông tin quyết định.
+
+### Bài 2 — quy trình hiện tại trong tài liệu
+
+Cùng câu hỏi nguyên văn.
+
+**Agent làm gì:** `survey --read` **cả hai PDF**.
+
+> **Agent trả lời:** Mình đã đọc 2 tài liệu PDF trong thư mục `BLKLab_Huong_Dan`
+> (Tổng quan và Nguyên lý) nhưng **không có** tài liệu nào mô tả quy trình từ
+> lúc nạp firmware tới lúc robot đứng được.
+>
+> Bản 'Tổng quan' chỉ liệt kê các tính năng (cân bằng PID, điều khiển
+> Bluetooth, tránh vật cản, chỉnh PID realtime) và linh kiện. Bản 'Nguyên lý'
+> là sơ đồ mạch điện (schematic).
+>
+> Bạn có muốn mình quét thử các tệp mã nguồn (`.ino`, `.cpp`) để xem có ghi
+> chú nào hướng dẫn quy trình này không?
+>
+> **Trả lời này dựa trên:** hai lệnh `survey --read` nêu trên.
+
+**Tôi kiểm:** đúng. `Tong_Quan.pdf` là trang giới thiệu tính năng;
+`Nguyen_Ly.pdf` là netlist sơ đồ mạch. Kho **không có** tài liệu quy trình
+từng bước — mọi tệp `.md` trong kho đều là README của thư viện bên thứ ba.
+
+**Nhận xét.** Bài này đi từ **không đạt** lên **đạt**, và đạt theo cách đáng
+tin nhất: nó **đọc thật rồi mới kết luận**, nói rõ mỗi tệp chứa gì, khai nguồn,
+và đề nghị một bước tiếp hợp lý.
+
+Đáng ghi thêm: hoá ra **tiền đề của bài 2 hơi lệch** — kho không thật sự có
+tài liệu quy trình. Vòng 1 Agent "trả lời được" chính là vì nó lấy tài liệu
+khác thế vào. Vòng 2 nó nói ra sự thật ấy. Một câu trả lời "không có" đúng thì
+giá trị hơn một câu tóm tắt trôi chảy về nhầm tài liệu.
+
+### Bài 3 — viết mã mới
+
+**Agent làm gì:** `eaa status`, `eaa gate show G1`.
+
+> **Agent trả lời:** Dự án hiện đang ở pha A và backlog đang trống… cần khai
+> báo module (`eaa plan add`), chia ngân sách (`eaa budget propose`), và bạn
+> cần duyệt G1.
+>
+> *"Bạn muốn tự khai báo các module, hay muốn mình **đọc các tài liệu PDF
+> trong kho** (`…Tong_Quan.pdf`, `…Nguyen_Ly.pdf`) để **đề xuất danh sách
+> module** cho bạn?"*
+
+**Nhận xét.** Vẫn điều hướng về quy trình có cổng — đúng thiết kế, không đổi
+qua cả ba vòng. Nhưng câu cuối là mới và là bước tiến thật: nó **nối bài 1 với
+bài 3**, đề nghị dùng chính tài liệu vừa đọc được để đề xuất phân rã module.
+Vòng 0 và vòng 1 không có ý ấy.
+
+Phần sinh mã thật đã chạy ở vòng 1 (`gen ctl_balance --preview`, Timer1 CTC
+100 Hz, trích dẫn `ds-012` — đã kiểm đúng cả hai). Vòng 2 không chạy lại vì
+phần ấy không đổi.
+
+### Kết luận vòng 2
+
+| Bài | Vòng 0 | Vòng 1 | Vòng 2 |
+|---|---|---|---|
+| 1 — khai phá mạch | Không làm được | Đạt, 6/6 chân đúng, **thiếu độ phủ** | **Đạt, phủ rộng hơn hẳn, tìm ra một xung đột chân thật** |
+| 2 — quy trình trong tài liệu | Hỏi lại | **Trả lời SAI từ nguồn khác** | **Đạt — đọc thật, kết luận đúng "không có", khai nguồn** |
+| 3 — viết mã mới | Điều hướng về gate | Điều hướng + sinh mã đúng ở `--preview` | Điều hướng + **đề nghị dùng tài liệu để phân rã module** |
+
+### Bốn lần hệ thống tự chặn tôi trong vòng này
+
+Đáng ghi riêng, vì cả bốn đều là cổng làm đúng việc:
+
+1. **Ngân sách lớp `role_constraints`** chặn khi tôi thêm luật nêu nguồn. Đúng
+   — đó là ngân sách của *vòng sinh mã* theo AIS §2, không phải của hội thoại.
+   Sửa: vòng hội thoại khai ngân sách riêng (SL-97).
+2. **Ngân sách lớp `observations`** chặn khi Agent đọc PDF. Nới một lần thì
+   chạy, nhưng lần sau lại tràn — nới mãi là chạy theo đuôi. Sửa: lớp quan sát
+   **tự cắt cho vừa** và nói ra đã bỏ bao nhiêu.
+3. **Bộ đếm token thật** chặn tiếp: tôi cắt theo `estimate_tokens`, mà bộ ấy cố
+   ý đếm *cao* cho tiếng Anh nên hoá ra đếm *thấp* cho tiếng Việt có dấu —
+   3.400 ước lượng bị đếm thật thành 4.327. Sửa: cắt bằng chính bộ đếm sẽ kiểm.
+4. **`ls -la`** bị danh mục từ chối ở vòng 1 — và chính lần từ chối ấy là manh
+   mối chỉ ra khoảng trống: Agent *muốn* đi đọc tệp và không có đường.
+
+### Điều còn lại, nói cho đủ
+
+- **Ảnh không đọc được.** Kho có `BLKLab_Balancing_Robot_HD1/HD2/HD3.png` —
+  ba trang hướng dẫn dạng ảnh. Nếu quy trình từng bước tồn tại ở đâu đó thì
+  nhiều khả năng nằm trong ba tệp ấy. Đọc chúng cần OCR, một công cụ ngoài mà
+  hệ này chưa có, và `pdftext` nói thẳng điều đó thay vì trả về chuỗi rác.
+- **40/1884 ký tự rụng** khi đọc `Tong_Quan.pdf`. Đã kiểm: `'á'` không nằm
+  trong bất kỳ bảng `ToUnicode` nào của tệp — mất mát nằm ở **tệp**, không ở
+  bộ đọc. Bộ đọc đếm và báo đúng con số ấy.
+- **Bài 3 chưa xong tới đích.** Muốn robot thật sự đứng được thì phải sinh
+  `drv_imu`, merge, rồi mới sinh `ctl_balance` — tức là đi đủ vòng có cổng, và
+  vòng ấy cần toolchain AVR mà máy này chưa có.
+

@@ -3918,11 +3918,97 @@ def cmd_scratch(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _doc_tep_trong_kho(project: Path, duong_dan: str) -> int:
+    """Đọc MỘT tệp trong kho đã giải nén — kể cả PDF (SL-94).
+
+    Chặn ở đây chứ không tin đường dẫn: tham số này do mô hình điền, và một
+    ``../../..`` trong đó là đường đọc bất cứ tệp nào trên máy. Mọi đường dẫn
+    phải nằm trong ``<dự án>/sources/`` sau khi đã giải hết liên kết mềm.
+    """
+    from eaa.pdftext import PdfError, extract_text
+
+    goc = (project / "sources").resolve()
+    tep = (goc / duong_dan).resolve() if not Path(duong_dan).is_absolute() \
+        else Path(duong_dan).resolve()
+    if not (tep == goc or goc in tep.parents):
+        raise CliError(
+            f"Chỉ đọc được tệp nằm trong {goc}. Đường dẫn {duong_dan!r} trỏ ra "
+            "ngoài — từ chối, vì một đường dẫn trỏ ra ngoài kho không phải một "
+            "tệp tài liệu."
+        )
+    if not tep.is_file():
+        raise CliError(f"Không có tệp: {tep}")
+
+    if tep.suffix.lower() == ".pdf":
+        try:
+            kq = extract_text(tep)
+        except PdfError as exc:
+            raise CliError(str(exc)) from None
+        print(kq.render())
+        return EXIT_OK if not kq.empty else EXIT_WAITING_GATE
+
+    from eaa.archive import _doc_van_ban
+
+    noi_dung = _doc_van_ban(tep)
+    if not noi_dung.strip():
+        raise CliError(
+            f"{tep.name} không đọc được thành chữ. Nếu là ảnh hoặc tệp nhị "
+            "phân thì hệ này chưa có công cụ đọc nó."
+        )
+    print(f"── {tep.relative_to(goc)}  ({len(noi_dung)} ký tự)")
+    print()
+    print(noi_dung)
+    return EXIT_OK
+
+
+def _liet_ke_trong_kho(project: Path, mau: str) -> int:
+    """Liệt kê tệp trong kho đã giải nén khớp một mẫu.
+
+    Bản khảo sát tổng phải cắt bớt để không nuốt hết ngân sách ngữ cảnh, và
+    cái bị cắt thì Agent không biết là có. Đo được ở bài kiểm BLKLab: Agent mô
+    tả đúng phần nó thấy nhưng bỏ sót hai cảm biến chỉ vì chúng nằm ngoài phần
+    tóm tắt. Lệnh này để soi kỹ MỘT phần, thay vì phải in tất cả mọi lúc.
+    """
+    goc = (project / "sources").resolve()
+    if not goc.is_dir():
+        raise CliError(
+            f"Chưa có kho nào được giải nén ở {goc}. "
+            "Chạy 'eaa survey <tệp .zip> --extract' trước."
+        )
+
+    tim = sorted(p for p in goc.rglob(mau) if p.is_file())
+    print(f"Tệp khớp {mau!r} trong kho đã giải nén")
+    print()
+    if not tim:
+        print(f"  (không có tệp nào khớp)")
+        return EXIT_OK
+    for p in tim[:200]:
+        co = p.stat().st_size
+        print(f"  {p.relative_to(goc)}   ({co:,} byte)".replace(",", "."))
+    print()
+    print(f"{len(tim)} tệp." + (f" (in 200 đầu)" if len(tim) > 200 else ""))
+    print("Đọc một tệp:  eaa survey --read '<đường dẫn ở trên>'")
+    return EXIT_OK
+
+
 def cmd_survey(args: argparse.Namespace) -> int:
     """N-004, FR-ING-01 — khảo sát một kho nén hồ sơ dự án."""
     from eaa.archive import ArchiveError, read_archive
 
     project = resolve_project(args.project)
+
+    if getattr(args, "read", ""):
+        return _doc_tep_trong_kho(project, args.read)
+
+    if getattr(args, "files", ""):
+        return _liet_ke_trong_kho(project, args.files)
+
+    if not args.archive:
+        raise CliError(
+            "Cần đường dẫn tệp .zip, hoặc --read <tệp> / --files <mẫu> để soi "
+            "kho đã giải nén."
+        )
+
     dich = None
     if args.extract:
         dich = project / "sources" / Path(args.archive).stem
@@ -5177,10 +5263,21 @@ def build_parser() -> argparse.ArgumentParser:
             "kèm theo — nó KHÔNG kết luận đây là bo gì."
         ),
     )
-    p_survey.add_argument("archive", help="Đường dẫn tệp .zip")
+    p_survey.add_argument("archive", nargs="?", default="",
+                          help="Đường dẫn tệp .zip (bỏ trống khi dùng --read/--files)")
     p_survey.add_argument(
         "--extract", action="store_true",
         help="Giải ra <dự án>/sources/ sau khi kiểm an toàn",
+    )
+    p_survey.add_argument(
+        "--read", default="", metavar="TỆP",
+        help="Đọc MỘT tệp trong kho đã giải nén, kể cả PDF. Đường dẫn tính từ "
+             "<dự án>/sources/",
+    )
+    p_survey.add_argument(
+        "--files", default="", metavar="MẪU",
+        help="Liệt kê tệp trong kho đã giải nén khớp mẫu, ví dụ '*.pdf'. "
+             "Bản khảo sát tổng bị cắt bớt; cái này để soi kỹ một phần",
     )
     p_survey.set_defaults(func=cmd_survey)
 

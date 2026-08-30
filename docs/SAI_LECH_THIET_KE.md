@@ -1324,6 +1324,57 @@ Ba loại:
 | **Cần cập nhật** | EAA-SDD-03 §6: cờ `eaa environ --packages`; AIS §9.2: thang gỡ có thêm bậc tự viết |
 
 
+## SL-94 · BỔ SUNG · `eaa/pdftext.py` — đọc được PDF, bằng thư viện chuẩn
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1 (đầu vào đa phương thức); FR-ING-01, NFR-04 |
+| **Chỗ trống** | `eaa survey` kiểm kê được **có những tệp gì** nhưng không mở được PDF. Tài liệu quy trình của một dự án nhúng gần như luôn ở dạng PDF — hồ sơ robot dùng kiểm thử sản phẩm này có đúng hai tệp như vậy, và chúng chứa chính thứ Agent được hỏi |
+| **Code làm** | `PdfText`, `extract_text()`; `eaa survey --read <tệp>` |
+| **Tự viết thay vì thêm thư viện** | NFR-04 chốt chỉ phụ thuộc Python, toolchain, Git. Phần cần dùng của PDF lại hẹp: `zlib` giải luồng, đọc bảng `ToUnicode`, bóc chuỗi giữa toán tử vẽ chữ |
+| **Ba lỗi tìm ra khi dựng, cả ba đều "gần đúng"** | ① **Gộp bảng font của mọi trang** — hai trang cùng đặt tên `/F2` cho hai font khác nhau, gộp lại thì trang sau ghi đè trang trước ② **Bỏ qua `/ObjStm`** — từ PDF 1.5 phần lớn đối tượng nằm trong luồng nén; tài liệu thật để lộ 73 đối tượng trong khi có 728, và bảng font nằm trong số bị giấu ③ **Coi font đơn giản là 2 byte** — chúng dùng `/WinAnsiEncoding`, mã 1 byte cp1252 |
+| **Vì sao ba lỗi ấy đáng ghi** | Cả ba đều **không làm hỏng hẳn**. Chúng làm rụng đúng những nguyên âm có dấu của tiếng Việt: `toán`→`ton`, `giúp`→`gip`. Văn bản vẫn đọc được, chỉ sai ở chỗ ít ai soi — **gần đúng ở đây tệ hơn hỏng hẳn, vì nó trông như đọc được** |
+| **Định vị bằng `Tm`, không phải `Td`** | Tài liệu thật có 723 lần `Tm` và **không một lần** `Td`. Coi mọi `Tm` là xuống dòng thì ra 723 dòng rời; coi là dấu cách thì mất cấu trúc đoạn. Phải nhìn tọa độ: đổi theo chiều dọc là dòng mới |
+| **Nói thẳng điều KHÔNG làm được** | Không đọc PDF quét ảnh (báo rỗng kèm lý do, không trả chuỗi rác); không dựng lại bố cục; **đếm và báo** số glyph không tra được. Trên tài liệu thật: 40/1884 ký tự rụng vì font nhúng thiếu bảng — đã kiểm và xác nhận `'á'` không nằm trong bất kỳ `ToUnicode` nào của tệp, tức là mất mát nằm ở tệp chứ không ở bộ đọc |
+| **Cần cập nhật** | EAA-SDD-03 §2 và §6: thêm `eaa/pdftext.py`, cờ `eaa survey --read` |
+
+## SL-95 · LỆCH THẬT · Câu trả lời phải NÊU NGUỒN, và nguồn phải khớp câu hỏi
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §12; N-903 |
+| **Lỗi đo được** | Bài kiểm BLKLab 31/08/2026, bài 2. Người dùng hỏi quy trình trong **tài liệu của họ**. Agent chạy `datasheet list`, `docs list`, `handover doc` — ba lệnh hợp lệ — rồi tóm tắt tài liệu vận hành **của chính công cụ EAA** như thể đó là câu trả lời. Từng câu đều đúng; chỉ là đúng về một tài liệu khác |
+| **Vì sao không phép kiểm nào bắt được** | Lệnh hợp lệ, đầu ra hợp lệ, câu trả lời mạch lạc. Bộ từ vựng tin cậy (N-903) không chặn được vì `handover doc` trả về một tài liệu **thật** — chỉ là thật cho một câu hỏi khác |
+| **Điều đáng lo hơn** | Ở vòng trước Agent **không có** năng lực nên nó hỏi lại. Vòng này nó có thêm nguồn để đọc, dùng nhầm một nguồn, rồi trả lời như đã đọc đúng chỗ. **Thêm năng lực mà không thêm kỷ luật về nguồn thì làm câu trả lời sai TỰ TIN HƠN, không phải đúng hơn** |
+| **Code làm** | `ChatResult.sources` / `.unsourced`; trường `nguon` trong lược đồ trả lời; luật thứ 5 trong `_VAI_TRO` nêu thẳng ca hỏng này |
+| **Cưỡng chế thế nào** | Có chạy lệnh + có trả lời + không khai nguồn → bản in kèm dòng cảnh báo và liệt kê lệnh đã chạy. Không chặn câu trả lời — chặn thì mất cả những câu đúng — mà **bắt nó nói ra nó đang trả lời từ đâu**, để chính người đọc nhận ra nguồn không khớp câu hỏi |
+| **Kết quả sau khi sửa** | Chạy lại cùng câu hỏi: Agent tự tìm hai PDF, **đọc cả hai**, kết luận đúng rằng chúng không mô tả quy trình ấy, tóm tắt đúng thứ mỗi tệp thật sự chứa, và khai nguồn |
+| **Cần cập nhật** | EAA-AIS-05 §12: bổ sung luật nêu nguồn cho tầng hội thoại |
+
+## SL-96 · BỔ SUNG · Soi kỹ kho tài liệu, và cho Agent biết kho có tồn tại
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.1; FR-ING-01 |
+| **Chỗ trống 1** | Bản khảo sát tổng của `survey` phải cắt bớt để không nuốt ngân sách ngữ cảnh, và **cái bị cắt thì Agent không biết là có**. Đo được ở bài 1: Agent mô tả đúng phần nó thấy nhưng bỏ sót hai cảm biến Sharp và module BLE chỉ vì chúng nằm ngoài phần tóm tắt |
+| **Chỗ trống 2** | Kho đã giải nén nằm trên đĩa mà Agent **không biết là có**. Đo được ở bài 2 sau khi đã có `--read`: Agent vẫn hỏi lại người dùng đường dẫn, trong khi tệp cần đọc đã nằm sẵn ở `sources/` từ một lượt trước |
+| **Code làm** | `eaa survey --files <mẫu>`; `AgentLoop._tom_tat_kho_tai_lieu()` nêu kho trong lớp trạng thái |
+| **Chặn đường dẫn** | Tham số `--read` do mô hình điền, nên mọi đường dẫn phải nằm trong `<dự án>/sources/` sau khi giải hết liên kết mềm — một `../../..` trong đó là đường đọc bất cứ tệp nào trên máy |
+| **Chỉ đếm, không liệt kê hết** | Lớp trạng thái nêu số tệp, phân bố đuôi, và vài tên tài liệu. Một danh sách 308 mục sẽ nuốt hết lớp ấy; Agent thấy có kho thì tự gọi `survey --files` để soi tiếp |
+| **Cần cập nhật** | EAA-SDD-03 §6: cờ `eaa survey --files` |
+
+## SL-97 · LỆCH THẬT · Vòng hội thoại khai ngân sách ngữ cảnh RIÊNG
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §2, §3 (Hình 1); TC-16 |
+| **Vấn đề** | `LAYER_BUDGETS` chia 8.000 token theo Hình 1 của AIS §2, và cách chia ấy dành cho prompt **sinh mã**: chunk datasheet, hợp đồng giao diện, quy tắc lỗi, phần dự phòng cho vòng vá. Prompt **hội thoại** có hình dạng khác hẳn — phần lớn ngân sách của nó là DANH MỤC CÔNG CỤ, thứ không tồn tại trong prompt sinh mã. Vòng hội thoại đang mượn `role_constraints` của vòng sinh mã |
+| **Lộ ra thế nào** | Thêm luật nêu nguồn vào vai trò và thêm hai cờ vào mô tả `survey` làm cả hai lớp vượt phần của mình. Bộ kiểm ngân sách chặn trước khi gọi API — đúng việc của nó (TC-16) |
+| **Đã sửa** | `NGAN_SACH_VAI_TRO`, `NGAN_SACH_DANH_MUC`, `NGAN_SACH_QUAN_SAT` khai riêng trong `eaa/agent.py`. Trần **tổng** vẫn 8.000 và vẫn kiểm trước khi gọi |
+| **Vì sao không nới `LAYER_BUDGETS`** | Mượn của nhau thì mỗi lần thêm một công cụ lại phải nới một con số thuộc về bản thiết kế của việc khác — và đó là cách một bảng ngân sách có căn cứ biến dần thành một bảng số ai cũng sửa được |
+| **Cần cập nhật** | EAA-AIS-05 §2: nêu rõ Hình 1 đặc tả prompt sinh mã; tầng hội thoại có bảng riêng |
+
+
 ---
 
 ## Chưa lệch nhưng cần bổ sung tài liệu sau
