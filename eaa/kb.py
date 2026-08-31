@@ -457,6 +457,31 @@ class HardwareProfile:
         return dict(self.raw.get("pin_map") or {})
 
     @property
+    def conflicts(self) -> list[dict[str, Any]]:
+        """Xung đột phần cứng ĐÃ PHÁT HIỆN trong hồ sơ nhưng CHƯA phân xử.
+
+        Vì sao là một trường của hồ sơ chứ không phải một phát hiện lúc chạy:
+        khi tiếp nhận một bo có sẵn, xung đột thường nằm trong mã hoặc sơ đồ
+        của người khác — hai chân được khai cho hai việc. Máy không tự dời chân
+        được, và cũng không được im lặng bỏ qua. Nó ghi lại, và nhắc mỗi lần ai
+        đó định sinh mã.
+
+        Đo được ngày 31/08/2026 trên hồ sơ robot BLKLab: ``SoftwareSerial(9,
+        11)`` của module Bluetooth dùng chung chân với đường dữ liệu LED. Agent
+        tìm ra khi đọc mã, và nếu không có chỗ để ghi thì phát hiện ấy chỉ sống
+        được trong một lượt hội thoại.
+        """
+        return [
+            c for c in (self.raw.get("conflicts") or [])
+            if str(c.get("status", "")).strip() != "đã phân xử"
+        ]
+
+    def conflicts_on(self, pins: Iterable[str]) -> list[dict[str, Any]]:
+        """Xung đột chạm tới một trong những chân này."""
+        can = {str(p).upper() for p in pins}
+        return [c for c in self.conflicts if str(c.get("pin", "")).upper() in can]
+
+    @property
     def pin_functions(self) -> dict[str, list[str]]:
         """Bảng chức năng thay thế: tên chân → các chức năng chân ấy làm được.
 

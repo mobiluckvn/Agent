@@ -1,0 +1,139 @@
+# Hard Constraints Spec — EAA-SDD-03 §3.1, sản phẩm của công đoạn A1.
+#
+# Tệp này là "sợi chỉ đỏ" của toàn dự án: nội dung nó được bảng hóa (kỹ thuật
+# nén K1) và nạp vào 100% lần gọi LLM (FR-KB-01, TC-04). Đổi tệp này là đổi
+# mọi prompt về sau, nên nó có phiên bản riêng và phải duyệt lại tại G1
+# (AIS §8.1).
+#
+# Ràng buộc do KỸ SƯ chốt từ hệ quả vật lý, không phải do máy đề xuất: chỉ
+# người mới biết trượt bước và trễ pha dẫn tới robot ngã (Ma trận, A1).
+#
+# BO NÀY: robot cân bằng BLKLab, Arduino Nano. Hai điểm khác dự án mẫu và cả
+# hai đều siết chặt hơn:
+#
+#   * Nguồn là 78M05 — LDO tuyến tính, không phải buck. Sụt áp khi động cơ
+#     tăng tốc là rủi ro thật, nên ngưỡng brown-out đáng theo dõi sát hơn.
+#   * D0/D1 bị module MP3 chiếm, nên kênh telemetry qua UART phần cứng KHÔNG
+#     dùng được khi module ấy còn cắm. Tài liệu gốc dặn tháo trước khi nạp.
+
+version: 1
+changelog:
+  - version: 1
+    date: 2026-08-31
+    author: Vũ Trí Công
+    note: >
+      Phát hành lần đầu cho bo BLKLab. Ràng buộc dựng từ hồ sơ gốc người dùng
+      cung cấp, đối chiếu với mã nguồn và sơ đồ nguyên lý trong kho.
+
+platform: avr          # tên Platform Pack — packs/avr/
+mcu: atmega328p
+clock_hz: 16000000
+
+limits:
+  control_loop_ms: 10       # chu kỳ điều khiển tối đa
+  motor_response_us: 50     # đáp ứng động cơ
+  flash_pct_max: 50         # ngưỡng đề cương (STP-04 §5)
+  sram_pct_max: 40
+  max_module_lines: 300     # cưỡng chế tại cổng phân tích tĩnh, không dựa vào trần token
+  # Đuôi `_min` không phải chuyện hình thức: cổng đo kích thước THI HÀNH ngưỡng
+  # theo quy ước `<tên>_max` / `<tên>_min`, nên một khóa viết trần trụi
+  # `stack_headroom_bytes` là một ngưỡng có khai mà không ai áp. Nó nằm ở tệp
+  # này từ Sprint 0 và im lặng suốt bốn sprint (N-071).
+  #
+  # Số liệu `stack_headroom_bytes` không do công cụ nào in ra — nó được SUY RA
+  # ở khối `budget.derived` bên dưới, và chỉ có nghĩa ở tầm firmware.
+  stack_headroom_bytes_min: 128
+
+# Ngân sách tài nguyên chia theo module — N-015, duyệt tại G1.
+#
+# Trần TỔNG ở `limits` trả lời câu "còn chỗ không?"; khối này trả lời câu khác
+# và trả lời sớm hơn: "module này có ở trong phần của nó không?". Không có nó,
+# mỗi module lẻ đều dưới 50% và người ta chỉ biết mình hết chỗ vào lúc liên
+# kết — lúc muộn nhất, khi cắt bớt đã thành viết lại.
+budget:
+  # Dung lượng chip, lấy từ hardware_profile.yaml (mcu.flash_bytes/sram_bytes).
+  # Khai lại ở đây vì đây là nơi nó được dùng làm MẪU SỐ để chia.
+  capacity:
+    flash_bytes: 32768
+    sram_bytes: 2048
+
+  # Phần cố ý không chia cho ai: bản vá về sau, mã khởi động, và những thứ chưa
+  # ai nghĩ tới. Tiêu vào dự phòng là một quyết định, không phải một tai nạn.
+  reserve_pct: 20
+
+  # Số liệu engine tự tính: dung lượng trừ phần đã dùng. Đây là thứ biến
+  # `stack_headroom_bytes_min` ở trên từ một dòng chữ thành một cổng thật.
+  derived:
+    stack_headroom_bytes:
+      capacity: sram_bytes
+      used: sram_bytes
+
+  # Phần chia cho từng module. Còn trống vì backlog còn trống — bản chia là
+  # ĐỀ XUẤT của Agent (`eaa budget propose`) rồi người chốt tại G1, chứ không
+  # phải một con số viết sẵn trong tệp mẫu.
+  modules: {}
+
+  # Trần token tích lũy theo module (N-904). Đơn giá thuộc về dự án: nó phụ
+  # thuộc mô hình đang dùng và hợp đồng, hai thứ engine không được ghim.
+  tokens:
+    per_module: 120000
+    warn_at_pct: 80
+    price_in_per_mtok: 1.25
+    price_out_per_mtok: 10.0
+    currency: USD
+
+forbidden:
+  - delay()          # cấm hàm chặn (blocking)
+  - malloc/new       # cấm cấp phát động
+  - recursion        # cấm đệ quy
+  - float_in_isr     # cấm số thực trong ngắt
+  # Bổ sung ở Sprint 4 sau khi chạy mô hình thật: bản sinh đầu tiên của driver
+  # bus có ba vòng `while (!(REG & bit)) {}` không lối thoát. Mã ấy qua sạch cả
+  # bốn cổng vì cổng static chỉ chặn được thứ nó ĐƯỢC BẢO là cấm — pack vốn có
+  # luật phát hiện, nhưng dự án chưa liệt kê nên luật không được áp.
+  - blocking_io      # cấm vòng chờ cờ không có điều kiện quá hạn
+
+style:
+  arithmetic: integer   # số học số nguyên ở vòng điều khiển
+  io: direct_port       # thay cho digitalWrite()
+  naming: snake_case
+  isr_policy: >-
+    Chỉ đọc/ghi biến volatile đã khai báo; mọi xử lý dài đẩy sang vòng lặp
+    chính. Truy cập biến nhiều byte dùng khối nguyên tử.
+
+# Tiêu chí nghiệm thu vật lý tại G4 (đề cương mục 3.3.1).
+acceptance:
+  tilt_tolerance_deg: 1.0
+  scenarios:
+    - khởi động tĩnh
+    - kháng nhiễu
+    - hoạt động dài hạn 10–20 phút
+
+  # Số đo lấy từ telemetry khi nghiệm thu tại G4 — TIÊU CHÍ CÓ TRƯỚC, không suy
+  # ra từ dữ liệu đo được. Nghiệm thu là đối chiếu hành vi thật với ngưỡng đã
+  # chốt từ công đoạn A1; nếu ngưỡng được viết sau khi nhìn số thì phép đối
+  # chiếu ấy không còn nghĩa gì.
+  #
+  # Thiếu một mục trong telemetry là LỖI chứ không phải "bỏ qua mục ấy": một
+  # bản ghi nghiệm thu có 2 trong 4 số đo trông y hệt một bản có đủ 4.
+  measurements:
+    - name: max_tilt_deg
+      key: max_tilt_deg
+      unit: "°"
+      max: 1.0            # trùng tilt_tolerance_deg ở trên
+      note: Góc nghiêng lớn nhất quan sát được trong phiên đo
+    - name: settling_time_s
+      key: settling_time_s
+      unit: s
+      max: 2.0
+      note: Thời gian ổn định sau nhiễu
+    - name: loop_period_ms
+      key: loop_period_ms
+      unit: ms
+      max: 10             # trùng limits.control_loop_ms
+      note: Chu kỳ vòng điều khiển đo được trên thiết bị
+    - name: uptime_s
+      key: uptime_s
+      unit: s
+      min: 600            # kịch bản "hoạt động dài hạn 10–20 phút"
+      note: Thời gian chạy liên tục không reset

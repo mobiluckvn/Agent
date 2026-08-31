@@ -1375,6 +1375,48 @@ Ba loại:
 | **Cần cập nhật** | EAA-AIS-05 §2: nêu rõ Hình 1 đặc tả prompt sinh mã; tầng hội thoại có bảng riêng |
 
 
+## SL-98 · BỔ SUNG · Xung đột phần cứng ghi được vào hồ sơ, và hiện ở mọi bản trạng thái
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §2 (Hardware Profile); FR-KG-02 |
+| **Chỗ trống** | `graph.check_module()` bắt được xung đột giữa hai MODULE trong backlog. Nó không có chỗ nào để ghi một xung đột **đã có sẵn trong bo của người dùng** — hai linh kiện được khai cho cùng một chân trong mã hoặc sơ đồ của người khác |
+| **Đo được** | Hồ sơ robot BLKLab: `SoftwareSerial mySerial(9, 11)` khai D11 làm TX cho Bluetooth, `const int ledPin = 11` khai đúng chân ấy làm đường dữ liệu LED. Agent tìm ra khi đọc mã — và nếu không có chỗ để ghi thì phát hiện ấy chỉ sống được trong một lượt hội thoại |
+| **Code làm** | `HardwareProfile.conflicts` / `.conflicts_on()`; `_in_xung_dot_phan_cung()` in ở `eaa init` và mọi bản tóm tắt trạng thái |
+| **Máy KHÔNG tự dời chân** | Đây là bo của người dùng. Có thể mạch đã đi dây theo một cách mã chưa phản ánh, hoặc TX ấy thật sự không bao giờ được dùng. Máy ghi lại và nhắc; chọn dời cái nào là quyết định về phần cứng |
+| **In ở MỌI chỗ, không một chỗ** | Một xung đột đã biết mà chỉ hiện ở một lệnh ít ai gõ thì cũng như không ghi — nó phải đập vào mắt đúng lúc người ta sắp sinh mã |
+| **Cần cập nhật** | EAA-SDD-03 §2: `hardware_profile.yaml` có thêm khối `conflicts` |
+
+## SL-99 · BỔ SUNG · Mã module phải hẹp, vì nó đi vào tên nhánh Git
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §4; NFR-07 |
+| **Đo được** | `eaa plan add "drv_x --uses twi"` tạo ra một module có mã là **cả chuỗi ấy** — và cái tên đó im lặng đi tiếp cho tới lúc dựng nhánh Git. Lộ ra vì một biến shell không được tách từ (zsh không tách biến không trích dẫn như bash) |
+| **Đã sửa** | `_plan_add` đòi `[a-z][a-z0-9_]{1,39}`, kèm gợi ý đúng cú pháp truyền cờ |
+| **Vì sao đáng chặn ở đây** | Mã module đi vào tên nhánh, tên tệp sinh ra, khóa trong Project State và cột `module` của `kpi_log.csv`. Chặn muộn hơn nghĩa là dọn ở bốn chỗ |
+
+## SL-100 · LỆCH THẬT · Lớp quan sát bỏ đầu ra thì phải NÊU TÊN lệnh đã chạy
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §2, §3; SL-97 |
+| **Lỗi do chính bản sửa trước gây ra** | SL-97 cho lớp quan sát tự cắt cho vừa ngân sách. Nhưng nó chỉ nói "đã bỏ N quan sát" — **không nói bỏ những lệnh nào**. Hệ quả đo được ngay: Agent mất trí nhớ về tệp mình vừa đọc, đọc lại đúng tệp ấy, đầu ra mới lại đẩy quan sát cũ ra ngoài, và nó **quay vòng cho tới khi chạm trần 8 bước** — bốn lượt gọi mô hình bị đốt cho ba tệp |
+| **Đã sửa** | Ghi chú nêu ĐÍCH DANH dòng `$ eaa …` của từng lệnh bị bỏ, kèm câu "BẠN ĐÃ CHẠY chúng rồi — đừng chạy lại". Một dòng tên lệnh rẻ hơn hẳn một lượt gọi mô hình |
+| **Chỗ chừa tính theo trường hợp XẤU NHẤT** | Mọi quan sát đều bị bỏ và mọi tên lệnh đều phải in. Chừa theo trung bình thì đúng phần ghi chú lại đẩy lớp vượt trần — mà ghi chú ấy sinh ra để cứu lượt chạy |
+| **Dòng lệnh bị cắt 120 ký tự** | Bắt buộc chứ không phải cho gọn: chỗ chừa tính từ những dòng này, nên một dòng bất thường dài sẽ nuốt hết ngân sách của chính phần nội dung nó bảo vệ |
+| **Bài học** | Một bản sửa đúng về ngân sách có thể sai về **trí nhớ trong lượt**. Cắt là bỏ thông tin, và bỏ thông tin im lặng thì bên nhận không biết mình đang thiếu gì |
+
+## SL-101 · LỆCH THẬT · Nhánh `de_nghi_nguoi_chay` cũng phải khai nguồn
+
+| | |
+|---|---|
+| **Tài liệu** | SL-95 |
+| **Lỗi** | SL-95 chỉ đọc trường `nguon` ở nhánh `tra_loi`. Nhưng `de_nghi_nguoi_chay` **cũng sinh ra một câu trả lời**, và câu ấy cũng dựa trên đầu ra lệnh — nên cảnh báo "không khai nguồn" bắn vào một trường hợp mà mô hình **không có cách tuân thủ** |
+| **Vì sao nghiêm trọng hơn vẻ ngoài** | Một cảnh báo không thể thỏa mãn dạy người ta bỏ qua cảnh báo. Sau vài lần, dòng cảnh báo ấy thành nhiễu — và lúc nó bắn ĐÚNG thì không ai đọc nữa |
+| **Đã sửa** | Đọc `nguon` ở cả hai nhánh; lược đồ trả lời nói rõ điều đó |
+
+
 ---
 
 ## Chưa lệch nhưng cần bổ sung tài liệu sau

@@ -205,6 +205,15 @@ def _in_tom_tat(state: ProjectState, project: Path) -> int:
         print(f"Môi trường    : {state.env_hash}")
     print(f"Cập nhật lúc  : {state.updated_at}")
 
+    # Xung đột phần cứng chưa phân xử phải hiện ở MỌI bản tóm tắt trạng thái.
+    # Ghi nó vào hồ sơ mà chỉ in ở một lệnh ít ai gõ thì cũng như không ghi.
+    try:
+        _in_xung_dot_phan_cung(
+            _nap_kho(HardwareProfile.load, project / HARDWARE_PROFILE_FILE)
+        )
+    except Exception:  # noqa: BLE001 - hồ sơ hỏng không được chặn bản tóm tắt
+        pass
+
     _in_tieu_de("Human Gate")
     for gate in GATE_ORDER:
         print("  " + _nhan_gate(state, gate))
@@ -334,11 +343,35 @@ def cmd_init(args: argparse.Namespace) -> int:
           f"{len(ho_so.components)} linh kiện, "
           f"{len(ho_so.pin_map)} chân")
     print(f"  Mô hình       : {state.llm['provider']}/{state.llm['model'] or '(mặc định của adapter)'}")
+    _in_xung_dot_phan_cung(ho_so)
     print(
         f"\nDự án bắt đầu ở pha A ({PHASE_NAMES['A']}), toàn bộ gate ở trạng thái "
         "pending.\nBước kế tiếp: chốt ràng buộc & kiến trúc rồi duyệt G1."
     )
     return EXIT_OK
+
+
+def _in_xung_dot_phan_cung(ho_so: Any) -> None:
+    """In những xung đột phần cứng đã ghi mà chưa ai phân xử.
+
+    In ở MỌI chỗ hiển thị trạng thái, không chỉ một chỗ. Một xung đột chân đã
+    biết mà chỉ hiện ở một lệnh ít ai gõ thì cũng như không ghi: nó phải đập
+    vào mắt đúng lúc người ta sắp sinh mã chạm tới chân ấy.
+    """
+    xung_dot = getattr(ho_so, "conflicts", None) or []
+    if not xung_dot:
+        return
+    print()
+    print(f"  ⚠ {len(xung_dot)} XUNG ĐỘT PHẦN CỨNG đã ghi, CHƯA phân xử:")
+    for c in xung_dot:
+        ai = ", ".join(str(x) for x in (c.get("claimed_by") or []))
+        print(f"      chân {c.get('pin', '?')} — {ai}")
+        if c.get("found_in"):
+            print(f"        thấy ở: {c['found_in']}")
+        if c.get("detail"):
+            print(f"        {' '.join(str(c['detail']).split())}")
+    print("      Máy KHÔNG tự dời chân: đây là bo của bạn, và chọn dời cái nào")
+    print("      là quyết định về phần cứng. Sửa xong thì đặt status: đã phân xử.")
 
 
 def cmd_resume(args: argparse.Namespace) -> int:
@@ -645,6 +678,21 @@ def _plan_add(project: Path, store: StateStore, args: argparse.Namespace) -> int
     đột — kỹ sư phân xử trước.
     """
     from eaa.graph import KnowledgeGraph
+
+    # Mã module đi thẳng vào TÊN NHÁNH GIT và TÊN TỆP sinh ra, nên nó phải hẹp.
+    #
+    # Không có phép kiểm này, một lệnh gõ nhầm — hay một biến shell không được
+    # tách từ đúng cách — tạo ra một module tên `"drv_x --uses twi"`, và cái
+    # tên ấy im lặng đi tiếp cho tới lúc dựng nhánh. Đo được ngày 31/08/2026.
+    import re
+
+    if not re.fullmatch(r"[a-z][a-z0-9_]{1,39}", args.module_id or ""):
+        raise CliError(
+            f"Mã module {args.module_id!r} không hợp lệ. Phải là snake_case, "
+            "2–40 ký tự, chỉ chữ thường / số / gạch dưới — mã module đi vào tên "
+            "nhánh Git và tên tệp sinh ra.\n"
+            "    Nếu bạn định truyền thêm cờ: eaa plan add <mã> --uses a,b"
+        )
 
     uses = [u.strip() for u in (args.uses or "").split(",") if u.strip()]
     depends = [d.strip() for d in (args.depends_on or "").split(",") if d.strip()]

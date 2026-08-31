@@ -1,0 +1,135 @@
+# Hardware Profile — robot cân bằng BLKLab
+#
+# NGUỒN CỦA TỆP NÀY: rút từ hồ sơ gốc do người dùng cung cấp
+# (`data/BLKLab_BalancingRobot.zip`), qua `eaa survey --read` trên mã nguồn và
+# trên sơ đồ nguyên lý `BLKLab_Balancing_Robot_Nguyen_Ly.pdf`.
+#
+# Mỗi số chân dưới đây đã được ĐỐI CHIẾU với dòng khai báo trong mã nguồn —
+# xem cột "nguồn". Không con số nào ở đây do suy đoán.
+#
+# Khác `projects/robot_balance` (dự án mẫu dựng để kiểm chứng quy trình): đây
+# là một bo THẬT, và nó mang theo một xung đột chân thật — xem `conflicts`.
+
+version: 1
+project: blklab_robot
+description: >
+  Robot 2 bánh tự cân bằng BLKLab. Arduino Nano (ATmega328P), 2 động cơ bước
+  Nema17 qua driver A4988, IMU MPU6050 trên I2C, Bluetooth HC-05, module âm
+  thanh JQ6500, 4 LED WS2812, còi, nút nhấn. Nguồn 2 cell Li-ion 18650 qua
+  78M05.
+
+mcu:
+  part: atmega328p        # trên bo Arduino Nano
+  clock_hz: 16000000
+  flash_bytes: 32768
+  sram_bytes: 2048
+  eeprom_bytes: 1024
+
+peripherals:
+  - id: timer1
+    kind: timer
+    width_bits: 16
+    configured_by: [TCCR1A, TCCR1B, OCR1A, TIMSK1]
+    note: >
+      Ngắt chu kỳ cho vòng điều khiển cân bằng. Mã gốc BLKLab dùng Timer2
+      (OCR2A/TCCR2A/TIMSK2) cho việc này; chọn Timer1 vì nó 16 bit nên chia
+      được chu kỳ chính xác hơn, và vì tài liệu đã duyệt (ds-012) nói về nó.
+  - id: twi
+    kind: i2c
+    configured_by: [TWBR, TWCR, TWSR, TWDR]
+    clock_hz: 400000
+    shareable: true
+    note: MPU6050 nằm trên bus này. Mã gốc đặt TWBR trực tiếp.
+  - id: usart0
+    kind: uart
+    configured_by: [UBRR0H, UBRR0L, UCSR0A, UCSR0B, UCSR0C]
+    baud: 9600
+    note: >
+      D0/D1. Mã gốc dùng chân này cho module MP3 JQ6500, nên NÓ TRÙNG với cổng
+      nạp — tài liệu gốc dặn tháo module trước khi nạp firmware.
+
+components:
+  - id: imu
+    part: mpu6050
+    bus: twi
+    address: 0x68
+    provides: [accel_xyz, gyro_xyz, temperature]
+    whoami_register: 0x75
+    whoami_expected: 0x68
+    configured_by: [WHO_AM_I, PWR_MGMT_1, SMPLRT_DIV, CONFIG]
+    source: "V1_Balancing_Robot_HC05_JQ6500.ino — #include <Wire.h>, SimpleKalmanFilter"
+  - id: motor_driver_left
+    part: a4988
+    microstep: 16
+    pins: {step: PD5, dir: PD4}
+    source: "V1_..._JQ6500.ino dòng 121, 123 — #define STEP1 5, #define DIR1 4"
+  - id: motor_driver_right
+    part: a4988
+    microstep: 16
+    pins: {step: PD7, dir: PD6}
+    source: "V1_..._JQ6500.ino dòng 120, 122 — #define STEP2 7, #define DIR2 6"
+  - id: bluetooth
+    part: hc-05
+    pins: {rx: PB1, tx: PB3}
+    source: "V1_..._JQ6500.ino dòng 68 — SoftwareSerial mySerial(9, 11)"
+  - id: rgb_leds
+    part: ws2812
+    count: 4
+    pins: {data: PB3}
+    source: "V1_..._JQ6500.ino dòng 70-71 — const int ledPin = 11; numLeds = 4"
+  - id: button_set
+    part: tactile_switch
+    pins: {input: PB4}
+    pull: up
+    source: "V1_..._JQ6500.ino dòng 58 — #define BUTTON_SET_PIN 12"
+  - id: distance_sensor
+    part: srf04
+    pins: {trig: PD3, echo: PD2}
+    populated: false
+    source: >
+      Sơ đồ nguyên lý có header chờ; V2 dùng nó. V1 không lắp.
+      #define SRF04_TRIG 3, #define SRF04_ECHO 2
+
+# Xung đột ĐÃ PHÁT HIỆN trong hồ sơ gốc, chưa phân xử.
+#
+# Ghi vào hồ sơ chứ không im lặng sửa: đây là bo của người dùng, và việc chọn
+# dời chân nào là quyết định của họ — có thể mạch đã đi dây theo một cách mà
+# mã chưa phản ánh, hoặc TX của HC-05 thật sự không bao giờ được dùng.
+conflicts:
+  - pin: PB3            # D11
+    claimed_by: [bluetooth.tx, rgb_leds.data]
+    found_in: "V1_Balancing_Robot_HC05_JQ6500.ino dòng 68 và 70"
+    detail: >
+      SoftwareSerial mySerial(9, 11) khai D11 làm TX cho HC-05, trong khi
+      const int ledPin = 11 khai đúng chân ấy làm đường dữ liệu WS2812.
+    status: chưa phân xử
+    note: >
+      Có thể vô hại nếu firmware không bao giờ ghi ra TX của HC-05 (robot chỉ
+      NHẬN lệnh, không gửi lại). Nhưng thư viện SoftwareSerial vẫn đặt chân ấy
+      thành OUTPUT lúc begin(), nên nó tranh chấp với tín hiệu WS2812 định
+      thời rất chặt. Phải đo trên bo thật trước khi kết luận.
+
+pin_functions:
+  PB0: [gpio, icp1, clko]
+  PB1: [gpio, oc1a]
+  PB2: [gpio, oc1b, ss]
+  PB3: [gpio, mosi, oc2a]
+  PB4: [gpio, miso]
+  PB5: [gpio, sck]
+  PC4: [gpio, sda, adc4]
+  PC5: [gpio, scl, adc5]
+  PD0: [gpio, rxd]
+  PD1: [gpio, txd]
+  PD2: [gpio, int0]
+  PD3: [gpio, int1, oc2b]
+  PD4: [gpio, t0]
+  PD5: [gpio, oc0b, t1]
+  PD6: [gpio, oc0a, ain0]
+  PD7: [gpio, ain1]
+
+power:
+  logic_rail: {voltage: 5.0, source: 78M05 từ pack pin}
+  motor_rail: {voltage: 7.4, source: 2 cell Li-ion 18650 nối tiếp}
+  note: >
+    78M05 là LDO tuyến tính — sụt áp khi động cơ tăng tốc là rủi ro thật ở đây
+    hơn hẳn ở một mạch dùng buck. Kịch bản chẩn đoán DS-05 kiểm đúng điều này.

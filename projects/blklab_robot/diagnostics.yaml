@@ -1,0 +1,288 @@
+# Thư viện kịch bản chẩn đoán — dự án robot_balance, pack AVR.
+#
+# Khung kịch bản là TỔNG QUÁT và nằm trong engine (eaa/diagnostics.py); bộ
+# DS-01..06 dưới đây là DỮ LIỆU của dự án này. Dự án khác hay pack khác khai
+# báo bộ kịch bản riêng theo ngoại vi của nó (AIS §7.2).
+#
+# Mỗi kịch bản khai báo hai kênh:
+#   machine — máy đọc được, phân tích tự động từ telemetry JSON qua UART
+#   human   — chỉ người quan sát được, Agent hỏi từng mục
+#
+# Kịch bản nào làm thiết bị CHUYỂN ĐỘNG bắt buộc có safety_checklist. Engine
+# từ chối nạp một kịch bản có motion mà thiếu checklist.
+
+# Cách firmware chẩn đoán đóng gói telemetry gửi về qua UART.
+#
+# Engine chỉ biết một quy ước: mỗi khung là một dòng, phần tải là JSON. Còn
+# checksum gắn kiểu gì và tốc độ truyền bao nhiêu thì thuộc về hợp đồng giữa
+# firmware và dự án này, nên nó nằm ở đây.
+#
+# Ví dụ một khung:  {"i2c_devices": ["0x68"]}*4C
+telemetry:
+  baud: 115200
+  checksum: xor8         # none | xor8 | sum8
+  separator: "*"
+  # Mở cổng nối tiếp làm nhiều bo tự khởi động lại, nên bỏ qua rác đầu phiên.
+  settle_ms: 200
+  # Quá tỉ lệ này thì cả phiên đo bị coi là không tin được: sai tốc độ truyền
+  # hay nhiễu đường dây vẫn cho ra vài con số trông hợp lý, và đó là chỗ nguy
+  # hiểm chứ không phải chỗ an toàn.
+  max_bad_ratio: 0.2
+
+scenarios:
+
+  - id: DS-01
+    title: Quét bus I2C
+    description: >-
+      Liệt kê các địa chỉ trả lời trên bus. Kịch bản rẻ nhất và nên chạy đầu
+      tiên: nếu cảm biến không trả lời ở đây thì mọi kết luận về dữ liệu của
+      nó đều vô nghĩa.
+    motion: false
+    symptoms: [không phản ứng, không đọc được cảm biến, treo, i2c]
+    # Phần ĐO của kịch bản này. Bộ khung (bật UART, đóng gói khung) do Platform
+    # Pack cấp; tệp dưới đây biết bus nào, địa chỉ nào — thứ engine không được
+    # biết. Hai tệp được LIÊN KẾT với nhau khi chạy 'eaa diagnose build DS-01'.
+    firmware_template: diagnostics/DS-01.c
+    machine:
+      - key: i2c_addresses
+        description: Địa chỉ MPU6050 trả lời trên bus
+        op: contains
+        expected: "0x68"
+    # Không có mục human — tự động hoàn toàn (AIS §7.2).
+
+  - id: DS-02
+    title: Kiểm cảm biến MPU6050
+    description: >-
+      Đọc mã nhận dạng và 100 mẫu gia tốc/con quay, kiểm dải hợp lệ và nhiễu
+      nền. Kênh người dùng để đối chiếu DẤU và TRỤC — thứ mà dữ liệu một mình
+      không nói được: số liệu "đẹp" vẫn có thể gắn nhầm trục.
+    motion: false
+    symptoms: [không phản ứng khi nghiêng, góc sai, trôi góc, cảm biến]
+    firmware_template: diagnostics/DS-02.c
+    machine:
+      - key: who_am_i
+        description: Mã nhận dạng thiết bị
+        op: equals
+        expected: "0x68"
+      - key: accel_noise_mg
+        description: Nhiễu nền gia tốc kế
+        op: max
+        high: 30
+      - key: gyro_noise_dps
+        description: Nhiễu nền con quay hồi chuyển
+        op: max
+        high: 2.0
+      - key: samples
+        description: Số mẫu thu được
+        op: min
+        low: 100
+    human:
+      - key: nghieng_trai_gia_tri_am
+        question: >-
+          Nghiêng robot sang TRÁI. Giá trị góc hiển thị có chuyển sang ÂM không?
+      - key: truc_dung_chieu
+        question: Trục dữ liệu có khớp trục vật lý (nghiêng trước/sau, không phải trái/phải)?
+
+  - id: DS-03
+    title: Kiểm động cơ bước (từng động cơ)
+    description: >-
+      Phát một số xung bước xác định và đo tần số tại chân xung. Đây là kịch
+      bản mà phép giao hai kênh có giá trị nhất: máy chỉ biết nó ĐÃ PHÁT xung,
+      không biết trục có QUAY hay không.
+    motion: true
+    safety_checklist:
+      - Robot đã được kê lên giá, bánh KHÔNG chạm đất
+      - Không có vật cản hay tay người trong vùng bánh quay
+      - Nguồn động lực đã cấp đúng điện áp và dòng giới hạn đã chỉnh
+    symptoms: [động cơ không quay, trục không quay, quay ngược, giật, trượt bước]
+    firmware_template: diagnostics/DS-03.c
+    machine:
+      - key: pulses_emitted
+        description: Số xung bước đã phát
+        op: min
+        low: 200
+      - key: pulse_freq_hz
+        description: Tần số xung đo tại chân OC1A
+        op: in_range
+        low: 900
+        high: 1100
+    human:
+      - key: truc_quay
+        question: Trục động cơ có QUAY thật không?
+      - key: dung_chieu
+        question: Có quay đúng chiều mong đợi không?
+      - key: du_mot_vong
+        question: Có quay đủ một vòng không (không trượt bước, không kêu lạ)?
+
+  - id: DS-04
+    title: UART / telemetry
+    description: Vòng lặp lại và đo tốc độ khung thực tế.
+    motion: false
+    symptoms: [không nhận được log, telemetry, uart, mất kết nối]
+    firmware_template: diagnostics/DS-04.c
+    machine:
+      - key: loopback_ok
+        description: Vòng lặp lại thành công
+        op: equals
+        expected: true
+      - key: frame_rate_hz
+        description: Tốc độ khung thực tế
+        op: min
+        low: 50
+
+  - id: DS-05
+    title: Kiểm nguồn dưới tải
+    description: >-
+      Đọc Vcc bằng ADC nội trong lúc động cơ chạy, phát hiện sụt áp. Kiểm đúng
+      rủi ro brown-out đã lường trước ở thiết kế phần cứng (công đoạn B2).
+    motion: true
+    safety_checklist:
+      - Robot đã được kê lên giá, bánh KHÔNG chạm đất
+      - Đồng hồ đo đã kẹp đúng điểm đo nguồn logic
+    symptoms: [reset ngẫu nhiên, tự khởi động lại, brown-out, sụt áp]
+    firmware_template: diagnostics/DS-05.c
+    machine:
+      - key: vcc_min_v
+        description: Điện áp logic thấp nhất khi động cơ chạy
+        op: min
+        low: 4.5
+      - key: resets
+        description: Số lần reset trong phiên đo
+        op: max
+        high: 0
+    human:
+      - key: led_nguon_on_dinh
+        question: Đèn báo nguồn có sáng ổn định, không chớp không?
+      - key: driver_khong_qua_nong
+        question: Driver động cơ có ở nhiệt độ chạm tay được không?
+    # Kênh thứ ba — người cầm dụng cụ (N-084).
+    #
+    # Ba đại lượng dưới đây không con chip nào tự đo được về chính nó: dòng
+    # tổng chạy qua dây nguồn, sụt áp TRÊN DÂY (khác với điện áp tại chân
+    # chip), và nhiệt độ vỏ linh kiện. Bỏ trống chúng thì "kiểm nguồn dưới
+    # tải" chỉ kiểm được nửa mình đo được, và nửa ấy lại là nửa ít nói nhất.
+    #
+    # Mỗi mục trả lời đủ bốn câu: đo cái gì, ở đâu, trong điều kiện nào, chờ
+    # đợi bao nhiêu. Thiếu một câu thì hai người đo ra hai kết quả, không ai sai.
+    manual:
+      - key: dong_dong_luc_a
+        quantity: Dòng tiêu thụ của nhánh động lực khi cả hai động cơ tăng tốc
+        instrument: Ampe kìm một chiều, hoặc đồng hồ vạn năng mắc nối tiếp thang 10 A
+        where: Dây dương từ pin 3S tới cụm driver, trước điểm rẽ vào LDO
+        condition: Robot kê trên giá, chạy kịch bản DS-03 cho cả hai động cơ
+        unit: A
+        high: 2.5
+        note: >-
+          Vượt 2,5 A nghĩa là dòng giới hạn của driver đang đặt quá cao — kiểm
+          Vref trước khi kết luận về pin.
+      - key: sut_ap_tren_day_v
+        quantity: Chênh lệch điện áp giữa cực pin và chân cấp nguồn của driver
+        instrument: Đồng hồ vạn năng, thang một chiều 20 V, hai que đo hai điểm
+        where: Que đỏ ở cực dương pin, que đen ở chân VMOT của driver
+        condition: Đúng lúc động cơ đang tăng tốc, không phải lúc đứng yên
+        unit: V
+        high: 0.4
+        note: >-
+          Đây là phép đo mà ADC nội KHÔNG thay được: nó đo điện áp tại chân
+          chip, còn sụt áp nằm trên đoạn dây trước đó.
+      - key: nhiet_driver_c
+        quantity: Nhiệt độ vỏ driver động cơ sau khi chạy liên tục
+        instrument: Nhiệt kế hồng ngoại, hoặc cặp nhiệt dán lên vỏ
+        where: Mặt trên vỏ driver, giữa tản nhiệt
+        condition: Sau 5 phút chạy DS-03 lặp lại liên tục, không có quạt
+        unit: °C
+        high: 85
+        note: >-
+          Ngưỡng 85 °C là mức bắt đầu vào vùng bảo vệ nhiệt của phần lớn driver
+          bước; tra đúng tài liệu của linh kiện đang dùng trước khi tin con số này.
+
+  - id: DS-06
+    title: Kiểm timing ngắt
+    description: >-
+      Firmware tự đo chu kỳ ngắt Timer1 và độ trôi, so với ngưỡng ràng buộc
+      cứng 10 ms của dự án.
+    motion: false
+    symptoms: [chu kỳ sai, jitter, trễ, timing, điều khiển không ổn định]
+    firmware_template: diagnostics/DS-06.c
+    machine:
+      - key: isr_period_ms
+        description: Chu kỳ ngắt trung bình
+        op: in_range
+        low: 9.8
+        high: 10.2
+      # Trường hợp XẤU NHẤT, không phải trung bình (N-083).
+      #
+      # Trung bình gần như luôn đẹp. Một vòng 10 ms trung bình vẫn có thể có
+      # một chu kỳ 23 ms mỗi vài giây, và với con lắc ngược thì chính chu kỳ ấy
+      # quyết định robot đứng hay ngã. Ràng buộc control_loop_ms = 10 ms vì thế
+      # được đối chiếu với con số này.
+      - key: isr_period_max_ms
+        description: Chu kỳ DÀI NHẤT quan sát được
+        op: max
+        high: 10.5
+      - key: jitter_us
+        description: Dao động chu kỳ, biên độ lệch lớn nhất so với danh định
+        op: max
+        high: 250
+      - key: cpu_load_pct
+        description: Phần thời gian CPU bận trong một chu kỳ điều khiển
+        op: max
+        high: 70
+      - key: samples
+        description: Số chu kỳ đã quan sát
+        op: min
+        low: 200
+
+# Ma trận chẩn đoán — AIS §7.4, bài toán "động cơ không quay".
+#
+# Mỗi dòng là một tổ hợp (kênh máy × kênh người) đã biết cách diễn giải. Tổ hợp
+# chưa có trong bảng thì engine trả "chưa kết luận được" và đề nghị bổ sung một
+# dòng sau khi tìm ra nguyên nhân — phiên chẩn đoán cũng là phiên nạp tri thức.
+
+matrix:
+
+  - machine: Không phát được xung (đếm = 0)
+    human: Trục không quay
+    when_machine: {machine_pass: false}
+    when_human: {truc_quay: false}
+    verdict: code
+    action: >-
+      Lỗi MÃ hoặc cấu hình: bộ đếm chưa chạy hoặc hệ số chia sai. Mở vòng sửa
+      mã, đối chiếu với chunk tài liệu về bộ đếm.
+
+  - machine: Xung phát đủ, tần số đúng
+    human: Trục không quay
+    when_machine: {machine_pass: true}
+    when_human: {truc_quay: false}
+    verdict: điện
+    action: >-
+      Lỗi PHẦN ĐIỆN, không phải lỗi mã: dòng driver chưa chỉnh hoặc dây STEP/DIR
+      lỏng. Chỉnh Vref của driver theo hướng dẫn nhà sản xuất, kiểm lại dây theo
+      pin map trong hardware_profile.yaml. KHÔNG mở vòng sửa mã.
+
+  - machine: Xung phát đủ
+    human: Quay nhưng ngược chiều
+    when_machine: {machine_pass: true}
+    when_human: {truc_quay: true, dung_chieu: false}
+    verdict: nối dây
+    action: >-
+      Chân DIR bị đảo. Đảo logic DIR trong lớp trừu tượng phần cứng, hoặc đảo
+      cặp dây cuộn của động cơ. Chọn một và ghi vào hardware_profile.yaml.
+
+  - machine: Xung phát đủ
+    human: Quay giật, trượt bước, kêu lạ
+    when_machine: {machine_pass: true}
+    when_human: {truc_quay: true, dung_chieu: true, du_mot_vong: false}
+    verdict: cơ khí
+    action: >-
+      Cơ hoặc điện: thiếu dòng, tăng tốc quá gắt, hoặc kẹt cơ khí. Giảm tốc độ
+      thử lại; chỉnh dòng; người kiểm phần cơ.
+
+  - machine: Vcc sụt khi động cơ chạy
+    human: Reset ngẫu nhiên
+    when_machine: {machine_pass: false}
+    when_human: {led_nguon_on_dinh: false}
+    verdict: nguồn
+    action: >-
+      Brown-out — đúng rủi ro đã lường ở thiết kế phần cứng. Tách nguồn động
+      lực khỏi nguồn điều khiển theo hardware_profile.yaml.

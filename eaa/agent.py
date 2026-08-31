@@ -475,6 +475,17 @@ def _cat_vua(
     return cat
 
 
+def _dong_lenh_ngan(quan_sat: str) -> str:
+    """Dòng ``$ eaa …`` mở đầu một quan sát, cắt cho ngắn.
+
+    Cắt là bắt buộc chứ không phải cho gọn: chỗ chừa cho ghi chú được tính từ
+    những dòng này, nên một dòng bất thường dài sẽ nuốt hết ngân sách của
+    chính phần nội dung mà ghi chú sinh ra để bảo vệ.
+    """
+    dau = (quan_sat or "").splitlines()[0] if quan_sat else ""
+    return dau[:120]
+
+
 def _lop_quan_sat(
     quan_sat: Sequence[str],
     budget: int = 0,
@@ -511,10 +522,16 @@ def _lop_quan_sat(
     # Chừa chỗ cho ĐÚNG hai dòng ghi chú có thể thêm vào cuối, đo bằng chính
     # bộ ước lượng. Chừa một con số tròn đoán bằng mắt thì lệch — và ở đây
     # lệch một token cũng đủ làm cả lượt chạy hỏng trước khi gọi API.
+    # Chừa chỗ cho trường hợp XẤU NHẤT: mọi quan sát đều bị bỏ, và dòng tên
+    # lệnh của tất cả chúng đều phải in ra. Chừa theo trường hợp trung bình thì
+    # đúng phần ghi chú lại đẩy lớp vượt trần — mà ghi chú ấy sinh ra để cứu
+    # lượt chạy, không phải để làm hỏng nó.
     ghi_chu = (
         "\n…(cắt cho vừa ngân sách ngữ cảnh)"
-        "\n\n(đã bỏ 999 quan sát cũ hơn cho vừa ngân sách — nếu cần lại "
-        "thì chạy lại lệnh ấy)"
+        "\n\n(đã bỏ đầu ra của 999 lệnh cũ cho vừa ngân sách. BẠN ĐÃ CHẠY "
+        "chúng rồi — đừng chạy lại:\n"
+        + "\n".join(f"    {_dong_lenh_ngan(q)}" for q in quan_sat)
+        + "\nCần lại nội dung nào thì chạy lại đúng lệnh ấy.)"
     )
     con_lai = tran - dem(dau) - dem(ghi_chu)
 
@@ -537,9 +554,19 @@ def _lop_quan_sat(
     bo = len(quan_sat) - len(giu)
     than = dau + "\n\n".join(reversed(giu))
     if bo > 0:
+        # Nêu ĐÍCH DANH những lệnh đã chạy mà đầu ra bị bỏ.
+        #
+        # Chỉ nói "đã bỏ 3 quan sát" là chưa đủ, và thiếu sót ấy gây ra một lỗi
+        # đo được: Agent mất trí nhớ về việc mình vừa đọc tệp nào, đọc lại
+        # đúng tệp ấy, đầu ra lại đẩy quan sát cũ ra ngoài — và nó quay vòng
+        # cho tới khi chạm trần số bước. Một dòng tên lệnh rẻ hơn hẳn một lượt
+        # gọi mô hình bị đốt.
+        da_chay = [_dong_lenh_ngan(q) for q in quan_sat[:bo]]
         than += (
-            f"\n\n(đã bỏ {bo} quan sát cũ hơn cho vừa ngân sách — nếu cần lại "
-            "thì chạy lại lệnh ấy)"
+            f"\n\n(đã bỏ đầu ra của {bo} lệnh cũ cho vừa ngân sách. BẠN ĐÃ CHẠY "
+            "chúng rồi — đừng chạy lại:\n"
+            + "\n".join(f"    {d}" for d in da_chay)
+            + "\nCần lại nội dung nào thì chạy lại đúng lệnh ấy.)"
         )
     return than
 
@@ -804,7 +831,8 @@ Mỗi lượt bạn trả về ĐÚNG một khối JSON, không kèm chữ nào 
   bằng những lệnh mà câu trả lời dựa trên. Có chạy lệnh mà bỏ trống "nguon"
   thì câu trả lời bị in ra kèm một dòng cảnh báo cho người đọc.
 * ``hoi_lai`` — điền "noi_dung" bằng câu hỏi.
-* ``de_nghi_nguoi_chay`` — điền "lenh" và "noi_dung" giải thích vì sao cần nó.
+* ``de_nghi_nguoi_chay`` — điền "lenh" và "noi_dung" giải thích vì sao cần nó,
+  VÀ điền "nguon" như ``tra_loi``: nhánh này cũng đưa ra một câu trả lời.
 """
 
 
@@ -868,6 +896,16 @@ class AgentLoop:
             if buoc.action == "de_nghi_nguoi_chay":
                 ket.suggested.extend(_danh_sach_lenh(hanh_dong.get("lenh")))
                 ket.answer = str(hanh_dong.get("noi_dung", "")).strip()
+                # Đọc "nguon" ở ĐÂY nữa, không chỉ ở nhánh trả lời.
+                #
+                # Nhánh này cũng sinh ra một câu trả lời, và câu ấy cũng dựa
+                # trên đầu ra lệnh. Bỏ sót chỗ này thì cảnh báo "không khai
+                # nguồn" bắn vào một trường hợp mà mô hình KHÔNG CÓ CÁCH tuân
+                # thủ — và một cảnh báo không thể thỏa mãn dạy người ta bỏ qua
+                # cảnh báo.
+                ket.sources = tuple(
+                    str(x).strip() for x in _danh_sach_nguon(hanh_dong.get("nguon"))
+                )
                 ket.steps.append(buoc)
                 break
 

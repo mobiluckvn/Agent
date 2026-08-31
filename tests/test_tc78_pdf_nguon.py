@@ -338,9 +338,11 @@ def _van_ban(nhan: str, so_tu: int) -> str:
 def test_quan_sat_qua_dai_thi_bo_cai_CU_giu_cai_MOI():
     from eaa.agent import _lop_quan_sat
 
-    ra = _lop_quan_sat([_van_ban("CU", 3000), _van_ban("MOI", 10)], budget=400)
-    assert "MOI" in ra
-    assert "CU" not in ra
+    ra = _lop_quan_sat([_van_ban("CU", 3000), _van_ban("MOI", 10)], budget=900)
+    than, _, ghi_chu = ra.partition("(đã bỏ đầu ra của")
+    assert "MOI" in than
+    assert "CU" not in than, "đầu ra của quan sát cũ phải bị bỏ khỏi phần nội dung"
+    assert "CU" in ghi_chu, "nhưng TÊN lệnh phải còn, để Agent khỏi chạy lại"
 
 
 def test_bo_quan_sat_thi_NOI_RA_da_bo_bao_nhieu():
@@ -348,10 +350,10 @@ def test_bo_quan_sat_thi_NOI_RA_da_bo_bao_nhieu():
     from eaa.agent import _lop_quan_sat
 
     ra = _lop_quan_sat(
-        [_van_ban("x", 3000), _van_ban("y", 3000), _van_ban("z", 10)], budget=300
+        [_van_ban("x", 3000), _van_ban("y", 3000), _van_ban("z", 10)], budget=900
     )
-    assert "đã bỏ 2 quan sát cũ hơn" in ra
-    assert "chạy lại lệnh ấy" in ra
+    assert "đã bỏ đầu ra của 2 lệnh cũ" in ra
+    assert "đừng chạy lại" in ra
 
 
 def test_quan_sat_moi_nhat_KHONG_BAO_GIO_bi_bo():
@@ -371,3 +373,164 @@ def test_lop_quan_sat_luon_vua_ngan_sach():
     for so_tu in (10, 1_000, 20_000, 100_000):
         ra = _lop_quan_sat([f"$ eaa x\n{_van_ban('kk', so_tu)}"] * 5)
         assert estimate_tokens(ra) <= NGAN_SACH_QUAN_SAT, so_tu
+
+
+def test_bo_quan_sat_thi_NEU_DICH_DANH_lenh_da_chay():
+    """Chỉ nói 'đã bỏ 3 quan sát' là chưa đủ — và thiếu sót ấy gây ra một vòng lặp.
+
+    Đo được: Agent mất trí nhớ về tệp mình vừa đọc, đọc lại đúng tệp ấy, đầu ra
+    lại đẩy quan sát cũ ra ngoài, và nó quay vòng tới khi chạm trần số bước.
+    """
+    from eaa.agent import _lop_quan_sat
+
+    qs = [
+        f"$ eaa survey --read tep_{i}.pdf\n(mã thoát 0)\n" + _van_ban("noi dung", 2000)
+        for i in range(3)
+    ]
+    qs.append("$ eaa status\n(mã thoát 0)\nngan")
+    ra = _lop_quan_sat(qs, budget=400)
+
+    assert "BẠN ĐÃ CHẠY" in ra and "đừng chạy lại" in ra
+    for i in range(3):
+        assert f"survey --read tep_{i}.pdf" in ra, i
+
+
+def test_ghi_chu_khong_lam_lop_vuot_tran():
+    """Ghi chú sinh ra để cứu lượt chạy, không phải để làm hỏng nó."""
+    from eaa.agent import NGAN_SACH_QUAN_SAT, _lop_quan_sat
+    from eaa.llm.base import estimate_tokens
+
+    for so_lenh in (2, 10, 40):
+        qs = [
+            f"$ eaa survey --read mot_duong_dan_kha_dai_{i}.pdf\n(mã thoát 0)\n"
+            + _van_ban("chu", 5000)
+            for i in range(so_lenh)
+        ]
+        assert estimate_tokens(_lop_quan_sat(qs)) <= NGAN_SACH_QUAN_SAT, so_lenh
+
+
+def test_de_nghi_nguoi_chay_cung_doi_nguon():
+    """Nhánh này cũng sinh ra một câu trả lời dựa trên đầu ra lệnh."""
+    kq = _ket_qua(answer="cần thêm bốn module", lenh=["survey --files *.ino"])
+    kq.suggested.append("plan add drv_imu")
+    assert kq.unsourced is True
+
+
+def test_de_nghi_nguoi_chay_khai_nguon_thi_khong_canh_bao():
+    """Cảnh báo không thể thỏa mãn dạy người ta bỏ qua cảnh báo."""
+    kq = _ket_qua(answer="cần thêm bốn module", lenh=["survey --files *.ino"],
+                  sources=("survey --files *.ino",))
+    kq.suggested.append("plan add drv_imu")
+    assert kq.unsourced is False
+    assert "Trả lời này dựa trên:" in kq.render()
+
+
+def test_ca_hai_nhanh_tra_loi_deu_doc_truong_nguon():
+    import inspect
+
+    from eaa import agent
+
+    src = inspect.getsource(agent.AgentLoop.ask)
+    assert src.count("_danh_sach_nguon(") == 2, "cả tra_loi lẫn de_nghi_nguoi_chay"
+
+
+# ═══════ xung đột phần cứng ghi trong hồ sơ, và mã module hợp lệ ═══════
+
+
+def _ho_so(tmp_path, them: str = "") -> "object":
+    from eaa.kb import HardwareProfile
+
+    p = tmp_path / "hardware_profile.yaml"
+    p.write_text(
+        "version: 1\nproject: thu\nmcu: {part: x, clock_hz: 1}\n"
+        "peripherals: []\ncomponents: []\n" + them,
+        encoding="utf-8",
+    )
+    return HardwareProfile.load(p)
+
+
+def test_xung_dot_chua_phan_xu_thi_hien_ra(tmp_path):
+    ho_so = _ho_so(tmp_path, """
+conflicts:
+  - pin: PB3
+    claimed_by: [bluetooth.tx, rgb_leds.data]
+    status: chưa phân xử
+""")
+    assert len(ho_so.conflicts) == 1
+    assert ho_so.conflicts[0]["pin"] == "PB3"
+
+
+def test_xung_dot_da_phan_xu_thi_khong_hien(tmp_path):
+    ho_so = _ho_so(tmp_path, """
+conflicts:
+  - pin: PB3
+    claimed_by: [a, b]
+    status: đã phân xử
+""")
+    assert ho_so.conflicts == []
+
+
+def test_khong_khai_xung_dot_thi_rong(tmp_path):
+    assert _ho_so(tmp_path).conflicts == []
+
+
+def test_tim_xung_dot_theo_chan(tmp_path):
+    ho_so = _ho_so(tmp_path, """
+conflicts:
+  - pin: PB3
+    claimed_by: [a, b]
+  - pin: PD5
+    claimed_by: [c, d]
+""")
+    assert [c["pin"] for c in ho_so.conflicts_on(["pb3"])] == ["PB3"]
+    assert len(ho_so.conflicts_on(["PB3", "PD5"])) == 2
+    assert ho_so.conflicts_on(["PC0"]) == []
+
+
+@pytest.mark.parametrize("ma_xau", [
+    "drv_x --uses twi",     # biến shell không được tách từ — đo được thật
+    "Drv_X",
+    "1drv",
+    "d",
+    "drv-x",
+    "drv x",
+    "",
+])
+def test_ma_module_khong_hop_le_bi_chan(ma_xau):
+    """Mã module đi vào TÊN NHÁNH GIT và tên tệp sinh ra, nên nó phải hẹp."""
+    import re
+
+    assert not re.fullmatch(r"[a-z][a-z0-9_]{1,39}", ma_xau)
+
+
+@pytest.mark.parametrize("ma_tot", ["drv_mpu6050", "alg_pid", "app_balance", "ab"])
+def test_ma_module_hop_le_duoc_nhan(ma_tot):
+    import re
+
+    assert re.fullmatch(r"[a-z][a-z0-9_]{1,39}", ma_tot)
+
+
+def test_plan_add_kiem_ma_module():
+    import inspect
+
+    from eaa import cli
+
+    src = inspect.getsource(cli._plan_add)
+    assert "TÊN NHÁNH GIT" in src
+    assert "re.fullmatch" in src
+
+
+def test_du_an_blklab_khai_xung_dot_that():
+    """Dự án dựng từ hồ sơ người dùng phải mang theo xung đột đã phát hiện."""
+    from pathlib import Path
+
+    from eaa.kb import HardwareProfile
+
+    goc = Path(__file__).resolve().parent.parent / "projects" / "blklab_robot"
+    if not goc.is_dir():
+        pytest.skip("chưa có dự án blklab_robot")
+    ho_so = HardwareProfile.load(goc / "hardware_profile.yaml")
+    xd = ho_so.conflicts
+    assert xd, "xung đột D11 tìm được khi đọc mã gốc phải nằm trong hồ sơ"
+    assert xd[0]["pin"] == "PB3"
+    assert "V1_Balancing_Robot_HC05_JQ6500.ino" in xd[0]["found_in"]

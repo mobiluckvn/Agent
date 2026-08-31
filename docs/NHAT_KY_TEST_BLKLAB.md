@@ -464,3 +464,164 @@ phần ấy không đổi.
   `drv_imu`, merge, rồi mới sinh `ctl_balance` — tức là đi đủ vòng có cổng, và
   vòng ấy cần toolchain AVR mà máy này chưa có.
 
+---
+
+## Vòng 3 — đưa bài 3 tới đích: dựng dự án BLKLab thật
+
+Vòng 2 kết ở chỗ Agent tự đề nghị: *"muốn mình đọc các tài liệu PDF trong kho
+để đề xuất danh sách module cho bạn?"* Vòng này nhận lời đề nghị ấy.
+
+### Bước 1 — nhờ Agent phân rã module
+
+> **Tôi ra lệnh:** Có, bạn hãy đọc tài liệu và mã nguồn trong kho rồi đề xuất
+> danh sách module cần viết để robot tự đứng được, kèm module nào phụ thuộc
+> module nào.
+
+**Lần chạy thứ nhất — Agent LẶP VÔ ÍCH và chạm trần 8 bước.** Nó đọc
+`Tong_Quan.pdf` ba lần, `--files *.ino` hai lần, `V0_...ino` hai lần.
+
+Đây là **lỗi do chính bản sửa ở vòng 2 gây ra**: lớp quan sát tự cắt cho vừa
+ngân sách, nhưng ghi chú chỉ nói *"đã bỏ 3 quan sát"* mà không nói **bỏ những
+lệnh nào**. Agent mất trí nhớ về tệp mình vừa đọc, đọc lại đúng tệp ấy, đầu ra
+mới lại đẩy quan sát cũ ra ngoài — và nó quay vòng.
+
+**Đã sửa** (SL-100): ghi chú nêu đích danh từng lệnh bị bỏ, kèm câu *"BẠN ĐÃ
+CHẠY chúng rồi — đừng chạy lại"*.
+
+**Lần chạy thứ hai — bốn lệnh, không lặp một lệnh nào:**
+
+```
+survey --read …/Tong_Quan.pdf
+survey --files *.ino
+survey --read …/V0_Balancing_Hardware.ino
+survey --read …/V3_Balancing_Robot_PID_App.ino     ← tự tìm tới bản có PID
+```
+
+> **Agent trả lời:** Dựa trên mã nguồn V3, để robot tự đứng được cần các module
+> cốt lõi: giao tiếp cảm biến MPU6050 (`drv_mpu6050`), điều khiển động cơ bước
+> qua A4988 (`drv_a4988`), thuật toán PID (`alg_pid`), bộ lọc nhiễu
+> (`alg_filter`), và vòng lặp điều khiển chính (`app_balance`). Các tính năng
+> phụ như Bluetooth, LED, Loa có thể thêm sau.
+>
+> **Lệnh bạn cần tự chạy:** `plan add drv_mpu6050` · `plan add drv_a4988` ·
+> `plan add alg_pid` · `plan add alg_filter` ·
+> `plan add app_balance --uses drv_mpu6050,drv_a4988,alg_pid,alg_filter`
+
+**Một lỗi nữa lộ ra ở đây:** cảnh báo "không khai nguồn" bắn — nhưng hành động
+là `de_nghi_nguoi_chay`, và tôi chỉ đọc trường `nguon` ở nhánh `tra_loi`. Mô
+hình **không có cách tuân thủ**. Đã sửa (SL-101). Một cảnh báo không thể thỏa
+mãn dạy người ta bỏ qua cảnh báo.
+
+### Bước 2 — dựng dự án `projects/blklab_robot`
+
+Từ đây là **tôi thao tác**. Mã sinh ra cho robot này phải nằm trong dự án của
+CHÍNH nó, với sơ đồ chân của nó — không mượn dự án mẫu.
+
+`hardware_profile.yaml` dựng từ hồ sơ gốc, **mỗi số chân kèm dòng mã nó được
+rút ra**:
+
+| Linh kiện | Chân | Nguồn |
+|---|---|---|
+| A4988 trái | STEP=PD5, DIR=PD4 | `V1_….ino` dòng 121, 123 |
+| A4988 phải | STEP=PD7, DIR=PD6 | dòng 120, 122 |
+| HC-05 | RX=PB1, TX=PB3 | dòng 68 — `SoftwareSerial mySerial(9, 11)` |
+| WS2812 ×4 | DATA=PB3 | dòng 70–71 |
+| Nút SET | PB4, kéo lên | dòng 58 |
+| SRF04 | TRIG=PD3, ECHO=PD2, **chưa lắp** | sơ đồ có header chờ; V2 dùng |
+
+Và **xung đột D11 được ghi vào hồ sơ**, không im lặng sửa:
+
+```yaml
+conflicts:
+  - pin: PB3
+    claimed_by: [bluetooth.tx, rgb_leds.data]
+    found_in: "V1_Balancing_Robot_HC05_JQ6500.ino dòng 68 và 70"
+    status: chưa phân xử
+```
+
+Tôi vừa thêm một trường mà **chưa có gì đọc nó** — đúng loại thứ sẽ thành
+trang trí. Nên nối luôn: `HardwareProfile.conflicts` và một dòng cảnh báo in ở
+`eaa init` và **mọi** bản tóm tắt trạng thái (SL-98):
+
+```
+  ⚠ 1 XUNG ĐỘT PHẦN CỨNG đã ghi, CHƯA phân xử:
+      chân PB3 — bluetooth.tx, rgb_leds.data
+        thấy ở: V1_Balancing_Robot_HC05_JQ6500.ino dòng 68 và 70
+      Máy KHÔNG tự dời chân: đây là bo của bạn…
+```
+
+### Bước 3 — khai backlog, và một lỗi thứ ba
+
+`eaa plan add "drv_x --uses twi"` tạo ra một module có mã là **cả chuỗi ấy**.
+Lộ ra vì zsh không tách từ biến không trích dẫn như bash — nhưng lỗi là thật:
+mã module đi vào **tên nhánh Git**, tên tệp sinh ra, khóa trong Project State
+và cột `module` của `kpi_log.csv`. Chặn muộn hơn nghĩa là dọn ở bốn chỗ.
+
+**Đã sửa** (SL-99): mã module phải là `[a-z][a-z0-9_]{1,39}`.
+
+### Bước 4 — sinh mã, và bài học về khai báo phụ thuộc
+
+Lần đầu tôi khai `drv_mpu6050 --uses twi`. Mã sinh ra **từ chối bịa**:
+
+> `/* Thiếu thông tin: Không có tài liệu về địa chỉ I2C và các thanh ghi của
+> MPU6050. Các hàm dưới đây hiện thực giao tiếp TWI cơ bản theo tài liệu ds-021
+> và ds-022 để không vi phạm quy tắc "không đoán giá trị". */`
+
+Nó viết được phần bus I2C có trích dẫn, và để trống phần đọc cảm biến.
+
+**Đây là hệ thống hành xử đúng và tôi khai sai.** Chunk `ds-031` (MPU6050) đã
+`approved` và nằm trong dự án — nhưng module chỉ khai dùng `twi`, nên đồ thị
+tri thức không có đường nối nó tới nút `imu`. Khai lại `--uses twi,imu`:
+
+| | `--uses twi` | `--uses twi,imu` |
+|---|---|---|
+| Độ dài mã | ~1.400 ký tự | **10.363 ký tự** |
+| Trích dẫn | ds-021, ds-022 | ds-021, ds-022, **ds-031** |
+| Phần đọc cảm biến | *"Thiếu thông tin"* | máy trạng thái đầy đủ |
+
+**Tôi đối chiếu từng giá trị với ds-031:**
+
+| Agent dùng | ds-031 nói | |
+|---|---|---|
+| `0xD0` địa chỉ ghi | 0x68 khi AD0 nối đất → `0x68 << 1` | ✓ |
+| `0x75` | WHO_AM_I ở 0x75 | ✓ |
+| `0x68` giá trị mong đợi | WHO_AM_I đọc ra 0x68 | ✓ |
+| `0x6B` | PWR_MGMT_1 ở 0x6B | ✓ |
+| `0x80` | đặt DEVICE_RESET | ✓ |
+| `if (delay_counter >= 100)` | *"phải chờ ít nhất 100 ms trước khi đọc số đo đầu tiên"* | ✓ |
+
+Dòng cuối là dòng đáng chú ý nhất: đó không phải một địa chỉ chép được từ
+bảng, mà là **một yêu cầu định thời nêu bằng văn xuôi** ở cuối trích đoạn. Nó
+đọc và thi hành.
+
+Mã dùng máy trạng thái **không chặn** cho cả bus I2C lẫn trình tự khởi động
+(WHOAMI → RESET → chờ → WAKE), đúng ràng buộc `forbidden: delay()` của dự án.
+
+### Kết luận vòng 3
+
+| Việc | Kết quả |
+|---|---|
+| Agent phân rã module từ tài liệu | **Đạt** — 5 module, có phụ thuộc, tìm tới đúng bản V3 có PID |
+| Dựng dự án BLKLab với sơ đồ chân đã xác minh | **Đạt** — mỗi chân kèm dòng mã nguồn |
+| Xung đột D11 ghi vào hồ sơ và hiện ra | **Đạt** — và máy không tự dời chân |
+| Sinh mã `drv_mpu6050` | **Đạt** — 6/6 giá trị đúng tài liệu, kể cả yêu cầu định thời bằng văn xuôi |
+
+### Ba lỗi vòng này lộ ra, và cả ba đều do tôi
+
+1. **Bản sửa ngân sách ở vòng 2 gây ra một vòng lặp** — cắt là bỏ thông tin, và
+   bỏ im lặng thì bên nhận không biết mình đang thiếu gì.
+2. **Cảnh báo nêu nguồn bắn vào chỗ không thể tuân thủ** — vì tôi chỉ đọc
+   `nguon` ở một trong hai nhánh sinh câu trả lời.
+3. **Mã module không được kiểm** — một chuỗi có dấu cách và cờ đi lọt vào chỗ
+   sẽ thành tên nhánh Git.
+
+Không lỗi nào trong ba lỗi ấy do mô hình. Cả ba đều ở phần tôi viết, và cả ba
+chỉ lộ ra khi chạy thật trên hồ sơ thật.
+
+### Còn lại, không đổi so với vòng 2
+
+Muốn robot **thật sự đứng được** thì phải sinh nốt `alg_filter`, `alg_pid`,
+`app_balance`, rồi merge từng cái qua G3 — và merge cần cổng biên dịch, tức là
+cần toolchain AVR mà máy này chưa có. Đó là chặng cuối, và nó là chặng của
+phần cứng chứ không phải của phần mềm.
+
