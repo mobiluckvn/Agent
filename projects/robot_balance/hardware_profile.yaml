@@ -96,7 +96,19 @@ components:
 # báo — không diễn giải giá trị nào.
 programmer:
   tool: arduino          # giao thức nạp qua bootloader có sẵn trên bo
-  baud: 115200
+  # ĐO ĐƯỢC trên bo thật 31/08/2026, không phải suy ra.
+  #
+  # Giá trị cũ ở đây là 115200 — chép từ tốc độ telemetry của usart0, và hai
+  # thứ ấy KHÔNG liên quan gì nhau: một cái là tốc độ bootloader thỏa thuận
+  # lúc nạp, cái kia là tốc độ chương trình chạy sau đó. Trùng số làm chúng
+  # trông như một, và không ai kiểm lại.
+  #
+  # Hậu quả đo được: avrdude báo `not in sync: resp=0x00` mười lần liền. Thử
+  # lần lượt 115200 / 57600 / 19200 / 250000 thì chỉ 57600 đồng bộ được, và
+  # đọc ra chữ ký chip 1E 95 0F — đúng ATmega328P mà hồ sơ khai.
+  #
+  # Đây là một giả định đã nằm im bốn sprint, chỉ lộ ra ở lần đầu nạp thật.
+  baud: 57600
   usb:
     - vid: "2341"
       pid: "0043"

@@ -1,0 +1,23 @@
+
+Nạp firmware
+────────────
+  Kiểm trước khi nạp: đạt.
+  Tự chọn cổng: /dev/cu.usbserial-143410 (Bo tương thích, cầu USB rời)
+
+  Vũ Trí Công đã duyệt đúng ảnh này lúc 2026-08-31T15:27:47+00:00 (sha256:b50ffd71a9bb8fd8…) — nạp
+
+NẠP KHÔNG THÀNH CÔNG — Công cụ thoát với mã 1 nhưng quy tắc parse của pack không bắt được lỗi nào. Đầu ra thô:
+Warning: attempt 1 of 10: not in sync: resp=0x00
+Warning: attempt 2 of 10: not in sync: resp=0x00
+Warning: attempt 3 of 10: not in sync: resp=0x00
+Warning: attempt 4 of 10: not in sync: resp=0x00
+Warning: attempt 5 of 10: not in sync: resp=0x00
+Warning: attempt 6 of 10: not in sync: resp=0x00
+Warning: attempt 7 of 10: not in sync: resp=0x00
+Warning: attempt 8 of 10: not in sync: resp=0x00
+Warning: attempt 9 of 10: not in sync: resp=0x00
+Warning: attempt 10 of 10: not in sync: resp=0x00
+Error: unable to open port /dev/cu.usbserial-143410 for programmer arduino
+
+Avrdude done.  Thank you.
+Đã ghi vào nhật ký nạp: một lần thử trượt cũng là dữ kiện chẩn đoán.
