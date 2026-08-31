@@ -1428,6 +1428,21 @@ Ba loại:
 | **Đứng ngoài mọi dự án thì thấy tất cả** | Không có bối cảnh thì không có gì để lọc theo. Mặc định lọc-hết ở đó là mặc định sai |
 | **Bài canh** | `tests/test_tc79_cach_ly_du_an.py` — 16 bài, canh cả hai chiều: kho riêng không thấy dữ liệu dự án khác, kho chung phải có đường lọc. Có một bài canh **cấu trúc**: thêm kho dùng chung mới mà quên phần lọc thì đỏ ngay |
 
+## SL-103 · BỔ SUNG · `eaa/llm/catalog.py` và lệnh `eaa models` — người chọn mô hình, hệ không tự chọn
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §2 (cấu hình mô hình); ADR-03; EAA-SDD-03 §6 (danh sách lệnh) |
+| **Vì sao thêm** | AIS §2 chốt "ghim phiên bản mô hình", và mã model là **cấu hình** chứ không phải hằng số. Nhưng cấu hình ấy trước đây chỉ là một chuỗi trong `eaa init --model <chuỗi>` — đòi người dùng thuộc lòng mã của nhà cung cấp (`gemini-3.5-flash`? `gemini-3-5-flash`?), và gõ sai thì lỗi hiện ra lúc gọi API, sau khi đã dựng xong ngữ cảnh |
+| **Đã thêm** | `eaa/llm/catalog.py` — danh mục mô hình là DỮ LIỆU, mỗi mục kèm chỗ mạnh/chỗ yếu và **ngày kiểm với API**. Lệnh `eaa models` in danh mục kèm mã đang dùng. Bổ sung `gemini-3.5-flash` và `gemini-3.5-flash-lite`, đã kiểm bằng `ListModels` + một lượt `generateContent` thật ngày 2026-08-31 (Flash: 2.057 ms, trần vào 1.048.576 token) |
+| **Cờ `--model` cho một lượt chạy** | Thứ tự thắng: `--model` > Project State > `EAA_LLM_MODEL` > mặc định adapter. Cờ mạnh nhất vì nó là hành động có chủ ý **ngay tại chỗ dùng** — người dùng gõ nó ra, thấy nó, và nó biến mất sau lượt chạy. Adapter in ra dòng `[--model] lượt chạy này dùng …, không ghi vào Project State`: đổi model mà im lặng chính là thứ cần tránh |
+| **Nhận được ở CẢ HAI vị trí** | Trước và sau tên lệnh. Mọi lệnh con khai `--model` với `default=argparse.SUPPRESS` — thiếu nó thì mặc định rỗng của lệnh con đè giá trị đặt ở parser gốc, và `eaa --model X chat` im lặng chạy bằng model khác. Riêng `init` giữ nghĩa **ghim vào state**, vì đó là lệnh đặt mặc định |
+| **CỐ Ý KHÔNG có: tự chọn model theo loại việc** | "Việc nhẹ thì Flash, việc nặng thì Pro" nghe hợp lý và phá hai thứ. (1) Chi phí–chất lượng là đánh đổi của **người trả tiền**: một người chạy thí nghiệm luận văn có thể muốn Pro cho MỌI lượt để số liệu so sánh được. (2) Model đổi ngầm giữa chừng phá tính tái lập — hai lần chạy cùng một lệnh rơi vào hai model, và lúc kết quả lệch thì không biết lệch vì model hay vì đầu vào (rủi ro R1, EAA-STP-04). Một cơ chế tự chọn sai thì người dùng **không thấy nó sai**, chỉ thấy câu trả lời tệ hơn |
+| **Canh bằng cấu trúc** | `KHUYEN_NGHI` là dict để IN RA cho người đọc. TC-80 quét cả `eaa/` và đỏ nếu có tệp nào ngoài `catalog.py` đọc dict ấy — dấu hiệu cơ chế tự chọn vừa được lén thêm vào |
+| **Danh mục là gợi ý, không phải hàng rào** | Mã ngoài danh mục vẫn chạy, kèm ghi chú "chưa kiểm". Nhà cung cấp ra model mới nhanh hơn tài liệu được cập nhật; một danh sách trắng cứng sẽ chặn đúng thứ người dùng cần |
+| **Ranh giới quyền** | `models` vào TOOLBOX (chỉ đọc). `init` vào `NGOAI_DANH_MUC`: Agent liệt kê được lựa chọn nhưng không tự đổi model của chính nó |
+| **Bài canh** | `tests/test_tc80_chon_model.py` — 17 bài |
+
 
 ---
 

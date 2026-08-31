@@ -412,6 +412,33 @@ def cmd_policy(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_models(args: argparse.Namespace) -> int:
+    """Danh mục mô hình — người chọn, hệ không tự chọn (AIS §2).
+
+    Lệnh này chỉ đọc và không gọi mạng: nó in danh mục đã kiểm sẵn kèm mã đang
+    dùng của dự án hiện tại. Hỏi lại nhà cung cấp mỗi lần gõ ``eaa models`` là
+    biến một lệnh tra cứu thành một lệnh tốn tiền và cần mạng.
+    """
+    from eaa.llm.catalog import render_catalog
+
+    dang_dung = ""
+    try:
+        project = resolve_project(args.project)
+        store = StateStore(project / STATE_FILE)
+        if store.exists():
+            state = store.load()
+            dang_dung = (state.llm or {}).get("model", "")
+    except CliError:
+        pass
+
+    # Cờ --model của chính lượt chạy này thắng, và phải hiện đúng như thế.
+    if _MODEL_LUOT_NAY:
+        dang_dung = _MODEL_LUOT_NAY
+
+    print(render_catalog(dang_dung=dang_dung, provider=args.provider))
+    return EXIT_OK
+
+
 def cmd_packs(args: argparse.Namespace) -> int:
     """Liệt kê Platform Pack đã cài — bằng chứng vận hành cho NFR-05."""
     packs = discover_packs(repo_root() / "packs")
@@ -470,22 +497,48 @@ class AppContext:
     orchestrator: Any
 
 
-def _tao_llm(state: Any, project: Path) -> Any:
+#: Mã model do cờ ``--model`` của lượt chạy này đặt. Ghi một lần trong
+#: :func:`main`, đọc trong :func:`_tao_llm`. Rỗng nghĩa là người dùng không nêu.
+_MODEL_LUOT_NAY: str = ""
+
+
+def _tao_llm(state: Any, project: Path, *, model_override: str = "") -> Any:
     """Chọn adapter mô hình theo cấu hình trong Project State (ADR-03).
 
     TC-11 đòi hỏi đổi nhà cung cấp không làm đổi hành vi Orchestrator, nên chỗ
     duy nhất biết adapter nào đang chạy là hàm này.
 
-    Thứ tự quyết mã model: Project State → biến môi trường ``EAA_LLM_MODEL`` →
-    mặc định của adapter. Project State thắng vì nó đi cùng dự án và nằm trong
-    Git — mã model là một phần của điều kiện thí nghiệm, không phải một tùy
-    chọn của phiên làm việc.
+    Thứ tự quyết mã model, từ mạnh xuống yếu:
+
+    1. Cờ ``--model`` của lượt chạy này. Mạnh nhất vì nó là một **hành động có
+       chủ ý của người dùng ngay tại chỗ dùng** — họ gõ nó ra, họ thấy nó, và
+       nó biến mất sau lượt chạy.
+    2. Project State. Đi cùng dự án và nằm trong Git; mã model là một phần của
+       điều kiện thí nghiệm.
+    3. Biến môi trường ``EAA_LLM_MODEL`` — tiện cho cả phiên shell nhưng dễ bị
+       quên là mình đã đặt, nên xếp dưới.
+    4. Mặc định của adapter.
+
+    Hệ **không bao giờ tự đổi model** theo loại việc: xem ``eaa/llm/catalog.py``
+    để biết vì sao đó là một quyết định chứ không phải một chỗ chưa làm.
     """
     from eaa.llm.calllog import CallLog, ReplayClient
     from eaa.llm.mock import MockLLM
 
     provider = (state.llm or {}).get("provider", "mock")
-    model = (state.llm or {}).get("model") or os.environ.get("EAA_LLM_MODEL", "")
+    model_override = model_override or _MODEL_LUOT_NAY
+    model = (
+        model_override
+        or (state.llm or {}).get("model")
+        or os.environ.get("EAA_LLM_MODEL", "")
+    )
+    if model_override:
+        from eaa.llm.catalog import get as tra_model
+
+        thong_tin = tra_model(model_override)
+        ghi_chu = "" if thong_tin else "  (mã này chưa có trong danh mục đã kiểm)"
+        print(f"[--model] lượt chạy này dùng {model_override}, không ghi vào "
+              f"Project State.{ghi_chu}")
     nhat_ky = CallLog(project / "llm_calls.jsonl")
 
     if provider == "mock":
@@ -4540,8 +4593,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--project",
         help="Thư mục dự án (mặc định: EAA_PROJECT, hoặc dự án duy nhất trong projects/)",
     )
+    # Cờ toàn cục chứ không phải cờ của từng lệnh: nếu chỉ vài lệnh nhận được
+    # thì người dùng phải nhớ lệnh nào nhận, và một lần nhớ sai là một lượt
+    # chạy bằng model khác với ý định.
+    parser.add_argument(
+        "--model",
+        default="",
+        metavar="<mã>",
+        help="Đổi mô hình cho RIÊNG lượt chạy này, không ghi vào Project State. "
+             "Xem lựa chọn: eaa models",
+    )
 
     sub = parser.add_subparsers(dest="command", metavar="<lệnh>")
+
+    p_models = sub.add_parser(
+        "models",
+        help="Danh mục mô hình đã kiểm — để người chọn, hệ không tự chọn",
+    )
+    p_models.add_argument("--provider", default="", help="Chỉ in của một nhà cung cấp")
+    p_models.set_defaults(func=cmd_models)
 
     p_init = sub.add_parser("init", help="Khởi tạo dự án và Project State (UC01)")
     p_init.add_argument("--force", action="store_true", help="Khởi tạo lại dù đã có state")
@@ -4552,8 +4622,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_init.add_argument(
         "--model",
-        default="",
-        help="Mã mô hình, ghim phiên bản đầy đủ; bỏ trống thì lấy mặc định của adapter",
+        default=argparse.SUPPRESS,
+        help="Mã mô hình, GHIM vào Project State (khác cờ --model toàn cục — cờ ấy "
+             "chỉ đổi cho một lượt chạy). Bỏ trống thì lấy mặc định của adapter",
     )
     p_init.set_defaults(func=cmd_init)
 
@@ -5545,6 +5616,24 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("args", nargs="*", help=argparse.SUPPRESS)
         p.set_defaults(func=_chua_hien_thuc(ten, sprint, ghi_chu))
 
+    # --model nhận được ở CẢ HAI vị trí: trước tên lệnh (nó là cờ của parser
+    # gốc) và sau tên lệnh. Chỗ thứ hai là chỗ người ta gõ theo bản năng —
+    # "eaa chat --model flash" — và nếu chỉ vị trí đầu chạy được thì thông báo
+    # lỗi argparse trả về ("unrecognized arguments") không hề gợi ý vị trí đúng.
+    #
+    # default=SUPPRESS là mấu chốt: không nêu thì lệnh con KHÔNG ghi thuộc tính,
+    # nên giá trị đặt ở parser gốc sống sót. Thiếu nó thì "eaa --model X chat"
+    # bị chính mặc định rỗng của lệnh con xóa mất.
+    for ten_lenh, p_con in sub.choices.items():
+        try:
+            p_con.add_argument(
+                "--model", default=argparse.SUPPRESS, metavar="<mã>",
+                help="Đổi mô hình cho riêng lượt chạy này (xem: eaa models)",
+            )
+        except argparse.ArgumentError:
+            # Lệnh đã tự khai --model với nghĩa riêng — 'init' ghim vào state.
+            pass
+
     return parser
 
 
@@ -5552,6 +5641,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     load_env_file()
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # Cờ --model đặt MỘT lần ở đây thay vì luồn qua 25 chỗ gọi build_context().
+    # Luồn tham số thì chắc chắn sót một chỗ, và chỗ sót ấy bỏ im lặng đúng cái
+    # cờ người dùng vừa gõ ra — hỏng theo kiểu không ai thấy. Đây là biến toàn
+    # cục ghi-một-lần-lúc-vào, đọc ở đúng một hàm.
+    global _MODEL_LUOT_NAY
+    _MODEL_LUOT_NAY = (getattr(args, "model", "") or "").strip()
 
     if not getattr(args, "func", None):
         parser.print_help()

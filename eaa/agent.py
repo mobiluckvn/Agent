@@ -157,6 +157,10 @@ TOOLBOX: tuple[Tool, ...] = (
     ),
     Tool(("policy",), "Bảng phân quyền và máy trạng thái 5 pha"),
     Tool(("packs",), "Platform Pack nào đang cài"),
+    # Chỉ ĐỌC danh mục. Agent không đổi được model của chính nó — việc ấy là
+    # của người dùng, qua cờ --model hoặc eaa init. Đây chỉ để nó trả lời được
+    # câu "có những model nào" thay vì đoán tên.
+    Tool(("models",), "Danh mục mô hình đã kiểm; người dùng chọn bằng cờ --model"),
     Tool(("plan", "list"), "Backlog module và trạng thái từng module"),
     Tool(("ledger", "list"), "Nhật ký lỗi ảo giác đã gặp"),
     Tool(("safety", "show"), "Phân tích hỏng hóc và chế độ an toàn, kèm chỗ còn hở"),
@@ -354,6 +358,13 @@ NGOAI_DANH_MUC: dict[str, str] = {
         "đặt bởi người vừa cầm thiết bị và đọc số đo."
     ),
     "rollback": "Quay lui đổi mã đang chạy trên thiết bị — quyết định của bạn.",
+    "init": (
+        "Khởi tạo dự án và ghim mô hình vào Project State là hai việc đặt điều "
+        "kiện cho mọi lượt chạy sau. Tôi liệt kê được danh mục mô hình "
+        "('models'), nhưng chọn cái nào là đánh đổi chi phí–chất lượng của "
+        "người trả tiền, không phải của tôi — và một model tôi tự đổi làm hai "
+        "lần chạy cùng một lệnh không so sánh được với nhau nữa."
+    ),
     "endurance": "Lệnh này chiếm cổng nối tiếp và chạy hàng giờ; bạn nên tự bố trí.",
     "build": "Ráp firmware là bước trước khi nạp; bạn chạy để còn kiểm ảnh sinh ra.",
     "skill approve": (
