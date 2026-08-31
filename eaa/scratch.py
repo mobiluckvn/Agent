@@ -54,6 +54,8 @@ __all__ = [
     "is_scratch",
     "create_scratch",
     "scratch_root",
+    "chon_platform",
+    "packs_co_san",
     "warning_banner",
 ]
 
@@ -105,19 +107,81 @@ _CONSTRAINTS = {
     "acceptance": [],
 }
 
+#: Hồ sơ phần cứng sinh sẵn. Mọi trường phải ĐÚNG KIỂU mà ``eaa/kb.py`` đọc,
+#: kể cả khi chưa có nội dung.
+#:
+#: Bản đầu ghi ``mcu: "chưa xác định"`` — một chuỗi ở chỗ lược đồ đòi ánh xạ.
+#: Chỗ nháp vì thế **sinh ra đã hỏng**: mọi lệnh dựng Knowledge Graph đều sập
+#: ngay từ lượt chạy đầu tiên. Một chỗ làm nháp mà không chạy nổi một lệnh thì
+#: nó không giảm việc phải gõ, nó thêm việc phải gỡ.
+#:
+#: Rỗng-nhưng-đúng-kiểu nói cùng một chuyện với "chưa xác định", và nói bằng
+#: thứ ngôn ngữ mà phần còn lại của hệ đọc được.
 _HARDWARE = {
     "board": "chưa xác định",
-    "mcu": "chưa xác định",
+    "mcu": {},
     "pin_functions": {},
     "components": [],
 }
+
+
+def packs_co_san(repo: Path) -> list[str]:
+    """Tên các Platform Pack đang cài, sắp theo thứ tự chữ."""
+    thu_muc = repo / "packs"
+    if not thu_muc.is_dir():
+        return []
+    return sorted(p.name for p in thu_muc.iterdir() if p.is_dir())
+
+
+def chon_platform(repo: Path, name: str, platform: str = "") -> tuple[str, str]:
+    """Chọn Platform Pack cho một chỗ nháp. Trả (tên pack, lý do chọn).
+
+    Vì sao KHÔNG mặc định một pack cố định
+    ---------------------------------------
+
+    Bản đầu mặc định một pack cố định. Gặp thật: Agent dựng chỗ nháp cho một
+    bo thuộc họ khác hẳn, và nhận về một hồ sơ khai đúng cái pack mặc định ấy
+    — sai trình biên dịch, sai bộ luật phân tích tĩnh, sai khuôn mẫu firmware.
+
+    Cái đó **tệ hơn một lần sập**. Sập thì người ta sửa; một giá trị sai mà
+    im lặng thì mọi thứ dựng lên trên nó đều sai theo, và cái sai chỉ lộ ra ở
+    cổng biên dịch, sau khi đã đi qua vài bước.
+
+    Suy từ tên có phải là đoán không? Có — nhưng nó đoán từ **bằng chứng**
+    (tên pack đang cài, đối chiếu với tên người dùng vừa gõ), nó **nói ra là
+    mình đoán**, và nó từ chối khi bằng chứng không đủ. Một hằng số ``avr``
+    cũng là đoán, chỉ khác là nó bỏ qua bằng chứng và không nói gì.
+    """
+    co = packs_co_san(repo)
+    if platform:
+        return platform, "bạn nêu bằng --platform"
+
+    ten_thuong = name.lower()
+    khop = [p for p in co if p.lower() in ten_thuong]
+    if len(khop) == 1:
+        return khop[0], f"suy từ tên chỗ nháp {name!r} — GIẢ ĐỊNH, kiểm lại giúp"
+    if len(co) == 1:
+        return co[0], f"chỉ có một Platform Pack đang cài ({co[0]})"
+
+    if len(khop) > 1:
+        raise ScratchError(
+            f"Tên {name!r} khớp nhiều Platform Pack: {', '.join(khop)}. "
+            "Nêu rõ bằng --platform <tên>."
+        )
+    raise ScratchError(
+        f"Không suy được Platform Pack từ tên {name!r}, và có "
+        f"{len(co)} pack đang cài: {', '.join(co) or '(không cái nào)'}.\n"
+        "  Nêu rõ bằng --platform <tên>.\n"
+        "  Không mặc định bừa một pack: sai pack là sai trình biên dịch và sai "
+        "bộ luật phân tích tĩnh, và cái sai ấy chỉ lộ ra ở cổng biên dịch."
+    )
 
 
 def create_scratch(
     repo: Path,
     *,
     name: str = BANG_TEN,
-    platform: str = "avr",
+    platform: str = "",
     force: bool = False,
 ) -> Path:
     """Dựng một dự án nháp đầy đủ, với phần YAML khuôn mẫu sinh sẵn."""
@@ -130,12 +194,12 @@ def create_scratch(
             )
         return goc
 
-    pack = repo / "packs" / platform
-    if not pack.is_dir():
-        co = sorted(p.name for p in (repo / "packs").iterdir() if p.is_dir()) \
-            if (repo / "packs").is_dir() else []
+    platform, ly_do = chon_platform(repo, name, platform)
+    if not (repo / "packs" / platform).is_dir():
+        co = packs_co_san(repo)
         raise ScratchError(
-            f"Không có Platform Pack {platform!r}. Đang có: {', '.join(co) or '(không cái nào)'}"
+            f"Không có Platform Pack {platform!r}. Đang có: "
+            f"{', '.join(co) or '(không cái nào)'}"
         )
 
     goc.mkdir(parents=True, exist_ok=True)
@@ -145,6 +209,8 @@ def create_scratch(
     (goc / "constraints.yaml").write_text(
         "# SINH SẴN cho chỗ làm nháp — mọi số ở đây là GIẢ ĐỊNH.\n"
         "# Đưa vào việc thật thì thay bằng số đo của bo bạn đang dùng.\n"
+        f"# Platform Pack chọn được vì: {ly_do}.\n"
+        "# Sai pack là sai trình biên dịch — kiểm lại dòng 'platform' bên dưới.\n"
         + yaml.safe_dump(rb, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )

@@ -440,21 +440,58 @@ class HardwareProfile:
     raw: dict[str, Any]
     content_version: str
 
+    def _anh_xa(self, khoa: str) -> dict[str, Any]:
+        """Đọc một trường KIỂU ÁNH XẠ, và nói ra khi nó không phải ánh xạ.
+
+        ``dict(giá_trị)`` trên một chuỗi ném ``ValueError: dictionary update
+        sequence element #0 has length 1; 2 is required`` — một câu không nói
+        được tệp nào, trường nào, hay phải sửa thế nào. Nó lọt qua mọi lớp bắt
+        lỗi của CLI và ra tới người dùng dưới dạng traceback Python.
+
+        Gặp thật: ``eaa scratch`` sinh ``mcu: chưa xác định`` (chuỗi), rồi
+        ``eaa chat`` sập ngay ở chỗ dựng Knowledge Graph.
+        """
+        gia_tri = self.raw.get(khoa)
+        if gia_tri is None:
+            return {}
+        if not isinstance(gia_tri, dict):
+            raise KbError(
+                f"{self.path}: trường {khoa!r} phải là một ánh xạ, đang là "
+                f"{type(gia_tri).__name__} ({gia_tri!r}).\n"
+                f"  Sửa thành dạng có khóa con, ví dụ:\n"
+                f"    {khoa}:\n"
+                f"      part: <mã linh kiện>\n"
+                f"  Hoặc để trống bằng '{khoa}: {{}}' nếu chưa biết."
+            )
+        return dict(gia_tri)
+
+    def _danh_sach(self, khoa: str) -> list[Any]:
+        gia_tri = self.raw.get(khoa)
+        if gia_tri is None:
+            return []
+        if not isinstance(gia_tri, list):
+            raise KbError(
+                f"{self.path}: trường {khoa!r} phải là một danh sách, đang là "
+                f"{type(gia_tri).__name__} ({gia_tri!r}). Để trống bằng "
+                f"'{khoa}: []' nếu chưa biết."
+            )
+        return list(gia_tri)
+
     @property
     def mcu(self) -> dict[str, Any]:
-        return dict(self.raw.get("mcu") or {})
+        return self._anh_xa("mcu")
 
     @property
     def peripherals(self) -> list[dict[str, Any]]:
-        return list(self.raw.get("peripherals") or [])
+        return self._danh_sach("peripherals")
 
     @property
     def components(self) -> list[dict[str, Any]]:
-        return list(self.raw.get("components") or [])
+        return self._danh_sach("components")
 
     @property
     def pin_map(self) -> dict[str, Any]:
-        return dict(self.raw.get("pin_map") or {})
+        return self._anh_xa("pin_map")
 
     @property
     def conflicts(self) -> list[dict[str, Any]]:

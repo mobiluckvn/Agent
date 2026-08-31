@@ -1498,6 +1498,23 @@ Ba loại:
 | **Kèm theo** | Một bài TC-72 cũ dò chặng theo **chỉ số** `preconditions[1]` nên vỡ khi thêm chặng mới. Đổi sang dò theo tên — chỉ số vào một danh sách còn dài ra là cách viết sẽ vỡ lại |
 | **Bài canh** | `tests/test_tc83_san_sang_day_du.py` — 9 bài |
 
+## SL-107 · LỆCH THẬT (×4) · Chỗ nháp sinh ra đã hỏng, và đường nạp tri thức đi vòng qua kiểm nguồn
+
+| | |
+|---|---|
+| **Tài liệu** | SL-78 (`eaa scratch`); SL-71 (hai hạng nguồn); AIS §4.1 |
+| **Cách tìm** | Phiên kiểm có người đứng giữa, với một kit thật thuộc **họ MCU khác** dự án đang mở. Người dùng chỉ nói tên bo; mọi thứ còn lại do Agent tự dò |
+| **Lỗi 1 — chỗ nháp sinh ra đã hỏng** | `eaa scratch` ghi `mcu: "chưa xác định"` — một **chuỗi** ở chỗ lược đồ `eaa/kb.py` đòi ánh xạ. Mọi lệnh dựng Knowledge Graph sập ngay từ lượt chạy đầu tiên. Một chỗ làm nháp không chạy nổi một lệnh thì nó không giảm việc phải gõ, nó thêm việc phải gỡ |
+| **Lỗi 2 — sập bằng traceback Python** | `dict("chuỗi")` ném `ValueError: dictionary update sequence element #0 has length 1; 2 is required` — không nói tệp nào, trường nào, sửa thế nào. Nó lọt qua **mọi** lớp bắt lỗi của CLI và ra tới người dùng nguyên vẹn, dù `main()` khai rõ "lỗi miền được đổi thành thông điệp + mã thoát, không phải traceback" |
+| **Đã sửa 1–2** | `_HARDWARE` dùng `mcu: {}` — rỗng-nhưng-đúng-kiểu nói cùng một chuyện với "chưa xác định", bằng thứ ngôn ngữ phần còn lại của hệ đọc được. `HardwareProfile._anh_xa()` / `._danh_sach()` ném `KbError` nêu **tệp, trường, kiểu đúng, và cách để trống** |
+| **Lỗi 3 — sai Platform Pack, IM LẶNG** | `eaa scratch --platform` mặc định một pack cố định, nên chỗ nháp cho bo họ khác nhận sai trình biên dịch, sai bộ luật phân tích tĩnh, sai khuôn mẫu firmware. **Tệ hơn một lần sập**: sập thì người ta sửa, còn giá trị sai mà im lặng thì mọi thứ dựng lên trên nó đều sai theo, và cái sai chỉ lộ ra ở cổng biên dịch |
+| **Đã sửa 3** | `chon_platform()` suy từ tên chỗ nháp, đối chiếu **tên pack đang cài**; khớp đúng một thì dùng và **khai rõ là GIẢ ĐỊNH**; không suy được thì **HỎI** kèm danh sách pack, không mặc định bừa. Lý do chọn ghi thẳng vào đầu `constraints.yaml`. Suy từ tên vẫn là đoán — nhưng đoán từ bằng chứng, nói ra là mình đoán, và từ chối khi bằng chứng không đủ; một hằng số cũng là đoán, chỉ khác là nó bỏ qua bằng chứng và không nói gì |
+| **Lỗi 4 — đường nạp tri thức ĐI VÒNG qua kiểm nguồn** | `eaa read` từ chối PDF và chỉ sang `eaa datasheet add`, nhưng lệnh ấy **chỉ nhận tệp cục bộ**. Người dùng phải tự tải bằng trình duyệt — việc tải ấy nằm **ngoài** `eaa/web.py`, nên **không có phân hạng nguồn nào xảy ra**. Một PDF lấy từ trang chia sẻ tài liệu bất kỳ vào kho tri thức y hệt bản lấy từ miền nhà sản xuất, và không gì ghi lại khác biệt. Cả hệ thống hai hạng bị đi vòng qua bởi đúng con đường duy nhất thật sự nạp tri thức |
+| **Đã sửa 4** | `WebFetcher.fetch_binary()` — cùng bộ chặn URL, cùng phép kiểm từng chặng chuyển hướng, cùng phép tính hạng theo **URL cuối**; khác đúng chỗ không bóc chữ và có trần riêng 80 MB. `eaa datasheet add` nhận URL, tải qua đó, **từ chối hạng `mở`**, lưu vào `datasheets/_taive/`. Lệnh vẫn là lệnh CỦA NGƯỜI (G2) — cái thêm vào là chỗ tải, không phải quyền duyệt |
+| **Kiểm thật** | Tải `UM1842` từ `st.com`: 1.695.359 byte, hạng `chính chủ`, dựng chunk đề xuất 36 trang. Chiều ngược: một URL `wikipedia.org` bị từ chối đúng lý do |
+| **Ghi nhận** | TC-38 bắt tôi ngay khi tôi viết tên bo cụ thể vào comment của `eaa/scratch.py`. Cổng thuần khiết engine làm đúng việc của nó — kể cả với người đang sửa nó |
+| **Bài canh** | `tests/test_tc84_scratch_va_nap_url.py` — 17 bài |
+
 
 ---
 

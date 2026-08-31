@@ -90,6 +90,7 @@ __all__ = [
     "NO_NET_ENV",
     "mang_bi_tat",
     "MAX_BYTES",
+    "MAX_BYTES_NHI_PHAN",
     "TIMEOUT_S",
     "MAX_REDIRECTS",
 ]
@@ -121,6 +122,11 @@ def mang_bi_tat() -> bool:
 #: Trần một trang. 2 MiB đã lớn hơn mọi trang tài liệu kỹ thuật dạng chữ; cái
 #: vượt trần gần như luôn là tệp nhị phân tải nhầm.
 MAX_BYTES = 2_000_000
+
+#: Trần một tệp nhị phân (:meth:`WebFetcher.fetch_binary`). Rộng hơn hẳn vì
+#: một user manual của nhà sản xuất thường vài chục MB — nhưng vẫn có trần, để
+#: một đường dẫn sai không kéo về cả một ảnh đĩa.
+MAX_BYTES_NHI_PHAN = 80 * 1024 * 1024
 
 TIMEOUT_S = 20.0
 MAX_REDIRECTS = 3
@@ -498,6 +504,64 @@ class WebFetcher:
             self.cache.put(doc)
         return doc
 
+    def fetch_binary(self, url: str, *, max_bytes: int = 0) -> tuple[bytes, WebDocument]:
+        """Tải một tệp NHỊ PHÂN (PDF, ảnh) — trả (nội dung, siêu dữ liệu).
+
+        Vì sao có đường này bên cạnh :meth:`fetch`
+        -------------------------------------------
+
+        :meth:`fetch` cố ý từ chối nhị phân: một PDF đưa vào bộ bóc HTML thì ra
+        rác, và rác trông giống chữ là kiểu hỏng tệ nhất ở đây.
+
+        Nhưng từ chối mà không có đường thay thế thì tài liệu nhà sản xuất —
+        gần như luôn là PDF — chỉ vào kho tri thức được bằng cách người dùng tự
+        tải bằng trình duyệt. Việc tải ấy nằm ngoài module này, nên **không có
+        phân hạng nguồn nào xảy ra**, và cả hệ thống hai hạng bị đi vòng qua ở
+        đúng con đường duy nhất thật sự nạp tri thức.
+
+        Nên: cùng bộ chặn URL, cùng phép kiểm chuyển hướng, cùng phép tính hạng
+        theo URL CUỐI. Khác đúng một chỗ — không bóc chữ, không cắt theo trần
+        trang, và trả về nguyên byte.
+
+        Trần riêng: tài liệu nhà sản xuất thường vài chục MB, lớn hơn hẳn trần
+        2 MB của một trang chữ.
+        """
+        if not self.enabled():
+            raise NetworkDisabled(
+                f"Lối ra mạng đang tắt ({NO_NET_ENV}=1). Bỏ biến ấy đi để cho "
+                "phép, hoặc nêu đường dẫn một tệp đã có trên máy."
+            )
+        tran = max_bytes or MAX_BYTES_NHI_PHAN
+        hien_tai = url
+        for _ in range(self.max_redirects + 1):
+            _kiem_url(hien_tai, resolver=self.resolver)
+            status, url_cuoi, headers, than = self._gui(hien_tai, max_bytes=tran)
+
+            if status in (301, 302, 303, 307, 308):
+                dich = headers.get("Location") or headers.get("location") or ""
+                if not dich:
+                    raise FetchFailed(f"HTTP {status} nhưng không có Location: {hien_tai}")
+                hien_tai = urljoin(hien_tai, dich)
+                continue
+            if status != 200:
+                raise FetchFailed(f"HTTP {status} khi tải {hien_tai}")
+
+            cuoi = url_cuoi or hien_tai
+            if len(than) > tran:
+                raise FetchFailed(
+                    f"{cuoi} lớn hơn trần {tran // 1024 // 1024} MB. Tải bằng tay "
+                    "rồi nêu đường dẫn tệp."
+                )
+            kieu = (headers.get("Content-Type") or headers.get("content-type") or "")
+            doc = WebDocument(
+                url=cuoi, requested=url, status=status,
+                content_type=kieu.split(";")[0].strip().lower(), text="",
+                tier=classify(cuoi), byte_count=len(than),
+                sha256=hashlib.sha256(than).hexdigest(), fetched_at=_now(),
+            )
+            return than, doc
+        raise FetchFailed(f"Quá {self.max_redirects} lần chuyển hướng từ {url}")
+
     # ----------------------------------------------------------------------
 
     def _tai(self, url: str) -> WebDocument:
@@ -523,12 +587,13 @@ class WebFetcher:
             "hướng dài bất thường thường là một vòng, hoặc một trang chặn bot."
         )
 
-    def _gui(self, url: str) -> tuple[int, str, dict[str, str], bytes]:
+    def _gui(self, url: str, *, max_bytes: int = 0
+             ) -> tuple[int, str, dict[str, str], bytes]:
         gui = self.transport or self._urllib
         loi_cuoi: Exception | None = None
         for lan in range(self.max_retries + 1):
             try:
-                return gui(url, self.timeout_s, self.max_bytes)
+                return gui(url, self.timeout_s, max_bytes or self.max_bytes)
             except (urllib.error.URLError, TimeoutError, OSError) as exc:
                 # Lỗi mạng là loại đáng thử lại; 4xx thì không, và nhánh ấy đi
                 # qua HTTPError bên dưới nên không rơi vào đây.

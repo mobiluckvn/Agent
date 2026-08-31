@@ -1381,6 +1381,60 @@ def _gate_reject(ctx: AppContext, args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------
 
 
+def _tep_tai_lieu(nguon: str, project: Path) -> Path:
+    """Nhận đường dẫn tệp HOẶC URL, trả về một tệp trên đĩa.
+
+    Vì sao URL phải đi qua ``eaa/web.py``
+    --------------------------------------
+
+    Trước bản này lệnh chỉ nhận tệp cục bộ. Nghe có vẻ chặt hơn, thực ra là
+    lỏng hơn — và lỏng ở đúng chỗ quan trọng nhất:
+
+    ``eaa read`` từ chối PDF và chỉ người dùng sang ``eaa datasheet add``.
+    Nhưng lệnh ấy không nhận URL, nên người dùng phải tự tải tệp về bằng trình
+    duyệt. Việc tải ấy nằm NGOÀI ``eaa/web.py``, nên **không có phân hạng nguồn
+    nào xảy ra**: một bản PDF lấy từ một trang chia sẻ tài liệu bất kỳ vào kho
+    tri thức y hệt một bản lấy từ miền nhà sản xuất, và không gì ghi lại sự
+    khác biệt.
+
+    Nói cách khác: cả hệ thống hai hạng nguồn bị đi vòng qua bởi đúng con
+    đường duy nhất thật sự nạp tri thức. Đưa URL vào đây đóng lỗ ấy.
+
+    Lệnh vẫn là lệnh CỦA NGƯỜI (G2, AIS §4.1) — chọn tệp và chọn trang là việc
+    của kỹ sư. Cái thêm vào là chỗ tải, không phải quyền duyệt.
+    """
+    from eaa.web import CHINH_CHU, WebError, WebFetcher
+
+    if not nguon.lower().startswith(("http://", "https://")):
+        return Path(nguon)
+
+    try:
+        noi_dung, doc = WebFetcher(cache=None).fetch_binary(nguon)
+    except WebError as exc:
+        raise CliError(f"Không tải được {nguon}: {exc}") from None
+
+    if doc.tier != CHINH_CHU:
+        raise CliError(
+            f"{doc.url} thuộc hạng {doc.tier!r}, không phải nguồn chính chủ.\n"
+            "  Chỉ tài liệu từ miền nhà sản xuất mới được thành trích đoạn tri\n"
+            "  thức — một bản sao trên trang chia sẻ tài liệu có thể đã bị sửa,\n"
+            "  và ta kiểm được nguồn chứ không kiểm được nội dung.\n"
+            "  Tìm bản trên miền nhà sản xuất; hoặc nếu bạn ĐÃ tự đối chiếu bản\n"
+            "  này với bản gốc thì tải về rồi nêu đường dẫn tệp."
+        )
+
+    from urllib.parse import urlparse
+
+    dich = project / "datasheets" / "_taive"
+    dich.mkdir(parents=True, exist_ok=True)
+    ten = Path(urlparse(doc.url).path).name or "tai_lieu.pdf"
+    tep = dich / ten
+    tep.write_bytes(noi_dung)
+    print(f"Đã tải {len(noi_dung):,} byte từ {doc.url}".replace(",", "."))
+    print(f"  hạng nguồn: {doc.tier}  ·  lưu tại {tep}")
+    return tep
+
+
 def cmd_datasheet(args: argparse.Namespace) -> int:
     from eaa.ingest import IngestError, PdfIngestor, SourceRegistry
     from eaa.kb import DatasheetStore
@@ -1407,12 +1461,13 @@ def cmd_datasheet(args: argparse.Namespace) -> int:
         return EXIT_WAITING_GATE if cho_duyet else EXIT_OK
 
     if args.datasheet_action == "add":
+        nguon_tep = _tep_tai_lieu(args.file, project)
         try:
             de_xuat = PdfIngestor(
                 datasheets_dir=project / "datasheets",
                 registry=SourceRegistry(project / "sources.jsonl"),
             ).ingest(
-                args.file,
+                str(nguon_tep),
                 device=args.device,
                 peripheral=args.peripheral,
                 pages=args.pages or "",
@@ -5491,7 +5546,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_scr.add_argument("--name", default="nhap")
-    p_scr.add_argument("--platform", default="avr")
+    p_scr.add_argument(
+        "--platform", default="",
+        help="Tên Platform Pack. Bỏ trống thì suy từ tên chỗ nháp; "
+             "không suy được thì hệ HỎI chứ không mặc định bừa",
+    )
     p_scr.add_argument("--force", action="store_true")
     p_scr.set_defaults(func=cmd_scratch)
 
