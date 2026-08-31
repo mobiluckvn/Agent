@@ -88,6 +88,7 @@ __all__ = [
     "CHINH_CHU",
     "MO",
     "NO_NET_ENV",
+    "mang_bi_tat",
     "MAX_BYTES",
     "TIMEOUT_S",
     "MAX_REDIRECTS",
@@ -97,8 +98,25 @@ __all__ = [
 CHINH_CHU = "chính chủ"
 MO = "mở"
 
-#: Đặt ``EAA_NO_NET=1`` là ngắt hẳn mọi lối ra mạng của module này.
+#: Đặt ``EAA_NO_NET=1`` là ngắt hẳn MỌI lối ra mạng của sản phẩm — không riêng
+#: module này. Engine có đúng ba lối ra: ``eaa/web.py`` (tải trang),
+#: ``eaa/llm/gemini.py`` (gọi mô hình, kể cả tìm kiếm có grounding), và phép dò
+#: kết nối trong ``eaa/environ.py``. Cả ba đọc :func:`mang_bi_tat`.
 NO_NET_ENV = "EAA_NO_NET"
+
+
+def mang_bi_tat() -> bool:
+    """Lối ra mạng có đang bị tắt có chủ ý không.
+
+    Một hàm chứ không phải ba lần đọc biến môi trường: một công tắc mà mỗi chỗ
+    tự diễn giải một kiểu là một công tắc **trông như** đã tắt. Chỗ này từng
+    hụt đúng như thế — ``eaa research`` đi qua lối grounding của adapter mô
+    hình chứ không qua module này, nên ``EAA_NO_NET=1`` không chạm tới nó và
+    lệnh vẫn ra mạng thật.
+    """
+    import os as _os
+
+    return _os.environ.get(NO_NET_ENV, "").strip().lower() in ("1", "true", "yes")
 
 #: Trần một trang. 2 MiB đã lớn hơn mọi trang tài liệu kỹ thuật dạng chữ; cái
 #: vượt trần gần như luôn là tệp nhị phân tải nhầm.
@@ -462,7 +480,7 @@ class WebFetcher:
     sleep: Callable[[float], None] = time.sleep
 
     def enabled(self) -> bool:
-        return os.environ.get(NO_NET_ENV, "").strip() not in ("1", "true", "yes")
+        return not mang_bi_tat()
 
     def fetch(self, url: str, *, refresh: bool = False) -> WebDocument:
         if not self.enabled():

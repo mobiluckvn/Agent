@@ -84,8 +84,43 @@ def _urllib_transport(url: str, body: bytes, api_key: str, timeout: float) -> di
         return json.loads(phan_hoi.read().decode("utf-8"))
 
 
+def _mang_tat() -> bool:
+    from eaa.web import mang_bi_tat
+
+    return mang_bi_tat()
+
+
+def _chan_neu_tat_mang(endpoint: str = "") -> None:
+    """Chặn khi ``EAA_NO_NET=1``. Gọi API mô hình LÀ một lối ra mạng.
+
+    Điều này từng hụt, và hụt theo kiểu tệ nhất: công tắc trông như đã tắt.
+    ``EAA_NO_NET=1`` chỉ được đọc trong ``eaa/web.py``, nên ``eaa research``
+    — đi qua tìm kiếm có grounding của chính adapter này chứ không qua
+    ``eaa/web.py`` — vẫn ra Internet thật và trả về tám địa chỉ. Một người tin
+    rằng mình đã ngắt mạng vẫn đang gọi ra ngoài.
+
+    Chặn ở :meth:`GeminiClient._post` chứ không ở từng phương thức công khai:
+    mọi đường tới nhà cung cấp đều đi qua đây, kể cả đường thêm sau này.
+    """
+    from eaa.web import NO_NET_ENV, mang_bi_tat
+
+    if not mang_bi_tat():
+        return
+    them = " (tìm kiếm có grounding cũng là một lối ra mạng)" if "search" in endpoint else ""
+    raise NetworkDisabled(
+        f"Lối ra mạng đang tắt ({NO_NET_ENV}=1) nên không gọi được mô hình{them}. "
+        "Bỏ biến ấy đi để cho phép, hoặc chuyển sang nhà cung cấp không cần mạng: "
+        "'eaa init --provider mock' (tất định) hoặc '--provider replay' (phát lại "
+        "nhật ký đã ghi)."
+    )
+
+
 class GeminiError(LLMError):
     """Lỗi khi gọi mô hình."""
+
+
+class NetworkDisabled(GeminiError):
+    """Lối ra mạng bị tắt có chủ ý — khác hẳn mất mạng ngoài ý muốn."""
 
 
 class MissingApiKey(GeminiError):
@@ -168,6 +203,7 @@ class GeminiClient:
         quá hạn — sẽ không có cách nào kiểm được, và chúng là những nhánh sẽ
         chạy vào đúng lúc tệ nhất.
         """
+        _chan_neu_tat_mang(endpoint)
         url = f"{self.base_url}/models/{self.model}:{endpoint}"
         than = json.dumps(payload).encode("utf-8")
         gui = self.transport or _urllib_transport
@@ -247,7 +283,7 @@ class GeminiClient:
         # Không có luật này thì mọi bài test dùng lớp giả vẫn lặng lẽ gọi ra
         # ngoài để hỏi trần token — chậm, phụ thuộc mạng, và hỏng trong CI.
         lay = self.metadata_transport
-        if lay is None and self.transport is None:
+        if lay is None and self.transport is None and not _mang_tat():
             lay = _urllib_get
         if lay is None:
             self._tran_ra = self.max_output_tokens

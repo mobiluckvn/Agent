@@ -78,8 +78,10 @@ def load_env_file(root: Path | None = None) -> list[str]:
 
     Hai luật:
 
-    * **Biến đã đặt trong shell luôn thắng.** Người gõ ``EAA_LLM_KEY=... eaa
-      gen`` phải nhận đúng khóa họ vừa gõ, không phải khóa cũ trong tệp.
+    * **Biến đã đặt trong shell luôn thắng** — kể cả khi đặt thành CHUỖI RỖNG.
+      Người gõ ``EAA_LLM_KEY=... eaa gen`` phải nhận đúng khóa họ vừa gõ,
+      không phải khóa cũ trong tệp; và người gõ ``EAA_LLM_KEY= eaa chat`` đang
+      nói "chạy không có khóa", không phải "lấy giúp tôi khóa trong .env".
     * **Không bao giờ in nội dung tệp ra.** Trả về TÊN biến đã nạp, không trả
       giá trị — danh sách này có thể đi vào log.
     """
@@ -97,7 +99,12 @@ def load_env_file(root: Path | None = None) -> list[str]:
         gia_tri = gia_tri.strip().strip('"').strip("'")
         if not ten or not gia_tri:
             continue
-        if os.environ.get(ten):
+        # ``ten in os.environ`` chứ KHÔNG phải truthiness. Một biến đặt thành
+        # chuỗi rỗng LÀ một biến đã đặt, và người gõ ``EAA_LLM_KEY= eaa chat``
+        # đang nói "chạy không có khóa" — đó là cách duy nhất để thử đường
+        # không-có-khóa trên một máy có sẵn .env. Dùng truthiness thì .env lặng
+        # lẽ điền vào, và mã lệch với chính luật nó khai ở trên.
+        if ten in os.environ:
             continue
         os.environ[ten] = gia_tri
         da_nap.append(ten)
@@ -194,11 +201,45 @@ def _buoc_ke_tiep(state: ProjectState) -> tuple[str, int]:
     )
 
 
+def _troi_rang_buoc(state: ProjectState, project: Path) -> str:
+    """Băm ràng buộc trong state có còn khớp tệp trên đĩa không.
+
+    ``constraints_version`` không phải một nhãn trang trí: nó đi vào commit
+    message theo NFR-07 làm **bằng chứng xuất xứ** — "mã này sinh ra dưới bộ
+    ràng buộc ấy". Nếu ai đó sửa ``constraints.yaml`` mà băm trong state vẫn
+    là băm cũ, thì mọi commit sau đó mang một khẳng định SAI, và khẳng định ấy
+    nằm vĩnh viễn trong lịch sử Git.
+
+    Trước bản sửa này ``eaa status`` in băm cũ ra như một sự thật: sửa
+    constraints.yaml xong, băm trên màn hình không đổi, và không có gì báo.
+    Phát hiện trong bộ ca xấu C-04.
+
+    Trả về chuỗi rỗng khi khớp — im lặng ở đây là câu trả lời đúng.
+    """
+    from eaa.kb import Constraints, KbError
+
+    duong_dan = project / CONSTRAINTS_FILE
+    if not state.constraints_version or not duong_dan.is_file():
+        return ""
+    try:
+        that = Constraints.load(duong_dan).content_version
+    except (KbError, Exception):  # noqa: BLE001 - tệp hỏng cũng là một dạng trôi
+        return "   ⚠ KHÔNG ĐỌC ĐƯỢC constraints.yaml — băm này không kiểm lại được"
+    if that == state.constraints_version:
+        return ""
+    return (
+        f"\n                ⚠ TRÔI: tệp trên đĩa băm {that}."
+        "\n                  Băm này đi vào commit message làm bằng chứng xuất xứ"
+        "\n                  (NFR-07) — để lệch là ghi một khẳng định sai vào lịch"
+        "\n                  sử Git. Chốt lại bộ ràng buộc mới qua gate G1."
+    )
+
+
 def _in_tom_tat(state: ProjectState, project: Path) -> int:
     _in_tieu_de(f"Dự án: {project.name}  ({project})")
     print(f"Pha hiện tại : {state.phase} — {PHASE_NAMES[state.phase]}")
     print(f"Mức phân quyền: {level(state.phase)}")
-    print(f"Ràng buộc     : {state.constraints_version}")
+    print(f"Ràng buộc     : {state.constraints_version}{_troi_rang_buoc(state, project)}")
     if state.llm:
         print(f"Mô hình       : {state.llm.get('provider', '?')}/{state.llm.get('model', '?')}")
     if state.env_hash:

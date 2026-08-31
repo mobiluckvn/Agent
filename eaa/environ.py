@@ -313,9 +313,9 @@ def check_network(
     """Thử nối ra ngoài THẬT. Nhanh, và có hạn giờ ngắn."""
     import time
 
-    from eaa.web import NO_NET_ENV
+    from eaa.web import NO_NET_ENV, mang_bi_tat
 
-    if os.environ.get(NO_NET_ENV, "").strip() in ("1", "true", "yes"):
+    if mang_bi_tat():
         return NetworkCheck(
             reachable=False, skipped=True,
             detail=f"{NO_NET_ENV}=1 — lối ra mạng đang bị tắt có chủ ý",

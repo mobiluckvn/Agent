@@ -1443,6 +1443,22 @@ Ba loại:
 | **Ranh giới quyền** | `models` vào TOOLBOX (chỉ đọc). `init` vào `NGOAI_DANH_MUC`: Agent liệt kê được lựa chọn nhưng không tự đổi model của chính nó |
 | **Bài canh** | `tests/test_tc80_chon_model.py` — 17 bài |
 
+## SL-104 · LỆCH THẬT (×3) · Ba chỗ mã lệch với chính lời nó khai — bộ ca xấu tìm ra
+
+| | |
+|---|---|
+| **Tài liệu** | `docs/NHAT_KY_CA_XAU.md`; `scripts/chay_ca_xau.py`; NFR-06, NFR-07 |
+| **Cách tìm** | Bộ 15 ca xấu chạy sản phẩm **như một người dùng đang gõ sai**. Vòng 1 đạt 10/15; sau ba vòng đạt 15/15. Ba lỗi thật, không cái nào bị 1.966 bài test sẵn có chạm tới — vì cả ba là chỗ **mã lệch với lời chính nó khai**, và một bài test viết từ cùng hiểu nhầm sẽ xanh |
+| **Lỗi 1 — `EAA_NO_NET=1` không chặn lối ra qua mô hình** | Công tắc chỉ được đọc trong `eaa/web.py`. Engine có BA lối ra mạng: tải trang, gọi API mô hình (kể cả tìm kiếm có grounding), dò kết nối. `eaa research` đi lối thứ hai, nên `EAA_NO_NET=1 eaa research …` vẫn ra Internet thật và trả về 8 địa chỉ. Kiểu hỏng tệ nhất của một công tắc an toàn: nó **trông như đã tắt** — một công tắc hỏng mà báo lỗi thì người ta sửa, hỏng mà im lặng thì người ta tin |
+| **Đã sửa 1** | `eaa/web.py::mang_bi_tat()` — một chỗ định nghĩa luật, ba chỗ hỏi. Chặn ở `GeminiClient._post()` chứ không ở từng phương thức công khai, để mọi đường tới nhà cung cấp kể cả đường thêm sau này đều đi qua. Chặn cả `output_limit()`: tra trần token cũng là một lượt gọi ra ngoài. Thông điệp chỉ đường: `--provider mock` / `replay`. TC-81 quét `eaa/` và đỏ nếu có tệp nào tự đọc `EAA_NO_NET` thay vì hỏi `mang_bi_tat()` |
+| **Lỗi 2 — băm ràng buộc không bao giờ được đối chiếu** | `eaa status` in `constraints_version` đọc từ Project State, không đối chiếu với `constraints.yaml` trên đĩa. Sửa tệp xong, băm trên màn hình không đổi, và không có gì báo. Nghiêm trọng vì băm ấy đi vào **commit message** làm bằng chứng xuất xứ (NFR-07): băm cũ + tệp mới = mọi commit sau đó mang một khẳng định sai, **vĩnh viễn trong lịch sử Git** |
+| **Đã sửa 2** | `_troi_rang_buoc()` gọi từ `_in_tom_tat` — cảnh báo nằm ở lệnh gõ hằng ngày, không ở lệnh ẩn. Nói ba thứ: băm thật, vì sao quan trọng (NFR-07), đường chốt lại (G1). Khớp thì im lặng |
+| **Bộ dò bắt ngay một ca thật trong kho** | `projects/robot_balance` đang trôi: `constraints.yaml` sửa ở `f6b9d49`, `project_state.json` chưa động từ `ea63c88` — sớm hơn nhiều sprint. **Chưa tự ghim lại**: chốt bộ ràng buộc là quyết định của người tại G1, và một lệnh tự ghim lại băm chính là lối tắt thiết kế cấm |
+| **Lỗi 3 — biến môi trường đặt RỖNG bị `.env` điền đè** | `load_env_file()` khai "biến đã đặt trong shell luôn thắng" nhưng kiểm bằng truthiness, nên `EAA_LLM_KEY=""` bị coi như chưa đặt. Hệ quả: trên máy có sẵn `.env` **không có cách nào** chạy thử đường không-có-khóa — đúng đường CI và máy mới sẽ đi |
+| **Đã sửa 3** | `if ten in os.environ` thay cho truthiness; docstring nói rõ trường hợp chuỗi rỗng |
+| **Ghi nhận** | Một ca test tôi viết SAI (C-04 dùng `eaa status`, lệnh không nạp constraints) lại là chỗ tìm ra lỗi 2. Nếu nó đạt ngay từ đầu thì đã không ai hỏi vì sao `status` in được một băm từ một tệp hỏng |
+| **Bài canh** | `tests/test_tc81_ca_xau.py` — 14 bài; `scripts/chay_ca_xau.py` — 15 ca, chạy lại được |
+
 
 ---
 
