@@ -1,0 +1,12 @@
+Lỗi: Phiên thu telemetry không tin được — không kết luận chẩn đoán trên dữ liệu này.
+Số rút ra từ một phiên nhiều khung hỏng vẫn trông hợp lý, và đó mới là chỗ nguy hiểm.
+  Đang thu 5s từ /dev/cu.usbserial-143410 ở 115200 baud…
+  Cổng        : /dev/cu.usbserial-143410
+  Thời gian   : 5.2s
+  Khung nhận  : 2 (0 đạt, 2 hỏng)
+  Tỉ lệ hỏng  : 100%
+      2× thiếu dấu '*' ngăn checksum
+
+  PHIÊN ĐO KHÔNG TIN ĐƯỢC — quá nhiều khung hỏng.
+  Số rút ra từ phiên này không nên đưa vào kết luận: sai tốc độ
+  truyền hay nhiễu đường dây vẫn cho ra vài con số trông hợp lý.

@@ -19,7 +19,14 @@
 #
 # Ví dụ một khung:  {"i2c_devices": ["0x68"]}*4C
 telemetry:
-  baud: 115200
+  # HẠ TỪ 115200 xuống 9600 ngày 31/08/2026 — phép thử tách bạch, không phải
+  # sở thích. Ở 115200 mọi byte đọc về là 0x00, tức lệch tốc độ LỚN chứ không
+  # phải sai số 2,1% của cặp 16 MHz/115200. 9600 có sai số dưới 0,2% ở CẢ 16
+  # MHz lẫn 8 MHz, nên nếu khung giải mã được ở 9600 thì chip chạy đúng tần số
+  # đã khai; nếu phải đọc ở 4800 mới ra thì chip đang chạy nửa tần số.
+  #
+  # Một tham số đặt để PHÂN BIỆT hai giả thuyết, không phải để cho chạy được.
+  baud: 9600
   checksum: xor8         # none | xor8 | sum8
   separator: "*"
   # Mở cổng nối tiếp làm nhiều bo tự khởi động lại, nên bỏ qua rác đầu phiên.
