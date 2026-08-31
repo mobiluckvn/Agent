@@ -64,10 +64,14 @@ def _lenh_cua(doctor: Doctor) -> tuple[str, ...]:
 
 
 def _khong_chay(doctor: Doctor) -> list:
-    """Thay chỗ chạy lệnh thật bằng một chỗ ghi lại — bài kiểm không cài gì cả."""
+    """Thay chỗ chạy lệnh thật bằng một chỗ ghi lại — bài kiểm không cài gì cả.
+
+    Ghi lại CẢ DÃY lệnh, vì từ SL-111 thứ được duyệt và thứ được chạy là một
+    dãy chứ không phải một lệnh.
+    """
     da_chay: list = []
     doctor._run_install = lambda spec, lenh: (  # type: ignore[assignment]
-        da_chay.append(tuple(lenh)) or [f"{spec.name}: đã cài"]
+        da_chay.append([tuple(b) for b in lenh]) or [f"{spec.name}: đã cài"]
     )
     return da_chay
 
@@ -135,15 +139,15 @@ def test_hoi_MOT_LAN_cho_ca_bo_chu_khong_hoi_tung_cai(tmp_path: Path) -> None:
 
 def test_da_duyet_thi_Agent_tu_chay_khong_can_terminal(doctor: Doctor) -> None:
     """Đây là điều người dùng đòi, và là chỗ bản sửa này thay đổi hành vi."""
-    lenh = _lenh_cua(doctor)
-    doctor.approvals.approve("cong-cu-gia", lenh, by="Vũ Trí Công")
+    buoc = doctor.install_steps(doctor.manifest.get("cong-cu-gia"))
+    doctor.approvals.approve("cong-cu-gia", buoc, by="Vũ Trí Công")
 
     doctor.confirm = lambda ten, l: None  # vẫn không có ai ở terminal
     da_chay = _khong_chay(doctor)
 
     nhat_ky = doctor.fix(doctor.scan())
 
-    assert da_chay == [lenh], "người đã duyệt đúng lệnh này rồi — phải chạy"
+    assert da_chay == [buoc], "người đã duyệt đúng lệnh này rồi — phải chạy"
     assert any("Vũ Trí Công" in d for d in nhat_ky), "phải nói AI duyệt"
 
 

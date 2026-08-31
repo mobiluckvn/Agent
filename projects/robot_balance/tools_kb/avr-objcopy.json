@@ -1,0 +1,18 @@
+{
+  "name": "avr-objcopy",
+  "version": "2.46.0",
+  "executable": "/usr/local/bin/avr-objcopy",
+  "gates": [
+    "hex"
+  ],
+  "invocation": [
+    "avr-objcopy",
+    "--version"
+  ],
+  "version_regex": "(\\d+\\.\\d+(?:\\.\\d+)?)",
+  "error_regex": "",
+  "verified_at": "2026-08-31T13:27:22+00:00",
+  "os": "macos",
+  "smoke_output": "Usage: avr-objcopy [option(s)] in-file [out-file]\n Copies a binary file, possibly transforming it in the process\n The options are:\n  -I --input-target <bfdname>      Assume input file is in format <bfdname>\n  -O --output-target <bfdname>     Create an output file in format <bfdname>\n  -B --binary-architecture <arch>  Set output arch, when input is arch-less\n  -F --target <bfdname>            Set both input and output format to <bfdname>\n     --debugging                   Convert debugging information, if possible\n  -p --preserve-dates              Copy modified/access timestamps to the output\n  -D --enable-deterministic-archives\n                                   Produce deterministic output when stripping archives\n  -U --disable-deterministic-archives\n                                   Disable -D behavior (default)\n  -j --only-section <name>         Only copy section <name> into the output\n     --add-gnu-debuglink=<file>    Add section .gnu_debuglink linking to <file>\n  -R --remove-section <name>       Remove section <name> from the output\n     --remove-relocations <name>   Remove relocations from section <name>\n     --strip-section-headers              Strip section header from the output\n  -S --strip-all                   Remove all symbol and relocation information\n  -g --strip-debug                 Remove all debugging symbols & sections\n     --strip-dwo                   Remove all DWO sections\n     --strip-unneeded              Remove all symbols not needed by relocations\n  -N --strip-symbol <name>         Do not copy symbol <name>\n     --strip-unneeded-symbol <name>\n                                   Do not copy symbol <name> unless needed by\n                                     relocations\n     --only-keep-debug             Strip everything but the debug information\n     --extract-dwo                 Copy only DWO sections\n     --extract-symbol              Remove section contents but keep symbols\n     --keep-section <name>         Do not strip section <nam",
+  "known_issues": []
+}

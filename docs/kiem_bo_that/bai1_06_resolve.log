@@ -1,0 +1,15 @@
+
+Bảng kiểm thông tin cần — drv_uart
+──────────────────────────────────
+Bảng kiểm thông tin cần — drv_uart
+
+  ✓ [CÓ] thanh ghi UBRR0H ← ds-041
+  ✓ [CÓ] thanh ghi UBRR0L ← ds-041
+  ✓ [CÓ] thanh ghi UCSR0A ← ds-041
+  ✓ [CÓ] thanh ghi UCSR0B ← ds-041
+  ✓ [CÓ] thanh ghi UCSR0C ← ds-041
+  ✓ [CÓ] tài nguyên usart0 ← hardware_profile.yaml
+
+CÓ 6 · THIẾU 0 · MÂU THUẪN 0
+
+Đủ điều kiện mở vòng sinh mã: eaa gen drv_uart

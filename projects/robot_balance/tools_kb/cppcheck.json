@@ -1,0 +1,18 @@
+{
+  "name": "cppcheck",
+  "version": "2.21.0",
+  "executable": "/usr/local/bin/cppcheck",
+  "gates": [
+    "static"
+  ],
+  "invocation": [
+    "cppcheck",
+    "--version"
+  ],
+  "version_regex": "(\\d+\\.\\d+(?:\\.\\d+)?)",
+  "error_regex": "^\\[(?P<file>[^:]+):(?P<line>\\d+)\\]:\\s+(?P<msg>.*)$",
+  "verified_at": "2026-08-31T13:27:22+00:00",
+  "os": "macos",
+  "smoke_output": "Cppcheck 2.21.0\n",
+  "known_issues": []
+}

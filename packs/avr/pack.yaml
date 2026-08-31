@@ -39,10 +39,13 @@ diagnostics:
   image_name: diag_{scenario}
 
 # Phiên bản tối thiểu; eaa doctor đối chiếu và ghi vào env_lock.json (FR-ENV-01/04).
+# CẢNH BÁO: những số này lặp lại `min_version` trong `tools.yaml` của pack —
+# hai chỗ khai cùng một điều, và chúng ĐÃ từng lệch nhau (SL-114). Chỗ nào
+# đúng thì chưa có gì trả lời được, vì không phép kiểm nào đối chiếu hai bên.
 tool_requirements:
-  avr-gcc: ">=12.0"
-  avr-size: ">=2.38"
-  avr-objcopy: ">=2.38"
+  avr-gcc: ">=7.3"
+  avr-size: ">=2.26"
+  avr-objcopy: ">=2.26"
   avrdude: ">=7.0"
   cppcheck: ">=2.10"
 
@@ -133,8 +136,12 @@ capabilities:
       sánh số, không biết Flash hay SRAM nghĩa là gì.
     command:
       - avr-size
-      - --format=avr
-      - -mmcu={mcu}
+      # `--mcu=` chứ KHÔNG phải `-mmcu=`. Dạng `-mmcu` là cờ của trình biên
+      # dịch; `avr-size` là công cụ binutils và chỉ nhận dạng dài. Bản dựng
+      # nào chấp `-mmcu` là chấp thêm, không phải chuẩn — và bản không chấp
+      # thì cổng `size` trượt bằng một lỗi CÚ PHÁP CÔNG CỤ, không phải lỗi mã
+      # (SL-114).
+      - --mcu={mcu}
       - "{binary}"
     timeout_s: 30
     parse:

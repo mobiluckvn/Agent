@@ -1,0 +1,12 @@
+  → eaa plan add drv_uart   (mã 0)
+  → eaa focus drv_uart   (mã 2)
+
+Module `drv_uart` đã được thêm vào backlog. Để tiếp tục sinh mã, bạn cần gõ hai lệnh trên để cài công cụ biên dịch `avr-gcc` đang thiếu và phê duyệt Gate G1 (chốt ràng buộc cứng & kiến trúc).
+
+Trả lời này dựa trên:
+    · plan add drv_uart
+    · focus drv_uart
+
+Lệnh bạn cần tự chạy (tôi không được phép):
+    eaa doctor --fix
+    eaa gate approve G1

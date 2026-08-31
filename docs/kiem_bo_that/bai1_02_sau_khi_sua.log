@@ -1,0 +1,13 @@
+Để kiểm tra kênh UART trên bo thật, quy trình theo chuẩn EAA như sau:
+
+**Bước tôi (AI) có thể làm:**
+1. Khai báo module kiểm tra UART vào backlog (dùng lệnh `plan add`).
+2. Đề xuất hợp đồng giao tiếp và cấu trúc mã (dùng lệnh `interface`).
+
+**Bước BẠN (Người dùng) bắt buộc phải làm (vì tôi không có quyền can thiệp phần cứng):**
+1. Sinh mã nguồn: gõ `eaa gen`
+2. Biên dịch mã: gõ `eaa build`
+3. Nạp firmware xuống bo: gõ `eaa flash`
+4. Đọc kết quả đo: gõ `eaa telemetry` (hoặc dùng Serial Monitor ở baudrate 115200).
+
+Bạn có muốn tôi bắt đầu bằng việc thêm module kiểm tra UART vào backlog không?

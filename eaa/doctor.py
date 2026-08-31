@@ -87,15 +87,71 @@ class InstallNotConfirmed(DoctorError):
         self.nhat_ky: list[str] = list(nhat_ky)
 
 
-def _bam_lenh(lenh: Sequence[str]) -> str:
+def _chuan_hoa(commands: Any) -> tuple[tuple[str, ...], ...]:
+    """Nhận một lệnh hoặc một DÃY lệnh, trả về dãy — một dạng duy nhất.
+
+    Chấp cả hai vì chỗ gọi có cả hai; nhưng lưu và băm thì chỉ một dạng, nếu
+    không thì cùng một thứ có hai băm và phép so trở nên vô nghĩa.
+    """
+    muc = list(commands or [])
+    if muc and all(isinstance(x, (str, bytes)) for x in muc):
+        return (tuple(str(x) for x in muc),)
+    return tuple(tuple(str(x) for x in lenh) for lenh in muc)
+
+
+#: Số dòng cuối của đầu ra lệnh cài được giữ lại trong nhật ký.
+#:
+#: Giữ phần CUỐI vì lỗi nằm ở đó — đầu ra của trình quản lý gói mở màn bằng
+#: hàng chục dòng tải về rồi mới tới câu nói thật.
+SO_DONG_LOI = 12
+
+
+def _loi_cua_lenh(ket_qua: Any) -> list[str]:
+    """Đầu ra thật của lệnh vừa trượt, thụt vào cho dễ đọc.
+
+    Không có nó thì nhật ký chỉ có ``mã 1`` — một con số, không phải một chẩn
+    đoán. Người đọc không phân biệt nổi *mạng hỏng* với *sai tên gói*, mà hai
+    chuyện ấy dẫn tới hai việc khác hẳn: một bên thử lại, một bên sửa manifest.
+    Thông tin đã nằm sẵn trong tay (``capture_output=True`` bắt được nó); vứt
+    đi là bỏ thông tin IM LẶNG — đúng lỗi SL-100 ở một module khác.
+    """
+    ra = ((getattr(ket_qua, "stderr", "") or "") + "\n"
+          + (getattr(ket_qua, "stdout", "") or "")).strip()
+    if not ra:
+        return ["      (lệnh không in ra gì)"]
+    dong = [d for d in ra.splitlines() if d.strip()]
+    bo = len(dong) - SO_DONG_LOI
+    giu = dong[-SO_DONG_LOI:]
+    kq = [f"      {d}" for d in giu]
+    if bo > 0:
+        kq.insert(0, f"      … bỏ {bo} dòng đầu, giữ {SO_DONG_LOI} dòng cuối")
+    return kq
+
+
+#: Chỗ giữ trong lệnh cài, được thay bằng đường dẫn gói ĐÃ KIỂM CHECKSUM.
+CHO_GIU_GOI = "{tai_ve}"
+
+
+def _tai_ve(url: str, dich: "Path") -> None:
+    """Tải một tệp về đĩa. Tách riêng để bài kiểm thay được mà không ra mạng."""
+    import urllib.request
+
+    with urllib.request.urlopen(url, timeout=900) as nguon, open(dich, "wb") as f:
+        shutil.copyfileobj(nguon, f)
+
+
+def _bam_lenh(commands: Any) -> str:
     """Băm ĐÚNG dãy đối số sẽ chạy — không băm chuỗi hiển thị.
 
     Băm chuỗi đã nối thì ``["brew", "install", "a b"]`` và
     ``["brew", "install", "a", "b"]`` cho cùng một băm, mà đó là hai lệnh khác
     nhau. Chỗ này canh ranh giới giữa cái người đã duyệt và cái máy sắp chạy,
     nên nó phải phân biệt được đúng những gì hệ điều hành phân biệt.
+
+    Băm CẢ DÃY chứ không riêng lệnh cuối: thứ người duyệt phải là đúng thứ máy
+    chạy, kể cả những bước chuẩn bị chạy trước nó.
     """
-    noi_dung = json.dumps(list(lenh), ensure_ascii=False)
+    noi_dung = json.dumps([list(c) for c in _chuan_hoa(commands)], ensure_ascii=False)
     return "sha256:" + hashlib.sha256(noi_dung.encode("utf-8")).hexdigest()
 
 
@@ -104,15 +160,20 @@ class InstallApproval:
     """Một người đã duyệt MỘT lệnh cài cụ thể."""
 
     tool: str
-    command: tuple[str, ...]
+    #: TOÀN BỘ dãy lệnh đã duyệt, đúng thứ tự sẽ chạy.
+    commands: tuple[tuple[str, ...], ...]
     command_digest: str
     actor: str
     approved_at: str
 
+    @property
+    def nguyen_van(self) -> str:
+        return " && ".join(" ".join(c) for c in self.commands)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "tool": self.tool,
-            "command": list(self.command),
+            "commands": [list(c) for c in self.commands],
             "command_digest": self.command_digest,
             "actor": self.actor,
             "approved_at": self.approved_at,
@@ -148,10 +209,10 @@ class InstallApprovals:
                 "chịu trách nhiệm thì không phải quyết định của con người "
                 "(FR-GATE-01, FR-ENV-02)."
             )
-        lenh = tuple(str(x) for x in command)
+        lenh = _chuan_hoa(command)
         k = InstallApproval(
             tool=tool,
-            command=lenh,
+            commands=lenh,
             command_digest=_bam_lenh(lenh),
             actor=by.strip(),
             approved_at=_now(),
@@ -174,7 +235,7 @@ class InstallApprovals:
                 d = json.loads(dong)
                 ra.append(InstallApproval(
                     tool=str(d["tool"]),
-                    command=tuple(str(x) for x in d["command"]),
+                    commands=_chuan_hoa(d["commands"]),
                     command_digest=str(d["command_digest"]),
                     actor=str(d["actor"]),
                     approved_at=str(d.get("approved_at", "")),
@@ -191,7 +252,7 @@ class InstallApprovals:
         cần manifest đổi giữa lúc duyệt và lúc chạy — mà manifest là dữ liệu,
         và dữ liệu thì đổi được, kể cả bởi một đề xuất công cụ mới.
         """
-        bam = _bam_lenh([str(x) for x in command])
+        bam = _bam_lenh(command)
         for k in self.all():
             if k.tool == tool and k.command_digest == bam:
                 return k
@@ -272,6 +333,14 @@ class ToolSpec:
     gates: tuple[str, ...] = ()
     #: Lệnh cài theo hệ điều hành, ví dụ ``{"macos": ["brew", "install", "x"]}``.
     install: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    #: Lệnh phải chạy TRƯỚC lệnh cài, theo hệ điều hành. Thường là thêm một kho
+    #: gói ngoài.
+    #:
+    #: Không có trường này thì mọi công cụ chỉ cài được bằng một lệnh duy nhất,
+    #: và mục manifest của những công cụ cần hai bước trở thành một khẳng định
+    #: SAI: nó bảo "cài bằng lệnh này", mà lệnh ấy chưa từng chạy được lần nào
+    #: trên hệ đó. Sai im lặng, vì chỉ lộ ra lúc thật sự đi cài.
+    pre_install: dict[str, tuple[tuple[str, ...], ...]] = field(default_factory=dict)
     #: Checksum bắt buộc khi phải tải trực tiếp.
     checksum: str = ""
     download: str = ""
@@ -365,6 +434,10 @@ class ToolManifest:
             install={
                 str(k): tuple(str(x) for x in v)
                 for k, v in (muc.get("install") or {}).items()
+            },
+            pre_install={
+                str(k): tuple(tuple(str(x) for x in lenh) for lenh in (v or []))
+                for k, v in (muc.get("pre_install") or {}).items()
             },
             checksum=str(muc.get("checksum", "")),
             download=str(muc.get("download", "")),
@@ -698,6 +771,16 @@ class Doctor:
             )
         return lenh
 
+    def install_steps(self, spec: ToolSpec) -> list[tuple[str, ...]]:
+        """TOÀN BỘ dãy lệnh sẽ chạy để cài công cụ này, đúng thứ tự.
+
+        Đây — chứ không phải riêng lệnh cài — mới là thứ người duyệt và thứ máy
+        chạy. Hai cái ấy phải là **cùng một vật**: quyết định neo vào một lệnh
+        trong khi thứ chạy là một dãy thì chèn thêm một bước vào trước là chèn
+        được mã tùy ý sau lưng người duyệt, mà quyết định cũ vẫn trông hợp lệ.
+        """
+        return [*spec.pre_install.get(_os_key(), ()), self.install_command(spec)]
+
     def fix(self, reports: Sequence[ToolReport], *, dry_run: bool = False) -> list[str]:
         """Sinh lệnh cài, hiển thị nguyên văn, và CHỜ XÁC NHẬN từng lệnh.
 
@@ -722,20 +805,22 @@ class Doctor:
             if not r.blocking:
                 continue
             try:
-                lenh = self.install_command(r.spec)
+                lenh = self.install_steps(r.spec)
             except DoctorError as exc:
                 nhat_ky.append(f"{r.spec.name}: {exc}")
                 continue
 
-            nguyen_van = " ".join(lenh)
+            nguyen_van = " && ".join(" ".join(b) for b in lenh)
             nhat_ky.append(f"{r.spec.name}: sẽ chạy → {nguyen_van}")
             if dry_run:
                 continue
 
-            if r.spec.download and r.spec.checksum:
+            if r.spec.download:
+                # Nói SẼ làm gì, không nói ĐÃ làm gì. Việc kiểm thật nằm trong
+                # `_run_install`, và nó ghi dòng "checksum KHỚP" của chính nó.
                 nhat_ky.append(
-                    f"{r.spec.name}: tải trực tiếp từ {r.spec.download}, "
-                    f"bắt buộc khớp checksum {r.spec.checksum}"
+                    f"{r.spec.name}: sẽ tải {r.spec.download} và bắt buộc khớp "
+                    "checksum trước khi chạy lệnh nào"
                 )
 
             da_duyet = (
@@ -772,35 +857,89 @@ class Doctor:
             raise InstallNotConfirmed(_khong_co_ai(cho_duyet), nhat_ky)
         return nhat_ky
 
-    def _run_install(self, spec: ToolSpec, lenh: Sequence[str]) -> list[str]:
+    def _run_install(self, spec: ToolSpec, commands: Any) -> list[str]:
+        """Chạy dãy lệnh cài. Trượt bước nào thì DỪNG ở đó và nói vì sao.
+
+        Dừng sớm là bắt buộc: bước chuẩn bị (thêm kho gói) trượt thì lệnh cài
+        sau nó chắc chắn trượt theo, và chạy tiếp chỉ thêm một thông báo lỗi
+        thứ hai che mất lỗi thật.
+        """
         nhat_ky: list[str] = []
-        for lan in range(1, 3):
-            try:
-                ket_qua = subprocess.run(
-                    list(lenh), capture_output=True, text=True, timeout=900, shell=False
+        day = _chuan_hoa(commands)
+
+        # Gói tải trực tiếp: TẢI, TÍNH BĂM, ĐỐI CHIẾU — trước khi chạy bất cứ
+        # lệnh nào. Trước SL-113 chỗ này chỉ in ra một dòng nhật ký khẳng định
+        # việc ấy đã xảy ra, còn `verify_checksum` thì không ai gọi. Một lời hứa
+        # an toàn in cho người đọc tin, không có gì đứng sau.
+        thu_muc_tam = None
+        if spec.download:
+            if not spec.checksum:
+                raise DoctorError(
+                    f"{spec.name}: khai 'download' mà không khai 'checksum'. "
+                    "Tải một gói rồi chạy nó mà không có gì đối chiếu thì tệ "
+                    "hơn không tải: không ai biết mình vừa chạy mã của ai."
                 )
-            except (subprocess.TimeoutExpired, OSError) as exc:
-                nhat_ky.append(f"{spec.name}: lần {lan} lỗi — {exc}")
-                continue
+            import tempfile
 
-            if ket_qua.returncode == 0:
-                nhat_ky.append(f"{spec.name}: cài xong ở lần {lan}")
-                # Quét lại xác nhận, rồi ghi Thẻ công cụ (AIS §9.5).
-                bao_cao = self._check_one(spec)
-                nhat_ky.append(f"{spec.name}: quét lại → {bao_cao.status} {bao_cao.version}")
-                if bao_cao.status == ToolStatus.OK:
-                    the = self.write_tool_card(bao_cao)
-                    nhat_ky.append(f"{spec.name}: đã ghi Thẻ công cụ — {the.compact()}")
+            thu_muc_tam = tempfile.mkdtemp(prefix="eaa-tai-")
+            goi = Path(thu_muc_tam) / (spec.download.rsplit("/", 1)[-1] or "goi")
+            nhat_ky.append(f"{spec.name}: tải {spec.download}")
+            try:
+                _tai_ve(spec.download, goi)
+            except Exception as exc:  # noqa: BLE001 - mạng, DNS, quyền ghi…
+                shutil.rmtree(thu_muc_tam, ignore_errors=True)
+                nhat_ky.append(f"{spec.name}: KHÔNG tải được — {exc}")
                 return nhat_ky
-
-            nhat_ky.append(
-                f"{spec.name}: lần {lan} thất bại (mã {ket_qua.returncode})"
+            try:
+                bam = self.verify_checksum(goi, spec.checksum)
+            except Exception:
+                shutil.rmtree(thu_muc_tam, ignore_errors=True)
+                raise
+            nhat_ky.append(f"{spec.name}: checksum KHỚP ({bam[:23]}…)")
+            day = tuple(
+                tuple(str(goi) if x == CHO_GIU_GOI else x for x in lenh)
+                for lenh in day
             )
 
-        nhat_ky.append(
-            f"{spec.name}: cài thất bại sau 2 lần — dừng, không lặp vô hạn. "
-            "Cài tay theo hướng dẫn của nhà phát hành (§9.4)."
-        )
+        nhieu_buoc = len(day) > 1
+
+        for chi_so, lenh in enumerate(day, start=1):
+            nhan = f"{spec.name}" + (f" (bước {chi_so}/{len(day)})" if nhieu_buoc else "")
+            xong = False
+            for lan in range(1, 3):
+                try:
+                    ket_qua = subprocess.run(
+                        list(lenh), capture_output=True, text=True, timeout=900, shell=False
+                    )
+                except (subprocess.TimeoutExpired, OSError) as exc:
+                    nhat_ky.append(f"{nhan}: lần {lan} lỗi — {exc}")
+                    continue
+
+                if ket_qua.returncode == 0:
+                    xong = True
+                    break
+
+                nhat_ky.append(f"{nhan}: lần {lan} thất bại (mã {ket_qua.returncode})")
+                nhat_ky.extend(_loi_cua_lenh(ket_qua))
+
+            if not xong:
+                if thu_muc_tam:
+                    shutil.rmtree(thu_muc_tam, ignore_errors=True)
+                nhat_ky.append(
+                    f"{spec.name}: cài thất bại sau 2 lần — dừng, không lặp vô hạn. "
+                    "Cài tay theo hướng dẫn của nhà phát hành (§9.4)."
+                )
+                return nhat_ky
+
+        if thu_muc_tam:
+            shutil.rmtree(thu_muc_tam, ignore_errors=True)
+        nhat_ky.append(f"{spec.name}: cài xong")
+        # Quét lại xác nhận, rồi ghi Thẻ công cụ (AIS §9.5).
+        bao_cao = self._check_one(spec)
+        nhat_ky.append(f"{spec.name}: quét lại → {bao_cao.status} {bao_cao.version}")
+        if bao_cao.status == ToolStatus.OK:
+            the = self.write_tool_card(bao_cao)
+            nhat_ky.append(f"{spec.name}: đã ghi Thẻ công cụ — {the.compact()}")
         return nhat_ky
 
     @staticmethod

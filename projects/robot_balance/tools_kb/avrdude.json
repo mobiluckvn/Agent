@@ -1,0 +1,18 @@
+{
+  "name": "avrdude",
+  "version": "8.2",
+  "executable": "/usr/local/bin/avrdude",
+  "gates": [
+    "flash"
+  ],
+  "invocation": [
+    "avrdude",
+    "-?"
+  ],
+  "version_regex": "(\\d+\\.\\d+(?:\\.\\d+)?)",
+  "error_regex": "",
+  "verified_at": "2026-08-31T13:27:22+00:00",
+  "os": "macos",
+  "smoke_output": "avrdude: invalid option -- ?\nUsage: avrdude {<option>}\nOptions:\n  -p --part <part>         Specify AVR device; -p ? lists all known parts\n  -p --part <wildcard>/<flags>\n                           Run developer options for matched AVR devices,\n                           e.g., -p ATmega328P/s or /S for part definition\n  -b --baud <baudrate>     Override RS-232 baud rate\n  -B --bitclock <period>   Bit clock period (us)\n  -C --config <file>       Specify location of configuration file\n  -C --config +<file>      Additional config file (*)\n  -N --noconfig            Do not load config file ~/.avrduderc\n  -c --programmer <pgm>    Specify programmer; -c ? and -c ?type list all\n  -c --programmer <wildcard>/<flags>\n                           Run developer options for matched programmers,\n                           e.g., -c 'ur*'/s for programmer definition\n  -A --keep-trailing-0xff  Disable trailing-0xff removal for file/AVR read\n  -D --noerase             Disable auto-erase for flash memory; implies -A\n  -i --isp-clock-delay <delay>\n                           Bit state change delay [in microseconds] for\n                           bit-banged ISP and TPI programmers\n  -P --port <port>         Connection; -P ?s or -P ?sa lists serial ones\n  -r --reconnect           Reconnect to -P port after \"touching\" it; wait\n                           400 ms for each -r; needed for some USB boards\n  -F --force               Override invalid signature or initial checks\n  -e --erase               Perform a chip erase at the beginning\n  -O --osccal              Perform RC oscillator calibration (see AVR053)\n  -t --terminal            Run interactive terminal on its turn (*)\n  -T --command <line>      Run terminal command <line> on its turn (*)\n  -U --memory <mem>:r|w|v:<file>[:fmt]\n                           Carry out memory operation on its turn (*)\n  -n --test-memory         Do not write to the device whilst processing -U\n  -V --noverify-memory     Do not automatically verify during -U\n  -E -",
+  "known_issues": []
+}

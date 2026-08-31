@@ -1,0 +1,29 @@
+
+Vòng lặp chuẩn — drv_uart
+─────────────────────────
+── sinh lần đầu ──
+  compile: KHÔNG ĐẠT (1 lỗi, 0 cảnh báo, 0.92s)
+      src/drv_uart.c:7: #error "Thiếu thông tin tài liệu thanh ghi phần cứng cho module UART. Không thể cấu hình thanh ghi."
+── vòng vá 1 ──
+  compile: ĐẠT (0 lỗi, 0 cảnh báo, 0.98s)
+  size: KHÔNG ĐẠT (1 lỗi, 0 cảnh báo, 0.02s)
+      Công cụ thoát với mã 1 nhưng quy tắc parse của pack không bắt được lỗi nào. Đầu ra thô:
+avr-size: invalid option -- m
+Usage: avr-size [option(s)] [file(s)]
+ Displays the sizes of sections inside binary files
+ If no input file(s) are specified, a.out is assumed
+ The options are:
+  -A|-B|-G|-C  --format={sysv|berkeley|gnu|avr}  Select output style (default is berkeley)
+            --mcu=<avrmcu>            MCU name for AVR format only
+  -o|-d|-x  --radix={8|10|16}         Display numbers in octal, decimal or hex
+  -t        --totals                  Display the total sizes (Berkeley only)
+  -f                                  Ignored.
+            --common                  Display total size for *COM* syms
+            --target=<bfdname>        Set the binary file format
+            @<file>                   Read options from <file>
+  -h|-H|-?  --help                    Display this information
+  -v|-V     --version                 Display the program's version
+
+avr-size: supported targets: elf32-avr elf32-little elf32-big srec symbolsrec verilog tekhex binary ihex plugin
+
+Vòng vá thất bại: Phản hồi không chứa khối ```file:<đường dẫn> nào. Tính là một lần fail của vòng tự sửa (SDD §6).

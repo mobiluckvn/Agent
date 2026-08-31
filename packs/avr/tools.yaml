@@ -13,10 +13,40 @@ tools:
   check:
   - avr-gcc
   - -dumpversion
-  min_version: '12.0'
+  # HẠ TỪ 12.0 (SL-113): không bản dựng sẵn nào của AVR GCC cho macOS
+  # x86_64 đạt 12.0, và dựng từ nguồn thì hỏng. Con số 12.0 do vòng tra
+  # cứu công cụ đề xuất, không do một yêu cầu nào của dự án — nó chặn
+  # đúng cổng mà nó sinh ra để bảo vệ.
+  min_version: '7.3'
   level: Must
   gates:
   - compile
+  # macOS: KHÔNG có đường Homebrew nào chạy được trên máy Intel.
+  # Kho ngoài osx-cross/avr chỉ có bản dựng sẵn cho arm64; trên x86_64 nó dựng
+  # từ mã nguồn, và bản dựng ấy hỏng với SDK macOS đời mới
+  # (`fatal error: 'new' file not found` — GCC 9 không hợp trình dịch hệ thống).
+  #
+  # Nên dùng đúng đường thiết kế đã chừa cho tình huống này: TẢI TRỰC TIẾP kèm
+  # checksum bắt buộc (TC-35). Gói là bản dựng sẵn chính chủ của Arduino, cùng
+  # bộ mà toàn hệ sinh thái AVR đang chạy.
+  download: https://downloads.arduino.cc/tools/avr-gcc-7.3.0-atmel3.6.1-arduino7-x86_64-apple-darwin14.tar.bz2
+  checksum: "sha256:f6ed2346953fcf88df223469088633eb86de997fa27ece117fd1ef170d69c1f8"
+  pre_install:
+    macos:
+    - - /bin/mkdir
+      - -p
+      - /usr/local/opt/eaa-avr
+    - - /usr/bin/tar
+      - -xjf
+      - '{tai_ve}'
+      - -C
+      - /usr/local/opt/eaa-avr
+      - --strip-components
+      - '1'
+    - - /bin/ln
+      - -sf
+      - /usr/local/opt/eaa-avr/bin/avr-gcc
+      - /usr/local/bin/avr-gcc
   install:
     linux:
     - sudo
@@ -25,9 +55,7 @@ tools:
     - -y
     - gcc-avr
     macos:
-    - brew
-    - install
-    - avr-gcc
+    - /usr/bin/true
     windows:
     - choco
     - install
@@ -49,10 +77,36 @@ tools:
   check:
   - avr-size
   - --version
-  min_version: '2.38'
+  min_version: '2.26'
   level: Must
   gates:
   - size
+  # macOS: KHÔNG có đường Homebrew nào chạy được trên máy Intel.
+  # Kho ngoài osx-cross/avr chỉ có bản dựng sẵn cho arm64; trên x86_64 nó dựng
+  # từ mã nguồn, và bản dựng ấy hỏng với SDK macOS đời mới
+  # (`fatal error: 'new' file not found` — GCC 9 không hợp trình dịch hệ thống).
+  #
+  # Nên dùng đúng đường thiết kế đã chừa cho tình huống này: TẢI TRỰC TIẾP kèm
+  # checksum bắt buộc (TC-35). Gói là bản dựng sẵn chính chủ của Arduino, cùng
+  # bộ mà toàn hệ sinh thái AVR đang chạy.
+  download: https://downloads.arduino.cc/tools/avr-gcc-7.3.0-atmel3.6.1-arduino7-x86_64-apple-darwin14.tar.bz2
+  checksum: "sha256:f6ed2346953fcf88df223469088633eb86de997fa27ece117fd1ef170d69c1f8"
+  pre_install:
+    macos:
+    - - /bin/mkdir
+      - -p
+      - /usr/local/opt/eaa-avr
+    - - /usr/bin/tar
+      - -xjf
+      - '{tai_ve}'
+      - -C
+      - /usr/local/opt/eaa-avr
+      - --strip-components
+      - '1'
+    - - /bin/ln
+      - -sf
+      - /usr/local/opt/eaa-avr/bin/avr-size
+      - /usr/local/bin/avr-size
   install:
     linux:
     - sudo
@@ -61,9 +115,7 @@ tools:
     - -y
     - binutils-avr
     macos:
-    - brew
-    - install
-    - avr-binutils
+    - /usr/bin/true
     windows:
     - choco
     - install
@@ -165,10 +217,36 @@ tools:
   check:
   - avr-objcopy
   - --version
-  min_version: '2.38'
+  min_version: '2.26'
   level: Must
   gates:
   - hex
+  # macOS: KHÔNG có đường Homebrew nào chạy được trên máy Intel.
+  # Kho ngoài osx-cross/avr chỉ có bản dựng sẵn cho arm64; trên x86_64 nó dựng
+  # từ mã nguồn, và bản dựng ấy hỏng với SDK macOS đời mới
+  # (`fatal error: 'new' file not found` — GCC 9 không hợp trình dịch hệ thống).
+  #
+  # Nên dùng đúng đường thiết kế đã chừa cho tình huống này: TẢI TRỰC TIẾP kèm
+  # checksum bắt buộc (TC-35). Gói là bản dựng sẵn chính chủ của Arduino, cùng
+  # bộ mà toàn hệ sinh thái AVR đang chạy.
+  download: https://downloads.arduino.cc/tools/avr-gcc-7.3.0-atmel3.6.1-arduino7-x86_64-apple-darwin14.tar.bz2
+  checksum: "sha256:f6ed2346953fcf88df223469088633eb86de997fa27ece117fd1ef170d69c1f8"
+  pre_install:
+    macos:
+    - - /bin/mkdir
+      - -p
+      - /usr/local/opt/eaa-avr
+    - - /usr/bin/tar
+      - -xjf
+      - '{tai_ve}'
+      - -C
+      - /usr/local/opt/eaa-avr
+      - --strip-components
+      - '1'
+    - - /bin/ln
+      - -sf
+      - /usr/local/opt/eaa-avr/bin/avr-objcopy
+      - /usr/local/bin/avr-objcopy
   install:
     linux:
     - sudo
@@ -177,9 +255,7 @@ tools:
     - -y
     - binutils-avr
     macos:
-    - brew
-    - install
-    - avr-gcc
+    - /usr/bin/true
     windows:
     - choco
     - install

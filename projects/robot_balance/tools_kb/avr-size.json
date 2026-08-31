@@ -1,0 +1,18 @@
+{
+  "name": "avr-size",
+  "version": "2.46.0",
+  "executable": "/usr/local/bin/avr-size",
+  "gates": [
+    "size"
+  ],
+  "invocation": [
+    "avr-size",
+    "--version"
+  ],
+  "version_regex": "(\\d+\\.\\d+(?:\\.\\d+)?)",
+  "error_regex": "",
+  "verified_at": "2026-08-31T13:27:22+00:00",
+  "os": "macos",
+  "smoke_output": "Usage: avr-size [option(s)] [file(s)]\n Displays the sizes of sections inside binary files\n If no input file(s) are specified, a.out is assumed\n The options are:\n  -A|-B|-G|-C  --format={sysv|berkeley|gnu|avr}  Select output style (default is berkeley)\n            --mcu=<avrmcu>            MCU name for AVR format only\n  -o|-d|-x  --radix={8|10|16}         Display numbers in octal, decimal or hex\n  -t        --totals                  Display the total sizes (Berkeley only)\n  -f                                  Ignored.\n            --common                  Display total size for *COM* syms\n            --target=<bfdname>        Set the binary file format\n            @<file>                   Read options from <file>\n  -h|-H|-?  --help                    Display this information\n  -v|-V     --version                 Display the program's version\n\navr-size: supported targets: elf32-avr elf32-little elf32-big srec symbolsrec verilog tekhex binary ihex plugin\nReport bugs to <https://sourceware.org/bugzilla/>\n",
+  "known_issues": []
+}

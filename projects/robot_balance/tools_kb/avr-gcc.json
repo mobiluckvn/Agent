@@ -1,0 +1,18 @@
+{
+  "name": "avr-gcc",
+  "version": "7.3.0",
+  "executable": "/usr/local/bin/avr-gcc",
+  "gates": [
+    "compile"
+  ],
+  "invocation": [
+    "avr-gcc",
+    "-dumpversion"
+  ],
+  "version_regex": "(\\d+\\.\\d+(?:\\.\\d+)?)",
+  "error_regex": "",
+  "verified_at": "2026-08-31T13:27:22+00:00",
+  "os": "macos",
+  "smoke_output": "avr-gcc (GCC) 7.3.0\nCopyright (C) 2017 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "known_issues": []
+}

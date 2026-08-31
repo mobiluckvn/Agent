@@ -1,0 +1,14 @@
+Tôi KHÔNG có lệnh để nạp firmware xuống bo thật và cũng KHÔNG có lệnh đọc dữ liệu trực tiếp từ cổng Serial (telemetry). Dưới đây là các bước cần đi:
+
+1. **Viết mã (Tôi hỗ trợ):** Bạn tạo tệp `uart_test.ino` với nội dung cơ bản sau:
+   ```cpp
+   void setup() { Serial.begin(9600); }
+   void loop() { Serial.println("UART OK"); delay(1000); }
+   ```
+2. **Biên dịch và nạp (Bạn làm):** Sử dụng Arduino IDE hoặc chạy các lệnh `arduino-cli` như tôi đề xuất (nhớ thay `<CỔNG_COM>` bằng cổng thực tế của bạn, ví dụ `/dev/ttyUSB0` hoặc `COM3`).
+3. **Chạy thử và đọc kết quả (Bạn làm):** Mở Serial Monitor trên IDE hoặc dùng lệnh `screen` để kiểm tra xem bo có gửi dòng chữ "UART OK" đều đặn lên máy tính hay không.
+
+Lệnh bạn cần tự chạy (tôi không được phép):
+    arduino-cli compile --fqbn arduino:avr:uno uart_test.ino
+    arduino-cli upload -p <CỔNG_COM> --fqbn arduino:avr:uno uart_test.ino
+    screen <CỔNG_COM> 9600

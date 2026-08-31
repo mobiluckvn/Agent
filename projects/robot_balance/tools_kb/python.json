@@ -1,0 +1,19 @@
+{
+  "name": "python",
+  "version": "3.12.13",
+  "executable": "/Users/v/Documents/KTDT/.venv/bin/python",
+  "gates": [
+    "unittests",
+    "sim"
+  ],
+  "invocation": [
+    "/Users/v/Documents/KTDT/.venv/bin/python",
+    "--version"
+  ],
+  "version_regex": "(\\d+\\.\\d+(?:\\.\\d+)?)",
+  "error_regex": "",
+  "verified_at": "2026-08-31T13:27:22+00:00",
+  "os": "macos",
+  "smoke_output": "eaa-smoke-ok\n",
+  "known_issues": []
+}

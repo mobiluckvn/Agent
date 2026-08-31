@@ -213,12 +213,22 @@ def test_danh_muc_cong_bo_dung_thu_no_co() -> None:
     from eaa.agent import _mo_ta_danh_muc
 
     van_ban = _mo_ta_danh_muc()
-    co_mat = {t.argv[0] for t in TOOLBOX}
-    phan_khong_co = van_ban.split("Đặc biệt KHÔNG có:")[1]
+    phan_khong_co = van_ban.split("## LỆNH CỦA NGƯỜI")[1]
 
-    for verb in co_mat:
-        assert f" {verb}," not in phan_khong_co, (
-            f"{verb} vừa có trong danh mục vừa bị công bố là không có"
+    # So bằng TÊN ĐẦY ĐỦ, không bằng từ đầu tiên. Từ SL-110 danh mục có cả cặp
+    # cha–con trái dấu nhau: `doctor` được gọi, `doctor approve` thì không. So
+    # bằng từ đầu tiên biến một cặp hoàn toàn đúng thành một mâu thuẫn giả, và
+    # một bài canh hay báo nhầm sớm muộn bị tắt đi.
+    dong_lenh = next(
+        d for d in phan_khong_co.splitlines() if d.strip().startswith("eaa ")
+    )
+    muc = [m.strip()[len("eaa "):] for m in dong_lenh.split("  ") if m.strip()]
+    ten_trong_danh_muc = {t.name for t in TOOLBOX}
+
+    assert muc, "danh sách lệnh của người trống"
+    for m in muc:
+        assert m not in ten_trong_danh_muc, (
+            f"{m!r} vừa có trong danh mục vừa bị công bố là của người"
         )
 
 

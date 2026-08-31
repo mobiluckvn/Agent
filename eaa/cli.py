@@ -21,7 +21,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -1305,6 +1305,9 @@ def _gate_approve(ctx: AppContext, args: argparse.Namespace) -> int:
         )
         OptionSet.clear(ctx.project / OPTIONS_FILE, args.gate)
 
+    if args.gate == "G1":
+        _ghim_lai_rang_buoc(ctx)
+
     if args.gate == MERGE_GATE:
         return _sau_khi_duyet_G3(ctx, quyet_dinh)
 
@@ -1318,6 +1321,73 @@ def _gate_approve(ctx: AppContext, args: argparse.Namespace) -> int:
             print("Cài được rồi: eaa doctor --fix")
 
     return _thu_chuyen_pha(ctx)
+
+
+def _pham_vi_bang_kiem() -> str:
+    """Nói rõ bảng kiểm sẵn sàng KHÔNG phủ được cái gì.
+
+    Bảng kiểm đi theo cạnh ``ngoại vi –configured_by→ thanh ghi`` của Knowledge
+    Graph, mà ``configured_by`` là một danh sách VIẾT TAY trong hồ sơ phần
+    cứng. Nên nó trả lời đúng câu nó hỏi — *"có tài liệu cho những thanh ghi
+    đã khai không"* — trong khi người đọc hiểu nó là *"module này sinh mã được
+    chưa"*. Hai câu ấy khác nhau, và khoảng cách giữa chúng là những thanh ghi
+    không ai nghĩ tới.
+
+    Đo được ở Bài 1 phiên kiểm bo thật: bảng kiểm báo THIẾU 0 cho một module
+    cổng nối tiếp, rồi vòng sinh mã kết luận không hiện thực được hàm truyền vì
+    thiếu tài liệu thanh ghi dữ liệu — một thanh ghi không có trong
+    ``configured_by``.
+
+    Không thể làm phép kiểm toàn tri; nhưng nói đúng phạm vi mình phủ thì làm
+    được, và đó là khác biệt giữa một phép kiểm hữu ích và một phép kiểm gây
+    hiểu nhầm.
+    """
+    return (
+        "\n  Phạm vi bảng kiểm này: nó đi theo `configured_by` của hồ sơ phần\n"
+        "  cứng — một danh sách do người VIẾT TAY. Thanh ghi nào không ai khai\n"
+        "  ở đó thì không ai thấy nó thiếu, kể cả bảng này. 'THIẾU 0' nghĩa là\n"
+        "  'không thiếu trong số đã khai', không phải 'không thiếu gì'."
+    )
+
+
+def _ghim_lai_rang_buoc(ctx: AppContext) -> None:
+    """Sau khi người duyệt G1, ghim băm ràng buộc HIỆN HÀNH vào Project State.
+
+    Đây chính là việc G1 mang tên: *chốt ràng buộc cứng*. Trước SL-113,
+    ``constraints_version`` chỉ được ghi MỘT lần ở ``eaa init`` và không đường
+    nào chốt lại — nên ``eaa status`` cảnh báo trôi băm, chỉ sang
+    ``eaa gate approve G1``, người duyệt G1, và cảnh báo vẫn còn nguyên. Lệnh
+    chỉ sang một cánh cửa không tồn tại.
+
+    Ghim ở đây là AN TOÀN chứ không phải tiện: hồ sơ G1 mà người vừa đọc CHỨA
+    nội dung ràng buộc, và quyết định của họ neo vào băm hồ sơ ấy. Ta ghi lại
+    băm của đúng thứ họ vừa duyệt.
+
+    Cố ý KHÔNG có lệnh riêng để ghim: một lệnh "chấp nhận băm mới" tách rời
+    khỏi việc đọc hồ sơ chính là lối tắt mà thiết kế cấm — nó biến một quyết
+    định thành một thao tác dọn cảnh báo.
+    """
+    from eaa.kb import Constraints
+
+    tep = ctx.project / "constraints.yaml"
+    if not tep.is_file():
+        return
+    try:
+        bam = Constraints.load(tep).content_version
+    except Exception as exc:  # noqa: BLE001 - tệp hỏng thì nói ra, không im
+        print(f"\n  Không đọc lại được constraints.yaml để ghim băm: {exc}")
+        return
+
+    state = ctx.store.load()
+    if state.constraints_version == bam:
+        return
+    cu = state.constraints_version
+    ctx.store.save(replace(state, constraints_version=bam))
+    print(
+        f"\nBăm ràng buộc đã chốt lại: {bam}\n"
+        f"  (trước đó {cu or '(chưa có)'} — băm này đi vào commit message làm "
+        "bằng chứng xuất xứ, NFR-07)"
+    )
 
 
 def _sau_khi_duyet_G3(ctx: AppContext, quyet_dinh: Any) -> int:
@@ -1681,12 +1751,16 @@ def _doctor_approve(project: Path, doctor: Any, args: argparse.Namespace) -> int
                 "danh sách đúng tên."
             )
         try:
-            lenh = doctor.install_command(spec)
+            lenh = doctor.install_steps(spec)
         except DoctorError as exc:
             raise CliError(str(exc)) from None
         k = doctor.approvals.approve(ten, lenh, by=ai)
         da_duyet.append(k)
-        print(f"  {ten}:  {' '.join(lenh)}")
+        # In TỪNG bước: người duyệt phải nhìn thấy đủ những gì sẽ chạy, kể cả
+        # bước thêm kho gói — đó thường là bước đáng cân nhắc nhất.
+        print(f"  {ten}:")
+        for b in lenh:
+            print(f"      {' '.join(b)}")
 
     print(f"\nĐã ghi {len(da_duyet)} quyết định — {ai}.")
     print("Lệnh cài chạy được từ giờ:  eaa doctor --fix")
@@ -3187,9 +3261,13 @@ def cmd_resolve(args: argparse.Namespace) -> int:
     )
     _in_tieu_de(f"Bảng kiểm thông tin cần — {args.module_id}")
     print(bang_kiem.render())
+    print(_pham_vi_bang_kiem())
 
     if bang_kiem.ready:
-        print("\nĐủ điều kiện mở vòng sinh mã: eaa gen " + args.module_id)
+        print(
+            "\nĐủ điều kiện — TRONG PHẠM VI ĐÃ KHAI — mở vòng sinh mã: "
+            "eaa gen " + args.module_id
+        )
         return EXIT_OK
 
     if bang_kiem.conflicts:

@@ -1,0 +1,14 @@
+{
+  "os": "macos",
+  "tools": {
+    "avr-gcc": "7.3.0",
+    "avr-objcopy": "2.46.0",
+    "avr-size": "2.46.0",
+    "avrdude": "8.2",
+    "cppcheck": "2.21.0",
+    "git": "2.50.1",
+    "python": "3.12.13"
+  },
+  "env_hash": "sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a",
+  "locked_at": "2026-08-31T13:27:22+00:00"
+}

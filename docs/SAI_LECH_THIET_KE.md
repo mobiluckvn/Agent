@@ -1576,6 +1576,24 @@ Ba loại:
 | **Vì sao chỗ này đáng sợ hơn cả ba lỗi trên** | Hàng rào của cả sản phẩm là **danh mục**. Một mục đọc như *"được gọi `doctor`"* mà thực tế là *"được gọi bất cứ gì bắt đầu bằng `doctor`"* thì bảng quyền hạn không còn đọc được — và một bảng quyền hạn không đọc được thì không ai kiểm được nó, kể cả người viết ra nó |
 | **Bài canh** | `tests/test_tc86_duyet_cai_cong_cu.py` — 11 bài; `tests/test_tc34_doctor.py` +2; `tests/test_tc61_chat.py` và `tests/test_tc71_skills.py` đổi để ghi lập luận mới (`doctor --fix` được phép VÌ nó không cài được gì chưa duyệt; `doctor approve` vào thế chỗ trong danh sách cấm) |
 
+---
+
+## SL-111 · LỆCH THẬT (×3) · Cài trượt mà không nói vì sao, và một lệnh cài chưa từng chạy được
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.4; FR-ENV-02; SL-100 (lớp quan sát bỏ đầu ra); SL-110 |
+| **Cách tìm** | Lần ĐẦU TIÊN đường `doctor approve` → `doctor --fix` chạy thật, trên máy thật, với bộ công cụ AVR thật. Ba lỗi, và cả ba chỉ lộ ra khi lệnh cài TRƯỢT — nhánh mà không bài kiểm nào từng đi vào với dữ liệu thật |
+| **Lỗi 1 — nhật ký nuốt lỗi của chính lệnh vừa chạy** | `_run_install` bắt đầu ra bằng `capture_output=True` rồi **vứt đi**, chỉ ghi `lần 1 thất bại (mã 1)`. Câu hữu ích nhất — *"No available formula with the name avr-gcc"* — nằm sẵn trong tay và không tới được ai |
+| **Vì sao "mã 1" tệ hơn là vô dụng** | Nó *trông như* một chẩn đoán. Người đọc không phân biệt nổi **mạng hỏng** với **sai tên gói**, mà hai chuyện ấy dẫn tới hai việc trái ngược: một bên thử lại, một bên sửa manifest. Và vì không phân biệt được, doctor thử lại **hai lần** một lỗi hoàn toàn tất định |
+| **Lỗi 2 — manifest chỉ khai được MỘT lệnh mỗi hệ** | Trên macOS, `avr-gcc` nằm trong kho ngoài `osx-cross/avr` và phải thêm kho trước — hai bước. Nên mục macOS trong `packs/avr/tools.yaml` là một **khẳng định sai**: nó bảo *"cài bằng lệnh này"*, mà lệnh ấy **chưa từng chạy được lần nào** |
+| **Sai im lặng, và ngủ yên rất lâu** | Mục ấy mang `approved_by: vu-tri-cong` từ 29/08 — tức là đã đi qua G2. Cổng duyệt được **nội dung do máy đề xuất**, nhưng không ai chạy thử nó; và một lệnh cài chỉ chứng minh được bằng cách chạy. Nó nằm im tới đúng hôm có người thật sự đi cài |
+| **Lỗi 3 — quyết định duyệt neo vào MỘT lệnh, trong khi thứ chạy là một DÃY** | Sau khi thêm bước chuẩn bị, nếu băm vẫn chỉ phủ lệnh cuối thì chèn thêm một bước vào trước là **chèn được mã tùy ý sau lưng người duyệt**, mà quyết định cũ vẫn trông hợp lệ. Đó đúng là tính chất duy nhất làm cho việc Agent tự cài là an toàn (SL-110) |
+| **Đã sửa** | `ToolSpec.pre_install` (theo hệ điều hành) + `Doctor.install_steps()` trả TOÀN BỘ dãy. Sổ duyệt lưu `commands` (dãy) và băm cả dãy. `_run_install` chạy đủ dãy, **dừng sớm** khi một bước trượt, và in đầu ra thật của lệnh — giữ 12 dòng CUỐI (lỗi nằm ở cuối), khai rõ đã bỏ bao nhiêu dòng |
+| **`pre_install` chỉ gắn cho mục thật sự cần** | `avrdude` và `cppcheck` nằm trong kho lõi. Gắn thêm một kho ngoài cho chúng là bắt người duyệt một thứ họ không cần — và một cổng đòi thừa thì sớm muộn bị bấm cho xong |
+| **Quan sát về cách tìm ra cả ba** | Không lỗi nào tìm được bằng đọc mã. Cả ba đòi: máy thật, gói thật, và một lệnh **thật sự trượt**. Nhánh xử lý lỗi là nhánh ít được chạy nhất và nhiều giả định nhất |
+| **Bài canh** | `tests/test_tc87_cai_that_bai.py` — 8 bài, trong đó một bài đòi manifest thật của pack AVR khai được đường cài **trên chính hệ đang chạy** |
+
 
 
 ---

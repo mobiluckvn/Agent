@@ -96,6 +96,12 @@ MAX_OUTPUT_CHARS = 3200
 #: Trần TỔNG vẫn là 8.000 và vẫn kiểm trước khi gọi (TC-16).
 NGAN_SACH_VAI_TRO = 1_400
 NGAN_SACH_DANH_MUC = 2_800
+#: Ngân sách lớp ràng buộc cứng trong prompt hội thoại. Lớp này BẮT BUỘC —
+#: cắt nó là bỏ mất luật, và bỏ luật im lặng thì câu trả lời vẫn trông đúng.
+NGAN_SACH_RANG_BUOC = 900
+#: Ngân sách lớp trạng thái dự án. Nới từ 400 lên khi thêm dòng phần cứng
+#: (SL-112): mô hình phải biết nó đang viết cho chip nào, nếu không nó ĐOÁN.
+NGAN_SACH_TRANG_THAI = 700
 
 #: Ngân sách cho đầu ra các lệnh vừa chạy.
 #:
@@ -646,7 +652,16 @@ def _mo_ta_danh_muc() -> str:
     vang_han = sorted(k for k in NGOAI_DANH_MUC if k not in co_mat)
     dong += [
         "",
-        "## KHÔNG có lệnh nào khác. Đặc biệt KHÔNG có: " + ", ".join(vang_han),
+        "## LỆNH CỦA NGƯỜI — bạn KHÔNG gọi được, nhưng chúng TỒN TẠI",
+        "",
+        "  " + "  ".join(f"eaa {k}" for k in vang_han),
+        "",
+        "Cần một trong số đó thì ĐỀ NGHỊ người dùng gõ nó, nêu đúng dòng lệnh.",
+        "TUYỆT ĐỐI không đi tìm công cụ NGOÀI SẢN PHẨM này để né chúng: quy",
+        "trình của dự án nằm trong `eaa`, và mã sinh ra ngoài quy trình ấy",
+        "không qua cổng nào — không ràng buộc, không trích dẫn, không kiểm.",
+        "Đường sinh mã cho thiết bị là: eaa plan add → eaa gen → eaa build →",
+        "eaa flash. Bạn trình được từng bước; người gõ.",
         "",
         "Với `datasheet` và `docs` bạn chỉ có `list`; các hành động khác của "
         "hai lệnh ấy là việc của người.",
@@ -991,9 +1006,18 @@ class AgentLoop:
         from eaa.options import boc_json
 
         lop = [
+            # Ràng buộc cứng đứng ĐẦU và là lớp BẮT BUỘC.
+            #
+            # CLAUDE.md và FR-KB-01 nói ràng buộc vào "100% lần gọi LLM". Trước
+            # SL-112 câu ấy chỉ đúng ở đường sinh mã (`PromptComposer`); đường
+            # hội thoại — đúng chỗ người dùng gõ câu hỏi vào — không có lớp này.
+            # Hậu quả đo được: được hỏi mã kiểm UART, Agent trả về `delay(1000)`
+            # và `Serial.println`, hai thứ dự án CẤM đích danh.
+            PromptLayer("constraints", self._lop_rang_buoc(),
+                        budget=NGAN_SACH_RANG_BUOC, required=True),
             PromptLayer("toolbox", _mo_ta_danh_muc(), budget=NGAN_SACH_DANH_MUC,
                         required=True),
-            PromptLayer("state", self._tom_tat_du_an(), budget=400),
+            PromptLayer("state", self._tom_tat_du_an(), budget=NGAN_SACH_TRANG_THAI),
         ]
         # Công cụ tự sinh đã duyệt — phần động của danh mục. Không bắt buộc:
         # thiếu nó thì Agent mất mấy việc làm được, không mất khả năng trả lời.
@@ -1077,6 +1101,38 @@ class AgentLoop:
             dong += [f"    {p.relative_to(goc)}" for p in tai_lieu]
         return "\n".join(dong)
 
+    def _lop_rang_buoc(self) -> str:
+        """Bảng ràng buộc cứng của dự án — đúng bảng K1 mà đường sinh mã dùng.
+
+        Gọi lại ``composer._bang_rang_buoc`` chứ không chép: hai bảng ràng buộc
+        dựng bằng hai đoạn mã khác nhau sẽ lệch nhau, và lúc lệch thì đường này
+        cho phép đúng thứ đường kia cấm — mà không ai thấy.
+
+        Không đọc được ràng buộc thì NÓI RA. Trả một lớp rỗng là để mô hình
+        tưởng dự án không có luật nào, và đó là giả định nguy hiểm nhất nó có
+        thể mang.
+        """
+        try:
+            from eaa.composer import _bang_rang_buoc
+            from eaa.kb import Constraints
+
+            bang = _bang_rang_buoc(Constraints.load(self.project / "constraints.yaml"))
+        except Exception as exc:  # noqa: BLE001 - dự án chưa dựng, tệp hỏng…
+            return (
+                "## RÀNG BUỘC CỨNG\n\n"
+                f"(KHÔNG đọc được ràng buộc của dự án: {exc}). "
+                "Đừng đề xuất mã cho thiết bị khi chưa biết dự án cấm gì — "
+                "nói cho người dùng biết chỗ này thiếu trước đã."
+            )
+        if not bang.strip():
+            return (
+                "## RÀNG BUỘC CỨNG\n\n"
+                "(dự án chưa có ràng buộc nào). Đừng coi đó là 'được phép mọi "
+                "thứ': nó nghĩa là bước chốt ràng buộc tại G1 chưa làm, và mã "
+                "sinh ra bây giờ chưa có gì để đối chiếu."
+            )
+        return bang
+
     def _tom_tat_du_an(self) -> str:
         """Vài dòng trạng thái — đủ để mô hình biết đang đứng ở đâu."""
         from eaa.state import StateStore
@@ -1091,11 +1147,53 @@ class AgentLoop:
         return (
             "## DỰ ÁN\n\n"
             f"- thư mục: {self.project.name}\n"
-            f"- pha: {state.phase}\n"
+            + self._dong_phan_cung()
+            + f"- pha: {state.phase}\n"
             f"- gate: {gates}\n"
             f"- backlog: {backlog}"
             + self._tom_tat_kho_tai_lieu()
         )
+
+    def _dong_phan_cung(self) -> str:
+        """Con chip và cái bo đang làm việc cùng — vài chữ, đổi cả câu trả lời.
+
+        Thiếu dòng này thì mô hình **không biết nó đang viết mã cho chip nào**,
+        và nó không im lặng về chỗ không biết: nó đoán. Đo được ở Bài 1 phiên
+        kiểm bo thật — Agent đoán sai họ bo, sai tốc độ truyền, sai cả tên cổng
+        nối tiếp, trong khi cả ba thứ ấy đều đã nằm trong hồ sơ dự án.
+
+        Một đoán sai ở đây không dừng lại ở đó: nó kéo theo sai thanh ghi, sai
+        hệ số chia tốc độ, sai cả lệnh nạp.
+
+        Mọi GIÁ TRỊ đều đọc từ hồ sơ dự án lúc chạy; tệp này không được chứa
+        tên chip, tên bo hay con số nào của phần cứng cụ thể (TC-38) — kể cả
+        trong lời chú thích, vì chú thích cũng là engine.
+        """
+        dong = []
+        try:
+            from eaa.kb import Constraints
+
+            rb = Constraints.load(self.project / "constraints.yaml")
+            if getattr(rb, "mcu", ""):
+                dong.append(f"- MCU: {rb.mcu}")
+            if getattr(rb, "platform", ""):
+                dong.append(f"- Platform Pack: {rb.platform}")
+        except Exception:  # noqa: BLE001 - chưa có hồ sơ thì thôi
+            pass
+        try:
+            from eaa.kb import HardwareProfile
+
+            hs = HardwareProfile.load(self.project / "hardware_profile.yaml")
+            tho = getattr(hs, "raw", {}) or {}
+            for ng in (tho.get("peripherals") or []):
+                if ng.get("baud"):
+                    dong.append(f"- {ng.get('id', 'uart')}: {ng['baud']} baud")
+            ct = (tho.get("programmer") or {})
+            if ct.get("tool"):
+                dong.append(f"- nạp qua: {ct['tool']}")
+        except Exception:  # noqa: BLE001
+            pass
+        return ("\n".join(dong) + "\n") if dong else ""
 
     def _tom_tat_ban_ghi(self) -> str:
         """Bản ghi phiên, cắt còn vài lượt gần nhất.
