@@ -254,6 +254,27 @@ def _in_cong_cu_thieu(project: Path) -> None:
     print("    → CẦN BẠN:  eaa doctor --fix")
 
 
+def _in_nhan_nhap(project: Path) -> None:
+    """Nhắc rằng đây là chỗ làm nháp, ở MỌI bản tóm tắt trạng thái.
+
+    ``eaa/scratch.py`` khai ở đầu module: *"Chúng mang nhãn GIẢ ĐỊNH trong
+    chính tệp, và ``eaa status`` nhắc lại."* Vế sau không đúng — dòng nhắc chỉ
+    được in đúng một lần, lúc `eaa scratch` dựng chỗ nháp. Mọi lệnh sau đó im.
+
+    Hậu quả là đúng thứ chính module ấy cảnh báo: *"một con số mặc định trông y
+    hệt một con số đã chốt, và đó là cách một bản nháp lặng lẽ trở thành một
+    bản bàn giao."* Con số nháp ở đây không trung tính — nó là dung lượng và
+    tần số của một họ chip nào đó, và đem áp lên bo khác thì nó sai theo cách
+    nhìn vẫn hợp lý.
+    """
+    from eaa.scratch import warning_banner
+
+    nhan = warning_banner(project)
+    if nhan:
+        print()
+        print(nhan)
+
+
 def _in_tom_tat(state: ProjectState, project: Path) -> int:
     _in_tieu_de(f"Dự án: {project.name}  ({project})")
     print(f"Pha hiện tại : {state.phase} — {PHASE_NAMES[state.phase]}")
@@ -288,6 +309,8 @@ def _in_tom_tat(state: ProjectState, project: Path) -> int:
         _in_cong_cu_thieu(project)
     except Exception:  # noqa: BLE001 - không dò được thì im, đừng báo nhầm là ĐỦ
         pass
+
+    _in_nhan_nhap(project)
 
     _in_tieu_de("Human Gate")
     for gate in GATE_ORDER:

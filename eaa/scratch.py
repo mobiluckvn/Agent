@@ -84,17 +84,41 @@ def is_scratch(project: Path) -> bool:
 
 
 def warning_banner(project: Path) -> str:
-    """Dòng nhắc để mọi lệnh in ra khi đang làm trong chỗ nháp."""
+    """Dòng nhắc để mọi lệnh in ra khi đang làm trong chỗ nháp.
+
+    Nêu ĐÍCH DANH những con số đang là giả định, không chỉ nói "có giả định".
+    Người đang cầm bo thật nhìn một con số cụ thể là biết ngay nó sai; nhìn
+    một câu chung chung thì không.
+    """
+    project = Path(project)
     if not is_scratch(project):
         return ""
-    return (
+
+    dong = [
         "⚠ CHỖ LÀM NHÁP. Ràng buộc và hồ sơ phần cứng ở đây do máy sinh sẵn — "
-        "chúng là GIẢ ĐỊNH, không phải số đo của bo nào.\n"
+        "chúng là GIẢ ĐỊNH, không phải số đo của bo nào.",
+    ]
+
+    # Con số nháp không trung tính: nó là dung lượng và tần số của một họ chip
+    # nào đó. Đem áp lên bo khác thì nó sai theo kiểu nhìn vẫn hợp lý — và một
+    # ngân sách flash sai làm cổng size gác nhầm chỗ.
+    try:
+        rb = yaml.safe_load((project / "constraints.yaml").read_text(encoding="utf-8"))
+        mcu = (rb or {}).get("mcu") or {}
+        so = [f"{k} = {v}" for k, v in mcu.items()]
+        if so:
+            dong.append("  Đang giả định: " + " · ".join(so))
+            dong.append("  Bo thật của bạn gần như chắc chắn KHÁC những số này.")
+    except Exception:  # noqa: BLE001 - đọc không được thì bỏ phần chi tiết
+        pass
+
+    dong += [
         "  Cổng và gate vẫn chạy đủ như dự án thật; thứ được giảm là việc phải "
-        "gõ, không phải việc phải kiểm.\n"
+        "gõ, không phải việc phải kiểm.",
         "  Đưa vào việc thật thì sửa constraints.yaml và hardware_profile.yaml "
-        "bằng số đo thật, rồi xóa tệp .scratch."
-    )
+        "bằng số đo thật, rồi xóa tệp .scratch.",
+    ]
+    return "\n".join(dong)
 
 
 _CONSTRAINTS = {

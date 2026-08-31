@@ -28,6 +28,19 @@ import yaml
 
 from eaa.scratch import ScratchError, chon_platform, create_scratch, packs_co_san
 
+_STATE = (
+    '{"schema_version": 1, "phase": "A", "backlog": [], "constraints_version": "",'
+    ' "llm": {}, "created_at": "", "updated_at": "",'
+    ' "gates": {"G1": "pending", "G2": "pending", "G3": "pending",'
+    ' "G4": "pending", "G5": "pending"}}'
+)
+
+
+def _co_state(goc: Path) -> Path:
+    """`create_scratch` dựng YAML; Project State do `eaa init` ghi ở bước sau."""
+    (goc / "project_state.json").write_text(_STATE, encoding="utf-8")
+    return goc
+
 
 def _kho(tmp_path: Path, *packs: str) -> Path:
     for p in packs:
@@ -234,3 +247,75 @@ def test_fetch_binary_ton_trong_cong_tac_tat_mang(monkeypatch):
     monkeypatch.setenv("EAA_NO_NET", "1")
     with pytest.raises(NetworkDisabled):
         WebFetcher().fetch_binary("https://www.st.com/um.pdf")
+
+
+# ═══════ nhãn "chỗ nháp" phải hiện ở MỌI bản tóm tắt, không chỉ lúc dựng ═══════
+
+
+def test_nhan_nhap_neu_DICH_DANH_so_dang_gia_dinh(tmp_path):
+    """Nói "có giả định" thì không ai kiểm được; nói ra con số thì kiểm được.
+
+    Người đang cầm bo thật nhìn `flash_bytes = 32768` là biết ngay nó sai;
+    nhìn một câu chung chung thì không.
+    """
+    from eaa.scratch import warning_banner
+
+    goc = create_scratch(_kho(tmp_path, "pack_thu"), name="thu")
+    nhan = warning_banner(goc)
+    rb = yaml.safe_load((goc / "constraints.yaml").read_text(encoding="utf-8"))
+    for k, v in rb["mcu"].items():
+        assert f"{k} = {v}" in nhan, f"nhãn không nêu {k}"
+    assert "KHÁC những số này" in nhan
+
+
+def test_khong_phai_cho_nhap_thi_KHONG_co_nhan(tmp_path):
+    from eaa.scratch import warning_banner
+
+    that = tmp_path / "that"
+    that.mkdir()
+    assert warning_banner(that) == ""
+
+
+def test_nhan_van_hien_khi_constraints_hong(tmp_path):
+    """Hồ sơ hỏng không được làm MẤT lời cảnh báo — đó là lúc cần nó nhất."""
+    from eaa.scratch import SCRATCH_MARK, warning_banner
+
+    goc = tmp_path / "nhap"
+    goc.mkdir()
+    (goc / SCRATCH_MARK).write_text("x", encoding="utf-8")
+    (goc / "constraints.yaml").write_text("mcu: [\n", encoding="utf-8")
+    nhan = warning_banner(goc)
+    assert "CHỖ LÀM NHÁP" in nhan
+    assert "Đang giả định" not in nhan
+
+
+def test_status_NHAC_LAI_rang_day_la_cho_nhap(tmp_path, monkeypatch, capsys):
+    """`eaa/scratch.py` khai "eaa status nhắc lại" — vế ấy từng không đúng.
+
+    Dòng nhắc chỉ được in một lần lúc dựng; mọi lệnh sau đó im. Hậu quả là
+    đúng thứ chính module ấy cảnh báo: một bản nháp lặng lẽ thành bản bàn giao.
+    """
+    from eaa import cli
+    from eaa.state import StateStore
+
+    goc = _co_state(create_scratch(_kho(tmp_path, "pack_thu"), name="thu"))
+    monkeypatch.setattr(cli, "_tao_doctor", lambda p: type("D", (), {
+        "scan": lambda self: [],
+    })())
+    cli._in_tom_tat(StateStore(goc / "project_state.json").load(), goc)
+    ra = capsys.readouterr().out
+    assert "CHỖ LÀM NHÁP" in ra
+    assert "flash_bytes" in ra
+
+
+def test_du_an_that_thi_status_KHONG_in_nhan(tmp_path, monkeypatch, capsys):
+    from eaa import cli
+    from eaa.state import StateStore
+
+    goc = _co_state(create_scratch(_kho(tmp_path, "pack_thu"), name="thu"))
+    (goc / ".scratch").unlink()          # người dùng đã chuyển sang việc thật
+    monkeypatch.setattr(cli, "_tao_doctor", lambda p: type("D", (), {
+        "scan": lambda self: [],
+    })())
+    cli._in_tom_tat(StateStore(goc / "project_state.json").load(), goc)
+    assert "CHỖ LÀM NHÁP" not in capsys.readouterr().out

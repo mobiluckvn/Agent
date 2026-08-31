@@ -1513,7 +1513,9 @@ Ba loại:
 | **Đã sửa 4** | `WebFetcher.fetch_binary()` — cùng bộ chặn URL, cùng phép kiểm từng chặng chuyển hướng, cùng phép tính hạng theo **URL cuối**; khác đúng chỗ không bóc chữ và có trần riêng 80 MB. `eaa datasheet add` nhận URL, tải qua đó, **từ chối hạng `mở`**, lưu vào `datasheets/_taive/`. Lệnh vẫn là lệnh CỦA NGƯỜI (G2) — cái thêm vào là chỗ tải, không phải quyền duyệt |
 | **Kiểm thật** | Tải `UM1842` từ `st.com`: 1.695.359 byte, hạng `chính chủ`, dựng chunk đề xuất 36 trang. Chiều ngược: một URL `wikipedia.org` bị từ chối đúng lý do |
 | **Ghi nhận** | TC-38 bắt tôi ngay khi tôi viết tên bo cụ thể vào comment của `eaa/scratch.py`. Cổng thuần khiết engine làm đúng việc của nó — kể cả với người đang sửa nó |
-| **Bài canh** | `tests/test_tc84_scratch_va_nap_url.py` — 17 bài |
+| **Lỗi 5 (tìm khi kiểm lại) — nhãn "chỗ nháp" chỉ hiện MỘT lần** | `eaa/scratch.py` khai ở đầu module: *"Chúng mang nhãn GIẢ ĐỊNH trong chính tệp, và `eaa status` nhắc lại."* Vế sau không đúng — `warning_banner()` chỉ được gọi bởi chính lệnh `eaa scratch`, tức đúng một lần lúc dựng. Mọi lệnh sau đó im. Hậu quả là đúng thứ chính module ấy cảnh báo: *"một con số mặc định trông y hệt một con số đã chốt, và đó là cách một bản nháp lặng lẽ trở thành một bản bàn giao"* |
+| **Đã sửa 5** | `_in_nhan_nhap()` gọi từ `_in_tom_tat`. Và nhãn giờ nêu **đích danh** những số đang giả định (`flash_bytes = … · ram_bytes = … · f_cpu_hz = …`) kèm câu "bo thật của bạn gần như chắc chắn KHÁC những số này". Nói "có giả định" thì không ai kiểm được; nói ra con số thì người đang cầm bo nhìn một cái là biết sai |
+| **Bài canh** | `tests/test_tc84_scratch_va_nap_url.py` — 22 bài |
 
 
 ---
