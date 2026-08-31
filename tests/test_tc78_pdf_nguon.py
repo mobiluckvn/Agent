@@ -16,7 +16,6 @@ dựng một PDF nhỏ ngay tại chỗ.
 
 from __future__ import annotations
 
-import zlib
 from pathlib import Path
 
 import pytest
@@ -30,53 +29,55 @@ from eaa.pdftext import PdfError, PdfText, extract_text
 # --------------------------------------------------------------------------
 
 
-def _pdf_toi_thieu(noi_dung_chu: bytes, *, nen: bool = True,
-                   cmap: bytes | None = None) -> bytes:
-    """Dựng một PDF một trang, đủ chuẩn để bộ rút đọc được."""
-    luong = zlib.compress(noi_dung_chu) if nen else noi_dung_chu
-    loc = b"/Filter/FlateDecode" if nen else b""
+def _pdf(trang_noi_dung: list[bytes]) -> bytes:
+    """Dựng một PDF nhiều trang, đủ chuẩn để ``pypdf`` mở được.
 
+    Dựng tại chỗ chứ không dùng tệp trong ``data/``: thư mục ấy không nằm trong
+    Git, nên một bài test dựa vào nó sẽ hỏng ở mọi máy khác.
+    """
     doi_tuong: list[bytes] = []
 
     def them(than: bytes) -> int:
         doi_tuong.append(than)
         return len(doi_tuong)
 
-    so_cmap = 0
-    if cmap is not None:
-        c = zlib.compress(cmap)
-        so_cmap = them(b"<</Filter/FlateDecode/Length %d>>stream\n" % len(c) + c + b"\nendstream")
+    so_font = them(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    so_trang: list[int] = []
+    for noi_dung in trang_noi_dung:
+        so_nd = them(b"<< /Length %d >>\nstream\n" % len(noi_dung) + noi_dung + b"\nendstream")
+        so_trang.append(them(
+            b"<< /Type /Page /Parent 999 0 R /MediaBox [0 0 612 792]"
+            b" /Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>"
+            % (so_font, so_nd)
+        ))
+    kids = b" ".join(b"%d 0 R" % n for n in so_trang)
+    so_pages = them(b"<< /Type /Pages /Kids [%s] /Count %d >>" % (kids, len(so_trang)))
+    so_root = them(b"<< /Type /Catalog /Pages %d 0 R >>" % so_pages)
 
-    if so_cmap:
-        so_font = them(b"<</Type/Font/Subtype/Type0/BaseFont/Thu/ToUnicode %d 0 R>>" % so_cmap)
-    else:
-        so_font = them(b"<</Type/Font/Subtype/TrueType/BaseFont/Thu/Encoding/WinAnsiEncoding>>")
-
-    so_noi_dung = them(
-        b"<<%s/Length %d>>stream\n" % (loc, len(luong)) + luong + b"\nendstream"
-    )
-    so_trang = them(
-        b"<</Type/Page/Parent 99 0 R/Resources<</Font<</F1 %d 0 R>>>>/Contents %d 0 R>>"
-        % (so_font, so_noi_dung)
-    )
-
-    ra = [b"%PDF-1.7\n"]
+    ra = bytearray(b"%PDF-1.4\n")
+    lech: list[int] = []
     for i, than in enumerate(doi_tuong, 1):
-        ra.append(b"%d 0 obj\n" % i + than + b"\nendobj\n")
-    ra.append(b"trailer<</Root 1 0 R>>\n%%EOF\n")
-    return b"".join(ra)
+        lech.append(len(ra))
+        ra += b"%d 0 obj\n" % i + than + b"\nendobj\n"
+    bat_dau_xref = len(ra)
+    ra += b"xref\n0 %d\n" % (len(doi_tuong) + 1)
+    ra += b"0000000000 65535 f \n"
+    for x in lech:
+        ra += b"%010d 00000 n \n" % x
+    ra += (b"trailer\n<< /Size %d /Root %d 0 R >>\nstartxref\n%d\n%%%%EOF\n"
+           % (len(doi_tuong) + 1, so_root, bat_dau_xref))
+
+    # Trang cha trỏ tới 999 0 R (không tồn tại) chỉ để giữ cấu trúc; pypdf
+    # không cần nó để rút chữ.
+    return bytes(ra)
 
 
-CMAP_THU = b"""/CIDInit /ProcSet findresource begin
-begincmap
-2 beginbfchar
-<0041> <0110>
-<0042> <1EB1>
-endbfchar
-1 beginbfrange
-<0061> <0063> <0061>
-endbfrange
-endcmap"""
+def _pdf_toi_thieu(noi_dung: bytes, **_kw) -> bytes:
+    return _pdf([noi_dung])
+
+
+def _pdf_hai_trang(mot: bytes, hai: bytes) -> bytes:
+    return _pdf([mot, hai])
 
 
 def _viet(tmp_path: Path, raw: bytes, ten: str = "thu.pdf") -> Path:
@@ -86,66 +87,17 @@ def _viet(tmp_path: Path, raw: bytes, ten: str = "thu.pdf") -> Path:
 
 
 # ═══════════════════════════ rút chữ từ PDF ═══════════════════════════
+#
+# Bộ rút bọc ``pypdf`` (đã khai trong dependencies). Bài này kiểm PHẦN MODULE
+# TỰ THÊM — nhận PDF quét ảnh, gắn mức tin cậy, nói rõ giới hạn — chứ không
+# kiểm lại chính pypdf.
 
 
-def test_rut_duoc_chu_font_don_gian(tmp_path):
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf <48656C6C6F> Tj ET")
+def test_rut_duoc_chu(tmp_path):
+    raw = _pdf_toi_thieu(b"BT /F1 12 Tf (Hello) Tj ET")
     kq = extract_text(_viet(tmp_path, raw))
     assert "Hello" in kq.text
     assert kq.confidence_level == SUY_RA
-
-
-def test_font_don_gian_giai_ma_MOT_byte_theo_cp1252(tmp_path):
-    """Giải như 2 byte thì rụng đúng nguyên âm có dấu — lỗi đo được ở nguyên mẫu."""
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf <74EF616E> Tj ET")   # t ï a n  (0xEF = ï)
-    kq = extract_text(_viet(tmp_path, raw))
-    assert "ï" in kq.text
-
-
-def test_font_type0_tra_bang_ToUnicode(tmp_path):
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf <00410042> Tj ET", cmap=CMAP_THU)
-    kq = extract_text(_viet(tmp_path, raw))
-    assert kq.text == "Đằ"
-    assert kq.unmapped == 0
-
-
-def test_ma_khong_co_trong_bang_thi_DEM_chu_khong_nuot(tmp_path):
-    """Rụng ký tự mà im lặng là cách một bản gần đúng trông như đọc được."""
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf <0041FFFF> Tj ET", cmap=CMAP_THU)
-    kq = extract_text(_viet(tmp_path, raw))
-    assert kq.unmapped == 1
-    assert "không tra được" in kq.render()
-
-
-def test_beginbfrange_duoc_doc(tmp_path):
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf <006100620063> Tj ET", cmap=CMAP_THU)
-    assert extract_text(_viet(tmp_path, raw)).text == "abc"
-
-
-def test_kerning_lon_thanh_dau_cach(tmp_path):
-    """Không có luật này thì mọi từ dính liền nhau."""
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf [<4142> -300 <4344>] TJ ET")
-    assert extract_text(_viet(tmp_path, raw)).text == "AB CD"
-
-
-def test_kerning_nho_KHONG_thanh_dau_cach(tmp_path):
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf [<4142> -20 <4344>] TJ ET")
-    assert extract_text(_viet(tmp_path, raw)).text == "ABCD"
-
-
-def test_doi_toa_do_doc_thi_sang_dong(tmp_path):
-    """Nhiều trình sinh PDF dùng Tm chứ không dùng Td — đo được ở tài liệu thật."""
-    raw = _pdf_toi_thieu(
-        b"BT /F1 12 Tf 1 0 0 1 50 700 Tm <4142> Tj 1 0 0 1 50 680 Tm <4344> Tj ET"
-    )
-    assert extract_text(_viet(tmp_path, raw)).text == "AB\nCD"
-
-
-def test_doi_toa_do_ngang_thi_chi_cach_mot_dau(tmp_path):
-    raw = _pdf_toi_thieu(
-        b"BT /F1 12 Tf 1 0 0 1 50 700 Tm <4142> Tj 1 0 0 1 90 700 Tm <4344> Tj ET"
-    )
-    assert extract_text(_viet(tmp_path, raw)).text == "AB CD"
 
 
 def test_pdf_khong_co_chu_thi_bao_RONG_kem_ly_do(tmp_path):
@@ -156,6 +108,16 @@ def test_pdf_khong_co_chu_thi_bao_RONG_kem_ly_do(tmp_path):
     assert kq.confidence_level == KHONG_KIEM_DUOC
     ra = kq.render()
     assert "QUÉT ẢNH" in ra and "OCR" in ra
+
+
+def test_trang_khong_co_chu_duoc_dem_va_bao(tmp_path):
+    """Một trang quét ảnh lẫn giữa các trang chữ là chỗ dễ mất nội dung nhất."""
+    raw = _pdf_hai_trang(b"BT /F1 12 Tf (Co chu) Tj ET",
+                         b"1 0 0 RG 10 10 m 20 20 l S")
+    kq = extract_text(_viet(tmp_path, raw))
+    assert "Co chu" in kq.text
+    assert kq.blank_pages == 1
+    assert "1 trang KHÔNG có chữ" in kq.render()
 
 
 def test_khong_phai_pdf_thi_tu_choi(tmp_path):
@@ -170,28 +132,25 @@ def test_tep_khong_co(tmp_path):
         extract_text(tmp_path / "khong-co.pdf")
 
 
-def test_luong_khong_nen_van_doc_duoc(tmp_path):
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf <4F4B> Tj ET", nen=False)
-    assert "OK" in extract_text(_viet(tmp_path, raw)).text
+def test_pdf_hong_khong_lam_sap_luot_chay(tmp_path):
+    """Một hồ sơ người dùng đưa vào có thể chứa tệp hỏng — không được ném."""
+    p = tmp_path / "hong.pdf"
+    p.write_bytes(b"%PDF-1.7\n" + b"rac" * 200)
+    kq = extract_text(p)
+    assert kq.empty is True
+    assert kq.note
 
 
 def test_ban_in_noi_ro_KHONG_dung_lai_bo_cuc(tmp_path):
-    raw = _pdf_toi_thieu(b"BT /F1 12 Tf <4142> Tj ET")
+    raw = _pdf_toi_thieu(b"BT /F1 12 Tf (AB) Tj ET")
     assert "Bố cục KHÔNG được dựng lại" in extract_text(_viet(tmp_path, raw)).render()
 
 
-def test_bung_duoc_luong_doi_tuong_nen():
-    """Từ PDF 1.5, phần lớn đối tượng bị gom vào /ObjStm — kể cả bảng font."""
-    from eaa.pdftext import _bung_luong_doi_tuong
-
-    than = b"<</Type/A>><</Type/B>>"
-    dau = b"7 0 8 11 "
-    d = zlib.compress(dau + than)
-    objs = {1: b"<</Type/ObjStm/N 2/First %d/Filter/FlateDecode/Length %d>>stream\n"
-               % (len(dau), len(d)) + d + b"\nendstream"}
-    ra = _bung_luong_doi_tuong(objs)
-    assert ra[7] == b"<</Type/A>>"
-    assert ra[8] == b"<</Type/B>>"
+def test_gioi_han_so_trang_duoc_ton_trong(tmp_path):
+    raw = _pdf_hai_trang(b"BT /F1 12 Tf (Trang mot) Tj ET",
+                         b"BT /F1 12 Tf (Trang hai) Tj ET")
+    kq = extract_text(_viet(tmp_path, raw), max_pages=1)
+    assert "Trang mot" in kq.text and "Trang hai" not in kq.text
 
 
 # ═══════════════════ kỷ luật nêu nguồn trong hội thoại ═══════════════════

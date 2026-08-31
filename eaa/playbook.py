@@ -32,6 +32,24 @@ mang hai bộ đếm, và :meth:`Playbook.lookup` xếp theo tỉ lệ trúng ch
 tự thời gian. Một sổ tay chỉ ghi thành công là một sổ tay sẽ tự tin dần lên
 theo hướng sai — và nó sẽ tự tin nhất đúng ở chỗ nó sai nhiều nhất.
 
+Phạm vi: một cách sửa cho toolchain này không đúng cho toolchain kia
+---------------------------------------------------------------------
+
+Sổ tay nằm ở gốc kho, dùng chung mọi dự án — đó là điểm của nó. Nhưng dùng
+chung KHÔNG có nghĩa là áp bừa: ``undefined reference`` khi dịch cho một họ
+MCU được sửa bằng một cờ liên kết mà họ khác không có.
+
+Nên mỗi mục mang một **phạm vi**, cùng bộ với ``eaa/memory.py``:
+
+* ``toàn cục`` — đúng ở mọi nơi. Lỗi quyền, lỗi mạng, lỗi cú pháp Python.
+* ``mcu:<họ>`` — đúng theo họ chip. Phần lớn lỗi toolchain rơi vào đây, nên
+  đây là mặc định khi ghi từ trong một dự án.
+* ``dự án:<tên>`` — chỉ đúng ở một dự án.
+
+:meth:`Playbook.lookup` chỉ trả về mục thuộc phạm vi áp dụng được cho bối cảnh
+đang hỏi. Không có luật này, sổ tay càng dày càng nguy: nó gợi ý những cách sửa
+từng đúng ở một chỗ khác, và gợi ý ấy trông y hệt gợi ý đúng.
+
 Sổ tay KHÔNG tự áp cách sửa
 ----------------------------
 
@@ -51,7 +69,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from eaa.memory import MEMORY_DIR
+from eaa.memory import MEMORY_DIR, TOAN_CUC, scope_du_an, scope_mcu
 
 __all__ = [
     "PlaybookEntry",
@@ -126,6 +144,8 @@ class PlaybookEntry:
     context: str = ""
     evidence: str = ""
     source_url: str = ""
+    #: Phạm vi áp dụng — xem phần đầu tài liệu module.
+    scope: str = TOAN_CUC
     worked: int = 0
     failed: int = 0
     created_at: str = ""
@@ -164,6 +184,7 @@ class PlaybookEntry:
             "context": self.context,
             "evidence": self.evidence,
             "source_url": self.source_url,
+            "scope": self.scope,
             "worked": self.worked,
             "failed": self.failed,
             "created_at": self.created_at,
@@ -179,6 +200,7 @@ class PlaybookEntry:
             context=str(d.get("context", "")),
             evidence=str(d.get("evidence", "")),
             source_url=str(d.get("source_url", "")),
+            scope=str(d.get("scope", TOAN_CUC)),
             worked=int(d.get("worked", 0)),
             failed=int(d.get("failed", 0)),
             created_at=str(d.get("created_at", "")),
@@ -187,7 +209,7 @@ class PlaybookEntry:
 
     def render(self) -> str:
         diem = f"{self.worked}✓/{self.failed}✗"
-        dong = [f"  [{self.signature}]  {diem}   {self.symptom[:90]}",
+        dong = [f"  [{self.signature}]  {diem}  ({self.scope})   {self.symptom[:90]}",
                 f"      → {self.fix}"]
         if self.context:
             dong.append(f"      bối cảnh: {self.context}")
@@ -217,6 +239,7 @@ class Playbook:
         context: str = "",
         evidence: str = "",
         source_url: str = "",
+        scope: str = TOAN_CUC,
         worked: bool = True,
     ) -> PlaybookEntry:
         """Ghi một cặp mới. KHÔNG sửa dòng cũ — cộng dồn diễn ra lúc đọc."""
@@ -230,6 +253,7 @@ class Playbook:
             context=context.strip(),
             evidence=evidence.strip(),
             source_url=source_url.strip(),
+            scope=scope or TOAN_CUC,
             worked=1 if worked else 0,
             failed=0 if worked else 1,
             created_at=_now(),
@@ -255,6 +279,7 @@ class Playbook:
             context=cu.context,
             evidence=cu.evidence,
             source_url=cu.source_url,
+            scope=cu.scope,
             worked=1 if worked else 0,
             failed=0 if worked else 1,
             created_at=cu.created_at,
@@ -294,6 +319,7 @@ class Playbook:
                 context=m.context or cu.context,
                 evidence=m.evidence or cu.evidence,
                 source_url=m.source_url or cu.source_url,
+                scope=m.scope or cu.scope,
                 worked=cu.worked + m.worked,
                 failed=cu.failed + m.failed,
                 created_at=cu.created_at or m.created_at,
@@ -307,9 +333,29 @@ class Playbook:
                 return m
         return None
 
-    def lookup(self, error_text: str, *, limit: int = SO_GOI_Y_TOI_DA) -> list[PlaybookEntry]:
+    def in_scope(self, *, project: str = "", mcu: str = "") -> list[PlaybookEntry]:
+        """Mục áp dụng được cho bối cảnh này: toàn cục + đúng họ + đúng dự án.
+
+        KHÔNG trả về mục của dự án khác hay họ chip khác. Sổ tay càng dày thì
+        luật này càng quan trọng: nó gợi ý những cách sửa từng đúng ở một chỗ
+        khác, và một gợi ý sai chỗ trông y hệt một gợi ý đúng.
+        """
+        if not project and not mcu:
+            return self.all()
+        pham_vi = {TOAN_CUC, scope_du_an(project) if project else "",
+                   scope_mcu(mcu) if mcu else ""}
+        return [m for m in self.all() if m.scope in pham_vi]
+
+    def lookup(
+        self,
+        error_text: str,
+        *,
+        limit: int = SO_GOI_Y_TOI_DA,
+        project: str = "",
+        mcu: str = "",
+    ) -> list[PlaybookEntry]:
         """Tra một lỗi. Khớp vân tay trước, gần đúng sau, xếp theo tỉ lệ trúng."""
-        ds = self.all()
+        ds = self.in_scope(project=project, mcu=mcu)
         if not ds:
             return []
 
@@ -333,13 +379,14 @@ class Playbook:
                 diem.append((phu * m.success_rate, m))
         return [m for _, m in sorted(diem, key=lambda x: -x[0])][:limit]
 
-    def hint(self, error_text: str, *, limit: int = SO_GOI_Y_TOI_DA) -> str:
+    def hint(self, error_text: str, *, limit: int = SO_GOI_Y_TOI_DA,
+             project: str = "", mcu: str = "") -> str:
         """Đoạn gợi ý để chèn vào prompt tự sửa. Rỗng khi không có gì để nói.
 
         Nói rõ đây là gợi ý ĐÃ TỪNG hiệu quả, kèm số lần trúng/trượt — mô hình
         cần biết mức tin cậy để không bám vào một cách sửa 1 trúng / 4 trượt.
         """
-        ds = self.lookup(error_text, limit=limit)
+        ds = self.lookup(error_text, limit=limit, project=project, mcu=mcu)
         if not ds:
             return ""
         dong = ["Sổ tay lỗi — những cách đã từng thử với lỗi giống thế này:"]
@@ -353,13 +400,25 @@ class Playbook:
         )
         return "\n".join(dong)
 
-    def render(self, *, limit: int = 30) -> str:
+    def render(self, *, limit: int = 30, entries: Sequence[PlaybookEntry] | None = None) -> str:
         from eaa.confidence import SUY_RA, header
 
-        ds = sorted(self.all(), key=lambda m: (-m.attempts, -m.success_rate))
+        ds = sorted(self.all() if entries is None else entries,
+                    key=lambda m: (-m.attempts, -m.success_rate))
         dong = ["Sổ tay lỗi", "", header(SUY_RA), ""]
         if not ds:
-            dong.append("  (chưa ghi lỗi nào — sổ tay bồi lên sau mỗi lần vòng tự sửa thành công)")
+            # Phân biệt "sổ trống" với "sổ có nhưng không mục nào hợp bối cảnh".
+            # Hai chuyện khác hẳn nhau: cái sau nghĩa là kinh nghiệm CÓ, chỉ là
+            # của họ chip khác — nói "chưa ghi lỗi nào" ở đó là nói sai.
+            if entries is not None and self.all():
+                dong.append(
+                    "  (sổ tay có mục, nhưng không mục nào thuộc phạm vi này — "
+                    "kinh nghiệm của họ chip khác không tự nhiên đúng ở đây)"
+                )
+            else:
+                dong.append(
+                    "  (chưa ghi lỗi nào — sổ tay bồi lên sau mỗi lần vòng tự sửa thành công)"
+                )
             return "\n".join(dong)
         dong.append(f"── {len(ds)} loại lỗi đã gặp")
         dong += [m.render() for m in ds[:limit]]

@@ -78,10 +78,15 @@ class ToolUse:
     duration_ms: int = 0
     error: str = ""
     at: str = ""
+    #: Dự án lúc gọi. Công cụ dùng chung mọi dự án, nhưng dữ liệu vào thì
+    #: không — một công cụ đọc tệp nhật ký có thể chạy tốt ở dự án này và hỏng
+    #: ở dự án kia vì định dạng tệp khác. Không ghi chỗ nó hỏng thì số đo chỉ
+    #: nói "hay hỏng" mà không nói "hỏng ở đâu", và người sửa phải đoán.
+    project: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {"tool": self.tool, "ok": self.ok, "duration_ms": self.duration_ms,
-                "error": self.error, "at": self.at}
+                "error": self.error, "at": self.at, "project": self.project}
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "ToolUse":
@@ -91,6 +96,7 @@ class ToolUse:
             duration_ms=int(d.get("duration_ms", 0)),
             error=str(d.get("error", "")),
             at=str(d.get("at", "")),
+            project=str(d.get("project", "")),
         )
 
 
@@ -104,6 +110,8 @@ class ToolStats:
     total_ms: int = 0
     last_error: str = ""
     last_at: str = ""
+    #: Những dự án công cụ này đã chạy ở đó.
+    projects: tuple[str, ...] = ()
 
     @property
     def runs(self) -> int:
@@ -146,6 +154,8 @@ class ToolStats:
         if not self.runs:
             return f"      chưa dùng lần nào"
         dong = f"      đã dùng {self.runs} lần · {self.ok} đạt / {self.failed} hỏng"
+        if len(self.projects) > 1:
+            dong += f" · ở {len(self.projects)} dự án: {', '.join(self.projects)}"
         if self.avg_ms:
             dong += f" · trung bình {self.avg_ms} ms"
         canh_bao = []
@@ -171,9 +181,11 @@ class UsageLog:
     def path(self) -> Path:
         return self.root / MEMORY_DIR / self.filename
 
-    def record(self, tool: str, *, ok: bool, duration_ms: int = 0, error: str = "") -> ToolUse:
+    def record(self, tool: str, *, ok: bool, duration_ms: int = 0,
+               error: str = "", project: str = "") -> ToolUse:
         lan = ToolUse(tool=tool, ok=ok, duration_ms=duration_ms,
-                      error=" ".join((error or "").split())[:300], at=_now())
+                      error=" ".join((error or "").split())[:300], at=_now(),
+                      project=project)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(lan.to_dict(), ensure_ascii=False) + "\n")
@@ -193,10 +205,17 @@ class UsageLog:
                 continue
         return ds
 
-    def stats(self, tool: str = "") -> dict[str, ToolStats]:
+    def stats(self, tool: str = "", *, project: str = "") -> dict[str, ToolStats]:
+        """Số đo tích luỹ. Nêu ``project`` thì chỉ tính lần gọi ở dự án ấy.
+
+        Mặc định gộp mọi dự án: một công cụ hỏng ở khắp nơi là chuyện khác hẳn
+        một công cụ chỉ hỏng ở một dự án, và cả hai đều đáng biết.
+        """
         gop: dict[str, ToolStats] = {}
         for u in self.all():
             if tool and u.tool != tool:
+                continue
+            if project and u.project != project:
                 continue
             cu = gop.get(u.tool, ToolStats(tool=u.tool))
             gop[u.tool] = ToolStats(
@@ -206,11 +225,12 @@ class UsageLog:
                 total_ms=cu.total_ms + u.duration_ms,
                 last_error=(u.error or cu.last_error) if not u.ok else cu.last_error,
                 last_at=max(cu.last_at, u.at),
+                projects=tuple(sorted(set(cu.projects) | ({u.project} if u.project else set()))),
             )
         return gop
 
-    def stats_for(self, tool: str) -> ToolStats:
-        return self.stats(tool).get(tool, ToolStats(tool=tool))
+    def stats_for(self, tool: str, *, project: str = "") -> ToolStats:
+        return self.stats(tool, project=project).get(tool, ToolStats(tool=tool))
 
     def concerning(self) -> list[ToolStats]:
         """Công cụ đáng xem lại. Không tự gỡ cái nào — gỡ là một quyết định."""

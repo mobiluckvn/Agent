@@ -1416,6 +1416,18 @@ Ba loại:
 | **Vì sao nghiêm trọng hơn vẻ ngoài** | Một cảnh báo không thể thỏa mãn dạy người ta bỏ qua cảnh báo. Sau vài lần, dòng cảnh báo ấy thành nhiễu — và lúc nó bắn ĐÚNG thì không ai đọc nữa |
 | **Đã sửa** | Đọc `nguon` ở cả hai nhánh; lược đồ trả lời nói rõ điều đó |
 
+## SL-102 · BỔ SUNG · Kho dùng chung phải lọc theo phạm vi (cách ly dữ liệu giữa dự án)
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §3 (một kho, nhiều dự án); FR-PLT-03; AIS §8 |
+| **Vấn đề** | Kho dữ liệu của hệ chia hai loại. Loại **riêng dự án** — `sources/`, `datasheets/`, `state.json`, kỹ năng, nhật ký hội thoại, phẩm xuất — nằm trong thư mục dự án nên tự nó đã cách ly. Loại **dùng chung** — bộ nhớ liên dự án, sổ tay lỗi, nhật ký dùng công cụ, bộ đệm web — nằm ở gốc kho, và **đó là điểm của nó**: thứ học ở bo này mang sang bo sau |
+| **Dùng chung không có nghĩa là áp bừa** | `avr-gcc: undefined reference` và `arm-none-eabi-ld: undefined reference` là hai lỗi trông giống nhau và có hai cách sửa khác hẳn. Một sổ tay không phân biệt họ chip sẽ gợi ý `-mmcu` cho một dự án ARM — và **gợi ý sai chỗ trông y hệt gợi ý đúng** |
+| **Đã làm** | `PlaybookEntry.scope` + `Playbook.in_scope()`, `lookup()`, `hint()` lọc theo dự án/họ MCU (cùng bộ từ vựng `scope_du_an` / `scope_mcu` / `TOAN_CUC` mà `eaa/memory.py` đã dùng). `ToolUse.project` + `UsageLog.stats(project=)`: công cụ dùng chung, dữ liệu vào thì không — một công cụ đọc tệp nhật ký chạy tốt ở dự án này có thể hỏng ở dự án kia. `_boi_canh_du_an()` trong CLI dò dự án + họ MCU rồi truyền xuống |
+| **Không ẩn im lặng** | `playbook list` in `0/1 mục áp dụng được ở đây` chứ không giấu. Ẩn im lặng biến "kinh nghiệm của họ chip khác" thành "chưa có kinh nghiệm", và người dùng sẽ đi hỏi lại thứ hệ đã biết |
+| **Đứng ngoài mọi dự án thì thấy tất cả** | Không có bối cảnh thì không có gì để lọc theo. Mặc định lọc-hết ở đó là mặc định sai |
+| **Bài canh** | `tests/test_tc79_cach_ly_du_an.py` — 16 bài, canh cả hai chiều: kho riêng không thấy dữ liệu dự án khác, kho chung phải có đường lọc. Có một bài canh **cấu trúc**: thêm kho dùng chung mới mà quên phần lọc thì đỏ ngay |
+
 
 ---
 

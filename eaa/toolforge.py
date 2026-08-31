@@ -784,7 +784,8 @@ class ToolForge:
         )
         return bao_cao
 
-    def run(self, name: str, arguments: dict[str, Any] | None = None) -> str:
+    def run(self, name: str, arguments: dict[str, Any] | None = None,
+            *, project: str = "") -> str:
         """Chạy một công cụ ĐÃ DUYỆT. Chưa duyệt thì không có đường chạy."""
         cong_cu = self.registry.get(name)
         if cong_cu is None:
@@ -823,11 +824,12 @@ class ToolForge:
             self._ghi_lan_dung(
                 name, ok=False,
                 ms=int((time.monotonic() - bat_dau) * 1000),
-                loi=f"{type(exc).__name__}: {exc}",
+                loi=f"{type(exc).__name__}: {exc}", project=project,
             )
             raise ForgeError(f"Công cụ {name!r} chạy lỗi: {type(exc).__name__}: {exc}") from None
 
-        self._ghi_lan_dung(name, ok=True, ms=int((time.monotonic() - bat_dau) * 1000))
+        self._ghi_lan_dung(name, ok=True,
+                           ms=int((time.monotonic() - bat_dau) * 1000), project=project)
         return ket
 
     def rollback(self, name: str) -> ForgedTool:
@@ -930,11 +932,14 @@ class ToolForge:
         ]
         return "\n".join(dong)
 
-    def _ghi_lan_dung(self, name: str, *, ok: bool, ms: int, loi: str = "") -> None:
+    def _ghi_lan_dung(self, name: str, *, ok: bool, ms: int, loi: str = "",
+                      project: str = "") -> None:
         """Ghi một lần dùng. Không bao giờ để việc ghi làm hỏng lượt chạy."""
         try:
             from eaa.toolusage import UsageLog
 
-            UsageLog(self.registry.root).record(name, ok=ok, duration_ms=ms, error=loi)
+            UsageLog(self.registry.root).record(
+                name, ok=ok, duration_ms=ms, error=loi, project=project
+            )
         except Exception:  # noqa: BLE001 - nhật ký hỏng không được che lỗi thật
             pass

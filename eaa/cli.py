@@ -3401,13 +3401,10 @@ def cmd_memory_list(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     # Không nêu gì thì lọc theo dự án đang dùng — bài học của dự án khác không
-    # tự chảy sang, và đó là điểm quan trọng nhất của kho này.
-    ten = ""
-    try:
-        ten = resolve_project(args.project).name
-    except CliError:
-        pass
-    print(kho.render(project=ten))
+    # tự chảy sang, và đó là điểm quan trọng nhất của kho này. Lọc cả theo họ
+    # MCU: một mục ghi cho họ chip khác cũng là bài học sai chỗ.
+    ten, ho = _boi_canh_du_an(args)
+    print(kho.render(project=ten, mcu=ho))
     return EXIT_OK
 
 
@@ -3426,11 +3423,37 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _boi_canh_du_an(args: argparse.Namespace) -> tuple[str, str]:
+    """Trả ``(tên dự án, họ MCU)`` để lọc kho dùng chung.
+
+    Kho dùng chung mà không lọc là kho rò rỉ: một cách sửa cho toolchain họ này
+    được gợi ý cho họ khác, và gợi ý sai chỗ trông y hệt gợi ý đúng. Không xác
+    định được dự án thì trả rỗng — khi ấy bên gọi thấy TOÀN BỘ, và đó là đúng:
+    người đang đứng ngoài mọi dự án thì không có bối cảnh nào để lọc theo.
+    """
+    try:
+        project = resolve_project(args.project)
+    except CliError:
+        return "", ""
+    try:
+        rb = _nap_kho(Constraints.load, project / CONSTRAINTS_FILE)
+        return project.name, str(getattr(rb, "platform", "") or "")
+    except Exception:  # noqa: BLE001 - chưa có ràng buộc thì vẫn lọc theo tên
+        return project.name, ""
+
+
 def cmd_playbook_list(args: argparse.Namespace) -> int:
     """Sổ tay lỗi (C8.3)."""
     from eaa.playbook import Playbook
 
-    print(Playbook(repo_root()).render())
+    ten, ho = _boi_canh_du_an(args)
+    so = Playbook(repo_root())
+    ds = so.in_scope(project=ten, mcu=ho)
+    if ten or ho:
+        print(f"(lọc theo bối cảnh: dự án {ten or '—'}, họ MCU {ho or '—'} — "
+              f"{len(ds)}/{len(so.all())} mục áp dụng được ở đây)")
+        print()
+    print(so.render(entries=ds))
     return EXIT_OK
 
 
@@ -3438,8 +3461,9 @@ def cmd_playbook_lookup(args: argparse.Namespace) -> int:
     from eaa.playbook import Playbook, signature
 
     loi = " ".join(args.error)
+    ten, ho = _boi_canh_du_an(args)
     so = Playbook(repo_root())
-    goi_y = so.hint(loi)
+    goi_y = so.hint(loi, project=ten, mcu=ho)
     print(f"Vân tay: {signature(loi)}")
     print()
     print(goi_y or "Sổ tay chưa có gì cho lỗi này. Sau khi sửa được, ghi lại bằng:\n"
@@ -3448,12 +3472,17 @@ def cmd_playbook_lookup(args: argparse.Namespace) -> int:
 
 
 def cmd_playbook_record(args: argparse.Namespace) -> int:
+    from eaa.memory import TOAN_CUC, scope_mcu
     from eaa.playbook import Playbook
 
     try:
+        ten, ho = _boi_canh_du_an(args)
+        # Mặc định ghi theo HỌ MCU: phần lớn lỗi toolchain đúng theo họ chip,
+        # không đúng ở mọi nơi và cũng không chỉ đúng ở một dự án.
+        pham_vi = args.scope or (scope_mcu(ho) if ho else TOAN_CUC)
         m = Playbook(repo_root()).record(
             args.error, args.fix, context=args.context,
-            source_url=args.source, worked=not args.failed,
+            source_url=args.source, scope=pham_vi, worked=not args.failed,
         )
     except ValueError as exc:
         raise CliError(str(exc)) from None
@@ -3567,7 +3596,8 @@ def cmd_tool_run(args: argparse.Namespace) -> int:
     except OptionError as exc:
         raise CliError(f"--args phải là JSON: {exc}") from None
     try:
-        print(_xuong_cong_cu(args).run(args.name, tham_so))
+        ten, _ = _boi_canh_du_an(args)
+        print(_xuong_cong_cu(args).run(args.name, tham_so, project=ten))
     except ForgeError as exc:
         raise CliError(str(exc)) from None
     return EXIT_OK
@@ -5131,6 +5161,9 @@ def build_parser() -> argparse.ArgumentParser:
     pb_rec.add_argument("--context", default="")
     pb_rec.add_argument("--source", default="", help="Địa chỉ trang đã tra")
     pb_rec.add_argument("--failed", action="store_true", help="Ghi là cách này KHÔNG hiệu quả")
+    pb_rec.add_argument("--scope", default="",
+                        help="'toàn cục' | 'mcu:<họ>' | 'dự án:<tên>'. "
+                             "Bỏ trống thì lấy họ MCU của dự án đang dùng")
     pb_rec.set_defaults(func=cmd_playbook_record)
 
     p_tool = sub.add_parser(
