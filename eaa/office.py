@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -647,29 +648,43 @@ def write_pdf(doc: Doc, path: str | Path, *, timeout_s: float = 180.0) -> Path:
         )
 
     p.parent.mkdir(parents=True, exist_ok=True)
-    tam = p.with_suffix(".docx")
-    write_docx(doc, tam)
-    try:
-        kq = subprocess.run(
-            [soffice, "--headless", "--convert-to", "pdf", "--outdir",
-             str(p.parent), str(tam)],
-            capture_output=True, text=True, timeout=timeout_s,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise OfficeError(
-            f"LibreOffice quá {timeout_s:.0f} giây chưa xong. Bản .docx đã ghi "
-            f"tại {tam}."
-        ) from exc
 
-    sinh_ra = p.parent / (tam.stem + ".pdf")
-    if not sinh_ra.is_file():
-        raise OfficeError(
-            f"LibreOffice không sinh ra PDF (mã {kq.returncode}).\n"
-            f"{(kq.stderr or kq.stdout or '').strip()[:400]}\n"
-            f"Bản .docx đã ghi tại {tam}."
-        )
-    if sinh_ra != p:
-        sinh_ra.replace(p)
+    # Bản .docx trung gian dựng trong thư mục TẠM, không cạnh tệp đích.
+    # Đặt cạnh đích thì `design gen srs --format pdf` ghi ra `srs.docx` — và
+    # `srs.docx` là tên tệp người dùng đã có từ lần chạy `--format docx`. Một
+    # lệnh sinh PDF không được phép đè bản Word của người ta, cũng không được
+    # để lại rác cạnh kết quả.
+    with tempfile.TemporaryDirectory(prefix="eaa_pdf_") as thu_muc:
+        tam_goc = Path(thu_muc)
+        tam = tam_goc / (p.stem + ".docx")
+        write_docx(doc, tam)
+
+        # -env:UserInstallation trỏ vào hồ sơ riêng: nếu người dùng đang mở
+        # LibreOffice bằng giao diện, một tiến trình --headless dùng CHUNG hồ
+        # sơ ấy sẽ lặng lẽ không chuyển gì và vẫn trả mã 0. Hỏng mà báo thành
+        # công là kiểu hỏng tệ nhất ở đây, vì tệp đích đơn giản là không có.
+        ho_so = tam_goc / "lo_profile"
+        try:
+            kq = subprocess.run(
+                [soffice, f"-env:UserInstallation=file://{ho_so}",
+                 "--headless", "--norestore", "--convert-to", "pdf",
+                 "--outdir", str(tam_goc), str(tam)],
+                capture_output=True, text=True, timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise OfficeError(
+                f"LibreOffice quá {timeout_s:.0f} giây chưa xong. Lấy bản Word "
+                "ngay bằng: --format docx."
+            ) from exc
+
+        sinh_ra = tam_goc / (tam.stem + ".pdf")
+        if not sinh_ra.is_file():
+            raise OfficeError(
+                f"LibreOffice không sinh ra PDF (mã {kq.returncode}).\n"
+                f"{(kq.stderr or kq.stdout or '').strip()[:400]}\n"
+                "Lấy bản Word ngay bằng: --format docx."
+            )
+        shutil.move(str(sinh_ra), str(p))
     return p
 
 

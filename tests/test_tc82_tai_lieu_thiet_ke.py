@@ -137,6 +137,161 @@ def test_dinh_dang_la_bao_loi_ro(tmp_path):
         office.write(Doc(title="T"), tmp_path / "t.rtf")
 
 
+def test_sinh_pdf_KHONG_de_len_ban_docx_dang_co(tmp_path, monkeypatch):
+    """`--format pdf` không được đè bản Word người dùng đã có.
+
+    Bản .docx trung gian từng được dựng cạnh tệp đích, nghĩa là
+    `design gen srs --format pdf` ghi ra `srs.docx` — đúng tên tệp lần chạy
+    `--format docx` trước đó đã tạo. Mất một tệp bàn giao vì chạy một lệnh
+    sinh tệp khác là loại hỏng người dùng không có cách nào đoán trước.
+    """
+    quy = tmp_path / "srs.docx"
+    quy.write_text("bản Word của người dùng, không được mất", encoding="utf-8")
+
+    def _gia(argv, **k):
+        # Giả LibreOffice: sinh PDF vào đúng --outdir mà nó được bảo.
+        ra = Path(argv[argv.index("--outdir") + 1])
+        (ra / (Path(argv[-1]).stem + ".pdf")).write_bytes(b"%PDF-1.7\n%%EOF\n")
+        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(office, "tim_soffice", lambda: "/gia/soffice")
+    monkeypatch.setattr(office.subprocess, "run", _gia)
+    office.write_pdf(Doc(title="T"), tmp_path / "srs.pdf")
+
+    assert (tmp_path / "srs.pdf").is_file()
+    assert quy.read_text(encoding="utf-8") == "bản Word của người dùng, không được mất"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["srs.docx", "srs.pdf"], \
+        "để lại rác cạnh kết quả"
+
+
+def test_sinh_pdf_dung_ho_so_LibreOffice_rieng(tmp_path, monkeypatch):
+    """Người dùng đang mở LibreOffice thì tiến trình --headless phải không đụng nhau.
+
+    Dùng chung hồ sơ người dùng, `--convert-to` lặng lẽ không chuyển gì và vẫn
+    trả mã 0 — hỏng mà báo thành công, và tệp đích đơn giản là không có.
+    """
+    da_goi: list[list[str]] = []
+
+    def _gia(argv, **k):
+        da_goi.append(list(argv))
+        ra = Path(argv[argv.index("--outdir") + 1])
+        (ra / (Path(argv[-1]).stem + ".pdf")).write_bytes(b"%PDF-1.7\n")
+        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(office, "tim_soffice", lambda: "/gia/soffice")
+    monkeypatch.setattr(office.subprocess, "run", _gia)
+    office.write_pdf(Doc(title="T"), tmp_path / "t.pdf")
+
+    assert any(a.startswith("-env:UserInstallation=") for a in da_goi[0]), \
+        "thiếu hồ sơ riêng — sẽ đụng LibreOffice đang mở"
+
+
+def test_LibreOffice_khong_sinh_ra_gi_thi_BAO_LOI(tmp_path, monkeypatch):
+    """Trả mã 0 mà không có tệp vẫn là hỏng, và phải nói ra."""
+    monkeypatch.setattr(office, "tim_soffice", lambda: "/gia/soffice")
+    monkeypatch.setattr(
+        office.subprocess, "run",
+        lambda argv, **k: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    with pytest.raises(office.OfficeError) as exc:
+        office.write_pdf(Doc(title="T"), tmp_path / "t.pdf")
+    assert "--format docx" in str(exc.value), "phải chỉ đường chạy được ngay"
+    assert not (tmp_path / "t.pdf").exists()
+
+
+#: Bốn bài dưới đây gọi LibreOffice THẬT và tốn ~58 giây trên tổng ~235 giây
+#: của cả bộ. Chúng là thứ duy nhất kiểm được nhánh PDF, nên chúng chạy mặc
+#: định; gắn nhãn `cham` để bỏ qua khi cần vòng lặp nhanh:
+#:
+#:     pytest -m "not cham"
+#:
+#: Tự bỏ qua trên máy chưa cài LibreOffice — CI không có nó vẫn xanh, và
+#: "xanh vì bỏ qua" hiện ra trong bản tóm tắt của pytest chứ không im lặng.
+co_soffice = pytest.mark.skipif(
+    not office.tim_soffice(),
+    reason="máy này chưa có LibreOffice — cài: brew install --cask libreoffice",
+)
+cham = pytest.mark.cham
+
+
+@co_soffice
+@cham
+def test_pdf_that_doc_nguoc_lai_duoc_bang_chinh_bo_doc_cua_san_pham(tmp_path):
+    """Vòng khép kín: dựng .pdf rồi đọc lại bằng eaa/pdftext.py.
+
+    Đây là phép kiểm mạnh nhất có được mà không cần mắt người: nếu bộ xuất
+    dựng ra một PDF hỏng, hoặc dấu tiếng Việt rụng trên đường docx → pdf, thì
+    bộ đọc của chính sản phẩm sẽ không tìm thấy những chuỗi dưới đây.
+    """
+    from eaa.pdftext import extract_text
+
+    d = Doc(title="Tiêu đề có dấu", subtitle="Phụ đề")
+    d.heading("Mục một", 1)
+    d.para("Chữ tiếng Việt đủ dấu: Cân Bằng, Đủ, Ưu, Nghiêng, Xung đột.")
+    d.table(["Cột & 1", "Cột <2>"], [["giá trị a", "giá trị b"]], caption="Bảng thử")
+    d.note("Ghi chú cảnh báo", "KHÔNG KIỂM ĐƯỢC")
+    d.add(PageBreak())
+    d.heading("Mục sau ngắt trang", 1)
+    d.para("Nội dung trang sau.")
+
+    p = office.write_pdf(d, tmp_path / "t.pdf", timeout_s=180)
+    assert p.read_bytes()[:5] == b"%PDF-"
+
+    t = extract_text(p)
+    assert not t.empty and t.blank_pages == 0
+    for s in ("Tiêu đề có dấu", "Cân Bằng, Đủ, Ưu", "giá trị a",
+              "KHÔNG KIỂM ĐƯỢC", "Mục sau ngắt trang"):
+        assert s in t.text, f"mất sau vòng docx → pdf → đọc lại: {s!r}"
+    assert "Cột & 1" in t.text, "ký tự & không sống sót qua chuỗi xuất"
+
+
+@co_soffice
+@cham
+def test_pdf_ngat_trang_ra_TRANG_MOI_that(tmp_path):
+    """PageBreak phải thành trang mới, không thành một ký tự lạ giữa dòng."""
+    from eaa.pdftext import extract_text
+
+    d = Doc(title="T")
+    d.para("trước ngắt")
+    d.add(PageBreak())
+    d.para("sau ngắt")
+    t = extract_text(office.write_pdf(d, tmp_path / "t.pdf", timeout_s=180))
+    assert len(t.pages) == 2, f"mong 2 trang, có {len(t.pages)}"
+    assert "trước ngắt" in t.pages[0].text
+    assert "sau ngắt" in t.pages[1].text
+
+
+@co_soffice
+@cham
+def test_pdf_khong_de_len_ban_docx_ĐANG_CO_chay_that(tmp_path):
+    """Bản mock ở trên canh hợp đồng; bài này canh LibreOffice thật."""
+    quy = tmp_path / "t.docx"
+    quy.write_bytes(b"ban Word cua nguoi dung")
+    office.write_pdf(Doc(title="T"), tmp_path / "t.pdf", timeout_s=180)
+    assert quy.read_bytes() == b"ban Word cua nguoi dung"
+    assert sorted(x.name for x in tmp_path.iterdir()) == ["t.docx", "t.pdf"]
+
+
+@co_soffice
+@cham
+def test_ba_luot_chuyen_SONG_SONG_deu_ra_tep(tmp_path):
+    """Không có hồ sơ LibreOffice riêng thì một trong ba lượt không sinh gì.
+
+    Đo được: chạy ba tiến trình `soffice --headless --convert-to` dùng chung
+    hồ sơ mặc định thì 2/3 ra tệp. Với `-env:UserInstallation` riêng cho từng
+    lượt thì 3/3. Bài này giữ con số ấy.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _chay(i: int) -> Path:
+        d = Doc(title=f"Tài liệu {i}")
+        d.para(f"Nội dung {i}")
+        return office.write_pdf(d, tmp_path / f"t{i}.pdf", timeout_s=180)
+
+    with ThreadPoolExecutor(max_workers=3) as bo:
+        ds = list(bo.map(_chay, range(3)))
+    assert all(p.is_file() and p.stat().st_size > 0 for p in ds)
+
+
 def test_thieu_libreoffice_thi_noi_CACH_CAI(tmp_path, monkeypatch):
     """Thiếu công cụ ngoài là chuyện cài đặt, không phải lỗi của tài liệu."""
     monkeypatch.setattr(office, "tim_soffice", lambda: "")

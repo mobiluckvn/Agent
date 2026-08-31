@@ -469,9 +469,23 @@ def cmd_design_list(args: argparse.Namespace) -> int:
             print(f"               theo: {s.standard}")
         print(f"               {len(s.sections)} mục · mặc định .{s.mac_dinh_dinh_dang}")
         print()
+    # Dò công cụ ngoài NGAY Ở ĐÂY thay vì để người dùng phát hiện lúc chạy.
+    # "pdf" nằm trong danh sách định dạng không có nghĩa là máy này xuất được
+    # pdf — và một danh sách nói được thứ nó không làm được thì tệ hơn một
+    # danh sách ngắn hơn.
+    from eaa.office import tim_soffice
+
+    soffice = tim_soffice()
     print("── Định dạng xuất được")
     for k, v in DINH_DANG.items():
-        print(f"  {k:<6} {v}")
+        dau = ""
+        if k == "pdf":
+            dau = "  ✓" if soffice else "  ✗ CHƯA DÙNG ĐƯỢC trên máy này"
+        print(f"  {k:<6} {v}{dau}")
+    if not soffice:
+        print()
+        print("  PDF cần LibreOffice. Cài:  brew install --cask libreoffice")
+        print("  Bốn định dạng còn lại không cần gì thêm.")
     print()
     print(f"Khuôn mẫu là DỮ LIỆU, ở {SPEC_DIR}. Sửa cấu trúc một tài liệu là sửa")
     print("tệp YAML tương ứng — không phải sửa mã, không phải chạy lại test.")

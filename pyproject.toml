@@ -45,6 +45,10 @@ pythonpath = ["."]
 addopts = "-ra"
 markers = [
     "tc: mã test case trong EAA-STP-04 / EAA-AIS-05 §11",
+    # Bài gọi công cụ ngoài và tốn giây. Chạy MẶC ĐỊNH — chúng là thứ duy nhất
+    # kiểm được nhánh PDF. Bỏ qua bằng `pytest -m "not cham"` khi cần vòng lặp
+    # nhanh; đừng bỏ trước khi giao.
+    "cham: chạy chậm vì gọi công cụ ngoài (LibreOffice)",
 ]
 
 [tool.coverage.report]
