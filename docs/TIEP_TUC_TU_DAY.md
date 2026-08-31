@@ -1,29 +1,37 @@
 # Tiếp tục từ đây — phiên kiểm Agent với bo thật
 
-Dừng lúc: **2026-08-31**, sau khi xác định lỗi USB cần khởi động lại máy.
-Nhánh `main`, commit cuối `e24fe70`. **2077 test xanh.** Mọi thứ đã đẩy.
+Cập nhật: **2026-08-31**, sau khi bo AVR lên bus và lệnh `ports` nhận ra nó.
+Nhánh `main`, commit cuối `c51248f`. **2081 test xanh.** Mọi thứ đã đẩy.
 
 ---
 
-## 1. Việc đầu tiên sau khi khởi động lại máy
+## 1. ✅ ĐÃ XONG — bo đã nhận
 
-```bash
-cd /Users/v/Documents/KTDT
-.venv/bin/python -m eaa.cli --project .eaa/scratch/stm32f411_disco ports
+Bo AVR cắm qua đế cắm, nằm sau **hai tầng hub**. `eaa ports` với dự án
+`projects/robot_balance` nay trả lời:
+
+```
+Thấy bo của dự án (1 thiết bị khớp phần khai):
+1a86:7523    USB Serial   ← Bo tương thích, cầu USB rời
 ```
 
-Nhìn mục **Thiết bị USB**:
+Trên đường tới đó tìm được **hai lỗi thật** — xem `docs/SAI_LECH_THIET_KE.md`
+mục **SL-109**. Lỗi chính: bộ đọc `ioreg` tách nút cây bằng `\n\s*\+-o `, mà
+`ioreg` vẽ nhánh bằng gạch dọc `|`. `\s` không khớp `|`, nên **mọi nút con bị
+gộp vào khối của nút cha** và chỉ thiết bị đầu tiên mỗi nhánh sống sót — mà
+thiết bị đầu tiên của một nhánh chính là cái hub. Đo được: **6 → 16 thiết bị**.
 
-| Thấy gì | Nghĩa là | Đi tiếp thế nào |
-|---|---|---|
-| Có thiết bị ngoài (mã KHÔNG phải `05ac`) | Cổng USB đã sống lại | Sang mục 3 |
-| Vẫn chỉ `05ac` (Apple) | Khởi động lại chưa gỡ được | Sang mục 2 |
-
-Muốn vừa cắm vừa xem thì: `ports --watch` — nó báo ngay lúc cắm vào và rút ra.
+> Vẫn còn: máy **chưa có `pyserial`**, nên phần cổng nối tiếp chỉ khớp theo
+> *tên cổng* (`usbserial-143410`), chưa xác nhận VID/PID — lệnh nói rõ chỗ đó
+> là phỏng đoán. Cài hay không là quyết định của người.
 
 ---
 
-## 2. Nếu khởi động lại vẫn không thấy
+## 2. Cũ — giữ lại phòng khi bo lại biến mất
+
+Ghi từ lúc chưa cắm được. Nếu lần sau lại không thấy gì thì đọc lại mục này —
+nhưng **kiểm bằng `ioreg` trực tiếp trước**, đừng chỉ tin `eaa ports`: chính
+lệnh ấy vừa nói dối một lần (SL-109).
 
 Đã loại trừ được (đừng mất công kiểm lại):
 
@@ -71,6 +79,9 @@ Chỗ làm nháp: `.eaa/scratch/stm32f411_disco/`
   *chính chủ*), thành chunk `ds-stm3-boar-01`, 36 trang.
 
 ### Đang chờ người — hai việc
+
+> Lưu ý: bo vừa cắm là bo **AVR**, thuộc `projects/robot_balance` — không phải
+> bo của chỗ nháp F411 này. Chỗ nháp vẫn chưa có phần cứng.
 
 **a. Duyệt G2** cho chunk vừa nạp. Đây là chỗ kỹ sư đối chiếu nội dung với
 bản gốc trước khi cho nó vào kho tri thức:
