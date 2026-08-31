@@ -1535,6 +1535,24 @@ Ba loại:
 | **Hết giờ mà bus không đổi là một KẾT LUẬN** | Không phải một sự im lặng. Lệnh nói thẳng: máy không nhận được gì mới, chuyện này xảy ra **trước cả tầng trình điều khiển**, nên đi kiểm dây có đủ đường dữ liệu chưa và đúng cổng trên bo chưa |
 | **Bài canh** | `tests/test_tc85_thiet_bi_usb.py` — 21 bài |
 
+---
+
+## SL-109 · LỆCH THẬT (×2) · Bộ đọc `ioreg` nuốt mọi thiết bị cắm qua hub
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7 (chẩn đoán phần cứng); SL-108 |
+| **Cách tìm** | Người dùng cắm bo AVR qua đế cắm. `ioreg` thấy nó; `eaa ports` liệt kê 6 thiết bị và **không có nó**. Đối chiếu thẳng đầu ra `ioreg` với bản in của lệnh |
+| **Lỗi 1 — tiền tố nhánh không phải khoảng trắng** | Bộ đọc tách nút bằng `re.split(r"\n\s*\+-o ")`. `ioreg` vẽ nhánh đang mở bằng **gạch dọc**: một nút nằm sâu có dạng `\|   \| +-o Tên@địa-chỉ`. `\s` không khớp `\|`, nên **mọi nút con không được nhận ra là nút** |
+| **Hỏng theo hướng nguy nhất** | Không sập, không cảnh báo. Nội dung nút con bị gộp vào khối của nút cha, `re.search` lấy mã đầu tiên trong khối — nên mỗi nhánh chỉ còn lại **thiết bị đầu tiên**, mà thiết bị đầu tiên của một nhánh chính là **cái hub**. Cái bị nuốt luôn là cái đang đi tìm. Bản in vẫn mang nhãn **ĐÃ KIỂM** |
+| **Đo được** | Cùng một máy, cùng một lúc: trước 6 thiết bị, sau **16**. Bo của dự án mẫu (`1a86:7523`, nằm sau hai tầng hub) từ *không thấy* thành *khớp phần khai* |
+| **Vì sao bài kiểm cũ không bắt được** | Đầu ra `ioreg` giả trong bài kiểm **phẳng hơn đời thật** — mọi nút cùng một mức thụt lề bằng khoảng trắng. Bài kiểm dựng lại đầu ra mà không đối chiếu với đầu ra thật thì nó canh đúng cái nó tưởng tượng ra |
+| **Lỗi 2 — cảnh báo "cắm nhầm bo" bắn cả khi bo ĐANG CÓ MẶT** | Sau khi sửa lỗi 1, lệnh nhận đúng bo rồi **vẫn** cảnh báo *"đang cắm 7 thiết bị ngoài, KHÔNG cái nào khớp"* — bảy thứ ấy là hub, card mạng, đầu đọc thẻ |
+| **Vì sao nghiêm trọng** | Lý do cảnh báo tồn tại rất hẹp: *mã dịch xong, nạp xong, rồi mới không chạy*. Lý do ấy **tắt ngay khi bo đã khai có mặt trên bus**. Bắn tiếp là nổ ở mọi bàn có đế cắm — tức là thành thứ bị bỏ qua, đúng cái bẫy mà chính docstring của hàm nêu ra để tránh (SL-108) |
+| **Đã sửa** | `eaa/usbdev.py`: tách nút bằng `^[ \t\|]*\+-o ` theo từng dòng. `eaa/cli.py::_thiet_bi_la`: thấy bo đã khai thì trả rỗng — câu hỏi đã có trả lời |
+| **Bài học** | Hai bản sửa trước (SL-108) dựng đúng *kiến trúc* câu trả lời — phân biệt "không kiểm được" với "không có gì", bắt cắm nhầm bo — trên một tầng đọc đầu ra sai. Kiến trúc đúng không cứu được dữ liệu vào sai, và cái sai ấy chỉ lộ ra khi có **phần cứng thật cắm qua đế cắm thật** |
+| **Bài canh** | `tests/test_tc85_thiet_bi_usb.py` — 25 bài (thêm 4), trong đó đầu ra `ioreg` giả nay dựng đúng cây có nhánh `\|` |
+
 
 
 ---

@@ -147,6 +147,19 @@ _RE_IOREG_VID = re.compile(r'"idVendor"\s*=\s*(\d+)')
 _RE_IOREG_PID = re.compile(r'"idProduct"\s*=\s*(\d+)')
 
 
+#: Dòng mở đầu một nút trong cây ``ioreg``.
+#:
+#: Tiền tố của nó là **khoảng trắng XEN GẠCH DỌC**: ``ioreg`` vẽ nhánh đang mở
+#: bằng ``|``, nên một nút nằm sâu trong cây có dạng ``|   | +-o Tên@địa-chỉ``.
+#: Coi tiền tố ấy là khoảng trắng thuần (``\s``) thì mọi nút con **không được
+#: nhận ra là nút**, và nội dung nó bị gộp vào khối của nút cha. Không sập,
+#: không cảnh báo — chỉ là mỗi nhánh còn lại đúng thiết bị đầu tiên.
+#:
+#: Đó là hỏng theo hướng nguy nhất cho lệnh này: bo cắm qua hub nằm sâu, còn
+#: hub thì ở ngay đầu nhánh. Cái bị nuốt luôn là cái đang đi tìm.
+_RE_IOREG_NUT = re.compile(r"^[ \t|]*\+-o ", re.M)
+
+
 def _quet_macos() -> UsbScan:
     ra = _chay(["ioreg", "-p", "IOUSB", "-l", "-w", "0"])
     if not ra:
@@ -154,7 +167,7 @@ def _quet_macos() -> UsbScan:
 
     ds: list[UsbDevice] = []
     # ioreg in ra theo cây; mỗi nút thiết bị là một khối giữa hai dấu '+-o'.
-    for khoi in re.split(r"\n\s*\+-o ", ra)[1:]:
+    for khoi in _RE_IOREG_NUT.split(ra)[1:]:
         vid = _RE_IOREG_VID.search(khoi)
         pid = _RE_IOREG_PID.search(khoi)
         if not (vid and pid):

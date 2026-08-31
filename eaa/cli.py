@@ -2187,8 +2187,17 @@ def _thiet_bi_la(quet: Any, khai: Sequence[Any]) -> list[Any]:
     Chỉ có nghĩa khi dự án ĐÃ khai bo của mình: chưa khai thì mọi thiết bị đều
     "không khớp", và một cảnh báo bắn vào mọi trường hợp là một cảnh báo bị bỏ
     qua.
+
+    Và cũng chỉ có nghĩa khi bo ấy **chưa thấy đâu**. Cảnh báo này tồn tại vì
+    một lý do hẹp: mã dịch xong, nạp xong, rồi mới không chạy, do thứ đang cắm
+    không phải bo ta tưởng. Lý do ấy tắt ngay khi bo đã khai có mặt trên bus —
+    lúc đó câu hỏi đã có trả lời, và mọi thiết bị còn lại chỉ là đồ trên bàn:
+    hub, card mạng, đầu đọc thẻ. Kể chúng ra thành "thiết bị lạ" biến cảnh báo
+    thành thứ nổ ở mọi chỗ có đế cắm, tức là thành thứ bị bỏ qua.
     """
     if not khai or not getattr(quet, "usable", False):
+        return []
+    if any(d.matched for d in quet.devices):
         return []
     return [d for d in quet.devices
             if not d.matched and d.vid not in _VENDOR_MAY_CHU]

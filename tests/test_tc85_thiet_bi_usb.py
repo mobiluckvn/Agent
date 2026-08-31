@@ -103,6 +103,114 @@ def test_doc_duoc_ioreg(monkeypatch):
     assert s.devices[1].name == "Bo thử nghiệm"
 
 
+#: Đầu ra ``ioreg`` THẬT — cây, không phải danh sách phẳng.
+#:
+#: Khác biệt duy nhất so với `_IOREG` ở trên, và là khác biệt làm hỏng mọi thứ:
+#: nút con được vẽ bằng **gạch dọc** ``|`` chứ không phải khoảng trắng. Bo cắm
+#: qua hub — cách gần như mọi máy xách tay ngày nay nối ra ngoài — nằm sâu hai,
+#: ba tầng, nên dòng của nó luôn mang tiền tố ấy.
+#:
+#: Mã VID/PID bịa: mã thật thuộc về hồ sơ dự án, không thuộc về engine (TC-38).
+_IOREG_CAY = """\
++-o Root  <class IORegistryEntry, id 0x100000100>
+  +-o XHC1@14000000  <class AppleUSBXHCITR, id 0x1000004ff>
+  | {
+  |   "IOClass" = "AppleUSBXHCITR"
+  | }
+  |
+  | +-o Hub tang 1@14300000  <class IOUSBHostDevice, id 0x100000501>
+  |   {
+  |     "idVendor" = 4369
+  |     "idProduct" = 4369
+  |     "USB Product Name" = "Hub tang 1"
+  |   }
+  |
+  |   +-o Hub tang 2@14340000  <class IOUSBHostDevice, id 0x100000502>
+  |   | {
+  |   |   "idVendor" = 8738
+  |   |   "idProduct" = 8738
+  |   |   "USB Product Name" = "Hub tang 2"
+  |   | }
+  |   |
+  |   | +-o Bo cua du an@14341000  <class IOUSBHostDevice, id 0x100000503>
+  |   |     {
+  |   |       "idVendor" = 43981
+  |   |       "idProduct" = 48059
+  |   |       "USB Product Name" = "Mach nap tren bo"
+  |   |       "USB Vendor Name" = "Hang bia"
+  |   |     }
+  |   |
+  |   +-o Thiet bi canh@14350000  <class IOUSBHostDevice, id 0x100000504>
+  |       {
+  |         "idVendor" = 4369
+  |         "idProduct" = 8191
+  |         "USB Product Name" = "Thiet bi canh"
+  |       }
+  |
+  +-o XHC2@00000000  <class AppleUSBXHCITR, id 0x100000600>
+    +-o Thiet bi goc@00100000  <class IOUSBHostDevice, id 0x100000601>
+        {
+          "idVendor" = 61455
+          "idProduct" = 61455
+          "USB Product Name" = "Thiet bi goc"
+        }
+"""
+
+
+def test_ioreg_cay_KHONG_duoc_nuot_thiet_bi_con(monkeypatch):
+    """Bo cắm qua hub nằm sâu trong cây. Nuốt nó là nuốt đúng cái cần tìm.
+
+    Tìm ra với bo thật: máy đang cắm một mạch nạp qua hai tầng hub, ``ioreg``
+    thấy nó, mà ``eaa ports`` thì không. Lý do là bài kiểm cũ dựng đầu ra
+    **phẳng hơn đời thật** — mọi nút cùng một mức thụt lề bằng khoảng trắng.
+    Đầu ra thật vẽ nhánh bằng ``|``, và dấu ấy không phải khoảng trắng.
+
+    Hỏng kiểu tệ nhất: không sập, không cảnh báo. Nút con bị **gộp vào khối
+    của nút cha**, nên lệnh vẫn in ra một danh sách trông đầy đủ — chỉ là mỗi
+    nhánh chỉ còn lại thiết bị đầu tiên, và bo của người dùng thì biến mất
+    trong khi bản in vẫn mang nhãn ĐÃ KIỂM.
+    """
+    import eaa.usbdev as u
+
+    monkeypatch.setattr(u, "_chay", lambda argv: _IOREG_CAY)
+    s = u.list_usb_devices(platform="darwin")
+
+    ma = [d.id for d in s.devices]
+    assert "abcd:bbbb" in ma, f"nuốt mất bo nằm sau hai tầng hub; chỉ thấy {ma}"
+    assert ma == ["1111:1111", "2222:2222", "abcd:bbbb", "1111:1fff", "f00f:f00f"], \
+        "phải thấy ĐỦ mọi nút, kể cả nút nằm trên nhánh vẽ bằng '|'"
+
+    bo = [d for d in s.devices if d.id == "abcd:bbbb"][0]
+    assert bo.name == "Mach nap tren bo", "lấy nhầm tên của nút cha"
+    assert bo.vendor == "Hang bia"
+
+
+def test_ioreg_bo_sau_hub_van_KHOP_phan_khai(monkeypatch):
+    """Nuốt thiết bị con thì so khớp cũng hỏng theo — im lặng.
+
+    Người dùng khai đúng mã bo của mình, cắm đúng bo ấy, mà lệnh vẫn trả lời
+    *"không thiết bị nào khớp"*. Đó lại đúng câu *"chưa cắm"* mà cả module này
+    sinh ra để tránh — chỉ là lần này nó sai ở tầng đọc đầu ra.
+    """
+    import eaa.usbdev as u
+
+    monkeypatch.setattr(u, "_chay", lambda argv: _IOREG_CAY)
+    quet = u.list_usb_devices(platform="darwin")
+    s = match_usb(quet, [_Khai("0xabcd", "0xbbbb", "mạch nạp trên bo")])
+
+    assert [d.id for d in s.devices if d.matched] == ["abcd:bbbb"]
+    assert "Thấy bo của dự án" in render_usb(s, declared=True)
+
+
+def test_ioreg_khong_nut_nao_thi_van_la_KIEM_DUOC(monkeypatch):
+    """Lệnh chạy được mà cây rỗng là "không có gì cắm" — khác "không kiểm được"."""
+    import eaa.usbdev as u
+
+    monkeypatch.setattr(u, "_chay", lambda argv: "+-o Root  <class IORegistryEntry>\n")
+    s = u.list_usb_devices(platform="darwin")
+    assert s.usable and s.devices == ()
+
+
 _LSUSB = (
     "Bus 001 Device 002: ID 1d6b:0002 Linux Foundation 2.0 root hub\n"
     "Bus 001 Device 005: ID 2341:0043 Bo thử nghiệm\n"
@@ -198,6 +306,30 @@ def test_dung_bo_thi_KHONG_canh_bao():
 
     khai = [_Khai("1111", "2222", "bo của dự án")]
     quet = match_usb(_quet(UsbDevice("1111", "2222", "Bo đúng")), khai)
+    assert _thiet_bi_la(quet, khai) == []
+
+
+def test_bo_dung_CO_MAT_thi_khong_canh_bao_du_con_thiet_bi_khac():
+    """Thấy bo của dự án rồi thì câu "có cắm nhầm bo không" ĐÃ có trả lời: không.
+
+    Tìm ra với bo thật cắm qua đế cắm: lệnh nhận đúng bo, rồi vẫn cảnh báo
+    *"đang cắm 7 thiết bị ngoài, KHÔNG cái nào khớp"* — và bảy thứ ấy là hub,
+    card mạng, đầu đọc thẻ. Một cảnh báo bắn ở mọi bàn làm việc có đế cắm là
+    một cảnh báo bị bỏ qua, và lúc nó bắn đúng thì cũng bị bỏ qua nốt — đúng
+    cái bẫy mà chính docstring của hàm này nêu ra để tránh.
+
+    Lý do cảnh báo tồn tại là *"mã dịch xong, nạp xong, rồi mới không chạy"*.
+    Lý do ấy tắt ngay khi bo đã khai có mặt trên bus.
+    """
+    from eaa.cli import _thiet_bi_la
+
+    khai = [_Khai("1111", "2222", "bo của dự án")]
+    quet = match_usb(
+        _quet(UsbDevice("1111", "2222", "Bo đúng"),
+              UsbDevice("aaaa", "bbbb", "Hub", "Hãng đế cắm"),
+              UsbDevice("cccc", "dddd", "Card mạng", "Hãng khác")),
+        khai,
+    )
     assert _thiet_bi_la(quet, khai) == []
 
 
