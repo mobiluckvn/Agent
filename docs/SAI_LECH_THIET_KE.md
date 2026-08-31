@@ -1729,3 +1729,33 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Nới ngưỡng là một KHẲNG ĐỊNH, nên nó phải nằm cạnh lý do** | Khung 8N1 chịu được tổng sai số hai đầu khoảng ±5%, nên 2,1% một đầu là an toàn — **với điều kiện đầu kia cũng chuẩn**. Đặt `BAUD_TOL` trong một cờ dịch không ai đọc thì nó thành một con số vô chủ; đặt cạnh phép tính và lý do thì nó là một quyết định kỹ thuật truy được |
 | **Con số ấy mới là TÍNH RA** | 2,1% suy từ tần số danh định của thạch anh. Nó chỉ thành ĐÃ KIỂM sau khi đo trên bo thật — đúng chỗ mà nghiệm thu vật lý G4 tồn tại để làm |
 | **Đã sửa** | Khuôn khai `BAUD` từ chỗ giữ `{baud}`, và `BAUD_TOL` kèm toàn bộ lập luận trên |
+
+---
+
+## SL-119 · LỆCH THẬT (×2) · Cổng nạp firmware cũng là ngõ cụt, và đường dẫn ảnh tính sai chỗ đứng
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-DIA-02; EAA-AIS-05 §7.3; SL-110 |
+| **Cách tìm** | Nạp thật xuống bo. `eaa flash` qua hết bốn phép kiểm trước — ảnh có, kho sạch, ảnh mới hơn nguồn, cổng tự nhận đúng — rồi dừng ở *"chưa có xác nhận của người"* |
+| **Lỗi 1 — cùng ngõ cụt SL-110, ở chặng CUỐI** | Không cờ, không lệnh, không sổ. Một phiên làm việc qua người trung gian **không bao giờ** nạp được firmware. Đây là lần thứ tư cùng một hình dạng xuất hiện ở một chỗ khác |
+| **Đã sửa** | `FlashApprovals` + `eaa flash approve --image <ảnh> --actor <tên>`. Neo vào **băm NỘI DUNG ảnh**, không vào đường dẫn: đường dẫn ghi đè được, nên neo vào nó thì *"duyệt ảnh này rồi nạp ảnh khác"* chỉ cần một lần ráp lại xen vào giữa — và bản ghi vẫn nói có người duyệt |
+| **Lỗi 2 — do chính bản sửa trên gây ra, và bài canh cũ bắt được** | `flash` CẦN đối số tự do, nên mục mới nuốt luôn `flash approve`. Xét cấm-trước thì lại hỏng `gate show` (được phép) vì `gate` (cấm) chặn mất. Luật đúng cho cả hai chiều: **khớp dài nhất thắng**, kể cả khi bên thắng là bên cấm |
+| **Lỗi 3 — đường dẫn ảnh tính theo sai chỗ đứng** | `_tuong_doi` chỉ xử lý vế tuyệt đối; đường dẫn TƯƠNG ĐỐI được trả nguyên si, rồi công cụ nạp diễn giải nó theo thư mục làm việc CỦA NÓ. Kết quả: `file diag_DS-04.hex is not readable` cho một tệp đang nằm ngay đó — đường dẫn in ra trong nhật ký thì đúng, chỉ có chỗ đứng để đọc nó là sai |
+| **Bài canh** | `tests/test_tc93_duyet_nap_firmware.py` — 13 bài |
+
+---
+
+## SL-120 · CÒN NGỜ, CHƯA KẾT LUẬN · "Đọc ngược khớp ảnh" có thể đang khẳng định sai
+
+> Mục này ghi lại một **mâu thuẫn chưa giải**, không phải một lỗi đã xác định.
+> Ghi ra vì nó chạm bất biến trung tâm, và vì bỏ qua một mâu thuẫn chỉ vì chưa
+> biết bên nào sai là cách nhanh nhất để nó biến mất khỏi trí nhớ.
+
+| | |
+|---|---|
+| **Hiện tượng** | `eaa flash` báo *"Kiểm sau khi nạp: ĐÃ KIỂM — đọc ngược khớp ảnh"*. Đọc ngược bằng tay (`avrdude -U flash:r:…`) rồi so từng byte: **895 / 974 byte trong vùng vừa nạp KHÁC nhau**, và còn 16.345 byte khác `0xFF` ở vùng ngoài, tới `0x7f9d` |
+| **Manh mối độc lập** | Byte đọc được trên dây (`7E 02 0C EF`, `7E 03 06 0A EF`) trùng đúng khung lệnh module MP3 trong mã tham chiếu của bộ kit (`Serial.write(0x7E); … Serial.write(0xEF);`). Và nội dung ấy **không đổi** khi ta dựng lại firmware ở tốc độ khác — tức thứ đang chạy trên chip không phải thứ ta nạp |
+| **Vì sao chưa kết luận** | Bộ đọc Intel HEX dùng cho phép so tay là mã viết vội trong phiên, chưa được kiểm. Nghi ngờ nó trước, không nghi `eaa` trước |
+| **Nếu đúng là `eaa` sai thì đây là lỗi nặng nhất kho** | Nó khẳng định *"thứ trên bàn là thứ đã được duyệt"* trong khi không phải — hỏng đúng bất biến trung tâm, ở chặng cuối, và hỏng theo hướng **nói dối một cách thuyết phục** |
+| **Ba bước kiểm đã vạch, chưa chạy** | (1) đọc năng lực `verify` của pack xem nó so cái gì với cái gì; (2) kiểm lại bộ đọc HEX viết tay; (3) nạp một ảnh khác hẳn rồi đọc ngược — nội dung chip không đổi theo thì lệnh nạp không có tác dụng thật |

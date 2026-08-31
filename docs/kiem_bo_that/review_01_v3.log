@@ -1,0 +1,19 @@
+  → eaa survey --read BLKLab_BalancingRobot/BLKLab_BalancingRobot_Fix29102025/BLKLab_Balancing_Robot_Code/V3_Balancing_Robot_PID_App/V3_Balancing_Robot_PID_App.ino   (mã 0)
+  ✗ từ chối gọi `cat sources/BLKLab_BalancingRobot/BLKLab_BalancingRobot_Fix29102025/BLKLab_Balancing_Robot_Code/V3_Balancing_Robot_PID_App/V3_Balancing_Robot_PID_App.ino` — lệnh 'cat sources/BLKLab_BalancingRobot/BLKLab_BalancingRobot_Fix29102025/BLKLab_Balancing_Robot_Code/V3_Balancing_Robot_PID_App/V3_Balancing_Robot_PID_App.ino' không có trong danh mục tôi được gọi. Danh mục là dữ liệu, không phải lời dặn — tôi không có đường nào gọi ngoài nó.
+
+Dựa trên phần đầu mã nguồn (tôi chưa đọc được toàn bộ do giới hạn độ dài hiển thị), bản V3 vi phạm nghiêm trọng các ràng buộc cứng và có rủi ro kỹ thuật lớn:
+
+1. **Vi phạm ràng buộc cứng & Nguy hiểm kỹ thuật**:
+- **`Adafruit_NeoPixel`**: Thư viện này tắt ngắt toàn cục (`cli()`) khi truyền dữ liệu ra LED WS2812. Với 4 LED, ngắt bị tắt liên tục >120µs, vi phạm trần `motor_response_us` (50µs). Điều này làm mất xung ngắt của động cơ bước (A4988), khiến robot bị giật hoặc ngã.
+- **`SoftwareSerial`**: Chặn CPU (blocking) và can thiệp ngắt khi truyền/nhận. Vi phạm `CẤM blocking_io` và phá vỡ chu kỳ `control_loop_ms` (10ms).
+- **`SimpleKalmanFilter`**: Sử dụng số thực (float) nặng nề, vi phạm ràng buộc `arithmetic: integer`.
+
+2. **Bài học rút ra cho firmware của ta**:
+- **Sơ đồ chân (Pinout)**: MPU6050 (0x68), Nút nhấn (D12), Còi (D10), HC-05 (Arduino TX=D8, RX=D9).
+- **Hướng khắc phục**:
+  + Bắt buộc dùng Hardware UART (chân D0, D1) cho Bluetooth thay vì SoftwareSerial.
+  + Bộ lọc góc nghiêng (Kalman hoặc Complementary) phải được tự viết lại bằng toán số nguyên (fixed-point).
+  + Loại bỏ LED WS2812 hoặc thay bằng LED đơn dùng PWM phần cứng để không ảnh hưởng đến ngắt điều khiển động cơ.
+
+Trả lời này dựa trên:
+    · eaa survey --read BLKLab_BalancingRobot/BLKLab_BalancingRobot_Fix29102025/BLKLab_Balancing_Robot_Code/V3_Balancing_Robot_PID_App/V3_Balancing_Robot_PID_App.ino
