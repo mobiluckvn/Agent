@@ -120,7 +120,9 @@ def test_hoi_lai_khi_thieu_du_kien(tmp_path: Path) -> None:
         ["gate", "reject", "G3"],
         ["flash"],
         ["flash", "--image", "x.hex"],
-        ["doctor", "--fix"],
+        # 'doctor --fix' KHÔNG còn ở đây — xem test_doctor_fix_duoc_phep_vi_sao
+        # ngay dưới. Thay chỗ nó là lệnh duyệt, vì đó mới là chỗ có quyền.
+        ["doctor", "approve", "avr-gcc"],
         ["tune", "drv_x"],
         ["rollback", "drv_x"],
         ["endurance"],
@@ -137,6 +139,22 @@ def test_hoi_lai_khi_thieu_du_kien(tmp_path: Path) -> None:
 def test_lenh_nguy_hiem_khong_co_trong_danh_muc(argv: list[str]) -> None:
     """Phép kiểm không hỏi 'mô hình có ngoan không' mà hỏi 'có đường nào không'."""
     assert tool_for(argv) is None, f"{' '.join(argv)} KHÔNG được nằm trong danh mục"
+
+
+def test_doctor_fix_duoc_phep_vi_sao() -> None:
+    """`doctor --fix` rời khỏi danh sách cấm — và lý do phải nói cho ra lẽ.
+
+    Nó từng bị cấm vì nó cài phần mềm. Giờ nó KHÔNG cài được gì mà thiếu một
+    quyết định của người neo vào đúng dãy đối số sắp chạy (SL-110). Quyền nằm
+    ở `doctor approve`, và lệnh ấy vẫn ngoài danh mục.
+
+    Cùng hình dạng với cặp `tool approve` (người) / `tool run` (Agent): Agent
+    mở rộng CÁI NÓ LÀM, không mở rộng QUYỀN NÓ CÓ.
+    """
+    assert tool_for(["doctor"]) is not None, "quét là chỉ đọc"
+    assert tool_for(["doctor", "--fix"]) is not None
+    assert tool_for(["doctor", "approve", "avr-gcc"]) is None, \
+        "duyệt là quyền, và quyền thì không vào danh mục"
 
 
 def test_gate_show_van_duoc_phep() -> None:

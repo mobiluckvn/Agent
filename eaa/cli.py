@@ -1604,24 +1604,33 @@ def _tao_doctor(project: Path) -> Any:
         except CliError:
             researcher = None
 
+    from eaa.doctor import InstallApprovals
+
     return Doctor(
         manifest=manifest,
         tools_kb=project / "tools_kb",
         env_lock=EnvLock(project / "env_lock.json"),
+        approvals=InstallApprovals(project / "install_approvals.jsonl"),
         confirm=_hoi_xac_nhan_cai,
         pack_manifest=pack,
         researcher=researcher,
     )
 
 
-def _hoi_xac_nhan_cai(ten: str, lenh: str) -> bool:
+def _hoi_xac_nhan_cai(ten: str, lenh: str) -> bool | None:
     """Hỏi người trước mỗi lệnh cài. Không có terminal thì KHÔNG đồng ý.
 
     Cùng nguyên tắc với Human Gate: một phiên không có người không được diễn
     giải thành một người đã đồng ý (FR-ENV-02, §9.4).
+
+    Trả ``None`` chứ không phải ``False`` khi không có terminal. Kết cục an
+    toàn giống hệt nhau — không cài — nhưng **lý do** thì khác hẳn, và bên gọi
+    in lý do ra cho người đọc. Trả ``False`` ở đây làm lệnh khai *"người dùng
+    từ chối"* trong khi không có ai được hỏi cả: kỹ sư sẽ đi tìm xem ai đã từ
+    chối, hoặc đọc thành "đã có người quyết định không cài" rồi đi tiếp.
     """
     if not sys.stdin.isatty():
-        return False
+        return None
     print(f"\n  Sắp chạy để cài {ten}:\n    {lenh}")
     return input("  Đồng ý chạy lệnh này? [y/N]: ").strip().lower() in ("y", "yes", "c", "có")
 
@@ -1645,11 +1654,62 @@ def _doctor_plan(doctor: Any, bao_cao: Any) -> int:
     return EXIT_OK if not ke_hoach.todo else EXIT_WAITING_GATE
 
 
+def _doctor_approve(project: Path, doctor: Any, args: argparse.Namespace) -> int:
+    """Người duyệt lệnh cài. KHÔNG nằm trong danh mục Agent tự gọi.
+
+    Duyệt cái gì thì phải nhìn thấy cái đó: lệnh được in nguyên văn TRƯỚC khi
+    ghi vào sổ. Quyết định neo vào chính dãy đối số ấy, nên manifest đổi sau đó
+    là quyết định cũ hết hiệu lực — cùng tính chất mà Human Gate giữ bằng
+    ``content_digest``.
+    """
+    from eaa.doctor import DoctorError
+
+    ai = (args.actor or os.environ.get("USER", "")).strip()
+    if not ai:
+        raise CliError(
+            "Phải ghi ai duyệt: thêm --actor <tên bạn>. Một quyết định không "
+            "có người chịu trách nhiệm thì không phải quyết định của con người."
+        )
+
+    _in_tieu_de("Duyệt lệnh cài")
+    da_duyet = []
+    for ten in args.tools:
+        spec = doctor.manifest.get(ten)
+        if spec is None:
+            raise CliError(
+                f"Manifest không có công cụ {ten!r}. Chạy 'eaa doctor' để xem "
+                "danh sách đúng tên."
+            )
+        try:
+            lenh = doctor.install_command(spec)
+        except DoctorError as exc:
+            raise CliError(str(exc)) from None
+        k = doctor.approvals.approve(ten, lenh, by=ai)
+        da_duyet.append(k)
+        print(f"  {ten}:  {' '.join(lenh)}")
+
+    print(f"\nĐã ghi {len(da_duyet)} quyết định — {ai}.")
+    print("Lệnh cài chạy được từ giờ:  eaa doctor --fix")
+    print(
+        "Quyết định neo vào ĐÚNG dãy đối số trên. Manifest đổi lệnh cài thì "
+        "quyết định này hết hiệu lực và phải duyệt lại."
+    )
+    return EXIT_OK
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     from eaa.doctor import DoctorError, InstallNotConfirmed, ToolStatus
 
     project = resolve_project(args.project)
     doctor = _tao_doctor(project)
+
+    if getattr(args, "action", None) == "approve":
+        if not args.tools:
+            raise CliError(
+                "Duyệt cái gì? Cú pháp: eaa doctor approve <công cụ>... --actor <tên bạn>\n"
+                "Chạy 'eaa doctor' để xem công cụ nào đang thiếu."
+            )
+        return _doctor_approve(project, doctor, args)
 
     if args.discover:
         return _doctor_discover(project, doctor, args)
@@ -1695,6 +1755,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 for dong in doctor.fix(bao_cao):
                     print(f"  {dong}")
             except InstallNotConfirmed as exc:
+                # Phần việc đã ghi trước lúc dừng vẫn phải tới được người —
+                # họ quay lại là để duyệt đúng những lệnh này.
+                for dong in exc.nhat_ky:
+                    print(f"  {dong}")
                 raise CliError(str(exc), EXIT_WAITING_GATE) from exc
             except DoctorError as exc:
                 raise CliError(str(exc)) from exc
@@ -5186,12 +5250,25 @@ def build_parser() -> argparse.ArgumentParser:
         "doctor",
         help="Quét, chuẩn bị công cụ và khóa môi trường (AIS §9)",
         description=(
-            "Chế độ quét chỉ ĐỌC, không đổi gì trên máy. --fix sinh lệnh cài và "
-            "LUÔN hỏi trước từng lệnh; phiên không có terminal thì không cài."
+            "Chế độ quét chỉ ĐỌC, không đổi gì trên máy. --fix chỉ chạy lệnh cài "
+            "mà một người đã duyệt — hỏi ngay tại terminal, hoặc đọc quyết định "
+            "đã ghi bằng 'eaa doctor approve'. Không có chế độ tự duyệt."
         ),
     )
+    # `eaa doctor approve <công cụ>...` — quyết định của NGƯỜI, ghi vào sổ để
+    # nó sống ngoài phiên chạy đã sinh ra nó. Không có nó thì mọi phiên không
+    # terminal đều cụt đường ở chỗ cài, dù người có đồng ý bao nhiêu lần.
     p_doctor.add_argument(
-        "--fix", action="store_true", help="Sinh lệnh cài cho công cụ thiếu, hỏi từng lệnh"
+        "action", nargs="?", choices=["approve"],
+        help="approve <công cụ>...: bạn duyệt lệnh cài, sau đó 'doctor --fix' chạy nó",
+    )
+    p_doctor.add_argument("tools", nargs="*", help="Tên công cụ cần duyệt lệnh cài")
+    p_doctor.add_argument(
+        "--actor", default="", help="Tên người duyệt (bắt buộc khi 'doctor approve')"
+    )
+    p_doctor.add_argument(
+        "--fix", action="store_true",
+        help="Cài công cụ thiếu: hỏi tại terminal, hoặc chạy lệnh bạn đã duyệt",
     )
     p_doctor.add_argument(
         "--discover",

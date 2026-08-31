@@ -61,7 +61,7 @@ def test_moi_buoc_trong_danh_muc_thi_qua():
 @pytest.mark.parametrize("lenh_cam", [
     "gate approve G3",
     "flash --module drv_i2c",
-    "doctor --fix",
+    "doctor approve avr-gcc",
     "tune drv_i2c",
     "rollback",
     "gen drv_i2c",

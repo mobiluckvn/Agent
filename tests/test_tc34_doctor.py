@@ -205,7 +205,7 @@ def test_tc34_fix_sinh_dung_lenh_theo_he_dieu_hanh(doctor: Doctor) -> None:
 def test_tc34_fix_KHONG_tu_thuc_thi_khi_chua_xac_nhan(doctor: Doctor) -> None:
     """Điểm cốt lõi: doctor không bao giờ tự đổi máy của kỹ sư."""
     assert doctor.confirm is None
-    with pytest.raises(InstallNotConfirmed, match="không có ai để xác nhận"):
+    with pytest.raises(InstallNotConfirmed, match="không có ai ở terminal"):
         doctor.fix(doctor.scan())
 
 
@@ -227,6 +227,52 @@ def test_tc34_nguoi_tu_choi_thi_khong_cai(doctor: Doctor) -> None:
 
     assert da_hoi == ["cong-cu-khong-ton-tai"]
     assert any("người dùng từ chối" in d for d in nhat_ky)
+
+
+def test_tc34_KHONG_AI_DE_HOI_khac_NGUOI_TU_CHOI(doctor: Doctor) -> None:
+    """Hai chuyện khác hẳn nhau, và bản in phải phân biệt được.
+
+    Tìm ra khi chạy ``eaa doctor --fix`` trong một phiên không có terminal:
+    lệnh in *"người dùng từ chối, bỏ qua"* năm lần, trong khi **không có ai**
+    được hỏi cả. Kỹ sư đọc dòng ấy sẽ đi tìm xem ai đã từ chối — hoặc tệ hơn,
+    đọc thành "đã có người quyết định không cài" rồi đi tiếp.
+
+    Quyết định an toàn thì vẫn đúng (không có người = không cài). Cái sai là
+    **lời khai về lý do**, và đó là loại sai làm hỏng niềm tin vào cả bản in.
+
+    Doctor đã có sẵn câu đúng cho trường hợp này (``InstallNotConfirmed``:
+    *"phiên này không có ai để xác nhận"*) — nhưng nhánh ấy chỉ chạy khi
+    ``confirm is None``. CLI luôn truyền vào một hàm, nên câu đúng ấy **không
+    bao giờ tới được người dùng**: mã đúng nằm chết, câu sai thì sống.
+
+    Hợp đồng ba trạng thái: ``True`` đồng ý, ``False`` từ chối, ``None`` không
+    có ai để hỏi.
+    """
+    da_hoi: list[str] = []
+
+    def khong_co_ai(ten: str, lenh: str):
+        da_hoi.append(ten)
+        return None
+
+    doctor.confirm = khong_co_ai
+    with pytest.raises(InstallNotConfirmed, match="không có ai ở terminal") as loi:
+        doctor.fix(doctor.scan())
+
+    assert da_hoi == ["cong-cu-khong-ton-tai"], "phải thử hỏi trước khi kết luận"
+    # Phần việc đã ghi trước lúc dừng không được mất — nó là thứ người cần đọc
+    # để biết mình sắp phải duyệt cái gì.
+    assert any("sẽ chạy →" in d for d in loi.value.nhat_ky)
+
+
+def test_tc34_khong_ai_de_hoi_thi_KHONG_chay_lenh_cai(doctor: Doctor) -> None:
+    """Câu chữ là chuyện phụ; chuyện chính là không được đổi máy của kỹ sư."""
+    da_chay: list[object] = []
+    doctor.confirm = lambda ten, lenh: None
+    doctor._run_install = lambda spec, lenh: da_chay.append(lenh) or []  # type: ignore[assignment]
+
+    with pytest.raises(InstallNotConfirmed):
+        doctor.fix(doctor.scan())
+    assert da_chay == []
 
 
 def test_khong_co_lenh_cai_cho_he_dieu_hanh_nay_thi_noi_ro(

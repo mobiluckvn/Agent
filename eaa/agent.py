@@ -157,6 +157,10 @@ TOOLBOX: tuple[Tool, ...] = (
     ),
     Tool(("policy",), "Bảng phân quyền và máy trạng thái 5 pha"),
     Tool(("packs",), "Platform Pack nào đang cài"),
+    # 'doctor' không cờ là CHỈ ĐỌC — quét máy, không đổi gì. Trước đây cả lệnh
+    # bị chặn, kể cả chế độ đọc, trong khi chính lời giải thích đi kèm lại khai
+    # là "tôi quét và báo được". Mã lệch với lời chính nó khai.
+    Tool(("doctor",), "Công cụ nào thiếu, công cụ thiếu chặn cổng nào"),
     # Chỉ ĐỌC danh mục. Agent không đổi được model của chính nó — việc ấy là
     # của người dùng, qua cờ --model hoặc eaa init. Đây chỉ để nó trả lời được
     # câu "có những model nào" thay vì đoán tên.
@@ -276,6 +280,15 @@ TOOLBOX: tuple[Tool, ...] = (
         "Chạy một công cụ ĐÃ ĐƯỢC NGƯỜI DUYỆT (xem 'tool list')",
         takes="tên công cụ --args '{...}'", writes=True,
     ),
+    # Cùng hình dạng với 'tool run': người duyệt bằng 'doctor approve', tôi
+    # chạy. Không có quyết định nào khớp đúng dãy đối số sắp chạy thì lệnh này
+    # dừng và nêu đích danh lệnh duyệt — nó không cài được gì tự mình.
+    Tool(
+        ("doctor", "--fix"),
+        "Cài công cụ thiếu — CHỈ những lệnh người dùng đã duyệt bằng "
+        "'eaa doctor approve'. Chưa duyệt thì lệnh này dừng và nói cần duyệt gì",
+        writes=True,
+    ),
     Tool(
         ("scratch",),
         "Dựng chỗ làm nháp khi người dùng chỉ muốn hỏi nhanh một việc mà chưa "
@@ -354,9 +367,11 @@ NGOAI_DANH_MUC: dict[str, str] = {
         "Nạp firmware chạm vào thiết bị thật. Luôn cần chính bạn xác nhận — "
         "một phiên không có người không được diễn giải thành một người đã đồng ý."
     ),
-    "doctor": (
-        "Cài đặt công cụ đổi máy của bạn. Tôi quét và báo được ('doctor' không "
-        "cờ là chỉ đọc), nhưng '--fix' phải do bạn chạy và xác nhận từng lệnh."
+    "doctor approve": (
+        "Duyệt một lệnh cài là quyết định đổi máy của bạn, nên chỉ bạn gõ được "
+        "'eaa doctor approve'. Tôi quét và nêu đích danh lệnh cần chạy; sau khi "
+        "bạn duyệt, tôi chạy đúng lệnh ấy bằng 'doctor --fix' — không lệnh nào "
+        "khác, vì quyết định của bạn neo vào chính dãy đối số đó."
     ),
     "tune": (
         "Phong hạng hw-verified là một khẳng định về phần cứng. Nó chỉ được "
@@ -597,10 +612,23 @@ def _danh_sach_nguon(gia_tri: Any) -> list[str]:
 
 
 def tool_for(argv: Sequence[str]) -> Tool | None:
-    """Tìm công cụ khớp phần đầu của argv, ưu tiên khớp dài nhất."""
+    """Tìm công cụ khớp phần đầu của argv, ưu tiên khớp dài nhất.
+
+    Một mục KHÔNG khai ``takes`` thì không nhận thêm đối số nào. Thiếu luật
+    này, mọi mục trong danh mục đều là một tiền tố mở: thêm ``doctor`` để Agent
+    quét được máy sẽ mở luôn ``doctor approve`` — tức là mở đúng cái quyền mà
+    mục ấy sinh ra để không đụng tới.
+
+    Hàng rào là danh mục, nên danh mục phải nói ĐÚNG cái nó cho phép. Một mục
+    đọc như "được gọi `doctor`" mà thực tế là "được gọi bất cứ gì bắt đầu bằng
+    `doctor`" thì bảng quyền hạn không còn đọc được nữa.
+    """
     for t in sorted(TOOLBOX, key=lambda x: -len(x.argv)):
-        if tuple(argv[: len(t.argv)]) == t.argv:
-            return t
+        if tuple(argv[: len(t.argv)]) != t.argv:
+            continue
+        if not t.takes and len(argv) > len(t.argv):
+            continue
+        return t
     return None
 
 
@@ -1089,7 +1117,24 @@ class AgentLoop:
         return "\n".join(dong)
 
     def _vi_sao_khong(self, argv: Sequence[str]) -> str:
-        ly_do = NGOAI_DANH_MUC.get(argv[0] if argv else "", "")
+        """Vì sao lệnh này không gọi được — nói cụ thể khi nói được.
+
+        Khóa của ``NGOAI_DANH_MUC`` có cả loại hai từ ('tool approve',
+        'doctor approve', 'skill approve'), vì cấm cả lệnh cha thì cấm luôn
+        những chế độ vô hại của nó. Tra bằng ``argv[0]`` thì mọi khóa hai từ
+        **không bao giờ khớp**: lời giải thích được viết ra, đi vào prompt, mà
+        không tới được người hỏi — họ nhận câu chung chung, đúng chỗ mà một
+        câu cụ thể là hữu ích nhất.
+
+        Khớp phần đầu DÀI NHẤT: 'doctor approve x' phải ra lý do của
+        'doctor approve', không phải của 'doctor' (nếu có).
+        """
+        ly_do = ""
+        for so_tu in (2, 1):
+            khoa = " ".join(str(x) for x in argv[:so_tu])
+            if khoa in NGOAI_DANH_MUC:
+                ly_do = NGOAI_DANH_MUC[khoa]
+                break
         if ly_do:
             return ly_do
         return (

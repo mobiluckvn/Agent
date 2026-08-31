@@ -47,6 +47,8 @@ __all__ = [
     "DoctorError",
     "ChecksumMismatch",
     "InstallNotConfirmed",
+    "InstallApproval",
+    "InstallApprovals",
     "ToolStatus",
     "ToolSpec",
     "ToolManifest",
@@ -73,7 +75,149 @@ class ChecksumMismatch(DoctorError):
 
 
 class InstallNotConfirmed(DoctorError):
-    """Cài đặt được yêu cầu mà chưa có xác nhận của người — FR-ENV-02."""
+    """Cài đặt được yêu cầu mà chưa có xác nhận của người — FR-ENV-02.
+
+    Mang theo ``nhat_ky``: phần việc đã ghi trước lúc dừng. Dừng vì không có
+    người thì người ấy, khi quay lại, cần đọc được mình sắp phải duyệt cái gì —
+    vứt nhật ký đi là bắt họ chạy lại từ đầu để biết.
+    """
+
+    def __init__(self, message: str, nhat_ky: Sequence[str] = ()) -> None:
+        super().__init__(message)
+        self.nhat_ky: list[str] = list(nhat_ky)
+
+
+def _bam_lenh(lenh: Sequence[str]) -> str:
+    """Băm ĐÚNG dãy đối số sẽ chạy — không băm chuỗi hiển thị.
+
+    Băm chuỗi đã nối thì ``["brew", "install", "a b"]`` và
+    ``["brew", "install", "a", "b"]`` cho cùng một băm, mà đó là hai lệnh khác
+    nhau. Chỗ này canh ranh giới giữa cái người đã duyệt và cái máy sắp chạy,
+    nên nó phải phân biệt được đúng những gì hệ điều hành phân biệt.
+    """
+    noi_dung = json.dumps(list(lenh), ensure_ascii=False)
+    return "sha256:" + hashlib.sha256(noi_dung.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class InstallApproval:
+    """Một người đã duyệt MỘT lệnh cài cụ thể."""
+
+    tool: str
+    command: tuple[str, ...]
+    command_digest: str
+    actor: str
+    approved_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tool": self.tool,
+            "command": list(self.command),
+            "command_digest": self.command_digest,
+            "actor": self.actor,
+            "approved_at": self.approved_at,
+        }
+
+
+class InstallApprovals:
+    """Sổ duyệt lệnh cài — nối tiếp, không ghi đè (cùng luật với mọi kho khác).
+
+    Vì sao cần một sổ thay vì một câu hỏi trên terminal
+    ----------------------------------------------------
+
+    Human Gate đã trả lời câu này rồi: một quyết định của người phải **ghi lại
+    được**, để nó tồn tại ngoài phiên chạy đã sinh ra nó. Nhờ thế
+    ``confirm_interactive`` gặp phiên không terminal còn nêu được lối đi tiếp —
+    ``eaa gate approve <G>`` — thay vì dừng vào ngõ cụt.
+
+    Cổng cài trước đây chỉ có câu hỏi trên terminal. Hệ quả không phải là an
+    toàn hơn, mà là **không dùng được**: mọi phiên làm việc qua người trung
+    gian, qua chat, qua CI đều cụt đường, dù người có đồng ý bao nhiêu lần.
+
+    Bất biến không đổi một ly: không lệnh cài nào chạy mà thiếu một người duyệt
+    ĐÚNG lệnh ấy. Cái đổi là ai gõ phím lúc chạy.
+    """
+
+    def __init__(self, path: str | os.PathLike[str]) -> None:
+        self.path = Path(path)
+
+    def approve(self, tool: str, command: Sequence[str], *, by: str) -> InstallApproval:
+        if not by.strip():
+            raise DoctorError(
+                "Phải ghi ai duyệt lệnh cài — một quyết định không có người "
+                "chịu trách nhiệm thì không phải quyết định của con người "
+                "(FR-GATE-01, FR-ENV-02)."
+            )
+        lenh = tuple(str(x) for x in command)
+        k = InstallApproval(
+            tool=tool,
+            command=lenh,
+            command_digest=_bam_lenh(lenh),
+            actor=by.strip(),
+            approved_at=_now(),
+        )
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(k.to_dict(), ensure_ascii=False) + "\n")
+        return k
+
+    def all(self) -> list[InstallApproval]:
+        """Đọc cả sổ. Dòng hỏng thì BỎ QUA — hỏng chỉ được đọc thành 'chưa duyệt'."""
+        if not self.path.is_file():
+            return []
+        ra: list[InstallApproval] = []
+        for dong in self.path.read_text(encoding="utf-8").splitlines():
+            dong = dong.strip()
+            if not dong:
+                continue
+            try:
+                d = json.loads(dong)
+                ra.append(InstallApproval(
+                    tool=str(d["tool"]),
+                    command=tuple(str(x) for x in d["command"]),
+                    command_digest=str(d["command_digest"]),
+                    actor=str(d["actor"]),
+                    approved_at=str(d.get("approved_at", "")),
+                ))
+            except (ValueError, KeyError, TypeError):
+                continue
+        return ra
+
+    def find(self, tool: str, command: Sequence[str]) -> InstallApproval | None:
+        """Có ai duyệt ĐÚNG lệnh này cho ĐÚNG công cụ này chưa.
+
+        So bằng băm chứ không bằng tên công cụ. Không có tính chất này thì
+        "duyệt cài X rồi cài Y" là một đường vòng hợp lệ về mặt kỹ thuật: chỉ
+        cần manifest đổi giữa lúc duyệt và lúc chạy — mà manifest là dữ liệu,
+        và dữ liệu thì đổi được, kể cả bởi một đề xuất công cụ mới.
+        """
+        bam = _bam_lenh([str(x) for x in command])
+        for k in self.all():
+            if k.tool == tool and k.command_digest == bam:
+                return k
+        return None
+
+
+def _khong_co_ai(cho_duyet: Sequence[tuple[str, str]]) -> str:
+    """Câu nói cho trường hợp không có người ở terminal — kèm LỐI ĐI TIẾP.
+
+    Một cổng dừng mà không nói đi đâu tiếp thì không phải cổng, mà là ngõ cụt.
+    Human Gate nêu đích danh ``eaa gate approve <G>``; chỗ này nêu câu tương
+    đương của nó.
+    """
+    dong = ["Cần người duyệt trước khi cài. Các lệnh sẽ chạy:"]
+    dong += [f"    {ten}:  {lenh}" for ten, lenh in cho_duyet]
+    dong += [
+        "",
+        "Phiên này không có ai ở terminal để hỏi. Doctor KHÔNG bao giờ tự cài "
+        "khi chưa có người duyệt đúng lệnh, kể cả trong phiên chạy tự động "
+        "(FR-ENV-02).",
+        "",
+        "Bạn duyệt bằng lệnh sau, rồi chạy lại 'eaa doctor --fix' — tôi sẽ cài:",
+        "    eaa doctor approve " + " ".join(ten for ten, _ in cho_duyet)
+        + " --actor <tên bạn>",
+    ]
+    return "\n".join(dong)
 
 
 def _now() -> str:
@@ -373,6 +517,10 @@ class Doctor:
     pack_manifest: Any = None
     #: Bộ tra cứu công cụ chưa biết; ``None`` thì chỉ phát hiện chứ không đề xuất.
     researcher: Any = None
+    #: Sổ duyệt lệnh cài. ``None`` nghĩa là KHÔNG CÓ SỔ — và không có sổ thì
+    #: đường "người duyệt ngoài luồng, Agent chạy" đóng lại, chỉ còn hỏi tại
+    #: terminal. Cố ý mặc định như vậy: mở đường phải là một hành động rõ ràng.
+    approvals: Any = None
 
     def __post_init__(self) -> None:
         self.tools_kb = Path(self.tools_kb)
@@ -555,8 +703,21 @@ class Doctor:
 
         ``dry_run`` chỉ in ra chứ không hỏi và không chạy. Không có chế độ nào
         chạy mà không hỏi: cài đặt là thay đổi máy của kỹ sư (FR-ENV-02, §9.4).
+
+        Ba đường tới chỗ chạy, và chỉ ba:
+
+        1.  **Đã có trong sổ duyệt** một người duyệt ĐÚNG lệnh này — chạy. Đây
+            là đường của phiên không terminal, và là đường Agent đi.
+        2.  **Có người ở terminal** và người ấy trả lời đồng ý — chạy.
+        3.  Không có đường nào khác.
+
+        Không có ai để hỏi thì gom ĐỦ danh sách rồi mới dừng, kèm lệnh duyệt.
+        Dừng ngay ở cái đầu tiên bắt người duyệt xong lại chạy lại để biết cái
+        thứ hai — mỗi lượt một tin, và họ không bao giờ thấy toàn cảnh việc
+        mình đang đồng ý.
         """
         nhat_ky: list[str] = []
+        cho_duyet: list[tuple[str, str]] = []
         for r in reports:
             if not r.blocking:
                 continue
@@ -577,18 +738,38 @@ class Doctor:
                     f"bắt buộc khớp checksum {r.spec.checksum}"
                 )
 
-            if self.confirm is None:
-                raise InstallNotConfirmed(
-                    f"Cần cài {r.spec.name} bằng lệnh:\n    {nguyen_van}\n"
-                    "Phiên này không có ai để xác nhận. Doctor KHÔNG bao giờ tự "
-                    "thực thi lệnh cài, kể cả trong phiên chạy tự động (FR-ENV-02)."
+            da_duyet = (
+                self.approvals.find(r.spec.name, lenh)
+                if self.approvals is not None else None
+            )
+            if da_duyet is not None:
+                nhat_ky.append(
+                    f"{r.spec.name}: {da_duyet.actor} đã duyệt đúng lệnh này "
+                    f"lúc {da_duyet.approved_at} — chạy"
                 )
-            if not self.confirm(r.spec.name, nguyen_van):
+                nhat_ky.extend(self._run_install(r.spec, lenh))
+                continue
+
+            if self.confirm is None:
+                cho_duyet.append((r.spec.name, nguyen_van))
+                continue
+
+            # Ba trạng thái, và gộp hai cái sau lại là nói sai về lý do dừng:
+            #   True  — người đồng ý
+            #   False — người từ chối
+            #   None  — KHÔNG CÓ AI để hỏi (phiên không terminal, chạy tự động)
+            tra_loi = self.confirm(r.spec.name, nguyen_van)
+            if tra_loi is None:
+                cho_duyet.append((r.spec.name, nguyen_van))
+                continue
+            if not tra_loi:
                 nhat_ky.append(f"{r.spec.name}: người dùng từ chối, bỏ qua")
                 continue
 
             nhat_ky.extend(self._run_install(r.spec, lenh))
 
+        if cho_duyet:
+            raise InstallNotConfirmed(_khong_co_ai(cho_duyet), nhat_ky)
         return nhat_ky
 
     def _run_install(self, spec: ToolSpec, lenh: Sequence[str]) -> list[str]:

@@ -1553,6 +1553,29 @@ Ba loại:
 | **Bài học** | Hai bản sửa trước (SL-108) dựng đúng *kiến trúc* câu trả lời — phân biệt "không kiểm được" với "không có gì", bắt cắm nhầm bo — trên một tầng đọc đầu ra sai. Kiến trúc đúng không cứu được dữ liệu vào sai, và cái sai ấy chỉ lộ ra khi có **phần cứng thật cắm qua đế cắm thật** |
 | **Bài canh** | `tests/test_tc85_thiet_bi_usb.py` — 25 bài (thêm 4), trong đó đầu ra `ioreg` giả nay dựng đúng cây có nhánh `\|` |
 
+---
+
+## SL-110 · LỆCH THẬT (×3) · Cổng cài công cụ là một NGÕ CỤT, không phải một cổng
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.4; FR-ENV-02; SL-77 (`tool approve` → `tool run`) |
+| **Cách tìm** | Tôi báo với người dùng rằng `doctor --fix` cần họ tự gõ lệnh cài. Họ trả lời: *"Agent phải hỏi bạn về bộ công cụ đó và tự cài chứ"* |
+| **Lỗi 1 — dừng mà không nêu lối đi tiếp** | Xác nhận cài chỉ tồn tại dưới dạng câu hỏi trên terminal, **trong cùng tiến trình**. Phiên không có terminal thì doctor dừng và hết đường. So sánh: `gates.confirm_interactive` gặp đúng tình huống ấy còn nêu đích danh `eaa gate approve <G>` — người quyết định ngoài luồng, quyết định được ghi lại, máy đọc ra ở lượt sau |
+| **Hệ quả không phải an toàn hơn, mà là KHÔNG DÙNG ĐƯỢC** | Mọi phiên làm việc qua người trung gian, qua chat, qua CI đều cụt đường ở chỗ cài — dù người có đồng ý bao nhiêu lần. Một cổng mà không ai đi qua được thì nó không bảo vệ gì, nó chỉ chặn |
+| **Lỗi 2 — "không có ai để hỏi" bị khai thành "người dùng từ chối"** | `_hoi_xac_nhan_cai()` trả `False` cho hai chuyện khác hẳn nhau. Quyết định an toàn vẫn đúng (không cài); **lời khai về lý do** thì sai. Kỹ sư đọc *"người dùng từ chối"* sẽ đi tìm xem ai đã từ chối — hoặc đọc thành "đã có người quyết định không cài" rồi đi tiếp |
+| **Trớ trêu** | `doctor.py` đã có sẵn câu đúng (`InstallNotConfirmed`: *"phiên này không có ai để xác nhận"*), nhưng nhánh ấy chỉ chạy khi `confirm is None`, mà CLI luôn truyền vào một hàm. **Mã đúng nằm chết, câu sai thì sống** |
+| **Lỗi 3 — lời giải thích cho lệnh hai từ không bao giờ tới người đọc** | `NGOAI_DANH_MUC` có khóa hai từ (`tool approve`, `skill approve`), mà `_vi_sao_khong()` tra bằng `argv[0]`. Nên mọi lời giải thích ấy được viết ra, đi vào prompt, và **không bao giờ khớp** — người hỏi nhận câu chung chung, đúng chỗ một câu cụ thể là hữu ích nhất |
+| **Đã sửa — thêm sổ duyệt lệnh cài** | `eaa doctor approve <công cụ>... --actor <tên>` ghi nối tiếp vào `install_approvals.jsonl`. `doctor --fix` có ba đường tới chỗ chạy và chỉ ba: (1) sổ có người duyệt ĐÚNG lệnh này, (2) có người ở terminal và người ấy đồng ý, (3) không còn đường nào |
+| **Bất biến KHÔNG đổi** | Không lệnh cài nào chạy mà thiếu một người duyệt **đúng lệnh ấy**. Cái đổi là ai gõ phím lúc chạy — sau khi người duyệt, Agent chạy. Cùng hình dạng `tool approve` (người) → `tool run` (Agent) của SL-77: *Agent mở rộng CÁI NÓ LÀM, không mở rộng QUYỀN NÓ CÓ* |
+| **Duyệt MỘT lệnh, không duyệt chung chung** | Quyết định neo vào băm của **dãy đối số**, không phải chuỗi hiển thị — `["brew","install","a b"]` và `["brew","install","a","b"]` là hai lệnh khác nhau và phải băm khác nhau. Manifest đổi lệnh cài sau khi duyệt thì quyết định cũ hết hiệu lực. Không có tính chất này thì *"duyệt cài X rồi cài Y"* là một đường vòng hợp lệ về mặt kỹ thuật, vì manifest là dữ liệu và dữ liệu thì đổi được — kể cả bởi một đề xuất công cụ mới |
+| **Hỏi MỘT LẦN cho cả bộ** | Năm công cụ thiếu thì nêu cả năm rồi dừng một lần. Dừng ở cái đầu tiên bắt người duyệt xong lại chạy lại để biết cái thứ hai — mỗi lượt một tin, và họ không bao giờ thấy toàn cảnh việc mình đang đồng ý |
+| **Sổ hỏng đọc thành "chưa duyệt"** | Hướng hỏng an toàn chỉ có một chiều. Dòng JSON hỏng bị bỏ qua, không làm sập lệnh và tuyệt đối không đọc thành "đã duyệt" |
+| **Ranh giới quyền** | `doctor approve` **không** nằm trong `TOOLBOX`; `doctor` (quét, chỉ đọc) và `doctor --fix` thì có. Trước đây cả lệnh `doctor` bị chặn kể cả chế độ đọc, trong khi chính lời giải thích đi kèm khai là *"tôi quét và báo được"* — lại một chỗ mã lệch với lời chính nó khai |
+| **Lỗi 4 — `tool_for` khớp theo TIỀN TỐ, nên mọi mục là một cửa mở** | Suýt lọt, và **bài canh cũ bắt được**: thêm mục `doctor` để Agent quét máy thì mở luôn `doctor approve`, `doctor --accept-drift`. Đã sửa ở gốc chứ không vá riêng: mục không khai `takes` thì không nhận thêm đối số nào |
+| **Vì sao chỗ này đáng sợ hơn cả ba lỗi trên** | Hàng rào của cả sản phẩm là **danh mục**. Một mục đọc như *"được gọi `doctor`"* mà thực tế là *"được gọi bất cứ gì bắt đầu bằng `doctor`"* thì bảng quyền hạn không còn đọc được — và một bảng quyền hạn không đọc được thì không ai kiểm được nó, kể cả người viết ra nó |
+| **Bài canh** | `tests/test_tc86_duyet_cai_cong_cu.py` — 11 bài; `tests/test_tc34_doctor.py` +2; `tests/test_tc61_chat.py` và `tests/test_tc71_skills.py` đổi để ghi lập luận mới (`doctor --fix` được phép VÌ nó không cài được gì chưa duyệt; `doctor approve` vào thế chỗ trong danh sách cấm) |
+
 
 
 ---
