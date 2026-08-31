@@ -605,8 +605,20 @@ class Flasher:
 
     @staticmethod
     def _tuong_doi(duong_dan: Path, goc: Path) -> str:
-        p = Path(duong_dan)
-        return str(p.relative_to(goc)) if p.is_absolute() and p.is_relative_to(goc) else str(p)
+        """Đường dẫn ảnh, tính theo THƯ MỤC LÀM VIỆC của công cụ nạp.
+
+        Phải ``resolve()`` cả hai vế trước khi so. Trước SL-119, hàm này chỉ
+        xử lý vế tuyệt đối; một đường dẫn TƯƠNG ĐỐI được trả về nguyên si, rồi
+        công cụ nạp diễn giải nó theo thư mục làm việc của nó — một thư mục
+        khác. Kết quả: `file … is not readable: No such file or directory` cho
+        một tệp đang nằm ngay đó.
+
+        Sai im lặng theo kiểu khó lần nhất: đường dẫn in ra trong nhật ký thì
+        đúng, chỉ có chỗ đứng để đọc nó là sai.
+        """
+        p = Path(duong_dan).resolve()
+        g = Path(goc).resolve()
+        return str(p.relative_to(g)) if p.is_relative_to(g) else str(p)
 
 
 def _tom_tat_loi(bao_cao: Any) -> str:

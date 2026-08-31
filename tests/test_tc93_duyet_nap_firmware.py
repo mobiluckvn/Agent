@@ -133,3 +133,37 @@ def test_flasher_khong_co_chu_ky_thi_KHONG_nap(tmp_path: Path, anh: Path) -> Non
 
     f = Flasher(runner=None, approvals=FlashApprovals(tmp_path / "so.jsonl"))
     assert f.da_duoc_duyet(anh) is None
+
+
+# ═══════════ đường dẫn ảnh phải tính theo THƯ MỤC LÀM VIỆC của công cụ ═══════════
+
+
+def test_duong_dan_tuong_doi_van_tinh_dung(tmp_path: Path, monkeypatch) -> None:
+    """Đường dẫn tương đối phải được quy về gốc trước khi so.
+
+    Tìm ra ở lần nạp thật: công cụ báo `file diag_DS-04.hex is not readable`
+    cho một tệp đang nằm ngay đó. Hàm chỉ xử lý vế tuyệt đối; vế tương đối
+    được trả nguyên si rồi công cụ nạp diễn giải nó theo thư mục làm việc CỦA
+    NÓ — một thư mục khác.
+    """
+    from eaa.flash import Flasher
+
+    goc = tmp_path / "firmware"
+    (goc / "build").mkdir(parents=True)
+    anh = goc / "build" / "f.hex"
+    anh.write_text("x", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    assert Flasher._tuong_doi(Path("firmware/build/f.hex"), goc) == "build/f.hex"
+    assert Flasher._tuong_doi(anh, goc) == "build/f.hex"
+
+
+def test_anh_ngoai_thu_muc_lam_viec_giu_duong_dan_tuyet_doi(tmp_path: Path) -> None:
+    from eaa.flash import Flasher
+
+    goc = tmp_path / "firmware"
+    goc.mkdir()
+    ngoai = tmp_path / "khac" / "f.hex"
+    ngoai.parent.mkdir()
+    ngoai.write_text("x", encoding="utf-8")
+    assert Path(Flasher._tuong_doi(ngoai, goc)).is_absolute()

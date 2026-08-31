@@ -1,0 +1,13 @@
+
+Nạp firmware
+────────────
+  Kiểm trước khi nạp: đạt.
+  Tự chọn cổng: /dev/cu.usbserial-143410 (Bo tương thích, cầu USB rời)
+
+  Vũ Trí Công đã duyệt đúng ảnh này lúc 2026-08-31T15:27:47+00:00 (sha256:b50ffd71a9bb8fd8…) — nạp
+
+NẠP KHÔNG THÀNH CÔNG — Công cụ thoát với mã 1 nhưng quy tắc parse của pack không bắt được lỗi nào. Đầu ra thô:
+OS error: file diag_DS-04.hex is not readable: No such file or directory
+
+Avrdude done.  Thank you.
+Đã ghi vào nhật ký nạp: một lần thử trượt cũng là dữ kiện chẩn đoán.
