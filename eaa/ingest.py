@@ -94,7 +94,30 @@ WEB_WHITELIST: tuple[str, ...] = (
 _BANG_THANH_GHI = re.compile(
     r"(?P<reg>[A-Z][A-Z0-9_]{2,})\s*(?:=|:|\s)\s*(?P<val>0[xX][0-9A-Fa-f]+|0[bB][01]+|\d+)"
 )
-_TEN_THANH_GHI = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b")
+#: Định danh trông giống tên thanh ghi.
+#:
+#: Cho phép CHỮ THƯỜNG XEN GIỮA, và đó là cả điểm của biểu thức này. Datasheet
+#: của những họ chip có ngoại vi NHIỀU THỰC THỂ không viết tên kèm số hiệu cụ
+#: thể; nó viết dạng chung, chèn một chữ thường làm chỗ giữ số hiệu — kiểu
+#: ``ABCn``, ``DEFnA``, ``MNOnH``. Chỉ nhận chữ hoa thì **không thấy một tên
+#: nào** ở đúng lớp ngoại vi hay dùng nhất, và thay vào đó nhặt đầy từ viết
+#: tắt của văn xuôi kỹ thuật (SL-116).
+#:
+#: Chữ thường chỉ được đứng LẺ, không thành cụm: đủ để nhận chỗ giữ số hiệu,
+#: không đủ để nuốt một từ tiếng Anh viết hoa chữ đầu.
+_TEN_THANH_GHI = re.compile(r"\b[A-Z]{2,}[A-Za-z0-9_]*\b")
+
+#: Hai chữ thường liền nhau = một từ tiếng Anh, không phải chỗ giữ số hiệu.
+_CUM_CHU_THUONG = re.compile(r"[a-z]{2}")
+
+#: Mã số hiệu bản in tài liệu — chữ cái rồi một dãy số dài.
+#:
+#: Nó trông y hệt một tên thanh ghi và nằm ở CHÂN TRANG của mọi trang, nên nó
+#: gần như luôn đứng đầu danh sách và đẩy tên thật ra khỏi phần bị cắt.
+_MA_TAI_LIEU = re.compile(r"^[A-Z]{1,3}\d{5,}[A-Z]?$")
+
+#: Số tên thanh ghi giữ lại trong phần gợi ý của chunk.
+SO_TEN_GIU = 12
 
 
 class IngestError(Exception):
@@ -823,9 +846,47 @@ def _doan_thanh_ghi(van_ban: str) -> tuple[str, ...]:
     thay: list[str] = []
     for m in _TEN_THANH_GHI.finditer(van_ban):
         ten = m.group(0)
-        if ten not in thay and not ten.isdigit():
-            thay.append(ten)
-    return tuple(thay[:12])
+        if len(ten) < 3 or ten.isdigit() or ten in thay:
+            continue
+        if _MA_TAI_LIEU.match(ten) or _CUM_CHU_THUONG.search(ten):
+            continue
+        thay.append(ten)
+
+    # Xếp tên có DẤU HIỆU RIÊNG của thanh ghi lên trước: một chữ số, hoặc một
+    # chỗ giữ số hiệu viết thường. Danh sách bị cắt, nên thứ tự quyết định cái
+    # gì sống sót — và từ viết tắt của văn xuôi kỹ thuật xuất hiện dày hơn tên
+    # thanh ghi rất nhiều. Xếp theo thứ tự xuất hiện thì chúng chiếm hết chỗ,
+    # và người đọc nhận một danh sách trông đầy đủ mà không có gì dùng được.
+    def _co_dau_hieu(t: str) -> bool:
+        return any(c.isdigit() for c in t) or any(c.islower() for c in t)
+
+    thay.sort(key=lambda t: 0 if _co_dau_hieu(t) else 1)
+    return tuple(thay[:SO_TEN_GIU])
+
+
+def canh_bao_ten_chung(ten: "Sequence[str]") -> str:
+    """Nêu những tên thanh ghi còn ở DẠNG CHUNG, chưa gắn số hiệu thực thể.
+
+    Đồ thị tri thức nối ``thanh ghi –documented_in→ chunk`` **theo tên**. Một
+    chunk khai tên dạng chung, trong khi hồ sơ phần cứng khai tên đã gắn số
+    hiệu, thì cạnh ấy không bao giờ nối được: chunk vẫn nằm trong kho, vẫn qua
+    được cổng duyệt, vẫn trông như một trích đoạn tốt — và phép truy xuất mà nó
+    sinh ra để phục vụ không tìm thấy nó. Ngõ cụt, và im lặng.
+
+    Chuẩn hóa là việc của KỸ SƯ tại G2: chỉ hồ sơ dự án mới biết ngoại vi này
+    là thực thể số mấy, và engine không được đoán thay (TC-38). Nhưng không nói
+    ra thì kỹ sư không biết có việc phải làm.
+    """
+    chung = [t for t in ten if any(c.islower() for c in t)]
+    if not chung:
+        return ""
+    return (
+        "  ⚠ Tên còn ở DẠNG CHUNG, chưa gắn số hiệu thực thể: "
+        + ", ".join(chung)
+        + "\n    Đồ thị tri thức so khớp THEO TÊN, nên để nguyên thì chunk này\n"
+        "    không bao giờ được truy xuất cho module cần nó. Chuẩn hóa danh sách\n"
+        "    'registers' về đúng số hiệu của dự án TRƯỚC khi duyệt G2."
+    )
 
 
 def _chung_cat_theo_luat(van_ban: str, peripheral: str) -> str:

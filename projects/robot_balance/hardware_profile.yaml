@@ -40,7 +40,16 @@ peripherals:
     shareable: true
   - id: usart0
     kind: uart
-    configured_by: [UBRR0H, UBRR0L, UCSR0A, UCSR0B, UCSR0C]
+    # Thanh ghi DỮ LIỆU và cờ trạng thái thêm vào 31/08/2026 sau khi ds-043
+    # (datasheet chính chủ, tr.200-203) qua G2.
+    #
+    # Vì sao chúng vắng mặt suốt bốn sprint: danh sách này liệt kê thanh ghi
+    # CẤU HÌNH, và mọi phép kiểm sẵn sàng đều đi theo nó. Nên module cổng nối
+    # tiếp được chấm "THIẾU 0 · đủ điều kiện sinh mã" trong khi nó không có
+    # cách nào gửi một byte — thiếu UDR0 thì không có hàm truyền (SL-115).
+    # Một thanh ghi không ai khai là một chỗ thiếu không ai thấy.
+    configured_by: [UBRR0H, UBRR0L, UCSR0A, UCSR0B, UCSR0C,
+                    UDR0, UDRE0, RXC0, TXC0]
     baud: 115200
     note: Kênh telemetry, cũng là kênh máy đọc được của chế độ chẩn đoán.
 

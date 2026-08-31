@@ -1,0 +1,13 @@
+Đã tải 33.319.446 byte từ https://ww1.microchip.com/downloads/aemDocuments/documents/MCU08/ProductDocuments/DataSheets/ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061B.pdf
+  hạng nguồn: chính chủ  ·  lưu tại /Users/v/Documents/KTDT/projects/robot_balance/datasheets/_taive/ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061B.pdf
+
+Đã tạo chunk ĐỀ XUẤT ds-atme-usar-01
+────────────────────────────────────
+  Nguồn      : ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061B.pdf, tr.195-200
+  Băm tài liệu: sha256:b9b9d83cda56a95d999ea8d54fe5a540748ae9020e5e7ae19b913d384ba9320e
+  Thanh ghi đoán được: DS40002061B, XTAL, USART, CPU, MCU, TXB, SBI, CBI, RXB, FIFO, SBIC, SBIS
+
+Chunk đang ở trạng thái 'proposed' nên CHƯA truy xuất được vào prompt nào.
+Kỹ sư đối chiếu từng bit với bản gốc, sửa lại phần chưa chưng cất, rồi duyệt:
+  eaa gate show G2
+  eaa gate approve G2

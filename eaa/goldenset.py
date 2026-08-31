@@ -123,6 +123,20 @@ class CaseResult:
             dong.append(f"      chọn nhầm: {', '.join(sai)}")
         if self.noise_selected:
             dong.append(f"      ✗ KÉO VÀO CHUNK NHIỄU: {', '.join(self.noise_selected)}")
+
+        # Một ca đỏ ở đây có HAI nguyên nhân TRÁI NGƯỢC nhau, và bản báo cáo
+        # phải nêu cả hai. Chunk bị chấm sai mà KHÔNG nằm trong tập nhiễu thì
+        # nó có thể là một trích đoạn mới, thật sự liên quan, vừa vào kho — tức
+        # là bộ chọn đúng còn bộ chuẩn cũ. Chỉ nêu hướng "bộ chọn kém đi" thì
+        # người đọc đi siết lại đúng cái đang chạy tốt.
+        la = [c for c in sai if c not in self.noise_selected]
+        if la:
+            dong.append(
+                f"      ↑ {', '.join(la)} KHÔNG nằm trong tập nhiễu. Hai khả năng:"
+            )
+            dong.append("        bộ chọn kém đi, HOẶC kho vừa có thêm trích đoạn")
+            dong.append("        thật sự liên quan mà bộ chuẩn chưa cập nhật.")
+            dong.append("        Đọc nội dung nó rồi mới kết luận.")
         return "\n".join(dong)
 
 

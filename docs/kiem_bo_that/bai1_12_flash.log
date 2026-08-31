@@ -1,0 +1,5 @@
+Lỗi: Không nạp được:
+  · Kho firmware còn thay đổi chưa commit. Nạp lúc này thì bản ghi 'đã nạp commit X' là câu sai — thứ trên bàn không phải thứ trong Git, và sai lệch ấy sẽ đi theo tới tận lúc bảo vệ.
+
+Nạp firmware
+────────────

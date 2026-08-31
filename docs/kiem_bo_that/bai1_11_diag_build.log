@@ -1,0 +1,14 @@
+
+Dựng firmware chẩn đoán — DS-04
+───────────────────────────────
+  UART / telemetry
+
+  #error "setbaud.h requires BAUD to be defined"
+  #error "BAUD must be a constant value"
+  division by zero in #if
+  division by zero in #if
+  #warning "Baud rate achieved is higher than allowed" [-Werror=cpp]
+  division by zero in #if
+  division by zero in #if
+  #warning "UBRR value overflow" [-Werror=cpp]
+  'BAUD' undeclared (first use in this function); did you mean 'ACD'?

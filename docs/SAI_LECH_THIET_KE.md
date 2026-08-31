@@ -1615,3 +1615,117 @@ lại, và để bản cập nhật SDD gom một lần:
 | `eaa doctor`, tool manifest, env_lock, Tool Card | AIS §9 | `eaa/doctor.py` | S3 |
 | Chế độ chẩn đoán phần cứng DS-01..06 | AIS §7 | `eaa/diagnostics.py` | S4 |
 | Phiên bản mã 3 hạng, `known_good.lock`, rollback | AIS §8.4 | `eaa/versions.py` | S4 |
+
+---
+
+## SL-112 · LỆCH THẬT (×3) · Ràng buộc cứng KHÔNG vào prompt hội thoại
+
+| | |
+|---|---|
+| **Tài liệu** | CLAUDE.md (bất biến trung tâm); EAA-SRS-01 FR-KB-01; TC-04 |
+| **Cách tìm** | Bài 1 phiên kiểm bo thật. Giao: *"kiểm kênh UART giữa máy tính và bo"*. Agent trả về mã Arduino dùng `delay(1000)` và `Serial.println` ở 9600 baud, kèm hướng dẫn `arduino-cli` |
+| **Bốn chỗ sai trong một câu trả lời** | `delay()` — dự án CẤM đích danh. `Serial.println` — I/O chặn, cũng cấm (`blocking_io`). `9600` — hồ sơ khai `115200`. `arduino-cli` — quy trình NGOÀI sản phẩm, không qua cổng nào |
+| **Lỗi 1 — bất biến "100%" chỉ đúng một nửa** | CLAUDE.md và FR-KB-01 nói ràng buộc "nạp vào **100% lần gọi LLM**". TC-04 canh điều đó, nhưng **chỉ canh `PromptComposer`** — đường sinh mã. `eaa chat` dựng `Prompt` riêng của nó, và lớp ràng buộc không có ở đó |
+| **Cưỡng chế sai chỗ** | Đường được canh là đường máy tự chạy; đường bỏ trống là đường **người dùng gõ câu hỏi vào**. Một con số "100%" chỉ đúng khi có thứ gì đó đếm được cả 100% |
+| **Lỗi 2 — prompt không nói mô hình đang làm với chip nào** | Lớp trạng thái có thư mục, pha, gate, backlog — không có MCU, không có tốc độ truyền. Mô hình **không im lặng về chỗ nó không biết: nó đoán**, và một đoán sai ở đây kéo theo sai thanh ghi, sai hệ số chia, sai cả lệnh nạp |
+| **Lỗi 3 — danh sách lệnh cấm là tên TRẦN** | Prompt chỉ nói *"KHÔNG có: build, gen, flash…"*. Mô hình đọc thành *"sản phẩm này không làm được việc đó"* rồi đi tìm công cụ ở ngoài. Sự thật ngược lại: đó là phần mạnh nhất của sản phẩm, chỉ là **người** gõ chúng. Lời giải thích đã viết sẵn trong `NGOAI_DANH_MUC` — **mã đúng nằm chết** vì không có đường tới nơi cần nó (lần thứ ba trong phiên gặp đúng dạng này) |
+| **Đã sửa** | Lớp `constraints` BẮT BUỘC, đứng đầu prompt hội thoại, gọi lại `composer._bang_rang_buoc` chứ không chép — hai bảng dựng bằng hai đoạn mã sẽ lệch nhau, và lúc lệch thì đường này cho phép đúng thứ đường kia cấm. Thêm dòng phần cứng vào lớp trạng thái. Danh sách lệnh của người kèm câu "ĐỀ NGHỊ người dùng gõ" và cấm đi tìm công cụ ngoài sản phẩm |
+| **Đo được sau khi sửa** | Cùng câu hỏi: Agent đi đúng `plan add → gen → build → flash → telemetry`, baud 115200, tự chạy `plan add`, dừng đúng chỗ tắc (thiếu `avr-gcc`, G1 chưa duyệt) |
+| **Bộ kiểm ngân sách bắt bản sửa của chính tôi** | Thêm dòng phần cứng làm lớp `state` vượt 416/400 token, và hệ **từ chối gọi API** thay vì gửi một prompt hỏng (TC-16) |
+| **Bài canh** | `tests/test_tc88_chat_rang_buoc.py` — 6 bài, trong đó một bài quét mã nguồn dạng TC-38: mọi chỗ dựng `Prompt(` phải có lớp ràng buộc, hoặc nằm trong danh sách miễn trừ **có ghi lý do** |
+| **Còn treo** | `eaa/interfaces.py` sinh CHỮ KÝ HÀM cho firmware và đã nhận `constraints.limits`, nhưng **chưa nhận `forbidden`**. Chữ ký chưa phải thân hàm nên chưa xếp là lỗi; nhưng *"hàm này có chặn không"* là đúng câu mà `blocking_io` nói thẳng |
+
+---
+
+## SL-113 · LỆCH THẬT (×2) · Một tính chất an toàn có hàm, có test, KHÔNG có người gọi
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.4; TC-35; NFR-07 |
+| **Cách tìm** | Đi tìm đường cài `avr-gcc` trên máy mà Homebrew không có bản dựng sẵn. Đường thiết kế đã chừa cho đúng tình huống ấy là `download` + `checksum`. Đọc mã thì thấy đường ấy **không tồn tại** |
+| **Lỗi 1 — checksum được KHAI chứ không được TÍNH** | `Doctor.verify_checksum()` có, có bài kiểm riêng, và **không nơi nào trong engine gọi nó**. `fix()` gặp `download` + `checksum` thì in ra *"tải trực tiếp từ …, bắt buộc khớp checksum …"* rồi chạy lệnh cài như thường. Không tải, không tính, không đối chiếu |
+| **Vì sao đây là dạng hỏng tệ nhất** | Không phải thiếu một tính năng, mà là **một lời hứa an toàn được in ra cho người đọc tin**. Bảng test xanh, docstring khai có tính chất, đường chạy thật thì trống |
+| **Lỗi 2 — duyệt G1 không chốt lại băm ràng buộc** | `eaa status` cảnh báo trôi băm và chỉ sang *"chốt lại bộ ràng buộc mới qua gate G1"*. Làm đúng thế thì cảnh báo **vẫn còn nguyên**: `constraints_version` chỉ được ghi MỘT lần ở `eaa init`, không đường nào chốt lại. Lệnh chỉ sang một cánh cửa không tồn tại — cùng hình dạng ngõ cụt với SL-110 |
+| **Đã sửa** | `_run_install` tải → tính băm → đối chiếu → **rồi mới** chạy lệnh nào; chỗ giữ `{tai_ve}` thay bằng đường dẫn gói ĐÃ KIỂM. Khai `download` mà quên `checksum` là lỗi nói ra, không phải một lượt tải im lặng. `_gate_approve` ghim lại băm sau khi người duyệt G1 |
+| **Ghim băm ở G1 là AN TOÀN, không phải tiện** | Hồ sơ G1 người vừa đọc CHỨA nội dung ràng buộc, và quyết định neo vào băm hồ sơ ấy. Ta ghi lại băm của **đúng thứ họ vừa duyệt**. Cố ý KHÔNG có lệnh riêng để ghim: một lệnh "chấp nhận băm mới" tách khỏi việc đọc hồ sơ chính là lối tắt thiết kế cấm |
+| **Kết quả trên dự án thật** | Nợ kỹ thuật của `robot_balance` từ Sprint 2 — ghi trong sổ bàn giao phiên trước — đã sạch |
+| **Bài canh** | `tests/test_tc89_tai_va_kiem_checksum.py` — 5 bài, trong đó một bài quét mã nguồn đòi `verify_checksum` phải **có người gọi trong engine** |
+| **Bug tự tôi gây khi viết bài kiểm** | Bài kiểm gán thẳng `eaa.doctor.subprocess.run` — mà thuộc tính ấy là chính module `subprocess` toàn cục. Mọi bài chạy sau trong cùng phiên hỏng theo, và hỏng **im lặng** vì lệnh con vẫn "thành công" |
+
+---
+
+## SL-114 · LỆCH THẬT (×2) · Cổng `size` trượt bằng lỗi CÚ PHÁP CÔNG CỤ, và vòng tự sửa đốt một lượt vì nó
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §6 (vòng tự sửa); FR-ENV-05 (Thẻ công cụ) |
+| **Cách tìm** | `eaa gen drv_uart` với toolchain thật: `compile` ĐẠT, `size` KHÔNG ĐẠT — `avr-size: invalid option -- m` |
+| **Lỗi 1** | Pack gọi `avr-size --format=avr -mmcu={mcu}`. Dạng `-mmcu` là cờ của **trình biên dịch**; `avr-size` là công cụ binutils và chỉ nhận dạng dài `--mcu=`. Bản dựng nào chấp `-mmcu` là chấp thêm, không phải chuẩn |
+| **Hệ quả không dừng ở một cổng trượt** | Vòng tự sửa nhận thông báo lỗi ấy như một lỗi MÃ, gửi cho mô hình, và đốt một lượt gọi để "sửa mã" cho một lỗi **không nằm trong mã**. Vòng ấy chỉ có N=3 lượt |
+| **Thẻ công cụ không chứng minh được điều nó khai** | Thẻ ghi *"cú pháp gọi đã được chứng minh chạy được trên chính máy này"*, nhưng bằng chứng chỉ là `avr-size --version` — một lệnh chạy được bất kể cổng `size` có gọi đúng cú pháp hay không |
+| **Lỗi 2 — yêu cầu phiên bản khai ở HAI chỗ** | `tool_requirements` trong `pack.yaml` lặp lại `min_version` trong `tools.yaml` của cùng pack, và hai bên **đã lệch nhau**. Không phép kiểm nào đối chiếu, nên chỗ nào đúng thì chưa có gì trả lời được |
+| **Đã sửa** | `--mcu={mcu}`; hai danh sách phiên bản kéo về khớp nhau kèm cảnh báo tại chỗ về việc chúng lặp |
+
+---
+
+## SL-115 · LỆCH THẬT · Bảng kiểm sẵn sàng tuyên "THIẾU 0" cho một module không sinh mã nổi
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §6.2 (Readiness Check); FR-KG-01 |
+| **Cách tìm** | `eaa resolve drv_uart` → *"CÓ 6 · THIẾU 0 · MÂU THUẪN 0 — Đủ điều kiện mở vòng sinh mã"*. Vòng sinh mã chạy ngay sau đó và mô hình viết vào tệp tiêu đề: *"THIẾU THÔNG TIN: ds-041 không có thông tin về thanh ghi dữ liệu (UDR0) và các cờ trạng thái (UDRE0, RXC0) […] module này không lấp chỗ trống"* |
+| **Cả hai đều đúng phần của mình — đó mới là vấn đề** | Bảng kiểm đi theo cạnh `ngoại vi –configured_by→ thanh ghi` của Knowledge Graph, mà `configured_by` là danh sách **VIẾT TAY** trong `hardware_profile.yaml`. Nó liệt kê năm thanh ghi CẤU HÌNH của cổng nối tiếp và không liệt kê thanh ghi DỮ LIỆU |
+| **Khoảng cách giữa câu hỏi và câu được hiểu** | Phép kiểm trả lời *"có tài liệu cho những thanh ghi ĐÃ KHAI không"*; người đọc hiểu nó là *"module này sinh mã được chưa"*. Khoảng cách giữa hai câu ấy đúng bằng những thanh ghi không ai nghĩ tới — và thứ duy nhất tìm ra chúng là chính vòng sinh mã, **sau khi đã trả tiền cho nó** |
+| **Không sửa được bằng cách làm phép kiểm toàn tri** | Một thanh ghi không ai khai là một chỗ thiếu không ai thấy; đó là giới hạn của mọi bảng kiểm suy từ dữ liệu người nhập. Nhưng **nói đúng phạm vi mình phủ** thì làm được, và đó là khác biệt giữa một phép kiểm hữu ích và một phép kiểm gây hiểu nhầm |
+| **Đã sửa** | `eaa resolve` in kèm phạm vi: bảng kiểm đi theo `configured_by`, một danh sách do người viết tay; *"THIẾU 0"* nghĩa là *"không thiếu trong số đã khai"*, không phải *"không thiếu gì"*. Câu kết luận đổi thành *"Đủ điều kiện — TRONG PHẠM VI ĐÃ KHAI"* |
+| **Bài canh** | `tests/test_tc90_pham_vi_bang_kiem.py` — 2 bài |
+
+---
+
+## SL-116 · LỆCH THẬT · Bộ rút tên thanh ghi không thấy dạng viết CHUNG của datasheet
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §4.1 (thu nhận, chưng cất); FR-KG-01 |
+| **Cách tìm** | Nạp datasheet chính chủ để lấp chỗ thiếu Bài 1. Trích đúng bốn trang mục *Register Description*, kết quả: `DS40002061B, USART, TXB, RXB, FIFO, SBI, CBI, SBIC, SBIS, SREG, SPI, MSPIM` — **không một tên thanh ghi thật nào** |
+| **Lỗi** | Biểu thức nhận dạng là `\b[A-Z][A-Z0-9_]{2,}\b` — chỉ chữ hoa. Nhưng datasheet của các họ chip có ngoại vi **nhiều thực thể** không viết tên kèm số hiệu cụ thể; nó viết dạng chung, chèn một chữ thường làm chỗ giữ. Mọi tên như vậy bị loại vì có một chữ thường |
+| **Hỏng đúng chỗ dùng nhiều nhất** | Cổng nối tiếp, bus hai dây, bộ đếm thời gian — tất cả đều là loại nhiều thực thể. Với chúng, bộ rút thấy **rỗng** và nhặt bù bằng từ viết tắt của văn xuôi kỹ thuật |
+| **Hệ quả không dừng ở một dòng in xấu** | Trường `registers` của chunk là thứ Knowledge Graph dùng dựng cạnh `thanh ghi –documented_in→ chunk`. Chunk mang danh sách sai thì **không bao giờ được truy xuất cho module cần nó** — đường nạp tri thức sinh ra một trích đoạn mà chính phép truy xuất nó phục vụ không tìm thấy |
+| **Mã số hiệu tài liệu chiếm chỗ** | `DS40002061B` trông y hệt một tên thanh ghi và nằm ở **chân trang của mọi trang**, nên nó gần như luôn đứng đầu và đẩy tên thật ra khỏi phần bị cắt còn 12 mục |
+| **Đã sửa** | Nhận dạng có chữ thường xen giữa (chữ thường chỉ được đứng lẻ — hai chữ thường liền nhau là một từ tiếng Anh); loại mã số hiệu bản in; **xếp tên có dấu hiệu riêng của thanh ghi lên trước** vì danh sách bị cắt nên thứ tự quyết định cái gì sống sót |
+| **Đo được** | Cùng bốn trang ấy, sau bản sửa: `UDRn, UDREn, UCSRnA, RXCn, RXCIEn, TXCn, TXCIEn, UDRIEn, FEn, DORn, UPEn, MPCMn` |
+| **Thêm: cảnh báo tên dạng chung** | Chunk khai `UDRn` còn hồ sơ khai `UDR0` thì cạnh đồ thị không nối được — chunk vẫn qua G2, vẫn trông tốt, và vô hình. Chuẩn hóa là việc của kỹ sư (chỉ dự án mới biết ngoại vi là thực thể số mấy, engine không được đoán thay — TC-38), nhưng **không nói ra thì kỹ sư không biết có việc phải làm** |
+| **Bài canh** | `tests/test_tc91_rut_ten_thanh_ghi.py` — 9 bài, dùng tên BỊA theo đúng lối datasheet viết |
+
+---
+
+## SL-117 · LỆCH THẬT · Trích đoạn tài liệu KHÔNG có đường nào vào kho tri thức
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-KB-02; EAA-AIS-05 §4.1; ADR-04 (G2) |
+| **Cách tìm** | Bài 1, cách A. `eaa datasheet add` tạo chunk và nói: *"Chunk đang ở trạng thái 'proposed' nên CHƯA truy xuất được vào prompt nào […] rồi duyệt: `eaa gate show G2` / `eaa gate approve G2`"*. Làm đúng thế. Gate ghi nhận quyết định. **Chunk vẫn `proposed`** |
+| **Lỗi** | `DatasheetStore` là kho **CHỈ ĐỌC** — không phương thức nào ghi, và không dòng mã nào trong engine đổi trạng thái một chunk từ `proposed` sang `approved`. Đường ấy **chưa từng tồn tại** |
+| **Vì sao không ai phát hiện suốt bốn sprint** | Mọi chunk đang `approved` trong dự án mẫu đều được **VIẾT TAY** sẵn với `status: approved`. Không cái nào đi qua đường nạp. Bài kiểm cũng dựng chunk bằng tay, nên chúng canh đúng phần kho biết đọc |
+| **Bất biến đúng theo nghĩa tệ nhất** | *"Tri thức chỉ vào kho qua G2"* đúng — vì **không gì vào được cả**. Một bất biến được giữ bằng cách làm cho hành động bị cấm trở nên bất khả thi cùng lúc với hành động được phép |
+| **Cùng họ ngõ cụt với SL-110 và SL-113** | Lệnh nói ra một lối đi tiếp, và lối ấy không dẫn tới đâu. Lần này nó nằm ở **đường nạp tri thức**, tức là ở giữa sản phẩm |
+| **Đã sửa** | `DatasheetStore.approve()` — đổi TRẠNG THÁI, tuyệt đối không đụng thân chunk (nội dung đổi phải qua supersede, không thì *"duyệt cái này rồi dùng cái khác"* là đường vòng hợp lệ). Ghi `approved_by`/`approved_at` vào chính tệp, cùng luật với mục công cụ trong manifest của pack. Ghi nguyên tử như Project State (TC-03). `_gate_approve` gọi nó cho mọi chunk trong hồ sơ G2 |
+| **Ghép lại tệp bằng cách THAY ĐOẠN, không dựng lại từ mảnh** | Dựng lại làm mất khoảng trắng ở ranh giới, và với kho tri thức thì *"gần như nguyên vẹn"* không phải là nguyên vẹn: bản duyệt phải byte-đối-byte giống bản người vừa đọc, trừ đúng dòng trạng thái |
+| **Còn treo — G2 duyệt TẤT CẢ hay không gì cả** | Hồ sơ G2 gom mọi chunk đang chờ, nên một lần duyệt nâng hạng cả lô. Đo được ngay: duyệt `ds-043` kéo theo `ds-032` — chunk mà hồ sơ phần cứng ghi rõ là **cố ý giữ ở `proposed` vì chưa đối chiếu xong hệ số nhạy**. Đã trả `ds-032` về `proposed` bằng tay. Cần một cách duyệt từng chunk |
+| **Bài canh** | `tests/test_tc92_duyet_chunk_vao_kho.py` — 7 bài, trong đó một bài quét mã nguồn đòi kho tri thức phải CÓ đường ghi |
+
+---
+
+## SL-118 · LỆCH THẬT (×2) · Khuôn firmware chẩn đoán chưa từng dịch được lần nào
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7 (chẩn đoán phần cứng); TC-44 |
+| **Cách tìm** | `eaa diagnose build DS-04` — kịch bản *"UART / telemetry"*, đúng việc Bài 1 cần. Kết quả: bốn thông báo lỗi cho cùng một nguyên nhân |
+| **Lỗi 1** | Khuôn `packs/avr/templates/diagnostic.c.tmpl` gọi `<util/setbaud.h>` mà **không khai `BAUD`** trước. Tệp tiêu đề ấy TÍNH hệ số chia từ `BAUD` và `F_CPU`; thiếu một cái thì nó bắn `#error`, rồi chia cho không ở `#if`, rồi cảnh báo tràn |
+| **Chỗ giữ đã có sẵn mà khuôn không dùng** | Bộ sinh `firmware.py` đã điền `{baud}` vào bảng thay thế từ lâu. Khuôn chưa bao giờ tham chiếu nó. Lại một chỗ **mã đúng nằm chết** — thứ tư trong phiên |
+| **Vì sao im lặng suốt bốn sprint** | Không bài kiểm nào DỰNG THẬT một firmware chẩn đoán bằng `avr-gcc`; chúng kiểm phần sinh chuỗi và phần ghép, không kiểm phần dịch. Khuôn chỉ là văn bản cho tới lúc có người gọi trình biên dịch thật |
+| **Lỗi 2 — và đây là một sự thật vật lý bị chặn nhầm thành lỗi mã** | Sau khi khai `BAUD`, khuôn vẫn trượt vì `#warning "Baud rate achieved is higher than allowed"` gặp `-Werror=cpp`. Với thạch anh 16 MHz và 115200 baud, hệ số chia nguyên gần nhất cho sai số **+2,1%**, vượt ngưỡng mặc định 2% của avr-libc |
+| **Nới ngưỡng là một KHẲNG ĐỊNH, nên nó phải nằm cạnh lý do** | Khung 8N1 chịu được tổng sai số hai đầu khoảng ±5%, nên 2,1% một đầu là an toàn — **với điều kiện đầu kia cũng chuẩn**. Đặt `BAUD_TOL` trong một cờ dịch không ai đọc thì nó thành một con số vô chủ; đặt cạnh phép tính và lý do thì nó là một quyết định kỹ thuật truy được |
+| **Con số ấy mới là TÍNH RA** | 2,1% suy từ tần số danh định của thạch anh. Nó chỉ thành ĐÃ KIỂM sau khi đo trên bo thật — đúng chỗ mà nghiệm thu vật lý G4 tồn tại để làm |
+| **Đã sửa** | Khuôn khai `BAUD` từ chỗ giữ `{baud}`, và `BAUD_TOL` kèm toàn bộ lập luận trên |

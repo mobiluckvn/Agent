@@ -17,6 +17,34 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <avr/io.h>
+
+/* setbaud.h TÍNH hệ số chia từ BAUD và F_CPU, nên cả hai phải có TRƯỚC khi
+ * include nó. F_CPU do lệnh dịch của pack truyền vào (-DF_CPU=...); BAUD thì
+ * không ai truyền, nên phải khai ở đây từ chỗ giữ {baud} mà bộ sinh đã có sẵn.
+ *
+ * Thiếu dòng này, khuôn không dịch được lần nào: setbaud.h bắn
+ * `#error "setbaud.h requires BAUD to be defined"`, rồi chia cho không ở #if,
+ * rồi cảnh báo tràn UBRR — bốn thông báo cho cùng một nguyên nhân. Nó nằm im
+ * tới đúng hôm có người dựng firmware chẩn đoán thật (SL-118).
+ */
+#define BAUD {baud}
+
+/* Ngưỡng sai số tốc độ truyền, đơn vị phần trăm.
+ *
+ * Mặc định của avr-libc là 2%. Với thạch anh 16 MHz và 115200 baud, hệ số chia
+ * nguyên gần nhất cho sai số +2,1% — vượt ngưỡng ấy, và khuôn bị `-Werror=cpp`
+ * chặn ngay. Đây KHÔNG phải lỗi mã: nó là một sự thật vật lý của cặp tần số
+ * này, và mọi bo dùng cặp ấy đều chạy với sai số đó.
+ *
+ * Khung 8N1 chịu được tổng sai số hai đầu khoảng ±5% trước khi lấy nhầm bit ở
+ * bit dừng, nên 2,1% một đầu là an toàn — với điều kiện ĐẦU KIA cũng chuẩn.
+ * Nới ngưỡng ở đây là một khẳng định về vật lý, nên nó phải nằm cạnh con số và
+ * lý do, chứ không phải nằm trong một cờ dịch không ai đọc.
+ *
+ * Con số 2,1% là TÍNH RA. Nó cần được ĐO trên bo thật rồi mới thành ĐÃ KIỂM.
+ */
+#define BAUD_TOL 3
+
 #include <util/setbaud.h>
 
 {checksum_define}

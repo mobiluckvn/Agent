@@ -40,7 +40,17 @@ cases:
 
   - module: drv_uart_telemetry
     uses: [usart0]
-    relevant: [ds-041]
+    relevant: [ds-041, ds-043]
     note: >-
       Kênh telemetry. Chunk SPI (ds-051) cũng nói về "giao tiếp nối tiếp", nên
       đây là ca sẽ đỏ trước tiên nếu ai đó đổi bộ chọn sang so khớp từ ngữ.
+
+      ds-043 thêm vào 31/08/2026 cùng lúc chunk ấy qua G2. Bộ chọn tìm ra nó
+      NGAY, và bộ chuẩn — viết từ hồi kho chỉ có ds-041 — chấm đó là chọn
+      nhầm. Đây là chỗ bộ chuẩn truy xuất cần người: nó định nghĩa thế nào là
+      ĐÚNG, nên kho lớn thêm một trích đoạn thật sự liên quan thì bộ chuẩn
+      phải được cập nhật, không phải bộ chọn phải bị siết lại.
+
+      Bài học: một ca đỏ ở đây có HAI nguyên nhân trái ngược nhau — bộ chọn
+      kém đi, hoặc kho vừa có thêm thứ đúng. Đọc nhầm hướng thì người ta đi
+      sửa cái đang chạy tốt.

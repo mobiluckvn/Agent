@@ -199,6 +199,30 @@ class Chunk:
         return any(r.upper() == muc_tieu for r in self.registers)
 
 
+def _ghi_nguyen_tu(path: Path, noi_dung: str) -> None:
+    """Ghi nguyên tử: tệp tạm cùng thư mục → fsync → ``os.replace``.
+
+    Cùng cách Project State ghi (TC-03). Chunk là tri thức; một lần ghi dở dang
+    để lại trong kho một trích đoạn cụt mà mọi lớp phía trên vẫn coi là hợp lệ.
+    """
+    import os
+    import tempfile
+
+    fd, tam = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(noi_dung)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tam, path)
+    except BaseException:
+        try:
+            os.unlink(tam)
+        except OSError:
+            pass
+        raise
+
+
 class DatasheetStore:
     """Kho chunk RAG của một dự án — thư mục ``datasheets/``."""
 
@@ -227,6 +251,62 @@ class DatasheetStore:
     def reload(self) -> None:
         self._loaded = False
         self._ensure()
+
+    def approve(self, chunk_id: str, *, by: str) -> "Chunk":
+        """Đưa một chunk từ ĐỀ XUẤT sang ĐÃ DUYỆT — đường vào kho tri thức.
+
+        Trước SL-117 kho này CHỈ ĐỌC: không phương thức nào ghi, và không dòng
+        mã nào trong engine đổi trạng thái một chunk. `eaa datasheet add` sinh
+        ra một tệp không bao giờ dùng được, rồi chỉ người dùng sang
+        `eaa gate approve G2` — một lệnh không đụng tới chunk. Bất biến "tri
+        thức chỉ vào kho qua G2" đúng theo nghĩa tệ nhất: đúng vì **không gì
+        vào được cả**.
+
+        Chỉ đổi TRẠNG THÁI, tuyệt đối không đụng thân chunk. Nội dung đổi thì
+        phải qua supersede — không thì "duyệt cái này rồi dùng cái khác" là một
+        đường vòng hợp lệ về mặt kỹ thuật.
+
+        Ghi thêm ``approved_by`` / ``approved_at`` vào chính tệp, cùng luật với
+        mục công cụ trong manifest của pack: một quyết định không có người chịu
+        trách nhiệm thì không phải quyết định của con người (FR-GATE-01).
+        """
+        import re as _re
+        from datetime import datetime, timezone
+
+        if not by.strip():
+            raise KbError(
+                "Phải ghi ai duyệt trích đoạn — trích đoạn sai được đóng dấu "
+                "là nguồn ảo giác nguy hiểm nhất (AIS §4.1)."
+            )
+        chunk = self.get(chunk_id, include_inactive=True)
+        if chunk.status == ACTIVE:
+            return chunk
+
+        van_ban = chunk.path.read_text(encoding="utf-8")
+        khop = _FRONTMATTER.match(van_ban)
+        if not khop:
+            raise KbError(f"Chunk {chunk_id!r} không đọc được phần đầu tệp.")
+
+        dau = khop.group(1)
+        luc = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        dau_moi = _re.sub(r"^status:.*$", f"status: {ACTIVE}", dau, count=1, flags=_re.M)
+        if "approved_by:" in dau_moi:
+            dau_moi = _re.sub(r"^approved_by:.*$", f"approved_by: {by.strip()}",
+                              dau_moi, count=1, flags=_re.M)
+            dau_moi = _re.sub(r"^approved_at:.*$", f"approved_at: '{luc}'",
+                              dau_moi, count=1, flags=_re.M)
+        else:
+            dau_moi = dau_moi.rstrip("\n") + f"\napproved_by: {by.strip()}\napproved_at: '{luc}'\n"
+
+        # Ghép lại bằng cách THAY ĐÚNG ĐOẠN frontmatter trong chuỗi gốc, không
+        # dựng lại tệp từ các mảnh. Dựng lại làm mất khoảng trắng ở ranh giới
+        # (biểu thức nuốt dòng trống sau `---`), và với một kho tri thức thì
+        # "gần như nguyên vẹn" không phải là nguyên vẹn: bản duyệt phải byte-
+        # đối-byte giống bản người vừa đọc, trừ đúng dòng trạng thái.
+        moi = van_ban[:khop.start(1)] + dau_moi.rstrip("\n") + van_ban[khop.end(1):]
+        _ghi_nguyen_tu(chunk.path, moi)
+        self.reload()
+        return self.get(chunk_id, include_inactive=True)
 
     @staticmethod
     def _parse(path: Path) -> Chunk:

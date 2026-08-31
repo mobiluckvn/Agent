@@ -1,0 +1,8 @@
+
+Vòng lặp chuẩn — drv_uart
+─────────────────────────
+
+Không lắp ráp hoặc không sinh được mã: Prompt trong trần tổng (4168/8000) nhưng có lớp vượt phần của nó.
+Lớp vượt ngân sách:
+  - datasheet_chunks: 3539 token / ngân sách 1500
+Không gọi API. Đây là lỗi lắp ráp: giảm top-k chunk, rút gọn lớp interface, hoặc chưng cất thêm quy tắc lỗi (AIS §3).

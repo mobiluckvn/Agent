@@ -1312,6 +1312,17 @@ def _gate_approve(ctx: AppContext, args: argparse.Namespace) -> int:
         return _sau_khi_duyet_G3(ctx, quyet_dinh)
 
     if args.gate == "G2":
+        # Trích đoạn tài liệu vào kho. Đây là đường mà SL-117 phát hiện là
+        # CHƯA TỪNG TỒN TẠI: `datasheet add` sinh chunk 'proposed' rồi chỉ
+        # người dùng sang đúng lệnh này, và lệnh này không đụng tới chunk.
+        de_xuat = [c for c in ctx.kb.datasheets.all() if not c.is_active]
+        if de_xuat:
+            print("\nTrích đoạn đã vào kho tri thức:")
+            for c in de_xuat:
+                ctx.kb.datasheets.approve(c.id, by=nguoi)
+                print(f"  {c.id} · {c.device}/{c.peripheral} · {c.source}")
+            print("  Từ giờ chúng truy xuất được vào prompt sinh mã.")
+
         cong_cu = _doc_de_xuat(ctx.project)
         if cong_cu:
             da_ghi = _ghi_de_xuat_vao_manifest(ctx.project, cong_cu, actor=nguoi)
@@ -1574,6 +1585,11 @@ def cmd_datasheet(args: argparse.Namespace) -> int:
         print(f"  Nguồn      : {de_xuat.source}")
         print(f"  Băm tài liệu: {de_xuat.source_hash}")
         print(f"  Thanh ghi đoán được: {', '.join(de_xuat.registers) or '—'}")
+        from eaa.ingest import canh_bao_ten_chung
+
+        canh = canh_bao_ten_chung(de_xuat.registers)
+        if canh:
+            print(canh)
         print(
             "\nChunk đang ở trạng thái 'proposed' nên CHƯA truy xuất được vào "
             "prompt nào.\nKỹ sư đối chiếu từng bit với bản gốc, sửa lại phần chưa "
