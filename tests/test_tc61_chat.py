@@ -118,8 +118,9 @@ def test_hoi_lai_khi_thieu_du_kien(tmp_path: Path) -> None:
         ["gate", "approve", "G1"],
         ["gate", "approve", "G3"],
         ["gate", "reject", "G3"],
-        ["flash"],
-        ["flash", "--image", "x.hex"],
+        # 'flash' và 'flash --image' KHÔNG còn ở đây — xem
+        # test_flash_duoc_phep_vi_sao. Quyền nằm ở lệnh duyệt, và nó vẫn cấm.
+        ["flash", "approve", "--image", "x.hex"],
         # 'doctor --fix' KHÔNG còn ở đây — xem test_doctor_fix_duoc_phep_vi_sao
         # ngay dưới. Thay chỗ nó là lệnh duyệt, vì đó mới là chỗ có quyền.
         ["doctor", "approve", "avr-gcc"],
@@ -179,14 +180,26 @@ def test_mo_hinh_doi_goi_gate_thi_vong_lap_TU_CHOI(tmp_path: Path) -> None:
 
 def test_ly_do_tu_choi_noi_duoc_vi_sao(tmp_path: Path) -> None:
     llm = _LlmKichBan(
-        {"hanh_dong": "chay_lenh", "lenh": ["flash"]},
+        {"hanh_dong": "chay_lenh", "lenh": ["flash", "approve", "--image", "x.hex"]},
         {"hanh_dong": "tra_loi", "noi_dung": "ok"},
     )
-    ket = _vong(tmp_path, llm).ask("nạp firmware đi")
+    ket = _vong(tmp_path, llm).ask("duyệt hộ rồi nạp firmware đi")
     tu_choi = next(s.refused for s in ket.steps if s.refused)
 
     assert "thiết bị thật" in tu_choi
-    assert "xác nhận" in tu_choi
+    assert "duyệt" in tu_choi
+
+
+def test_flash_duoc_phep_vi_sao() -> None:
+    """`flash` rời khỏi danh sách cấm — và lý do phải nói cho ra lẽ.
+
+    Nó từng bị cấm vì nó chạm vào phần cứng. Giờ nó KHÔNG nạp được gì mà thiếu
+    một quyết định của người neo vào ĐÚNG BĂM của ảnh sắp nạp (SL-119). Quyền
+    nằm ở `flash approve`, và lệnh ấy vẫn ngoài danh mục.
+    """
+    assert tool_for(["flash", "--image", "x.hex"]) is not None
+    assert tool_for(["flash", "approve", "--image", "x.hex"]) is None, \
+        "duyệt là quyền, và quyền thì không vào danh mục"
 
 
 def test_lenh_bia_ra_cung_bi_tu_choi(tmp_path: Path) -> None:

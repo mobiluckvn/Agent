@@ -275,4 +275,4 @@ def test_ly_do_tu_choi_lenh_hai_tu_phai_TOI_DUOC_nguoi_doc() -> None:
     assert ly_do == NGOAI_DANH_MUC["doctor approve"]
 
     # Lệnh một từ vẫn phải giữ nguyên đường cũ.
-    assert AgentLoop._vi_sao_khong(None, ["flash"]) == NGOAI_DANH_MUC["flash"]
+    assert AgentLoop._vi_sao_khong(None, ["gen", "drv_x"]) == NGOAI_DANH_MUC["gen"]

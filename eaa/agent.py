@@ -289,6 +289,15 @@ TOOLBOX: tuple[Tool, ...] = (
     # Cùng hình dạng với 'tool run': người duyệt bằng 'doctor approve', tôi
     # chạy. Không có quyết định nào khớp đúng dãy đối số sắp chạy thì lệnh này
     # dừng và nêu đích danh lệnh duyệt — nó không cài được gì tự mình.
+    # Cùng hình dạng 'tool run' và 'doctor --fix': người duyệt bằng
+    # 'flash approve', tôi nạp. Không có chữ ký khớp đúng ảnh sắp nạp thì lệnh
+    # này dừng và nêu đích danh lệnh duyệt.
+    Tool(
+        ("flash",),
+        "Nạp một ảnh firmware ĐÃ ĐƯỢC NGƯỜI DUYỆT bằng 'eaa flash approve'. "
+        "Chưa duyệt thì lệnh này dừng và nói cần duyệt gì",
+        takes="--image <ảnh>", writes=True,
+    ),
     Tool(
         ("doctor", "--fix"),
         "Cài công cụ thiếu — CHỈ những lệnh người dùng đã duyệt bằng "
@@ -369,9 +378,11 @@ NGOAI_DANH_MUC: dict[str, str] = {
         "cả sản phẩm. Tôi trình được hồ sơ ('gate show'), nhưng bạn là người gõ "
         "'eaa gate approve'."
     ),
-    "flash": (
-        "Nạp firmware chạm vào thiết bị thật. Luôn cần chính bạn xác nhận — "
-        "một phiên không có người không được diễn giải thành một người đã đồng ý."
+    "flash approve": (
+        "Duyệt một ảnh để nạp là quyết định chạm vào thiết bị thật, nên chỉ bạn "
+        "gõ được 'eaa flash approve --image <ảnh>'. Sau khi bạn duyệt, tôi nạp "
+        "đúng ảnh ấy — không ảnh nào khác, vì quyết định của bạn neo vào băm "
+        "nội dung của chính nó."
     ),
     "doctor approve": (
         "Duyệt một lệnh cài là quyết định đổi máy của bạn, nên chỉ bạn gõ được "
@@ -629,12 +640,32 @@ def tool_for(argv: Sequence[str]) -> Tool | None:
     đọc như "được gọi `doctor`" mà thực tế là "được gọi bất cứ gì bắt đầu bằng
     `doctor`" thì bảng quyền hạn không còn đọc được nữa.
     """
+    # KHỚP DÀI NHẤT THẮNG, kể cả khi bên thắng là bên CẤM.
+    #
+    # Danh mục có cả cặp cha–con trái dấu nhau, ở cả hai chiều:
+    #
+    #   `gate show`  được phép   ·  `gate`          cấm   → con thắng cha
+    #   `flash`      được phép   ·  `flash approve` cấm   → con thắng cha
+    #
+    # Xét cấm trước thì hỏng cặp thứ nhất; xét cho phép trước thì hỏng cặp thứ
+    # hai — và cặp thứ hai hỏng theo hướng NGUY HIỂM: một mục nhận đối số tự do
+    # là một tiền tố mở, nên `flash --image <ảnh>` nuốt luôn `flash approve`,
+    # tức mở đúng cái quyền mà mục ấy sinh ra để không đụng tới.
+    #
+    # Chỉ có một luật đúng cho cả hai: cái nào khớp SÂU HƠN thì cái ấy đang nói
+    # về đúng lệnh này.
+    cam = 0
+    for so_tu in (2, 1):
+        if " ".join(str(x) for x in argv[:so_tu]) in NGOAI_DANH_MUC:
+            cam = so_tu
+            break
+
     for t in sorted(TOOLBOX, key=lambda x: -len(x.argv)):
         if tuple(argv[: len(t.argv)]) != t.argv:
             continue
         if not t.takes and len(argv) > len(t.argv):
             continue
-        return t
+        return None if cam >= len(t.argv) else t
     return None
 
 

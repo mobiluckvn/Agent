@@ -2456,11 +2456,41 @@ def cmd_flash(args: argparse.Namespace) -> int:
     nguoi = args.actor or _nguoi_dung()
     _in_tieu_de("Nạp firmware")
 
+    from eaa.flash import FlashApprovals
+
+    so_duyet = FlashApprovals(project / "flash_approvals.jsonl")
+
+    if getattr(args, "flash_action", None) == "approve":
+        if not anh or not Path(anh).is_file():
+            raise CliError(
+                "Duyệt ảnh nào? Cú pháp:\n"
+                "    eaa flash approve --image <đường dẫn .hex> --actor <tên bạn>"
+            )
+        ai = (args.actor or os.environ.get("USER", "")).strip()
+        if not ai:
+            raise CliError(
+                "Phải ghi ai duyệt: thêm --actor <tên bạn>. Nạp firmware chạm "
+                "vào thiết bị thật; một quyết định không có người chịu trách "
+                "nhiệm thì không phải quyết định của con người."
+            )
+        k = so_duyet.approve(anh, by=ai)
+        _in_tieu_de("Duyệt ảnh nạp")
+        print(f"  ảnh : {anh}")
+        print(f"  băm : {k.image_digest}")
+        print(f"\nĐã ghi quyết định — {k.actor}.")
+        print("Nạp được rồi:  eaa flash --image " + str(anh))
+        print(
+            "Quyết định neo vào BĂM NỘI DUNG ảnh, không vào đường dẫn. Ráp lại "
+            "là ảnh khác, và phải duyệt lại."
+        )
+        return EXIT_OK
+
     flasher = Flasher(
         runner=ctx.runner,
         repo=ctx.repo,
         log=nhat_ky,
         source_dir=project / "firmware",
+        approvals=so_duyet,
     )
 
     kiem = flasher.preflight(anh)
@@ -5656,6 +5686,13 @@ def build_parser() -> argparse.ArgumentParser:
             "Nạp chỉ xảy ra khi: có ảnh đã ráp, kho mã sạch, ảnh mới hơn nguồn, "
             "và có người xác nhận. Không cờ nào bỏ qua được bốn điều này."
         ),
+    )
+    # `eaa flash approve --image <ảnh>` — quyết định của NGƯỜI, ghi vào sổ để
+    # nó sống ngoài phiên chạy đã sinh ra nó (SL-119). Không có nó thì mọi phiên
+    # không terminal đều cụt đường ở chặng cuối của sản phẩm.
+    p_flash.add_argument(
+        "flash_action", nargs="?", choices=["approve"],
+        help="approve --image <ảnh>: bạn duyệt ảnh này, sau đó 'eaa flash' nạp nó",
     )
     p_flash.add_argument("--port", default="", help="Cổng nối tiếp; bỏ trống thì tự nhận")
     p_flash.add_argument("--image", help="Ảnh cần nạp; mặc định lấy bản vừa ráp")

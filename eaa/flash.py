@@ -61,6 +61,8 @@ from typing import Any, Callable, Iterable, Sequence
 
 __all__ = [
     "FlashError",
+    "FlashApproval",
+    "FlashApprovals",
     "FlashNotConfirmed",
     "FlashRecord",
     "FlashLog",
@@ -261,6 +263,102 @@ class PreflightResult:
         return "Không nạp được:\n" + "\n".join(f"  · {v}" for v in self.problems)
 
 
+@dataclass(frozen=True)
+class FlashApproval:
+    """Một người đã duyệt nạp MỘT ảnh cụ thể."""
+
+    image: str
+    image_digest: str
+    actor: str
+    approved_at: str
+
+    def to_dict(self) -> dict:
+        return {
+            "image": self.image,
+            "image_digest": self.image_digest,
+            "actor": self.actor,
+            "approved_at": self.approved_at,
+        }
+
+
+class FlashApprovals:
+    """Sổ duyệt ảnh nạp — nối tiếp, không ghi đè.
+
+    Vì sao cần sổ thay vì một câu hỏi trên terminal
+    -----------------------------------------------
+
+    Cùng lý do đã dựng sổ duyệt lệnh cài (SL-110), và ở đây nặng hơn: nạp là
+    chặng cuối của cả sản phẩm. Trước SL-119, `eaa flash` qua hết bốn phép kiểm
+    trước rồi dừng ở *"chưa có xác nhận của người"* mà **không nêu lối đi
+    tiếp** — không cờ, không lệnh, không sổ. Một phiên làm việc qua người trung
+    gian không bao giờ nạp được, dù người có đồng ý bao nhiêu lần.
+
+    Bất biến không đổi: không ảnh nào được nạp mà thiếu một người duyệt ĐÚNG
+    ảnh ấy. Cái đổi là ai gõ phím lúc nạp.
+
+    Neo vào **băm NỘI DUNG ảnh**, không vào đường dẫn: đường dẫn ghi đè được,
+    nên neo vào nó thì *"duyệt ảnh này rồi nạp ảnh khác"* chỉ cần một lần ráp
+    lại xen vào giữa — và bản ghi vẫn nói có người duyệt.
+    """
+
+    def __init__(self, path) -> None:
+        self.path = Path(path)
+
+    @staticmethod
+    def digest(image) -> str:
+        return "sha256:" + hashlib.sha256(Path(image).read_bytes()).hexdigest()
+
+    def approve(self, image, *, by: str) -> "FlashApproval":
+        if not by.strip():
+            raise FlashError(
+                "Phải ghi ai duyệt lần nạp này — một quyết định không có người "
+                "chịu trách nhiệm thì không phải quyết định của con người "
+                "(FR-GATE-01, FR-DIA-02)."
+            )
+        anh = Path(image)
+        k = FlashApproval(
+            image=anh.name,
+            image_digest=self.digest(anh),
+            actor=by.strip(),
+            approved_at=_now(),
+        )
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(k.to_dict(), ensure_ascii=False) + "\n")
+        return k
+
+    def all(self) -> list["FlashApproval"]:
+        """Dòng hỏng thì BỎ QUA — hỏng chỉ được đọc thành 'chưa duyệt'."""
+        if not self.path.is_file():
+            return []
+        ra: list[FlashApproval] = []
+        for dong in self.path.read_text(encoding="utf-8").splitlines():
+            dong = dong.strip()
+            if not dong:
+                continue
+            try:
+                d = json.loads(dong)
+                ra.append(FlashApproval(
+                    image=str(d["image"]),
+                    image_digest=str(d["image_digest"]),
+                    actor=str(d["actor"]),
+                    approved_at=str(d.get("approved_at", "")),
+                ))
+            except (ValueError, KeyError, TypeError):
+                continue
+        return ra
+
+    def find(self, image) -> "FlashApproval | None":
+        anh = Path(image)
+        if not anh.is_file():
+            return None
+        bam = self.digest(anh)
+        for k in self.all():
+            if k.image_digest == bam:
+                return k
+        return None
+
+
 @dataclass
 class Flasher:
     """Nạp một ảnh firmware, sau khi kiểm và sau khi người xác nhận."""
@@ -271,6 +369,9 @@ class Flasher:
     log: FlashLog | None = None
     #: ``(tóm tắt) -> bool``. Mặc định hỏi trên terminal; không TTY thì từ chối.
     confirm: Callable[[str], bool] | None = None
+    #: Sổ duyệt ảnh nạp. ``None`` nghĩa là KHÔNG CÓ SỔ — và không có sổ thì
+    #: đường "người duyệt ngoài luồng, Agent nạp" đóng lại.
+    approvals: Any = None
     #: Nguồn để so "ảnh có mới hơn mã không".
     source_dir: Path | None = None
     source_suffixes: tuple[str, ...] = (".c", ".h")
@@ -346,11 +447,16 @@ class Flasher:
         )
         if extra_notes:
             tom_tat += "\n" + "\n".join(extra_notes)
-        if not self._hoi(tom_tat):
+        if not self._hoi(tom_tat, image=anh):
             raise FlashNotConfirmed(
                 "Chưa có xác nhận của người nên KHÔNG nạp (FR-DIA-02).\n"
                 "Phiên không có terminal cũng tính là chưa xác nhận — một phiên "
-                "không có người không được diễn giải thành một người đã đồng ý."
+                "không có người không được diễn giải thành một người đã đồng ý.\n"
+                "\n"
+                "Bạn duyệt ảnh này bằng lệnh sau, rồi chạy lại 'eaa flash':\n"
+                f"    eaa flash approve --image {anh} --actor <tên bạn>\n"
+                "Quyết định neo vào BĂM NỘI DUNG ảnh, nên ráp lại là phải "
+                "duyệt lại."
             )
 
         goc = Path(self.runner.work_dir)
@@ -450,7 +556,22 @@ class Flasher:
 
     # -- phần bên trong -----------------------------------------------------
 
-    def _hoi(self, tom_tat: str) -> bool:
+    def da_duoc_duyet(self, image) -> Any:
+        """Có ai duyệt ĐÚNG ảnh này chưa. Trả quyết định, hoặc ``None``."""
+        if self.approvals is None:
+            return None
+        return self.approvals.find(image)
+
+    def _hoi(self, tom_tat: str, image=None) -> bool:
+        # Sổ trước: đây là đường của phiên không terminal, và là đường Agent đi.
+        if image is not None:
+            k = self.da_duoc_duyet(image)
+            if k is not None:
+                print(
+                    f"\n  {k.actor} đã duyệt đúng ảnh này lúc {k.approved_at} "
+                    f"({k.image_digest[:23]}…) — nạp"
+                )
+                return True
         if self.confirm is not None:
             return bool(self.confirm(tom_tat))
         if not sys.stdin.isatty():
