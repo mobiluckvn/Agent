@@ -2077,13 +2077,53 @@ def cmd_ports(args: argparse.Namespace) -> int:
     _in_tieu_de("Cổng nối tiếp")
     print(render_ports(cong))
 
+    # Cổng nối tiếp KHÔNG phải câu hỏi duy nhất, và với nhiều bo nó còn không
+    # phải câu hỏi đúng: một bo nối máy qua mạch nạp gắn sẵn hiện ra như thiết
+    # bị USB thô, không sinh cổng nối tiếp nào. Trả lời "không cổng nào khớp"
+    # ở đó đọc thành "chưa cắm", trong khi sự thật có thể là "cắm rồi, chỉ là
+    # bo này không hiện ra cổng nối tiếp".
+    from eaa.usbdev import list_usb_devices, match_usb, render_usb
+
+    quet = match_usb(list_usb_devices(), khai)
+    _in_tieu_de("Thiết bị USB")
+    print(render_usb(quet, declared=bool(khai)))
+
+    la = _thiet_bi_la(quet, khai)
+    if la:
+        print()
+        print(f"  ⚠ Đang cắm {len(la)} thiết bị ngoài, KHÔNG cái nào khớp bo của dự án:")
+        for d in la:
+            print(f"      {d.id}  {(d.vendor + ' ' + d.name).strip() or '(không tên)'}")
+        print("    Cắm nhầm bo là chuyện xảy ra thật, và nó hỏng theo kiểu tệ:")
+        print("    mã dịch xong, nạp xong, rồi mới không chạy. Đối chiếu trước.")
+
     if not khai:
         print(
             "\nHồ sơ phần cứng chưa khai mục 'programmer.usb', nên engine không "
             "có gì để đối chiếu.\nKhai VID/PID của bo ở đó thì lệnh này nói được "
-            "cổng nào là mạch của dự án."
+            "cổng nào — và thiết bị USB nào — là mạch của dự án."
         )
     return EXIT_OK
+
+
+#: Nhà sản xuất máy tính chủ. Thiết bị của họ là bàn phím, camera, bộ điều
+#: khiển nội bộ — không phải bo người dùng vừa cắm, nên lọc ra khỏi phần cảnh
+#: báo. Đây là dữ liệu về MÁY CHỦ, không phải về phần cứng đích, nên nó không
+#: vi phạm ranh giới engine.
+_VENDOR_MAY_CHU = {"05ac", "8087", "1d6b", "0e0f", "1b1c"}
+
+
+def _thiet_bi_la(quet: Any, khai: Sequence[Any]) -> list[Any]:
+    """Thiết bị ngoài đang cắm mà không khớp phần khai của dự án.
+
+    Chỉ có nghĩa khi dự án ĐÃ khai bo của mình: chưa khai thì mọi thiết bị đều
+    "không khớp", và một cảnh báo bắn vào mọi trường hợp là một cảnh báo bị bỏ
+    qua.
+    """
+    if not khai or not getattr(quet, "usable", False):
+        return []
+    return [d for d in quet.devices
+            if not d.matched and d.vid not in _VENDOR_MAY_CHU]
 
 
 def _tham_so_nap(ctx: AppContext, hardware: Any) -> dict[str, Any]:

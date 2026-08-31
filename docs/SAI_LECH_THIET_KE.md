@@ -1517,6 +1517,23 @@ Ba loại:
 | **Đã sửa 5** | `_in_nhan_nhap()` gọi từ `_in_tom_tat`. Và nhãn giờ nêu **đích danh** những số đang giả định (`flash_bytes = … · ram_bytes = … · f_cpu_hz = …`) kèm câu "bo thật của bạn gần như chắc chắn KHÁC những số này". Nói "có giả định" thì không ai kiểm được; nói ra con số thì người đang cầm bo nhìn một cái là biết sai |
 | **Bài canh** | `tests/test_tc84_scratch_va_nap_url.py` — 22 bài |
 
+## SL-108 · LỆCH THẬT · `eaa ports` trả lời sai LOẠI câu hỏi, và không bắt được cắm nhầm bo
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7 (chẩn đoán phần cứng); EAA-SDD-03 §2 (cây thư mục) |
+| **Cách tìm** | Người dùng báo đã cắm bo. `eaa ports` trả lời *"Không cổng nào khớp bo đã khai"* — và câu ấy không trả lời được câu hỏi thật |
+| **Lỗi — "có cổng nối tiếp không" KHÁC "bo đã nhận chưa"** | `eaa ports` chỉ liệt kê cổng nối tiếp. Nhưng nhiều bo phát triển nối máy qua **mạch nạp/gỡ rối gắn sẵn trên bo**, hiện ra như một thiết bị USB thô và **không sinh cổng nối tiếp nào**. Cắm đúng, nguồn đủ, mạch nạp chạy tốt, mà `/dev/cu.*` vẫn không có gì mới |
+| **Vì sao nhập nhằng ở đây tốn kém** | *"Chưa cắm"* và *"cắm rồi nhưng bo này không có cổng nối tiếp"* dẫn tới hai việc khác hẳn: một bên đi kiểm dây và cổng, một bên đi tiếp. Đây là **bước đầu tiên chạm vào thế giới vật lý**, nên đi sai đường ở đây kéo theo cả chuỗi |
+| **Đã sửa** | `eaa/usbdev.py` — liệt kê thiết bị USB bằng lệnh sẵn có của từng hệ (`ioreg` / `lsusb` / sysfs / `Get-PnpDevice`), không thêm phụ thuộc (NFR-04). `eaa ports` in thêm mục "Thiết bị USB" và đối chiếu với `programmer.usb` của dự án |
+| **"Không kiểm được" KHÁC "không có gì"** | Không lệnh nào chạy được thì trả `UsbScan` mang mức KHÔNG KIỂM ĐƯỢC kèm lý do — **không** trả danh sách rỗng. Rỗng đọc thành "không có gì cắm", đúng câu sai module này sinh ra để tránh. Kiểm được mà thấy rỗng thì nói dứt khoát: *"bo chưa được máy nhận; đây KHÔNG phải chuyện thiếu trình điều khiển — kiểm dây, kiểm đúng cổng trên bo, kiểm nguồn"* |
+| **Thêm: bắt CẮM NHẦM BO** | Câu lệnh này chưa từng trả lời. Người dùng cắm một bo thuộc họ khác thì mã dịch xong, nạp xong, rồi mới không chạy — kiểu hỏng đắt nhất trong nhóm này. Giờ có cảnh báo nêu đích danh thiết bị lạ. Chỉ bắn khi dự án ĐÃ khai bo của mình: chưa khai thì mọi thiết bị đều "không khớp", và một cảnh báo bắn vào mọi trường hợp là một cảnh báo bị bỏ qua |
+| **Lọc thiết bị của máy chủ** | Bàn phím, camera, bộ điều khiển nội bộ không phải bo người dùng vừa cắm. Danh sách vendor ấy là dữ liệu về MÁY CHỦ, không phải về phần cứng đích, nên không vi phạm ranh giới engine |
+| **Bug tự tôi gây khi sửa** | `_bon_so()` gộp hai kiểu vào bằng một phép `isdigit()`. `ioreg` in **thập phân**, `lsusb` in **hex** — nên một chuỗi hex toàn chữ số bị đọc thành thập phân rồi in lại thành một mã khác hẳn, im lặng. Một bo đúng sẽ bị chấm là lạ, và một bo lạ có thể lọt. Đã tách hợp đồng: chuỗi = hex, số nguyên = giá trị thật |
+| **TC-38 bắt tôi hai lần** | Tôi viết mã VID thật vào ví dụ trong docstring. Ví dụ giờ dùng số bịa: mã VID/PID thật thuộc về hồ sơ dự án, không thuộc về engine |
+| **Bài canh** | `tests/test_tc85_thiet_bi_usb.py` — 16 bài |
+
+
 
 ---
 
