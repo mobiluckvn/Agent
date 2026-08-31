@@ -231,3 +231,82 @@ def test_khong_co_ten_phan_cung_cu_the_trong_module():
         encoding="utf-8").lower()
     for cam in ("stlink", "st-link", "stmicro", "atmel", "arduino", "0483", "2341"):
         assert cam not in nguon, f"engine chứa tên/mã phần cứng cụ thể: {cam}"
+
+
+# ═══════════════ --watch: thử từng cách và xem NGAY kết quả ═══════════════
+
+
+def _lan_luot(*quets):
+    """Trả một hàm giả `list_usb_devices` lần lượt trả từng lượt quét."""
+    hop = list(quets)
+
+    def _goi(**k):
+        return hop.pop(0) if len(hop) > 1 else hop[0]
+
+    return _goi
+
+
+def test_watch_bao_khi_CAM_VAO(monkeypatch, capsys):
+    """Chụp-một-lần bắt người dùng tự nhớ lần trước thấy gì. Canh thì không."""
+    import eaa.usbdev as u
+    from eaa.cli import _canh_usb
+
+    truoc = _quet(UsbDevice("05ac", "0340", "Keyboard", "Apple"))
+    sau = _quet(UsbDevice("05ac", "0340", "Keyboard", "Apple"),
+                UsbDevice("aaaa", "bbbb", "Bo vua cam", "Hang X"))
+    monkeypatch.setattr(u, "list_usb_devices", _lan_luot(truoc, sau))
+
+    _canh_usb([_Khai("1111", "2222")], timeout_s=0.3, nhip_s=0.01)
+    ra = capsys.readouterr().out
+    assert "+ CẮM VÀO" in ra and "aaaa:bbbb" in ra
+    assert "KHÔNG khớp bo đã khai" in ra, "cắm nhầm bo phải bị nói ngay lúc cắm"
+
+
+def test_watch_bao_khi_RUT_RA(monkeypatch, capsys):
+    import eaa.usbdev as u
+    from eaa.cli import _canh_usb
+
+    truoc = _quet(UsbDevice("aaaa", "bbbb", "Bo", "Hang X"))
+    sau = _quet()
+    monkeypatch.setattr(u, "list_usb_devices", _lan_luot(truoc, sau))
+
+    _canh_usb([], timeout_s=0.3, nhip_s=0.01)
+    assert "− RÚT RA" in capsys.readouterr().out
+
+
+def test_watch_bo_DUNG_thi_bao_KHOP_chu_khong_canh_bao(monkeypatch, capsys):
+    import eaa.usbdev as u
+    from eaa.cli import _canh_usb
+
+    khai = [_Khai("aaaa", "bbbb", "bo của dự án")]
+    monkeypatch.setattr(u, "list_usb_devices", _lan_luot(
+        _quet(), _quet(UsbDevice("aaaa", "bbbb", "Bo dung", "Hang X"))))
+
+    _canh_usb(khai, timeout_s=0.3, nhip_s=0.01)
+    ra = capsys.readouterr().out
+    assert "KHỚP bo của dự án" in ra
+    assert "KHÔNG khớp" not in ra
+
+
+def test_watch_khong_doi_gi_thi_noi_HAU_QUA(monkeypatch, capsys):
+    """Hết giờ mà bus không đổi là một kết luận, không phải một sự im lặng."""
+    import eaa.usbdev as u
+    from eaa.cli import _canh_usb
+
+    monkeypatch.setattr(u, "list_usb_devices", _lan_luot(_quet(UsbDevice("05ac", "0340"))))
+    _canh_usb([], timeout_s=0.05, nhip_s=0.01)
+    ra = capsys.readouterr().out
+    assert "không thấy thay đổi" in ra
+    assert "trước cả tầng trình điều khiển" in ra, "phải loại trừ nguyên nhân sai"
+    assert "đường dữ liệu" in ra, "phải nêu nguyên nhân hay gặp nhất"
+
+
+def test_watch_khong_liet_ke_duoc_thi_KHONG_canh(monkeypatch, capsys):
+    """Không đo được thì đừng bày ra một màn hình canh chẳng canh gì."""
+    import eaa.usbdev as u
+    from eaa.cli import EXIT_ENV_ERROR, _canh_usb
+
+    monkeypatch.setattr(u, "list_usb_devices",
+                        lambda **k: UsbScan(note="không chạy được lệnh nào"))
+    assert _canh_usb([], timeout_s=0.05, nhip_s=0.01) == EXIT_ENV_ERROR
+    assert "không chạy được" in capsys.readouterr().out

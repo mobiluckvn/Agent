@@ -1531,7 +1531,9 @@ Ba loại:
 | **Lọc thiết bị của máy chủ** | Bàn phím, camera, bộ điều khiển nội bộ không phải bo người dùng vừa cắm. Danh sách vendor ấy là dữ liệu về MÁY CHỦ, không phải về phần cứng đích, nên không vi phạm ranh giới engine |
 | **Bug tự tôi gây khi sửa** | `_bon_so()` gộp hai kiểu vào bằng một phép `isdigit()`. `ioreg` in **thập phân**, `lsusb` in **hex** — nên một chuỗi hex toàn chữ số bị đọc thành thập phân rồi in lại thành một mã khác hẳn, im lặng. Một bo đúng sẽ bị chấm là lạ, và một bo lạ có thể lọt. Đã tách hợp đồng: chuỗi = hex, số nguyên = giá trị thật |
 | **TC-38 bắt tôi hai lần** | Tôi viết mã VID thật vào ví dụ trong docstring. Ví dụ giờ dùng số bịa: mã VID/PID thật thuộc về hồ sơ dự án, không thuộc về engine |
-| **Bài canh** | `tests/test_tc85_thiet_bi_usb.py` — 16 bài |
+| **Thêm: `eaa ports --watch`** | Chụp-một-lần là chưa đủ khi bo không hiện ra: người dùng phải đoán giữa nhiều nguyên nhân — dây chỉ có nguồn, sai cổng trên bo, hỏng cáp chuyển, cổng máy chết — và cách duy nhất phân biệt là **thử từng cái rồi xem ngay kết quả**. Chụp một lần thì mỗi lần thử phải gõ lại lệnh và tự nhớ lần trước thấy gì. Chế độ canh chỉ ĐỌC, có hạn giờ, nên nó là một phép đo có kết thúc chứ không phải một chế độ chạy dài |
+| **Hết giờ mà bus không đổi là một KẾT LUẬN** | Không phải một sự im lặng. Lệnh nói thẳng: máy không nhận được gì mới, chuyện này xảy ra **trước cả tầng trình điều khiển**, nên đi kiểm dây có đủ đường dữ liệu chưa và đúng cổng trên bo chưa |
+| **Bài canh** | `tests/test_tc85_thiet_bi_usb.py` — 21 bài |
 
 
 

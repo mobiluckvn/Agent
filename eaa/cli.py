@@ -2070,6 +2070,10 @@ def cmd_ports(args: argparse.Namespace) -> int:
     hardware = _nap_kho(HardwareProfile.load, project / "hardware_profile.yaml")
 
     khai, goi_y = declared_usb_ids(hardware)
+
+    if getattr(args, "watch", False):
+        return _canh_usb(khai, timeout_s=args.timeout)
+
     cong = match_declared(
         list_ports(include_virtual=args.all), khai, port_hint=goi_y
     )
@@ -2111,6 +2115,70 @@ def cmd_ports(args: argparse.Namespace) -> int:
 #: báo. Đây là dữ liệu về MÁY CHỦ, không phải về phần cứng đích, nên nó không
 #: vi phạm ranh giới engine.
 _VENDOR_MAY_CHU = {"05ac", "8087", "1d6b", "0e0f", "1b1c"}
+
+
+def _canh_usb(khai: Sequence[Any], *, timeout_s: float = 120.0,
+              nhip_s: float = 1.0) -> int:
+    """Canh liên tục bus USB cho tới khi thấy đổi, hoặc hết giờ.
+
+    Vì sao một lệnh chụp-một-lần là chưa đủ
+    ----------------------------------------
+
+    Khi bo không hiện ra, người dùng phải đoán giữa nhiều nguyên nhân — dây chỉ
+    có nguồn, sai cổng trên bo, hỏng cáp chuyển, cổng máy chết. Cách duy nhất
+    phân biệt là **thử từng cái và xem ngay kết quả**, mà chụp một lần thì mỗi
+    lần thử lại phải gõ lại lệnh và tự nhớ lần trước thấy gì.
+
+    Chỗ này chỉ ĐỌC, không đổi gì trên máy, và có hạn giờ — nên nó không phải
+    một chế độ chạy dài mà là một phép đo có kết thúc.
+    """
+    import time
+
+    from eaa.usbdev import list_usb_devices, match_usb
+
+    def _chup() -> tuple[UsbScanKieu, frozenset]:
+        q = match_usb(list_usb_devices(), khai)
+        return q, frozenset((d.vid, d.pid) for d in q.devices)
+
+    dau, truoc = _chup()
+    if not dau.usable:
+        print(dau.note)
+        return EXIT_ENV_ERROR
+
+    _in_tieu_de("Canh cổng USB")
+    print(f"  Đang thấy {len(truoc)} thiết bị. Rút/cắm bo đi — tôi báo ngay khi đổi.")
+    print(f"  Dừng bằng Ctrl-C, hoặc tự hết sau {timeout_s:.0f} giây.")
+    print()
+
+    het = time.monotonic() + timeout_s
+    try:
+        while time.monotonic() < het:
+            time.sleep(nhip_s)
+            nay, sau = _chup()
+            if sau == truoc:
+                continue
+            for d in nay.devices:
+                if (d.vid, d.pid) not in truoc:
+                    dau_hieu = "  ← KHỚP bo của dự án" if d.matched else ""
+                    print(f"  + CẮM VÀO   {d.id}  "
+                          f"{(d.vendor + ' ' + d.name).strip() or '(không tên)'}{dau_hieu}")
+                    if not d.matched and khai and d.vid not in _VENDOR_MAY_CHU:
+                        print("              ⚠ KHÔNG khớp bo đã khai trong hồ sơ dự án")
+            for v, p in truoc - sau:
+                print(f"  − RÚT RA    {v}:{p}")
+            truoc = sau
+    except KeyboardInterrupt:
+        print("\n  (dừng theo yêu cầu)")
+    else:
+        print(f"\n  Hết {timeout_s:.0f} giây, không thấy thay đổi nào.")
+        print("  Bus USB không đổi nghĩa là máy KHÔNG nhận được gì mới — chuyện")
+        print("  này xảy ra trước cả tầng trình điều khiển, nên kiểm dây có đủ")
+        print("  đường dữ liệu chưa, và kiểm đúng cổng trên bo.")
+    return EXIT_OK
+
+
+#: Kiểu trả về của lượt quét; khai riêng để chú thích không phải nạp module sớm.
+UsbScanKieu = Any
 
 
 def _thiet_bi_la(quet: Any, khai: Sequence[Any]) -> list[Any]:
@@ -5389,6 +5457,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_ports.add_argument(
         "--all", action="store_true", help="Kể cả cổng ảo (Bluetooth, debug console)"
+    )
+    p_ports.add_argument(
+        "--watch", action="store_true",
+        help="Canh liên tục: rút/cắm bo và xem thay đổi ngay, thay vì chụp một lần",
+    )
+    p_ports.add_argument(
+        "--timeout", type=float, default=120.0, metavar="<giây>",
+        help="Hạn giờ cho --watch (mặc định 120)",
     )
     p_ports.set_defaults(func=cmd_ports)
 
