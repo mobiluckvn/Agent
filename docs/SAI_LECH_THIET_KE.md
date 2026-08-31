@@ -1481,6 +1481,23 @@ Ba loại:
 | **`--at`** | Mốc thời gian truyền vào chứ không tự lấy: dựng lại từ cùng dữ liệu phải ra cùng nội dung, nếu không thì không so được hai bản |
 | **Bài canh** | `tests/test_tc82_tai_lieu_thiet_ke.py` |
 
+## SL-106 · LỆCH THẬT (×2) · Câu trả lời "cần người làm gì" thiếu mất chuyện thiếu công cụ
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §9.2 (doctor); SL-82 (`eaa focus`); N-022 |
+| **Cách tìm** | Phiên kiểm có người đứng giữa: người dùng ra yêu cầu, tôi chuyển cho Agent, Agent đòi gì thì tôi báo lại. Câu hỏi mở đầu — *"có việc gì BẮT BUỘC cần con người làm trước khi bạn sinh mã được?"* |
+| **Lỗi 1 — Agent trả lời ĐÚNG nhưng THIẾU** | Nó chạy `eaa status`, rồi nêu **2 trong 3** việc: phân xử xung đột chân, duyệt G1. Bỏ mất chuyện máy thiếu cả **5** công cụ toolchain, nên mọi cổng kiểm chứng đều không chạy được. Hỏi lại lần hai và ép nó kiểm thì nó gọi `capabilities` và nêu đủ — **năng lực CÓ, chỉ là nó không nghĩ tới** |
+| **Lỗi 2 — `eaa focus` cũng thiếu đúng chặng ấy** | Nặng hơn, vì lệnh này hứa "cả quãng đường, một lần". Nó in `✓ Chuỗi kiểm chứng đủ cổng` trong khi 5 công cụ chạy chuỗi ấy không tồn tại: nó kiểm Platform Pack **khai đủ cổng** chưa, không kiểm công cụ **có trên máy** không. Hai câu hỏi khác nhau; trả lời câu thứ nhất rồi tích xanh là trả lời nhầm câu |
+| **Hệ quả nếu không sửa** | Người dùng đọc dấu tích, đi duyệt G1, chờ sinh mã — rồi mới đâm vào đúng bức tường mà lệnh này sinh ra để báo trước |
+| **Sửa bằng CẤU TRÚC, không bằng lời dặn** | Cách hiển nhiên là dặn Agent "nhớ gọi thêm `capabilities`". Lời dặn ấy đúng cho câu hỏi này và trượt ở câu diễn đạt khác — mà số cách diễn đạt thì vô hạn. `eaa status` là **đường tắt hấp dẫn** vì nó trông như đã trả lời, nên chỗ sửa là chính nó: cho bản tóm tắt nói ra công cụ còn thiếu thì đường tắt cũng thành đường đúng, cho cả Agent lẫn người đọc |
+| **Đã sửa** | `_in_cong_cu_thieu()` trong `eaa/cli.py`, gọi từ `_in_tom_tat` — nêu tên công cụ, cổng bị chặn, **hậu quả** ("chưa merge được"), và `→ CẦN BẠN: eaa doctor --fix`. Đặt TRƯỚC bảng gate: cái chặn cứng phải hiện trước cái chờ quyết định. `analyse()` trong `eaa/focus.py` nhận thêm `missing_tools` và sinh chặng "Công cụ chạy được các cổng ấy", thuộc `NGƯỜI` vì cài đặt đổi máy người dùng (N-022) |
+| **Giữ kỷ luật của `focus.py`** | Nó vẫn **không tự đi dò** — CLI hỏi doctor rồi truyền xuống. Hai bộ dò công cụ ở hai chỗ thì cái lỏng hơn luôn là cái được tin. TC-83 quét `focus.py` và đỏ nếu thấy `shutil.which` / `subprocess` / `Doctor(` |
+| **Im lặng khi đủ** | Không in dòng "mọi thứ ổn". Một dòng như thế lặp ở mọi bản tóm tắt sẽ bị mắt bỏ qua, và lúc nó đổi thành cảnh báo thì cũng bị bỏ qua nốt |
+| **Kiểm lại bằng chính câu hỏi cũ** | Hỏi Agent y nguyên câu ban đầu. Cùng một lệnh `status`, giờ nó nêu **đủ 3 việc** và tách riêng phần "lệnh bạn cần tự chạy (tôi không được phép)" |
+| **Kèm theo** | Một bài TC-72 cũ dò chặng theo **chỉ số** `preconditions[1]` nên vỡ khi thêm chặng mới. Đổi sang dò theo tên — chỉ số vào một danh sách còn dài ra là cách viết sẽ vỡ lại |
+| **Bài canh** | `tests/test_tc83_san_sang_day_du.py` — 9 bài |
+
 
 ---
 

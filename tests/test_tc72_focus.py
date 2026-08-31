@@ -63,10 +63,22 @@ def test_lo_trinh_luon_la_suy_ra_khong_phai_da_kiem():
 # ══════════════════════════ chặng: chuỗi cổng ══════════════════════════
 
 
+def _chang(lo, chua: str):
+    """Tìm chặng theo TÊN, không theo vị trí.
+
+    Dò theo chỉ số làm bài kiểm vỡ mỗi lần thêm một chặng mới — và chặng mới
+    là thứ sẽ còn thêm. Lần vỡ gần nhất: thêm chặng "công cụ chạy được các
+    cổng ấy" đẩy mọi chỉ số phía sau lệch một.
+    """
+    ds = [q for q in lo.preconditions if chua in q.name]
+    assert len(ds) == 1, f"mong đúng một chặng chứa {chua!r}, có {len(ds)}"
+    return ds[0]
+
+
 def test_thieu_cong_kiem_chung_thi_chan_va_chi_sang_pack():
     lo = analyse(module_id="drv_i2c", state=_san_sang(),
                  missing_chain_gates=["static", "unittests"])
-    p = lo.preconditions[0]
+    p = _chang(lo, "Chuỗi kiểm chứng")
     assert p.met is False and p.who == NGUOI
     assert "static" in p.detail
     assert "sửa pack, không sửa engine" in p.reason
@@ -113,7 +125,7 @@ def test_moi_gate_deu_thuoc_ve_NGUOI_khong_ngoai_le():
 def test_da_qua_pha_D_thi_noi_ro_khong_lui_duoc():
     lo = analyse(module_id="drv_i2c",
                  state=_State(phase="F", backlog=[_Muc("drv_i2c")]))
-    p = lo.preconditions[1]
+    p = _chang(lo, "pha D")
     assert p.met is False and p.who == NGUOI
     assert "không lùi pha được" in p.detail
 

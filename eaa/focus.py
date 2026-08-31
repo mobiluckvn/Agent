@@ -195,6 +195,7 @@ def analyse(
     state: Any,
     gate_purpose: dict[str, str] | None = None,
     missing_chain_gates: Sequence[str] = (),
+    missing_tools: Sequence[tuple[str, Sequence[str]]] = (),
     conflicts: Sequence[Any] = (),
     readiness_error: str = "",
     budget_error: str = "",
@@ -224,6 +225,30 @@ def analyse(
         ))
     else:
         muc.append(Precondition("Chuỗi kiểm chứng đủ cổng", DAT))
+
+    # -- 1b. công cụ chạy các cổng ấy có trên MÁY NÀY không -----------------
+    #
+    # Chặng này từng thiếu, và thiếu đúng ở chỗ đau nhất: lệnh này hứa "cả
+    # quãng đường, một lần". Người dùng đọc thấy chuỗi kiểm chứng có dấu tích,
+    # đi duyệt G1, chờ sinh mã — rồi mới đâm vào bức tường mà chính lệnh này
+    # sinh ra để báo trước.
+    #
+    # "Pack khai đủ cổng" và "máy này chạy được các cổng ấy" là hai câu hỏi
+    # khác nhau. Trả lời câu thứ nhất rồi tích xanh là trả lời nhầm câu.
+    if missing_tools:
+        ten = ", ".join(t for t, _ in missing_tools)
+        cong = sorted({c for _, cs in missing_tools for c in cs})
+        chi_tiet = f"thiếu {ten} trên máy này"
+        if cong:
+            chi_tiet += f" — chặn cổng {', '.join(cong)}"
+        muc.append(Precondition(
+            "Công cụ chạy được các cổng ấy", CHUA, chi_tiet,
+            fix=("doctor", "--fix"), who=NGUOI,
+            reason="Cài đặt đổi máy của bạn, nên nó luôn cần chính bạn xác nhận "
+                   "từng lệnh (N-022).",
+        ))
+    else:
+        muc.append(Precondition("Công cụ chạy được các cổng ấy", DAT))
 
     # -- 2. pha, và các gate phải duyệt để tới được pha D -------------------
     pha = getattr(state, "phase", "")

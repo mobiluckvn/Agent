@@ -235,6 +235,25 @@ def _troi_rang_buoc(state: ProjectState, project: Path) -> str:
     )
 
 
+def _in_cong_cu_thieu(project: Path) -> None:
+    """In công cụ ngoài bắt buộc còn thiếu, kèm cổng chúng chặn.
+
+    Im lặng khi đủ — một dòng "mọi thứ ổn" lặp ở mọi bản tóm tắt sẽ bị mắt bỏ
+    qua, và lúc nó đổi thành cảnh báo thì cũng bị bỏ qua nốt.
+    """
+    thieu = [b for b in _tao_doctor(project).scan() if b.blocking]
+    if not thieu:
+        return
+    cong = sorted({c for b in thieu for c in b.spec.gates})
+    print()
+    print(f"  ⚠ {len(thieu)} công cụ bắt buộc chưa có: "
+          f"{', '.join(b.spec.name for b in thieu)}")
+    if cong:
+        print(f"    Các cổng {', '.join(cong)} KHÔNG chạy được cho tới khi khắc phục,")
+        print("    nên mã sinh ra chưa kiểm chứng được và chưa merge được.")
+    print("    → CẦN BẠN:  eaa doctor --fix")
+
+
 def _in_tom_tat(state: ProjectState, project: Path) -> int:
     _in_tieu_de(f"Dự án: {project.name}  ({project})")
     print(f"Pha hiện tại : {state.phase} — {PHASE_NAMES[state.phase]}")
@@ -253,6 +272,21 @@ def _in_tom_tat(state: ProjectState, project: Path) -> int:
             _nap_kho(HardwareProfile.load, project / HARDWARE_PROFILE_FILE)
         )
     except Exception:  # noqa: BLE001 - hồ sơ hỏng không được chặn bản tóm tắt
+        pass
+
+    # Công cụ ngoài còn thiếu cũng phải hiện ở đây, cùng lý do với xung đột.
+    #
+    # Chỗ này từng thiếu, và nó hỏng theo đường vòng: 'status' là bản tóm tắt
+    # ai cũng đọc đầu tiên, kể cả Agent khi được hỏi "cần người làm gì trước
+    # khi bạn sinh mã được". Nó đọc status, thấy đủ thứ trừ chuyện thiếu
+    # toolchain, rồi trả lời tự tin và THIẾU. Câu trả lời ấy không sai chỗ nào
+    # kiểm được — nó chỉ bỏ mất một nửa.
+    #
+    # Sửa bằng cách bắt Agent gọi thêm lệnh khác là sửa bằng lời dặn. Sửa bằng
+    # cách để chính bản tóm tắt nói ra thì đường tắt cũng thành đường đúng.
+    try:
+        _in_cong_cu_thieu(project)
+    except Exception:  # noqa: BLE001 - không dò được thì im, đừng báo nhầm là ĐỦ
         pass
 
     _in_tieu_de("Human Gate")
@@ -3942,6 +3976,16 @@ def cmd_focus(args: argparse.Namespace) -> int:
     }
     thieu_cong = [c for c in OrchestratorConfig().required_gates if c not in ten_cong]
 
+    # Công cụ ngoài: hỏi doctor chứ không tự dò. Hai bộ dò công cụ lệch nhau
+    # thì cái lỏng hơn luôn là cái được tin.
+    thieu_cong_cu: list[tuple[str, tuple[str, ...]]] = []
+    try:
+        for bc in _tao_doctor(project).scan():
+            if bc.blocking:
+                thieu_cong_cu.append((bc.spec.name, tuple(bc.spec.gates)))
+    except Exception:  # noqa: BLE001 - không dò được thì im, đừng báo nhầm là ĐỦ
+        thieu_cong_cu = []
+
     muc = state.module(args.module_id)
     xung_dot: list = []
     loi_tri_thuc = ""
@@ -3963,6 +4007,7 @@ def cmd_focus(args: argparse.Namespace) -> int:
         state=state,
         gate_purpose=GATE_PURPOSE,
         missing_chain_gates=thieu_cong,
+        missing_tools=thieu_cong_cu,
         conflicts=xung_dot,
         readiness_error=loi_tri_thuc,
     )
