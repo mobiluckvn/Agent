@@ -1459,6 +1459,23 @@ Ba loại:
 | **Ghi nhận** | Một ca test tôi viết SAI (C-04 dùng `eaa status`, lệnh không nạp constraints) lại là chỗ tìm ra lỗi 2. Nếu nó đạt ngay từ đầu thì đã không ai hỏi vì sao `status` in được một băm từ một tệp hỏng |
 | **Bài canh** | `tests/test_tc81_ca_xau.py` — 14 bài; `scripts/chay_ca_xau.py` — 15 ca, chạy lại được |
 
+## SL-105 · BỔ SUNG · Sinh tài liệu thiết kế: `eaa/docmodel.py`, `eaa/office.py`, `eaa/designdoc.py`, lệnh `eaa design`
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §8.5 (kho phẩm xuất); EAA-SDD-03 §2 (cây thư mục), §6 (danh sách lệnh) |
+| **Vì sao thêm** | AIS §8.5 chốt có kho phẩm xuất nhưng chưa nói ai **dựng** ra phẩm xuất dạng tài liệu thiết kế. Yêu cầu: URD, SRS, SDD theo chuẩn 4C, danh sách chức năng, luồng nghiệp vụ — ra `.docx`, `.xlsx`, `.pptx`, `.pdf` |
+| **"Chuẩn 4C" đọc là mô hình C4** | Context / Container / Component / Code (Simon Brown). Đã hỏi và người dùng xác nhận. SDD trình bày đúng bốn mức ấy, mỗi mức trả lời một câu hỏi và chỉ một |
+| **CỐ Ý KHÔNG hỏi mô hình một chữ nào** | Toàn bộ nội dung rút từ hồ sơ dự án đã có. Một tài liệu thiết kế do mô hình viết **đọc rất hay và không truy được về đâu cả**: nó điền đầy mọi mục kể cả mục dự án chưa có dữ liệu, và người đọc không phân biệt được đâu là sự thật của dự án, đâu là văn mẫu. Với tài liệu thiết kế đó là hỏng hoàn toàn, vì công dụng duy nhất của nó là **được tin** |
+| **Mục thiếu dữ liệu thì NÓI RA** | Không để trống. Một mục trống trong SRS đọc như "mục này không cần", trong khi thật ra là "chưa ai điền" — hai câu khác hẳn nhau. Mỗi chỗ thiếu kèm đúng lệnh phải chạy để có, và phụ lục đếm lại tổng số |
+| **Khuôn mẫu là DỮ LIỆU** | `eaa/docspec/*.yaml` — 5 khuôn mẫu. Cấu trúc một tài liệu thiết kế là thứ mỗi đơn vị mỗi khác; nhúng cứng vào mã là đúng cho đúng một nơi. Mã chỉ cấp dữ liệu (`NGUON`, 23 bộ), khuôn mẫu nêu tên chúng. Khuôn mẫu nêu một tên chưa khai thì tài liệu nói thẳng là thiếu bộ cấp dữ liệu, không im lặng bỏ mục |
+| **Ba lớp, một bản vẽ nhiều định dạng** | `docmodel.py` (mô hình không biết định dạng) → `office.py` (bộ xuất). Không có lớp giữa thì "SRS gồm những mục gì" bị chép ra bốn bản, và bản thứ tư sẽ bị quên. Mô hình cố ý **nghèo** — không màu, không lề, không font: đủ giàu để tả mọi thứ Word làm được thì chính nó thành một định dạng tài liệu, và lúc dịch sang PowerPoint lại phải bỏ gần hết |
+| **Tự dựng OOXML, không thêm phụ thuộc (NFR-04)** | `.docx` và `.pptx` dựng bằng `zipfile` + XML. `.xlsx` qua `openpyxl` (đã là phụ thuộc dev) vì định dạng bảng tính có nhiều bẫy hơn hẳn — tự dựng ở đó là chuốc rủi ro để đổi lấy đúng số không. Mọi chỗ chèn chữ qua `_thoat()`: một dấu `&` trong tên linh kiện là đủ để tệp không mở được, và trình mở chỉ báo "tệp hỏng" chứ không báo dòng nào sai |
+| **`.pdf` KHÔNG tự dựng** | Sinh PDF có bố cục cần bộ dàn trang. Tự viết là viết một nửa bộ dàn trang, và một nửa cho ra tài liệu **trông như đã hỏng** thay vì hỏng hẳn. Đường đi: sinh `.docx` rồi nhờ LibreOffice chuyển — công cụ ngoài, dò trước khi dùng, thiếu thì nói cách cài |
+| **Chưa kiểm được nhánh PDF** | Máy phát triển không có LibreOffice. `.docx`/`.pptx`/`.xlsx` đã kiểm bằng `textutil` và Quick Look của macOS (mở được, chữ có dấu đúng, bảng có viền, ghi chú có màu). Nhánh PDF mới chỉ kiểm phần dò công cụ và thông điệp khi thiếu |
+| **`--at`** | Mốc thời gian truyền vào chứ không tự lấy: dựng lại từ cùng dữ liệu phải ra cùng nội dung, nếu không thì không so được hai bản |
+| **Bài canh** | `tests/test_tc82_tai_lieu_thiet_ke.py` |
+
 
 ---
 

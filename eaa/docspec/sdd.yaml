@@ -1,0 +1,57 @@
+# SDD — Thiết kế chi tiết, trình bày theo bốn mức của mô hình C4.
+kind: sdd
+title: Tài liệu thiết kế phần mềm
+short: SDD
+standard: Mô hình C4 (Context / Container / Component / Code) — Simon Brown
+purpose: >-
+  Nói hệ thống được LÀM RA THẾ NÀO. Bốn mức C4 đi từ ngoài vào trong, mỗi mức
+  trả lời một câu hỏi và chỉ một câu.
+
+sections:
+  - title: 1. Tổng quan thiết kế
+    level: 1
+    nguon: tong_quan
+
+  - title: 2. C1 — Bối cảnh
+    level: 1
+    dan: >-
+      Câu hỏi mức này trả lời: hệ thống này là gì, ai dùng nó, và nó nối với
+      những gì bên ngoài. Không có chi tiết bên trong ở đây.
+    nguon: c1_boi_canh
+
+  - title: 3. C2 — Container
+    level: 1
+    dan: >-
+      Câu hỏi: hệ thống gồm những khối chạy được nào, mỗi khối chạy ở đâu, và
+      chúng nói chuyện với nhau bằng gì. Với một hệ nhúng, "container" là ảnh
+      firmware trên chip, bộ công cụ trên máy chủ, và kho dữ liệu của dự án.
+    nguon: c2_container
+
+  - title: 4. C3 — Thành phần
+    level: 1
+    dan: >-
+      Câu hỏi: bên trong ảnh firmware có những khối nào, mỗi khối chịu trách
+      nhiệm gì, và khối nào phụ thuộc khối nào.
+    nguon: c3_thanh_phan
+
+  - title: 5. C4 — Mã
+    level: 1
+    dan: >-
+      Câu hỏi: mỗi thành phần hiện ra trong mã như thế nào. Mức này thường bỏ
+      qua trong C4 vì mã tự nói; ở đây giữ lại phần hợp đồng gọi, thứ mã
+      KHÔNG tự nói được cho người đọc chưa mở mã.
+    nguon: c4_ma
+
+  - title: 6. Quyết định thiết kế
+    level: 1
+    dan: >-
+      Chọn gì, và bỏ gì để chọn được cái ấy.
+    nguon: quyet_dinh
+
+  - title: 7. Ngân sách tài nguyên
+    level: 1
+    nguon: ngan_sach
+
+  - title: 8. An toàn và chế độ hỏng
+    level: 1
+    nguon: an_toan

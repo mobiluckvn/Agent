@@ -1,0 +1,64 @@
+# SRS — Đặc tả yêu cầu phần mềm. Xem đầu urd.yaml về vì sao khuôn mẫu là dữ liệu.
+kind: srs
+title: Đặc tả yêu cầu phần mềm
+short: SRS
+standard: Rút gọn theo IEEE 830 / ISO-IEC-IEEE 29148 §9.5
+purpose: >-
+  Nói hệ thống PHẢI LÀM GÌ, đủ chính xác để kiểm được, và không nói làm bằng
+  cách nào. Ranh giới ấy là điểm phân biệt SRS với SDD.
+
+sections:
+  - title: 1. Giới thiệu
+    level: 1
+    dan: >-
+      Phạm vi, đối tượng đọc, và quan hệ với các tài liệu khác của dự án.
+    nguon: tong_quan
+
+  - title: 2. Mô tả chung
+    level: 1
+    dan: >-
+      Hệ thống trong môi trường của nó, và những thứ nó phải nói chuyện cùng.
+    nguon: c1_boi_canh
+
+  - title: 3. Yêu cầu chức năng
+    level: 1
+    dan: >-
+      Mỗi module trong backlog là một nhóm yêu cầu chức năng. Mã yêu cầu dùng
+      chính mã module để truy vết được hai chiều.
+    nguon: yeu_cau_chuc_nang
+
+  - title: 4. Giao diện
+    level: 1
+    dan: >-
+      Giao diện phần cứng (chân, bus, ngoại vi) và giao diện giữa các module.
+    nguon: giao_dien
+
+  - title: 5. Yêu cầu phi chức năng
+    level: 1
+    dan: >-
+      Thời gian đáp ứng, ngân sách bộ nhớ, và các giới hạn định lượng khác.
+    nguon: yeu_cau_phi_chuc_nang
+
+  - title: 6. Ràng buộc thiết kế
+    level: 1
+    dan: >-
+      Những thứ bị cấm dùng và quy ước bắt buộc. Đây là chỗ SRS được phép
+      chạm tới cách làm, vì chúng là ràng buộc chứ không phải lựa chọn.
+    nguon: rang_buoc_cung
+
+  - title: 7. An toàn và chế độ hỏng
+    level: 1
+    dan: >-
+      Hỏng thế nào, và hệ thống phải làm gì khi hỏng.
+    nguon: an_toan
+
+  - title: 8. Tiêu chí nghiệm thu và cách đo
+    level: 1
+    nguon: tieu_chi_nghiem_thu
+
+  - title: 9. Ma trận truy vết
+    level: 1
+    dan: >-
+      Yêu cầu nào ứng với module nào, module ấy đang ở trạng thái gì, và cổng
+      nào đã duyệt nó.
+    nguon: ma_tran_truy_vet

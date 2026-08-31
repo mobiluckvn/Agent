@@ -171,6 +171,11 @@ TOOLBOX: tuple[Tool, ...] = (
     Tool(("errata", "show"), "Lỗi chip đã công bố và module nào chạm vào"),
     Tool(("datasheet", "list"), "Trích đoạn tài liệu trong kho và trạng thái duyệt"),
     Tool(("docs", "list"), "Phẩm xuất đã đăng ký"),
+    Tool(("design", "list"), "Khuôn mẫu tài liệu thiết kế và định dạng xuất được"),
+    # Dựng tài liệu chỉ đọc hồ sơ dự án rồi ghi ra artifacts/ — không đụng gate,
+    # không đụng thiết bị, và không hỏi mô hình chữ nào. Cùng hạng với 'report'.
+    Tool(("design", "gen"), "Dựng URD/SRS/SDD/danh sách chức năng/luồng nghiệp vụ "
+                            "từ hồ sơ dự án", takes="loại tài liệu [--format md|docx|xlsx|pptx|pdf]"),
     Tool(("diagnose", "list"), "Thư viện kịch bản chẩn đoán của dự án"),
     Tool(("diagnose", "select"), "Chọn kịch bản từ triệu chứng", takes="mô tả triệu chứng"),
     Tool(("diagnose", "measure"), "Hướng dẫn đo bằng dụng cụ", takes="mã kịch bản"),

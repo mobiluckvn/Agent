@@ -453,6 +453,86 @@ def cmd_policy(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_design_list(args: argparse.Namespace) -> int:
+    """Khuôn mẫu tài liệu thiết kế đang có (AIS §8.5)."""
+    from eaa.confidence import DA_KIEM, header
+    from eaa.designdoc import SPEC_DIR, list_specs
+    from eaa.office import DINH_DANG
+
+    ds = list_specs()
+    _in_tieu_de(f"Khuôn mẫu tài liệu thiết kế ({len(ds)})")
+    print(header(DA_KIEM))
+    print()
+    for s in ds:
+        print(f"  {s.kind:<12} {s.short:<5} {s.title}")
+        if s.standard:
+            print(f"               theo: {s.standard}")
+        print(f"               {len(s.sections)} mục · mặc định .{s.mac_dinh_dinh_dang}")
+        print()
+    print("── Định dạng xuất được")
+    for k, v in DINH_DANG.items():
+        print(f"  {k:<6} {v}")
+    print()
+    print(f"Khuôn mẫu là DỮ LIỆU, ở {SPEC_DIR}. Sửa cấu trúc một tài liệu là sửa")
+    print("tệp YAML tương ứng — không phải sửa mã, không phải chạy lại test.")
+    print()
+    print("  eaa design gen srs --format docx")
+    return EXIT_OK
+
+
+def cmd_design_gen(args: argparse.Namespace) -> int:
+    """Dựng một tài liệu thiết kế từ hồ sơ dự án (AIS §8.5).
+
+    Không hỏi mô hình một chữ nào — xem phần đầu ``eaa/designdoc.py``.
+    """
+    from datetime import datetime, timezone
+
+    from eaa.designdoc import DesignDocError, build, load_spec
+    from eaa.office import DINH_DANG, OfficeError, ThieuCongCu, write
+
+    project = resolve_project(args.project)
+    try:
+        spec = load_spec(args.kind)
+    except DesignDocError as exc:
+        raise CliError(str(exc)) from None
+
+    dinh_dang = (args.format or spec.mac_dinh_dinh_dang).lower()
+    if dinh_dang not in DINH_DANG:
+        raise CliError(
+            f"Chưa xuất được định dạng {dinh_dang!r}. Đang có: "
+            + ", ".join(sorted(DINH_DANG))
+        )
+
+    luc = args.at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    try:
+        doc = build(spec, project, created_at=luc)
+    except DesignDocError as exc:
+        raise CliError(str(exc)) from None
+
+    if args.out:
+        dich = Path(args.out)
+    else:
+        thu_muc = project / "artifacts"
+        dich = thu_muc / f"{spec.kind}_{project.name}.{dinh_dang}"
+
+    try:
+        p = write(doc, dich, fmt=dinh_dang)
+    except ThieuCongCu as exc:
+        raise CliError(str(exc)) from None
+    except OfficeError as exc:
+        raise CliError(str(exc)) from None
+
+    print(f"Đã ghi {p}  ({p.stat().st_size:,} byte)".replace(",", "."))
+    print(f"  {len(doc.headings)} mục · {len(doc.blocks)} khối")
+    thieu = [b for b in doc.blocks
+             if getattr(b, "level", "") and "Chưa có dữ liệu" in getattr(b, "text", "")]
+    if thieu:
+        print(f"  ⚠ {len(thieu)} mục chưa có dữ liệu — từng mục trong tài liệu đã")
+        print("    nói rõ chạy lệnh gì để có. Chúng KHÔNG bị để trống: một mục")
+        print("    trống đọc như 'không cần', trong khi thật ra là 'chưa ai điền'.")
+    return EXIT_OK
+
+
 def cmd_models(args: argparse.Namespace) -> int:
     """Danh mục mô hình — người chọn, hệ không tự chọn (AIS §2).
 
@@ -4646,6 +4726,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     sub = parser.add_subparsers(dest="command", metavar="<lệnh>")
+
+    p_design = sub.add_parser(
+        "design",
+        help="Dựng tài liệu thiết kế từ hồ sơ dự án: URD, SRS, SDD, chức năng, luồng",
+    )
+    s_design = p_design.add_subparsers(dest="hanh_dong", metavar="<hành động>")
+    p_dl = s_design.add_parser("list", help="Khuôn mẫu và định dạng đang có")
+    p_dl.set_defaults(func=cmd_design_list)
+    p_dg = s_design.add_parser("gen", help="Dựng một tài liệu")
+    p_dg.add_argument("kind", help="Loại tài liệu: urd, srs, sdd, chuc_nang, luong")
+    p_dg.add_argument("--format", default="", metavar="<md|docx|xlsx|pptx|pdf>",
+                      help="Định dạng xuất; bỏ trống thì lấy mặc định của khuôn mẫu")
+    p_dg.add_argument("--out", default="", help="Đường dẫn tệp ra")
+    p_dg.add_argument(
+        "--at", default="",
+        help="Mốc thời gian ghi vào tài liệu. Nêu nó thì hai lần dựng từ cùng "
+             "dữ liệu ra hai tệp so sánh được với nhau",
+    )
+    p_dg.set_defaults(func=cmd_design_gen)
+    p_design.set_defaults(func=cmd_design_list)
 
     p_models = sub.add_parser(
         "models",

@@ -1,0 +1,26 @@
+# Danh sách chức năng — chủ yếu là bảng, nên định dạng tự nhiên của nó là .xlsx.
+kind: chuc_nang
+title: Danh sách chức năng
+short: FL
+standard: Bảng chức năng — mỗi dòng một chức năng, truy vết được về module
+purpose: >-
+  Một bảng để lọc, sắp xếp và đếm. Khác SRS ở chỗ SRS giải thích, còn bảng này
+  đếm được.
+mac_dinh_dinh_dang: xlsx
+
+sections:
+  - title: Danh sách chức năng
+    level: 1
+    nguon: bang_chuc_nang
+
+  - title: Bảng chân và ngoại vi
+    level: 1
+    nguon: bang_chan
+
+  - title: Ma trận truy vết
+    level: 1
+    nguon: ma_tran_truy_vet
+
+  - title: Ngân sách tài nguyên
+    level: 1
+    nguon: ngan_sach

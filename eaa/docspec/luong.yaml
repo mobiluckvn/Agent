@@ -1,0 +1,34 @@
+# Luồng nghiệp vụ — trình tự việc, ai làm, cổng nào chặn.
+kind: luong
+title: Luồng nghiệp vụ
+short: BPM
+standard: Mô tả trình tự kèm điểm quyết định của con người
+purpose: >-
+  Vẽ ra đường đi của một việc từ lúc nhận tới lúc xong, và nêu đích danh chỗ
+  nào một con người phải quyết định. Chỗ ấy không tự động hóa được, và một
+  luồng giấu nó đi là một luồng nói dối.
+
+sections:
+  - title: 1. Vòng đời một module
+    level: 1
+    dan: >-
+      Trình tự từ lúc một module vào backlog tới lúc nó nằm trong firmware.
+    nguon: luong_module
+
+  - title: 2. Các cổng con người
+    level: 1
+    dan: >-
+      Mỗi cổng chặn cái gì, ai mở được, và mở bằng lệnh nào.
+    nguon: luong_cong
+
+  - title: 3. Hiện trạng dự án
+    level: 1
+    dan: >-
+      Dự án đang đứng ở đâu trên luồng ấy.
+    nguon: hien_trang
+
+  - title: 4. Luồng xử lý khi hỏng
+    level: 1
+    dan: >-
+      Vòng tự sửa, trần số lần, và chỗ bàn giao lại cho người.
+    nguon: luong_hong

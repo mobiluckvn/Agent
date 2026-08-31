@@ -1,0 +1,62 @@
+# URD — Tài liệu yêu cầu người dùng.
+#
+# Khuôn mẫu là DỮ LIỆU. Đổi một mục, đổi thứ tự, thêm một mục mới đều là sửa
+# tệp này — không phải sửa mã, không phải chạy lại test. Đó là điểm: cấu trúc
+# một tài liệu thiết kế là thứ mỗi đơn vị mỗi khác, và một cấu trúc nhúng cứng
+# trong mã sẽ đúng cho đúng một nơi.
+#
+# Mỗi mục nêu `nguon` — tên một bộ cấp dữ liệu trong eaa/designdoc.py. Bỏ trống
+# `nguon` thì mục chỉ có phần `dan` (lời dẫn) và một chỗ chờ người điền.
+
+kind: urd
+title: Tài liệu yêu cầu người dùng
+short: URD
+standard: Rút gọn theo ISO/IEC/IEEE 29148 §9.3 (StRS)
+purpose: >-
+  Nói bài toán từ phía người dùng: họ cần gì, trong hoàn cảnh nào, và thế nào
+  là xong. KHÔNG nói cách làm — cách làm là việc của SRS và SDD.
+
+sections:
+  - title: 1. Mục đích và phạm vi
+    level: 1
+    dan: >-
+      Tài liệu này mô tả nhu cầu của người dùng đối với hệ thống nhúng nêu
+      dưới đây. Nó được dựng tự động từ hồ sơ dự án; mọi số liệu đều truy được
+      về tệp nguồn.
+    nguon: tong_quan
+
+  - title: 2. Các bên liên quan
+    level: 1
+    dan: >-
+      Ai đụng tới hệ thống này, và đụng ở khâu nào.
+    nguon: cac_ben
+
+  - title: 3. Bối cảnh hệ thống
+    level: 1
+    dan: >-
+      Hệ thống nằm ở đâu giữa những thứ xung quanh nó — mức C1 của mô hình C4.
+    nguon: c1_boi_canh
+
+  - title: 4. Nhu cầu người dùng
+    level: 1
+    dan: >-
+      Mỗi nhu cầu phát biểu theo dạng "người dùng cần <việc> để <mục đích>".
+    nguon: nhu_cau_nguoi_dung
+
+  - title: 5. Ràng buộc từ phía người dùng
+    level: 1
+    dan: >-
+      Những giới hạn không thương lượng được — phần cứng đã chọn, ngân sách
+      tài nguyên, và những thứ bị cấm dùng.
+    nguon: rang_buoc_cung
+
+  - title: 6. Tiêu chí nghiệm thu
+    level: 1
+    dan: >-
+      Thế nào là xong. Mỗi tiêu chí phải đo được; tiêu chí không đo được là
+      một mong muốn, không phải một tiêu chí.
+    nguon: tieu_chi_nghiem_thu
+
+  - title: 7. Giả định và rủi ro
+    level: 1
+    nguon: gia_dinh_rui_ro

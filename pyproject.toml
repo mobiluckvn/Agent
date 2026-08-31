@@ -32,6 +32,13 @@ eaa = "eaa.cli:main"
 [tool.setuptools.packages.find]
 include = ["eaa*"]
 
+# Khuôn mẫu tài liệu thiết kế là DỮ LIỆU, không phải mã — nên setuptools không
+# tự đưa vào gói. Thiếu dòng này thì bản `pip install` chạy được mọi lệnh trừ
+# `eaa design`, và lỗi hiện ra là "chưa có khuôn mẫu nào" chứ không phải "cài
+# thiếu tệp". Bắt được bằng TC-82.
+[tool.setuptools.package-data]
+eaa = ["docspec/*.yaml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
