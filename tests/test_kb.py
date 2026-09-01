@@ -54,11 +54,18 @@ def _viet_chunk(thu_muc: Path, ten: str, frontmatter: str, than: str = "Nội du
 def test_nap_rang_buoc_du_an_mau() -> None:
     rb = Constraints.load(DU_AN / "constraints.yaml")
     assert rb.platform == "avr"
-    assert rb.version == 1
+    assert rb.version == 2
     assert rb.limits["flash_pct_max"] == 50
     assert rb.limits["sram_pct_max"] == 40
     assert "delay()" in rb.forbidden
-    assert rb.style["arithmetic"] == "integer"
+    # v2 (01/09/2026): nới sang `float_outside_isr` để dùng đúng bộ tham số của
+    # mã tham chiếu đã chạy được trên bo. Cấm số thực TRONG ngắt giữ nguyên —
+    # đó mới là ranh giới an toàn, và bài dưới đây canh nó.
+    assert rb.style["arithmetic"] == "float_outside_isr"
+    assert "float_in_isr" in rb.forbidden, (
+        "nới số thực ở vòng chính KHÔNG được kéo theo nới trong ngắt: ngắt phát "
+        "xung chạy 50 000 lần/giây và một phép float mềm ở đó là mất nhịp bước"
+    )
     assert rb.content_version.startswith("sha256:")
 
 

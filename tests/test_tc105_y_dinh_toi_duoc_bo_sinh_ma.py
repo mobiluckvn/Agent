@@ -216,16 +216,34 @@ def test_ngan_sach_lop_van_cong_dung_tran_tong() -> None:
 
 
 def test_du_an_khai_luat_thiet_ke_cho_PID() -> None:
-    """Hai lỗi kinh điển đã nằm trong `sim/controller.py` từ đầu.
+    """Dự án phải khai luật thiết kế cho module điều khiển của nó.
 
-    Chúng ở đó dưới dạng văn xuôi trong docstring của một tệp mà bộ sinh mã
-    không đọc. Đưa chúng thành mẫu prompt của dự án là biến một ghi chú cho
-    người thành một ràng buộc cho máy.
+    Bài này ĐỔI NỘI DUNG KIỂM ngày 01/09/2026 và lý do phải ghi lại, vì đổi
+    một bài canh là việc dễ bị dùng để làm cho màn hình xanh trở lại.
+
+    Bản đầu canh ba luật của `sim/controller.py`: đạo hàm theo SỐ ĐO, hệ số
+    dạng dấu phẩy tĩnh, chống bão hòa tích phân. Quyết định của dự án sau đó
+    là **theo mã tham chiếu của nhà sản xuất** — bộ mã đã thực sự đứng được
+    trên chính cái bo này — và bộ ấy dùng số thực, đạo hàm theo SAI SỐ.
+
+    Nên cái được canh đổi theo, nhưng ĐIỀU KIỆN AN TOÀN thì không được rơi:
+    đạo hàm theo sai số chỉ vô hại khi điểm đặt không nhảy bậc. Bài dưới đây
+    đòi mẫu prompt phải nói RA điều kiện ấy, chứ không im lặng thừa hưởng nó.
     """
     mau = REPO / "projects" / "robot_balance" / "prompts" / "logic_pid.md"
     assert mau.is_file(), "dự án chưa khai luật thiết kế cho logic_pid"
 
     van_ban = mau.read_text(encoding="utf-8").lower()
-    assert "số đo" in van_ban, "chưa nói đạo hàm lấy theo số đo"
-    assert "fixed-point" in van_ban or "dấu phẩy tĩnh" in van_ban
-    assert "bão hòa" in van_ban or "windup" in van_ban
+
+    # Bộ tham số và cấu trúc phải là của mã tham chiếu, không phải bản mô phỏng.
+    for so in ("12", "0.4", "10", "400", "4 ms"):
+        assert so in van_ban, f"mẫu prompt không nêu {so!r} của mã tham chiếu"
+
+    # Chỗ lệch với `sim/controller.py` phải được NÓI RA kèm điều kiện, không
+    # được im lặng bỏ qua — im lặng ở đây là cách một lỗi kinh điển quay lại.
+    assert "derivative kick" in van_ban or "sai số" in van_ban
+    assert "điểm đặt" in van_ban, "không nêu điều kiện khiến lựa chọn này an toàn"
+    assert "xem lại" in van_ban or "phải xem" in van_ban, (
+        "không nói khi nào phải xét lại lựa chọn đạo hàm theo sai số — thêm "
+        "lệnh đi tới/lùi là điểm đặt nhảy bậc, và lúc ấy nó thành lỗi thật"
+    )

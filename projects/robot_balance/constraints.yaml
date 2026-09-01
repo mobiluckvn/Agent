@@ -8,12 +8,19 @@
 # Ràng buộc do KỸ SƯ chốt từ hệ quả vật lý, không phải do máy đề xuất: chỉ
 # người mới biết trượt bước và trễ pha dẫn tới robot ngã (Ma trận, A1).
 
-version: 1
+version: 2
 changelog:
   - version: 1
     date: 2026-08-29
     author: Vũ Trí Công
     note: Phát hành lần đầu cùng Sprint 0.
+  - version: 2
+    date: 2026-09-01
+    author: Vũ Trí Công
+    note: >-
+      Nới `style.arithmetic` từ `integer` sang `float_outside_isr`, theo quyết
+      định "tham khảo code của nhà sản xuất". Xem khối `style` bên dưới để biết
+      lý do và cái giá phải trả. Cấm số thực TRONG ngắt giữ nguyên.
 
 platform: avr          # tên Platform Pack — packs/avr/
 mcu: atmega328p
@@ -84,7 +91,35 @@ forbidden:
   - blocking_io      # cấm vòng chờ cờ không có điều kiện quá hạn
 
 style:
-  arithmetic: integer   # số học số nguyên ở vòng điều khiển
+  # ĐỔI 01/09/2026 (v1 → v2): `integer` → `float_outside_isr`.
+  #
+  # Số thực ĐƯỢC dùng ở vòng chính; TRONG ngắt vẫn cấm tuyệt đối (xem
+  # `forbidden: float_in_isr`, không đổi). Đây là ranh giới của chính mã tham
+  # chiếu: vòng 4 ms tính bằng float, còn ngắt 20 µs phát xung chỉ có phép
+  # tăng, so sánh và thao tác bit.
+  #
+  # Vì sao nới — và vì sao đây không phải nới cho tiện:
+  #
+  # Bộ tham số điều khiển đã chạy được trên CHÍNH cái bo này là một bộ số thực
+  # gắn chặt với công thức sinh ra nó: `kp = 12`, `ki = 0.4`, `kd = 10`, lọc bù
+  # `0.9996 / 0.0004`, `asin(raw/8200) * 57.296`, và bù phi tuyến động cơ
+  # `405 - 5500/(x+9)`. Dịch bộ ấy sang dấu phẩy tĩnh là dịch SÁU chỗ, mỗi chỗ
+  # là một chỗ có thể sai một hệ số — và một hệ số sai thì robot không đứng,
+  # còn không cổng phần mềm nào bắt được.
+  #
+  # Ba vòng review của `logic_pid` vừa qua cho thấy đúng loại số học ấy là chỗ
+  # hay sai nhất: tích phân cộng dồn sau khi chia (integrator chết ở dải sai số
+  # nhỏ), mất `int64` ở trung gian (đạo hàm đổi dấu khi cảm biến đọc lỗi). Cả
+  # hai đều đo được, cả hai đều là thoái lui giữa hai vòng.
+  #
+  # Cái giá, và nó có trần: thư viện số thực mềm của AVR tốn khoảng 2–3 KB
+  # flash — còn trong `flash_pct_max: 50` của 32 KB — và vài chục µs mỗi phép.
+  # Việc nó VỪA trong chu kỳ 4 ms không phải suy luận: mã tham chiếu chạy đúng
+  # cấu hình ấy trên đúng con chip ấy.
+  #
+  # Đây là bước MỘT, không phải đích. Khi robot đứng được, bản số nguyên port
+  # lại có một robot đang chạy làm chuẩn đối chiếu từng số — rẻ hơn hẳn port mù.
+  arithmetic: float_outside_isr
   io: direct_port       # thay cho digitalWrite()
   naming: snake_case
   isr_policy: >-
