@@ -30,6 +30,16 @@ peripherals:
     width_bits: 8
     configured_by: [TCCR0A, TCCR0B, OCR0A, TIMSK0]
     note: Dành cho tick của nhân điều phối — tách khỏi timer1 để tránh tranh chấp.
+  # Khai ra 01/09/2026. Mã tham chiếu của bộ kit phát xung bước bằng TIMER2 ở
+  # chu kỳ 20 µs (`TCCR2B |= (1<<CS21); OCR2A = 39;` → 16 MHz / 8 / 40 = 50 kHz),
+  # và thuật toán phát xung đếm theo số lần ngắt ấy. Dùng lại đúng bộ đếm đã
+  # chạy được trên chính cái bo này rẻ hơn dịch nó sang timer1: mỗi chỗ lệch
+  # khỏi mã đã chứng minh là một vòng gỡ lỗi phải trả.
+  - id: timer2
+    kind: timer
+    width_bits: 8
+    configured_by: [TCCR2A, TCCR2B, OCR2A, TIMSK2]
+    note: Ngắt 20 µs phát xung bước cho cả hai động cơ.
   - id: twi
     kind: i2c
     configured_by: [TWBR, TWCR, TWSR, TWDR]
@@ -170,6 +180,31 @@ components:
     pins: {step: PD5, dir: PD4}
     dir_forward_level: 0
 
+  # HAI LINH KIỆN DƯỚI ĐÂY KHAI RA NGÀY 01/09/2026, đọc từ mã tham chiếu của
+  # chính bộ kit (`sources/.../V3_Balancing_Robot_PID_App.ino`):
+  #
+  #     #define COI 10                     → D10 = PB2
+  #     #define BUTTON_SET_PIN 12          → D12 = PB4
+  #     pinMode(COI, OUTPUT); digitalWrite(COI, LOW);
+  #     pinMode(BUTTON_SET_PIN, INPUT_PULLUP);
+  #
+  # Chúng có mặt trên bo từ đầu và hồ sơ chưa bao giờ khai — nên mọi bản phân
+  # rã cho tới nay không có cách nào biết robot này CÓ còi và CÓ nút. Giao thức
+  # khởi động bằng tiếng bíp không thể phân rã ra từ một hồ sơ không nhắc tới
+  # còi.
+  - id: buzzer
+    part: buzzer_5v
+    pins: {signal: PB2}
+    active_level: 1        # digitalWrite(COI, HIGH) là kêu
+    note: Còi chip 5V, kênh báo hiệu DUY NHẤT mà người dùng nghe được.
+  - id: button_set
+    part: tactile_switch
+    pins: {signal: PB4}
+    active_level: 0        # nút nối về GND, dùng pull-up nội
+    pullup: internal
+    debounce_ms: 20        # theo mybutton.h của bộ kit
+    note: Nút SET, dùng làm lệnh "bắt đầu hiệu chỉnh" của giao thức khởi động.
+
 # Cách nạp firmware xuống bo, và cách nhận ra bo khi nó được cắm vào USB.
 #
 # Ở tầng DỰ ÁN chứ không phải pack: cầu USB-nối tiếp là thuộc tính của cái bo cụ
@@ -210,16 +245,28 @@ programmer:
   # lỗi, nó chỉ trỏ sang nhầm thiết bị.
   port_hint: usbserial
 
+# BẢNG CHÂN SỬA NGÀY 01/09/2026 — bản cũ mô tả một THIẾT KẾ chưa từng tồn tại.
+#
+# Nó khai bốn chân động cơ trên PB0–PB4, trong khi `components` ở trên đã được
+# sửa từ trước sang PD4–PD7 theo sơ đồ nguyên lý và mã tham chiếu. Hai chỗ
+# trong CÙNG MỘT TỆP nói hai điều khác nhau suốt bốn sprint, và không phép
+# kiểm nào đối chiếu chúng — vì chưa module nào đọc cả hai.
+#
+# Nó thành nguy hiểm THẬT ngay hôm nay: còi nằm ở PB2 và nút nhấn ở PB4, đúng
+# hai chân bảng cũ đang khai là DIR_L và DIR_R. Giữ bảng cũ thì đồ thị tri thức
+# sẽ báo xung đột tài nguyên cho hai linh kiện hoàn toàn không xung đột — hoặc
+# tệ hơn, mã sinh ra đi ghi mức DIR vào chân còi.
 pin_map:
-  PB0: {net: MOTOR_EN, direction: out, note: Chung cho cả hai driver, mức thấp là bật}
-  PB1: {net: STEP_L, direction: out, peripheral: timer1, alt: OC1A}
-  PB2: {net: DIR_L, direction: out}
-  PB3: {net: STEP_R, direction: out, peripheral: timer1, alt: OC1B}
-  PB4: {net: DIR_R, direction: out}
+  PB2: {net: BUZZER, direction: out, note: Còi chip 5V, mức CAO là kêu}
+  PB4: {net: BUTTON_SET, direction: in, note: Nút nhấn về GND, cần pull-up nội}
   PC4: {net: SDA, direction: bidir, peripheral: twi}
   PC5: {net: SCL, direction: out, peripheral: twi}
   PD0: {net: UART_RX, direction: in, peripheral: usart0}
   PD1: {net: UART_TX, direction: out, peripheral: usart0}
+  PD4: {net: DIR_R, direction: out}
+  PD5: {net: STEP_R, direction: out}
+  PD6: {net: DIR_L, direction: out}
+  PD7: {net: STEP_L, direction: out}
 
 # Bảng chức năng thay thế — trích từ bảng *alternate functions* của datasheet.
 #
@@ -243,8 +290,13 @@ pin_functions:
   PD1: [gpio, txd]
   PD2: [gpio, int0]
   PD3: [gpio, int1, oc2b]
+  # PD4 và PD7 thiếu ở bảng này suốt bốn sprint, đúng vì bảng chân cũ tưởng
+  # động cơ nằm trên cổng B. Thiếu một hàng ở đây thì phép đối chiếu chức năng
+  # thay thế trả về "chưa kiểm được" cho đúng hai chân mang xung bước.
+  PD4: [gpio, xck, t0]
   PD5: [gpio, oc0b, t1]
   PD6: [gpio, oc0a, ain0]
+  PD7: [gpio, ain1]
 
 power:
   # Rủi ro brown-out đã lường trước ở thiết kế B2; kịch bản chẩn đoán DS-05

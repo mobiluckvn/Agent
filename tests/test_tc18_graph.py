@@ -60,14 +60,24 @@ def kg(hardware: HardwareProfile, datasheets: DatasheetStore) -> KnowledgeGraph:
 
 def test_do_thi_dung_tu_dong_tu_ho_so_phan_cung(kg: KnowledgeGraph) -> None:
     assert kg.nodes_of_kind("mcu") == ["atmega328p"]
-    assert set(kg.nodes_of_kind("peripheral")) == {"timer0", "timer1", "twi", "usart0"}
+    assert set(kg.nodes_of_kind("peripheral")) == {
+        "timer0",
+        "timer1",
+        "timer2",       # khai 01/09/2026 — mã tham chiếu phát xung bước bằng Timer2
+        "twi",
+        "usart0",
+    }
     assert set(kg.nodes_of_kind("component")) == {
         "imu",
         "motor_driver_left",
         "motor_driver_right",
+        "buzzer",       # D10 trên bo, khai 01/09/2026
+        "button_set",   # D12 trên bo, khai 01/09/2026
     }
     assert "TCCR1A" in kg.nodes_of_kind("register")
-    assert "PB1" in kg.nodes_of_kind("pin")
+    # PD5 chứ không phải PB1: bảng chân cũ mô tả một thiết kế chưa từng tồn tại,
+    # còn xung bước thật đi ra cổng D (SL-125, SL-139).
+    assert "PD5" in kg.nodes_of_kind("pin")
 
 
 def test_chi_chunk_da_duyet_G2_co_mat_trong_do_thi(kg: KnowledgeGraph) -> None:

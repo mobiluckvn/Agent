@@ -278,10 +278,21 @@ def test_ban_bi_thay_ma_van_active_bi_bat(tmp_path: Path) -> None:
 
 
 def test_nap_ho_so_phan_cung_du_an_mau() -> None:
+    """Con số cập nhật 01/09/2026 khi khai còi, nút nhấn và timer2.
+
+    Ba thứ ấy có trên bo từ đầu — mã tham chiếu của bộ kit khai `COI` ở D10,
+    `BUTTON_SET_PIN` ở D12, và phát xung bước bằng Timer2. Hồ sơ không nhắc
+    tới chúng, nên mọi bản phân rã cho tới nay không có cách nào biết robot
+    này có còi và có nút.
+
+    `pin_map` cũng rút từ 9 xuống 10 chân ĐÚNG: bốn chân động cơ chuyển từ
+    cổng B sang PD4–PD7 cho khớp khối `components`, chỗ đã sửa từ trước —
+    hai chỗ trong cùng một tệp đã nói hai điều khác nhau suốt bốn sprint.
+    """
     hs = HardwareProfile.load(DU_AN / "hardware_profile.yaml")
-    assert len(hs.peripherals) == 4
-    assert len(hs.components) == 3
-    assert len(hs.pin_map) == 9
+    assert len(hs.peripherals) == 5     # + timer2
+    assert len(hs.components) == 5      # + buzzer, button_set
+    assert len(hs.pin_map) == 10
     assert hs.power["separated"] is True
 
 

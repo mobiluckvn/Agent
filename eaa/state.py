@@ -198,6 +198,12 @@ class ProjectState:
     backlog: list[BacklogItem] = field(default_factory=list)
     #: Băm của constraints.yaml đang hiệu lực; đi vào commit message (NFR-07).
     constraints_version: str = ""
+    #: Băm của hardware_profile.yaml đã được chốt tại G1.
+    #:
+    #: Có mặt vì cùng lý do với trường trên, và vì hồ sơ phần cứng mở đầu bằng
+    #: đúng câu "sửa tệp này … phải duyệt lại tại G1". Suốt bốn sprint không ai
+    #: giữ băm ấy, nên câu đó không có cách nào được thi hành (SL-139).
+    hardware_version: str = ""
     llm: dict[str, str] = field(default_factory=dict)
     #: Băm môi trường công cụ do ``eaa doctor`` ghi — FR-ENV-04.
     env_hash: str = ""
@@ -231,6 +237,7 @@ class ProjectState:
             "gates": dict(self.gates),
             "backlog": [item.to_dict() for item in self.backlog],
             "constraints_version": self.constraints_version,
+            "hardware_version": self.hardware_version,
             "llm": dict(self.llm),
             "env_hash": self.env_hash,
             "current_module": self.current_module,
@@ -268,6 +275,7 @@ class ProjectState:
             gates=dict(gates),
             backlog=[BacklogItem.from_dict(item) for item in backlog_raw],
             constraints_version=data.get("constraints_version", ""),
+            hardware_version=data.get("hardware_version", ""),
             llm=dict(data.get("llm", {}) or {}),
             env_hash=data.get("env_hash", ""),
             current_module=data.get("current_module"),

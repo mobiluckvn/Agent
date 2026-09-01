@@ -2049,3 +2049,18 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Vì sao không phải "mô hình cẩu thả"** | Mỗi vòng, `eaa gen` sinh lại CẢ tệp test. Không có gì neo lại hành vi đã được duyệt ở vòng trước: mã cũ bị xóa, test cũ bị xóa, và mọi bảo đảm bốc hơi cùng lúc. **Vòng tự sửa không có bánh cóc.** Cái duy nhất tích lũy qua các vòng là danh sách yêu cầu tôi viết tay trong mẫu prompt của dự án |
 | **Bài học phương pháp** | Một bản review nêu N điểm sẽ được sửa đúng N điểm. Nó không giữ giùm những điểm đã đúng — chỉ có TEST mới giữ được, và test phải sống sót qua lần sinh lại |
 | **Chưa sửa** | Đề xuất: prompt sinh lại mang theo TÊN + docstring của những bài kiểm đã có (khoảng 150 token, không phải cả tệp), kèm luật "những hành vi này đã được duyệt, chỉ được thêm, không được bỏ hay làm yếu đi" |
+
+## SL-139 · LỆCH THẬT · Quyết định G1 chỉ neo vào MỘT NỬA hồ sơ
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §8.1; EAA-SDD-03 §2; FR-GATE-01 |
+| **Cách tìm** | Sửa `hardware_profile.yaml` để thêm còi và nút nhấn cho giao thức khởi động mới: đổi bảng chân của bốn chân động cơ, thêm hai linh kiện, thêm một bộ đếm. Rồi chạy `eaa status` — `✓ G1 approved`, không cảnh báo, không đòi duyệt lại |
+| **Thiết kế nói ngược lại, bằng chữ, ở ngay đầu tệp bị sửa** | *"Sửa tệp này kích hoạt phân tích ảnh hưởng và phải duyệt lại tại G1 (AIS §8.1) — đổi một chân là đổi mọi module chạm vào chân đó."* |
+| **Ba chỗ để câu ấy rơi** | (a) hồ sơ G1 in `hardware_profile.yaml v{version}` — **số phiên bản khai TRONG tệp**, không phải băm nội dung, nên sửa nội dung mà giữ `version: 1` thì dòng ấy giống nhau từng ký tự; (b) `content_digest` của G1 chỉ là băm `constraints.yaml`, nên quyết định của người **không neo vào** thứ họ vừa đọc ở dòng trên; (c) phép kiểm trôi băm ở `eaa status` cũng chỉ soi `constraints.yaml` |
+| **Và băm ấy vẫn được tính** | `HardwareProfile.content_version` có sẵn, đúng tên, đúng cách tính, dùng ở chỗ khác trong `cli.py` để ghi phẩm xuất. Cổng chỉ không hỏi tới. Lần thứ **bảy** của dạng "mã đúng nằm chết" |
+| **Vì sao đắt hơn vẻ ngoài** | G1 tên là *chốt ràng buộc cứng và kiến trúc*. Bảng chân LÀ kiến trúc. Một cổng neo vào nửa hồ sơ là một cổng cho qua nửa còn lại — và nửa bị bỏ qua là nửa quyết định mã sinh ra sẽ ghi mức logic vào chân nào |
+| **Còn một chỗ nữa cùng tệp** | `pin_map` khai bốn chân động cơ trên PB0–PB4 trong khi khối `components` đã sửa sang PD4–PD7 từ trước. **Hai chỗ trong CÙNG MỘT TỆP nói hai điều khác nhau suốt bốn sprint**, vì chưa module nào đọc cả hai. Nó thành nguy hiểm thật hôm nay: còi ở PB2 và nút ở PB4 — đúng hai chân bảng cũ đang khai là DIR_L/DIR_R |
+| **Đã sửa** | `dau_van_tay_G1()` gộp băm hai tệp; hồ sơ G1 cho người đọc **cả** `hardware_profile.yaml`; `ProjectState.hardware_version` chốt cùng lúc khi duyệt; phép kiểm trôi soi cả hai |
+| **Trường hợp di trú nói ra, không im** | Dự án cũ có G1 approved mà chưa có mốc phần cứng: `status` báo *"CHƯA NEO"*. Im ở đây sẽ giữ nguyên đúng lỗ vừa vá — không có mốc thì không phát hiện được trôi, và "không phát hiện được" đọc y hệt "không có gì trôi" |
+| **Bài canh** | `tests/test_tc108_g1_neo_ca_ho_so_phan_cung.py` — 8 bài, trong đó một bài neo vào chính câu chữ đã hứa trong `hardware_profile.yaml` để nó không bị lặng lẽ bỏ đi |

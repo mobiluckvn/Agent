@@ -216,7 +216,7 @@ def _troi_rang_buoc(state: ProjectState, project: Path) -> str:
 
     Trả về chuỗi rỗng khi khớp — im lặng ở đây là câu trả lời đúng.
     """
-    from eaa.kb import Constraints, KbError
+    from eaa.kb import Constraints, HardwareProfile, KbError
 
     duong_dan = project / CONSTRAINTS_FILE
     if not state.constraints_version or not duong_dan.is_file():
@@ -225,13 +225,48 @@ def _troi_rang_buoc(state: ProjectState, project: Path) -> str:
         that = Constraints.load(duong_dan).content_version
     except (KbError, Exception):  # noqa: BLE001 - tệp hỏng cũng là một dạng trôi
         return "   ⚠ KHÔNG ĐỌC ĐƯỢC constraints.yaml — băm này không kiểm lại được"
-    if that == state.constraints_version:
+    if that != state.constraints_version:
+        return (
+            f"\n                ⚠ TRÔI: constraints.yaml trên đĩa băm {that}."
+            "\n                  Băm này đi vào commit message làm bằng chứng xuất xứ"
+            "\n                  (NFR-07) — để lệch là ghi một khẳng định sai vào lịch"
+            "\n                  sử Git. Chốt lại bộ ràng buộc mới qua gate G1."
+        )
+
+    # Hồ sơ phần cứng cũng phải soi, và vì cùng một lý do.
+    #
+    # Tệp ấy mở đầu bằng đúng câu "Sửa tệp này kích hoạt phân tích ảnh hưởng và
+    # phải duyệt lại tại G1 (AIS §8.1) — đổi một chân là đổi mọi module chạm
+    # vào chân đó". Suốt bốn sprint không cơ chế nào thi hành câu ấy: hồ sơ G1
+    # in ra SỐ PHIÊN BẢN khai trong tệp chứ không phải băm nội dung, nên sửa
+    # bảng chân mà giữ nguyên `version: 1` thì mọi thứ im lặng (SL-139).
+    hs = project / HARDWARE_PROFILE_FILE
+    if not hs.is_file():
+        return ""
+    if not state.hardware_version:
+        # Dự án dựng trước SL-139: G1 đã duyệt mà chưa neo vào hồ sơ phần cứng.
+        # Im lặng ở đây sẽ giữ nguyên đúng cái lỗ vừa tìm ra — không có mốc thì
+        # không phát hiện được trôi, và "không phát hiện được" đọc y hệt
+        # "không có gì trôi".
+        if state.gate_status("G1") == "approved":
+            return (
+                "\n                ⚠ CHƯA NEO: G1 đã duyệt nhưng quyết định ấy không"
+                "\n                  neo vào hardware_profile.yaml, nên từ lúc duyệt"
+                "\n                  tới giờ bảng chân đổi bao nhiêu lần cũng không ai"
+                "\n                  biết. Duyệt lại G1 một lần để đặt mốc."
+            )
+        return ""
+    try:
+        that_pc = HardwareProfile.load(hs).content_version
+    except (KbError, Exception):  # noqa: BLE001
+        return "   ⚠ KHÔNG ĐỌC ĐƯỢC hardware_profile.yaml — băm này không kiểm lại được"
+    if that_pc == state.hardware_version:
         return ""
     return (
-        f"\n                ⚠ TRÔI: tệp trên đĩa băm {that}."
-        "\n                  Băm này đi vào commit message làm bằng chứng xuất xứ"
-        "\n                  (NFR-07) — để lệch là ghi một khẳng định sai vào lịch"
-        "\n                  sử Git. Chốt lại bộ ràng buộc mới qua gate G1."
+        f"\n                ⚠ TRÔI: hồ sơ phần cứng trên đĩa băm {that_pc}."
+        "\n                  Bảng chân LÀ kiến trúc: đổi một chân là đổi mọi module"
+        "\n                  chạm vào chân đó, và mã sinh sau đây sẽ ghi mức logic vào"
+        "\n                  chân mới mà chưa ai duyệt. Chốt lại qua gate G1."
     )
 
 
@@ -1105,6 +1140,28 @@ def _phuong_an_dang_cho(project: Path, gate_id: str) -> Any:
     return OptionSet.load_all(project / OPTIONS_FILE).get(gate_id)
 
 
+def dau_van_tay_G1(bam_rang_buoc: str, bam_phan_cung: str) -> str:
+    """Băm mà quyết định G1 neo vào — gộp ràng buộc VÀ hồ sơ phần cứng.
+
+    Gộp chứ không chọn một: G1 tên là *chốt ràng buộc cứng và kiến trúc*, và
+    bảng chân là kiến trúc. Neo vào một nửa nghĩa là nửa còn lại đổi được sau
+    khi người đã bấm duyệt, mà không dấu vết nào (SL-139).
+    """
+    import hashlib
+
+    if not bam_phan_cung:
+        return bam_rang_buoc
+    gop = f"{bam_rang_buoc}\n{bam_phan_cung}".encode("utf-8")
+    return "sha256:" + hashlib.sha256(gop).hexdigest()
+
+
+def _doc_ho_so_phan_cung(project: Path) -> str:
+    duong_dan = project / HARDWARE_PROFILE_FILE
+    if not duong_dan.is_file():
+        return "(dự án chưa có hardware_profile.yaml)"
+    return duong_dan.read_text(encoding="utf-8")
+
+
 def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
     """Dựng hồ sơ cho gate chưa có yêu cầu nào đang chờ.
 
@@ -1118,6 +1175,13 @@ def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
     state = ctx.store.load()
     phuong_an = _phuong_an_dang_cho(ctx.project, gate_id)
     if gate_id == "G1":
+        # Hồ sơ neo vào CẢ HAI tệp, và cho người đọc CẢ HAI.
+        #
+        # Trước SL-139, dòng phần cứng dưới đây chỉ in `v{version}` — số phiên
+        # bản do người khai TRONG tệp, không phải băm nội dung. Sửa bảng chân
+        # mà không sửa số ấy thì dòng này giống nhau từng ký tự, `content_digest`
+        # không đổi, và quyết định của người neo vào một nửa hồ sơ.
+        bam_pc = getattr(ctx.kb.hardware, "content_version", "")
         return GatePayload(
             gate_id="G1",
             options=phuong_an,
@@ -1125,12 +1189,20 @@ def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
             summary=(
                 f"constraints.yaml v{ctx.kb.constraints.version} "
                 f"({ctx.kb.constraints.content_version})",
-                f"hardware_profile.yaml v{ctx.kb.hardware.version}",
+                f"hardware_profile.yaml v{ctx.kb.hardware.version} ({bam_pc})",
                 f"backlog: {len(state.backlog)} module",
                 f"điều cấm: {', '.join(ctx.kb.constraints.forbidden) or '—'}",
             ),
-            details=ctx.kb.constraints.path.read_text(encoding="utf-8"),
-            content_digest=ctx.kb.constraints.content_version,
+            details=(
+                ctx.kb.constraints.path.read_text(encoding="utf-8")
+                + "\n\n"
+                + "═" * 70
+                + "\nhardware_profile.yaml — bảng chân LÀ kiến trúc, G1 chốt cả nó\n"
+                + "═" * 70
+                + "\n"
+                + _doc_ho_so_phan_cung(ctx.project)
+            ),
+            content_digest=dau_van_tay_G1(ctx.kb.constraints.content_version, bam_pc),
         )
     if gate_id == "G2":
         # G2 duyệt tri thức. Trích đoạn tài liệu và công cụ đều là tri thức
@@ -1397,7 +1469,7 @@ def _ghim_lai_rang_buoc(ctx: AppContext) -> None:
     khỏi việc đọc hồ sơ chính là lối tắt mà thiết kế cấm — nó biến một quyết
     định thành một thao tác dọn cảnh báo.
     """
-    from eaa.kb import Constraints
+    from eaa.kb import Constraints, HardwareProfile
 
     tep = ctx.project / "constraints.yaml"
     if not tep.is_file():
@@ -1408,16 +1480,35 @@ def _ghim_lai_rang_buoc(ctx: AppContext) -> None:
         print(f"\n  Không đọc lại được constraints.yaml để ghim băm: {exc}")
         return
 
+    # Hồ sơ phần cứng chốt cùng lúc, vì người vừa đọc cả hai trong một hồ sơ.
+    bam_pc = ""
+    hs = ctx.project / HARDWARE_PROFILE_FILE
+    if hs.is_file():
+        try:
+            bam_pc = HardwareProfile.load(hs).content_version
+        except Exception as exc:  # noqa: BLE001
+            print(f"\n  Không đọc lại được hardware_profile.yaml để ghim băm: {exc}")
+            return
+
     state = ctx.store.load()
-    if state.constraints_version == bam:
+    if state.constraints_version == bam and state.hardware_version == bam_pc:
         return
-    cu = state.constraints_version
-    ctx.store.save(replace(state, constraints_version=bam))
-    print(
-        f"\nBăm ràng buộc đã chốt lại: {bam}\n"
-        f"  (trước đó {cu or '(chưa có)'} — băm này đi vào commit message làm "
-        "bằng chứng xuất xứ, NFR-07)"
+    cu, cu_pc = state.constraints_version, state.hardware_version
+    ctx.store.save(
+        replace(state, constraints_version=bam, hardware_version=bam_pc)
     )
+    if cu != bam:
+        print(
+            f"\nBăm ràng buộc đã chốt lại: {bam}\n"
+            f"  (trước đó {cu or '(chưa có)'} — băm này đi vào commit message làm "
+            "bằng chứng xuất xứ, NFR-07)"
+        )
+    if cu_pc != bam_pc:
+        print(
+            f"\nBăm hồ sơ phần cứng đã chốt lại: {bam_pc}\n"
+            f"  (trước đó {cu_pc or '(chưa có)'} — từ đây, sửa một chân là làm"
+            " trôi băm này và eaa status sẽ đòi duyệt lại)"
+        )
 
 
 def _sau_khi_duyet_G3(ctx: AppContext, quyet_dinh: Any) -> int:
