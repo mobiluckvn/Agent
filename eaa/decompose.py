@@ -340,6 +340,9 @@ class LlmDecomposer:
 
     llm: Any
     budget: int = 3000
+    #: Manifest của Platform Pack. ``None`` thì bản phân rã không biết nền tảng
+    #: cho sẵn gì — và nó sẽ đề xuất module dựng lại chính nền tảng (SL-130).
+    pack_manifest: Any = None
 
     def propose(
         self,
@@ -357,6 +360,7 @@ class LlmDecomposer:
             )
 
         boi_canh = self._boi_canh(hardware, constraints)
+        nen_tang = _boi_canh_nen_tang(getattr(self, "pack_manifest", None))
         prompt = Prompt(
             system_instruction=(
                 "Bạn phân rã một bài toán nhúng thành module. Mỗi module đúng MỘT "
@@ -368,7 +372,7 @@ class LlmDecomposer:
             layers=[
                 PromptLayer(
                     "task",
-                    f"Mục tiêu: {goal}\n\n{boi_canh}\n"
+                    f"Mục tiêu: {goal}\n\n{boi_canh}\n{nen_tang}\n"
                     "Phân rã thành module. Trả về ĐÚNG một khối JSON theo lược "
                     f"đồ sau, không kèm giải thích ngoài khối:\n\n"
                     f"```json\n{_LUOC_DO}\n```",
@@ -393,7 +397,11 @@ class LlmDecomposer:
 
         du_lieu = boc_json(van_ban, DecomposeError)
         module = tuple(ModuleProposal.from_dict(m) for m in (du_lieu.get("modules") or []))
-        canh_bao = _kiem_tai_nguyen(module, hardware) + _kiem_chu_ky(module, constraints)
+        canh_bao = (
+            _kiem_tai_nguyen(module, hardware)
+            + _kiem_chu_ky(module, constraints)
+            + _kiem_trung_nen_tang(module, getattr(self, "pack_manifest", None))
+        )
 
         return DecompositionPlan(
             modules=module,
@@ -422,6 +430,90 @@ class LlmDecomposer:
             if cam:
                 phan.append("Điều cấm: " + ", ".join(cam))
         return "\n".join(phan) + ("\n" if phan else "")
+
+
+def _phan_firmware(pack) -> dict:
+    """Khối `firmware` của Platform Pack, ở dạng ánh xạ. Không có thì trả rỗng."""
+    if pack is None:
+        return {}
+    fw = getattr(pack, "firmware", None)
+    if fw is None and isinstance(pack, dict):
+        fw = pack.get("firmware")
+    if isinstance(fw, dict):
+        return fw
+    # PackManifest giữ khối này ở dạng đối tượng; lấy các trường cần bằng tên.
+    ra = {}
+    for ten in ("reserves", "provides", "contract"):
+        gia_tri = getattr(fw, ten, None)
+        if gia_tri:
+            ra[ten] = gia_tri
+    return ra
+
+
+def _boi_canh_nen_tang(pack) -> str:
+    """Nói cho bộ phân rã biết Platform Pack ĐÃ CHO SẴN những gì.
+
+    Không có phần này thì mô hình đề xuất module dựng lại chính nền tảng — và
+    nó không sai vì kém, mà vì **không ai nói cho nó**. Prompt phân rã vốn chỉ
+    có mục tiêu, hồ sơ phần cứng và ràng buộc; ba thứ ấy không chỗ nào nói
+    rằng khuôn của pack đã sinh `main` và đã chiếm một bộ đếm thời gian.
+
+    Cái giá của chỗ thiếu này được trả bằng toàn bộ vòng đời của những module
+    thừa: chúng chỉ va nhau ở bước LIÊN KẾT, tức sau khi đã qua sinh mã, bốn
+    cổng kiểm chứng và G3 (SL-130).
+    """
+    fw = _phan_firmware(pack)
+    if not fw:
+        return ""
+    dong = ["## NỀN TẢNG ĐÃ CHO SẴN — ĐỪNG DỰNG LẠI"]
+    if fw.get("contract"):
+        dong += ["", str(fw["contract"]).strip()]
+    if fw.get("provides"):
+        dong.append("")
+        dong.append(
+            "Ký hiệu nền tảng SINH RA (module khai cung cấp trùng tên là trùng "
+            "định nghĩa lúc liên kết): " + ", ".join(str(x) for x in fw["provides"])
+        )
+    if fw.get("reserves"):
+        dong.append("")
+        dong.append(
+            "Ngoại vi nền tảng CHIẾM RIÊNG (có trong hồ sơ phần cứng, nhưng đã "
+            "bị giữ trước — đừng phân cho module nào): "
+            + ", ".join(str(x) for x in fw["reserves"])
+        )
+    return "\n".join(dong) + "\n"
+
+
+def _kiem_trung_nen_tang(modules, pack) -> list[str]:
+    """Module nào giẫm lên phần nền tảng đã giữ.
+
+    Phép kiểm tài nguyên thường đối chiếu với HỒ SƠ PHẦN CỨNG, và tài nguyên bị
+    nền tảng chiếm thì VẪN CÓ trong hồ sơ — nên nó không bắt được. Đây là phép
+    kiểm còn thiếu.
+    """
+    fw = _phan_firmware(pack)
+    if not fw:
+        return []
+    giu = {str(x).strip().lower() for x in (fw.get("reserves") or [])}
+    cho = {str(x).strip().lower() for x in (fw.get("provides") or [])}
+
+    ra: list[str] = []
+    for m in modules:
+        for tn in getattr(m, "uses", ()) or ():
+            if str(tn).strip().lower() in giu:
+                ra.append(
+                    f"{m.id}: chiếm {tn!r} — nền tảng đã giữ tài nguyên này cho "
+                    "khuôn firmware. Hai bên cùng cấu hình một bộ đếm, và ngắt "
+                    "sẽ trùng định nghĩa lúc liên kết."
+                )
+        for ky in getattr(m, "provides", ()) or ():
+            if str(ky).strip().lower() in cho:
+                ra.append(
+                    f"{m.id}: cung cấp {ky!r} — nền tảng đã sinh ký hiệu này. "
+                    "Trùng định nghĩa lúc liên kết. Module chỉ cung cấp hàm "
+                    "khởi tạo và hàm bước."
+                )
+    return ra
 
 
 def _kiem_tai_nguyen(

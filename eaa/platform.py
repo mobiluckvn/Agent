@@ -255,6 +255,18 @@ class FirmwareTemplates:
     task_line: str = "    { {step}, {period_ms} },"
     #: Tên tệp nguồn sinh ra, đặt trong thư mục build.
     output: str = "main.c"
+    #: Ngoại vi khuôn này CHIẾM RIÊNG.
+    #:
+    #: Chúng CÓ trong hồ sơ phần cứng, nên phép kiểm tài nguyên theo hồ sơ
+    #: không bắt được — chúng chỉ đã bị nền tảng giữ trước. Không khai ra thì
+    #: bộ phân rã đề xuất module dựng lại chính bộ đếm ấy, và hai bên trùng
+    #: định nghĩa ngắt lúc liên kết (SL-130).
+    reserves: tuple[str, ...] = ()
+    #: Ký hiệu khuôn SINH RA. Module khai cung cấp trùng tên là trùng định
+    #: nghĩa lúc liên kết — điển hình là ``main``.
+    provides: tuple[str, ...] = ()
+    #: Hợp đồng giữa khuôn và một module, viết cho NGƯỜI và cho MÔ HÌNH đọc.
+    contract: str = ""
     #: Đuôi ảnh NẠP ĐƯỢC mà năng lực 'hex' sinh ra.
     #:
     #: Pack đầu tiên dùng Intel HEX nên đuôi này từng là hằng số trong engine.
@@ -287,6 +299,9 @@ class FirmwareTemplates:
             output=str(du_lieu.get("output", mac_dinh.output)),
             image_suffix=str(du_lieu.get("image_suffix", mac_dinh.image_suffix)),
             sources=tuple(str(root / x) for x in (du_lieu.get("sources") or [])),
+            reserves=tuple(str(x) for x in (du_lieu.get("reserves") or [])),
+            provides=tuple(str(x) for x in (du_lieu.get("provides") or [])),
+            contract=str(du_lieu.get("contract", "") or ""),
         )
 
 

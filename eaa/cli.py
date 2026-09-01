@@ -2845,7 +2845,7 @@ def _plan_propose(project: Path, args: argparse.Namespace) -> int:
     muc_tieu = args.goal or _muc_tieu_tu_ho_so(project)
 
     try:
-        ban = LlmDecomposer(llm=ctx.llm).propose(
+        ban = LlmDecomposer(llm=ctx.llm, pack_manifest=_nap_pack(project)).propose(
             muc_tieu, hardware=ctx.kb.hardware, constraints=ctx.kb.constraints
         )
     except DecomposeError as exc:

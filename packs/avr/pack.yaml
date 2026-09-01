@@ -25,6 +25,31 @@ smoke_dir: smoke
 firmware:
   template: templates/main.c.tmpl
   output: main.c
+  # Thứ khuôn này CHIẾM RIÊNG và thứ nó CHO SẴN.
+  #
+  # Không khai ra thì bộ phân rã không có cách nào biết, và nó đề xuất module
+  # dựng lại đúng những thứ này — đo được ở bài robot cân bằng: một module
+  # "system_timer" chiếm timer0 và một module "main_coordinator" cung cấp
+  # `main`, cả hai hỏng ở bước LIÊN KẾT, tức sau khi đã đi qua sinh mã, bốn
+  # cổng kiểm chứng và G3 (SL-130).
+  #
+  # `reserves` — ngoại vi khuôn dùng riêng. Có trong hồ sơ phần cứng, nhưng đã
+  # bị nền tảng giữ trước, nên phép kiểm tài nguyên theo hồ sơ không bắt được.
+  reserves:
+    - timer0
+  # `provides` — ký hiệu khuôn sinh ra. Module khai cung cấp trùng tên là
+  # trùng định nghĩa lúc liên kết.
+  provides:
+    - main
+  # Hợp đồng của một module với khuôn: hai hàm, không có `main`.
+  contract: >-
+    Mỗi module cung cấp một hàm khởi tạo (khai ở khóa `init` của firmware.yaml)
+    và, nếu chạy định kỳ, một hàm bước (khóa `step`). Cả hai có chữ ký
+    `void f(void)`. Khuôn gọi `init` một lần lúc khởi động, rồi gọi `step` theo
+    `period_ms` khai trong firmware.yaml. Bộ định thời là loại HỢP TÁC: mỗi
+    bước chạy tới khi xong mới trả quyền, nên mã trong `step` phải ngắn và
+    không chặn. Module KHÔNG viết `main`, KHÔNG tự dựng bộ đếm mili giây,
+    KHÔNG tự viết vòng lặp vô hạn.
   include_line: '#include "{module}.h"'
   init_line: '    {init}();'
   task_line: '    { {step}, {period_ms} },'

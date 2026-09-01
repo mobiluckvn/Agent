@@ -1,0 +1,52 @@
+
+Phân rã module — ĐỀ XUẤT
+────────────────────────
+Bản phân rã đề xuất cho: Robot tự cân bằng tại chỗ: đọc góc nghiêng từ MPU6050, chạy vòng điều khiển PID, phát xung cho hai động cơ bước để giữ robot đứng thẳng
+
+  [imu_driver] Giao tiếp với cảm biến MPU6050 qua TWI để đọc dữ liệu gia tốc và con quay hồi chuyển thô một cách không chặn.
+      tầng driver · không chạy định kỳ
+      chiếm: twi, imu
+      cung cấp: imu_read_raw
+      lý do: Tách biệt logic giao tiếp phần cứng I2C/TWI cấp thấp khỏi việc xử lý toán học của dữ liệu cảm biến.
+
+  [attitude_estimator] Tính toán góc nghiêng thực tế của robot từ dữ liệu thô của IMU bằng bộ lọc bù (complementary filter).
+      tầng logic · không chạy định kỳ
+      phụ thuộc: imu_driver
+      cung cấp: attitude_get_angle
+      lý do: Đóng gói thuật toán hợp nhất cảm biến thành một module toán học, không phụ thuộc vào cách lấy dữ liệu phần cứng.
+
+  [pid_controller] Thực hiện thuật toán PID để tính toán tốc độ cần thiết cho động cơ dựa trên sai số góc nghiêng.
+      tầng logic · không chạy định kỳ
+      cung cấp: pid_compute, pid_set_tunings
+      lý do: Module toán học thuần túy, chỉ nhận đầu vào và trả ra kết quả, dễ dàng kiểm thử độc lập và không dính dáng đến ngoại vi.
+
+  [stepper_driver] Điều khiển hai động cơ bước bằng cách phát xung tốc độ cao thông qua ngắt của timer1.
+      tầng driver · không chạy định kỳ
+      chiếm: timer1, motor_driver_left, motor_driver_right
+      cung cấp: stepper_set_speed
+      lý do: Động cơ bước cần phát xung chính xác về thời gian (dùng ngắt timer1), tách biệt hoàn toàn khỏi vòng lặp điều khiển cấp cao để đáp ứng motor_response_us=50.
+
+  [balance_coordinator] Điều phối toàn bộ hệ thống: đọc góc nghiêng, chạy PID và cập nhật tốc độ động cơ.
+      tầng dieu_phoi · mỗi 10 ms
+      phụ thuộc: attitude_estimator, pid_controller, stepper_driver
+      ước lượng 3 ms/lượt → 30% CPU
+      lý do: Đảm bảo vòng lặp điều khiển chạy đúng chu kỳ 10ms theo yêu cầu vật lý (control_loop_ms=10) của robot tự cân bằng.
+
+  [telemetry] Gửi dữ liệu góc nghiêng và trạng thái hệ thống qua UART để gỡ lỗi mà không gây nghẽn (non-blocking).
+      tầng driver · mỗi 50 ms
+      chiếm: usart0
+      phụ thuộc: attitude_estimator
+      ước lượng 2 ms/lượt → 4% CPU
+      lý do: Tách biệt chức năng ghi log/debug ra khỏi vòng lặp điều khiển chính để tránh vi phạm thời gian thực của hệ thống cân bằng.
+
+Thứ tự làm (theo phụ thuộc):
+  1. imu_driver, pid_controller, stepper_driver · làm song song được
+  2. attitude_estimator
+  3. balance_coordinator, telemetry · làm song song được
+
+Tải CPU ước lượng: 34% (trần 70%)
+  Đây là ƯỚC LƯỢNG, không phải số đo. Số thật chỉ có khi đo trên thiết bị.
+
+Agent KHÔNG tự thêm vào backlog: phân rã là quyết định kiến trúc, và
+kiến trúc sai thì mọi module sau đều đúng quy trình mà sai chỗ.
+  Nhận bản này: eaa plan accept

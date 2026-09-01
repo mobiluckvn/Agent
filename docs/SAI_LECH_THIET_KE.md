@@ -1902,3 +1902,21 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Bài kiểm bắt luôn hai kịch bản khác** | DS-03 và DS-05 cũng chưa khai. DS-03 *tình cờ* đủ với mặc định — nhưng "tình cờ đủ" không phải một khai báo, và kịch bản viết sau sẽ không may như thế. Có bài canh đòi **mọi** kịch bản chuyển động phải khai |
 | **Tôi vừa tự mắc đúng lỗi ấy một phút trước** | Chạy tám lượt DS-03 với cửa sổ thu 2,2 giây, cả tám báo `KHÁC THƯỜNG`. Khác biệt duy nhất: lỗi của tôi lộ ra sau một phút, còn lỗi trong sản phẩm thì nằm im tới khi có kịch bản chạy đủ lâu để chạm trần |
 | **Bài canh** | `tests/test_tc99_cua_so_thu.py` — 5 bài, trong đó một bài **tính** thời gian chạy từ chính firmware (`DIAG_PULSES × chu kỳ`) rồi đòi cửa sổ thu rộng hơn thế cộng biên bootloader |
+
+---
+
+## SL-130 · LỆCH THẬT · Bộ phân rã không biết Platform Pack cho sẵn gì, nên nó đề xuất dựng lại nền tảng
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-PLT-01; EAA-SAD-02 ADR-09 (ranh giới engine–pack); N-040..N-043 |
+| **Cách tìm** | Bài "robot tự cân bằng tại chỗ", lần đầu chạy `eaa plan propose`. Bản phân rã tám module rất hợp lý — trừ hai module dựng lại chính nền tảng |
+| **Hai va chạm** | `[system_timer]` chiếm `timer0` và cung cấp `timer_init` — nhưng khuôn của pack đã có ngắt `TIMER0_COMPA_vect` đếm mili giây. `[main_coordinator]` cung cấp `main` — khuôn đã sinh `int main(void)`. Cả hai cho **trùng định nghĩa lúc LIÊN KẾT** |
+| **Vì sao mô hình đề xuất như thế** | Vì **không ai nói cho nó**. Prompt phân rã chỉ có mục tiêu, hồ sơ phần cứng, ràng buộc — không một chữ nào về Platform Pack, không nói pack sinh `main`, không nói pack đã chiếm Timer0, không nói hợp đồng của module là `init`/`step` |
+| **Và phép kiểm tài nguyên không bắt được** | `_kiem_tai_nguyen` đối chiếu với hồ sơ phần cứng, mà `timer0` **CÓ** trong hồ sơ — nó chỉ đã bị nền tảng giữ trước. Một tài nguyên bị chiếm trông y hệt một tài nguyên rảnh |
+| **Cái giá** | Hai va chạm chỉ lộ ra ở bước liên kết — tức sau khi cả hai module đã đi qua sinh mã, bốn cổng kiểm chứng, và G3. Chi phí của một chỗ thiếu thông tin trong prompt được trả bằng **toàn bộ vòng đời của hai module** |
+| **Đã sửa — pack tự khai** | `firmware.reserves` (ngoại vi khuôn chiếm riêng), `firmware.provides` (ký hiệu khuôn sinh ra), `firmware.contract` (hợp đồng `init`/`step`, và ba điều module KHÔNG được làm) |
+| **Đã sửa — bộ phân rã được biết và bị chặn** | `_boi_canh_nen_tang()` đưa ba thứ ấy vào prompt; `_kiem_trung_nen_tang()` cảnh báo module giẫm lên phần nền tảng giữ. Không có pack thì cả hai trả rỗng — dự án chưa cài pack vẫn phân rã được |
+| **Khai báo phải KHỚP khuôn thật** | Có bài kiểm đọc thẳng `main.c.tmpl`: khuôn có `int main` thì pack phải khai `provides: [main]`; khuôn có `ISR(TIMER0_…)` thì pack phải khai `reserves: [timer0]`. Khai một đằng khuôn làm một nẻo còn tệ hơn không khai |
+| **Đo được sau khi sửa** | Cùng một mục tiêu: **8 module → 6**, hai module dựng lại nền tảng biến mất, và tải CPU ước lượng **60% → 34%** — đúng phần công thừa |
+| **Bài canh** | `tests/test_tc100_phan_ra_biet_nen_tang.py` — 8 bài |

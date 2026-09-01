@@ -1,0 +1,64 @@
+
+Phân rã module — ĐỀ XUẤT
+────────────────────────
+Bản phân rã đề xuất cho: Robot tự cân bằng tại chỗ: đọc góc nghiêng từ MPU6050, chạy vòng điều khiển PID, phát xung cho hai động cơ bước để giữ robot đứng thẳng
+
+  [twi_driver] Quản lý giao tiếp I2C không đồng bộ để đọc ghi dữ liệu phần cứng.
+      tầng driver · không chạy định kỳ
+      chiếm: twi
+      cung cấp: twi_init, twi_read_async, twi_write_async, twi_is_busy
+      lý do: Tách biệt giao thức I2C phần cứng khỏi logic cảm biến để dễ bảo trì và đảm bảo tuân thủ quy tắc không blocking_io.
+
+  [imu_sensor] Giao tiếp với MPU6050 để lấy dữ liệu gia tốc và góc quay thô.
+      tầng driver · không chạy định kỳ
+      chiếm: imu
+      phụ thuộc: twi_driver
+      cung cấp: imu_init, imu_request_read, imu_get_raw_data
+      lý do: Đóng gói các thanh ghi đặc thù của MPU6050, cung cấp dữ liệu thô chuẩn hóa cho bộ lọc.
+
+  [motor_controller] Tạo xung điều khiển hai động cơ bước thông qua ngắt timer để đảm bảo thời gian đáp ứng dưới 50us.
+      tầng driver · không chạy định kỳ
+      chiếm: timer1, motor_driver_left, motor_driver_right
+      cung cấp: motor_init, motor_set_speed
+      lý do: Động cơ bước cần xung timing cực kỳ chính xác, phải dùng Timer1 độc lập với vòng lặp chính để không bị trễ.
+
+  [system_timer] Cung cấp cờ thời gian 10ms cho vòng lặp điều khiển chính.
+      tầng driver · không chạy định kỳ
+      chiếm: timer0
+      cung cấp: timer_init, timer_check_10ms_flag, timer_clear_10ms_flag
+      lý do: Quản lý thời gian hệ thống độc lập, đảm bảo control_loop_ms=10 được thực thi đúng hạn.
+
+  [uart_logger] Gửi dữ liệu telemetry ra ngoài qua UART mà không làm nghẽn hệ thống.
+      tầng driver · không chạy định kỳ
+      chiếm: usart0
+      cung cấp: uart_init, uart_send_async
+      lý do: Debug và theo dõi trạng thái là cần thiết nhưng không được vi phạm quy tắc cấm blocking_io.
+
+  [attitude_estimator] Lọc và dung hợp dữ liệu IMU thô thành góc nghiêng thực tế của robot.
+      tầng logic · không chạy định kỳ
+      cung cấp: attitude_init, attitude_compute_angle
+      lý do: Thuật toán lọc chứa nhiều phép toán, cần tách khỏi driver để dễ test và tránh float_in_isr.
+
+  [pid_balancer] Tính toán tốc độ động cơ cần thiết dựa trên sai số góc nghiêng.
+      tầng logic · không chạy định kỳ
+      cung cấp: pid_init, pid_compute
+      lý do: Tách biệt thuật toán điều khiển PID khỏi phần cứng, đảm bảo tính module hóa và dễ tinh chỉnh tham số.
+
+  [main_coordinator] Điều phối chu kỳ 10ms: đọc IMU, tính góc, chạy PID và cập nhật tốc độ động cơ.
+      tầng dieu_phoi · mỗi 10 ms
+      phụ thuộc: system_timer, twi_driver, imu_sensor, attitude_estimator, pid_balancer, motor_controller, uart_logger
+      cung cấp: main
+      ước lượng 6 ms/lượt → 60% CPU
+      lý do: Cần một module trung tâm để liên kết các thành phần theo đúng chu kỳ vật lý 10ms mà không chứa logic tính toán sâu.
+
+Thứ tự làm (theo phụ thuộc):
+  1. attitude_estimator, motor_controller, pid_balancer, system_timer, twi_driver, uart_logger · làm song song được
+  2. imu_sensor
+  3. main_coordinator
+
+Tải CPU ước lượng: 60% (trần 70%)
+  Đây là ƯỚC LƯỢNG, không phải số đo. Số thật chỉ có khi đo trên thiết bị.
+
+Agent KHÔNG tự thêm vào backlog: phân rã là quyết định kiến trúc, và
+kiến trúc sai thì mọi module sau đều đúng quy trình mà sai chỗ.
+  Nhận bản này: eaa plan accept
