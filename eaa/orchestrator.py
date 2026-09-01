@@ -226,6 +226,7 @@ class Orchestrator:
         try:
             prompt = self.composer.build(task, state, counter=self.llm.count_tokens)
             artifact = self._sinh_ma(prompt, module_id)
+            bo_ngoai_pham_vi = self.khoa_pham_vi_tep(artifact, module_id)
         except Exception as exc:  # noqa: BLE001 - mọi lỗi lắp ráp đều dừng vòng
             return self._that_bai(
                 module_id,
@@ -279,6 +280,9 @@ class Orchestrator:
                 "  ⚠ đã dọn mã còn sót của lượt trước: " + ", ".join(sorted(da_don)[:6])
                 + (" …" if len(da_don) > 6 else "")
             )
+        cau_bo = self._cau_bo_tep(bo_ngoai_pham_vi, module_id)
+        if cau_bo:
+            nhat_ky.append(cau_bo)
         canh_bao = self.canh_bao_luoc(prompt)
         if canh_bao:
             nhat_ky.append(canh_bao)
@@ -693,6 +697,45 @@ class Orchestrator:
             output_files=cls.tep_can_sinh(module_id),
         )
 
+    def khoa_pham_vi_tep(self, artifact: CodeArtifact, module_id: str) -> list[str]:
+        """Bỏ khỏi artifact những tệp KHÔNG thuộc module đang sinh (SL-154).
+
+        Bất biến: **mã đã merge chỉ đổi qua vòng sinh của CHÍNH module đó.**
+        Mỗi tệp trên nhánh chính đã đi qua một lượt review G3 mang tên một
+        module; một lượt sinh cho module khác viết đè lên nó là xoá quyết định
+        ấy mà không ai bấm nút gì.
+
+        Đã xảy ra: `eaa gen drv_imu` gặp bài kiểm của `drv_i2c` đỏ trong cùng
+        lượt chạy pytest, và ba vòng tự sửa liên tiếp trả về `src/drv_i2c.c`
+        viết lại từ đầu — xoá mất bốn hàm công khai của một module đã merge.
+        `write_artifact` chặn đường dẫn THOÁT RA NGOÀI thư mục làm việc, nhưng
+        bên trong thư mục ấy thì tệp nào cũng ghi được.
+
+        Danh sách được phép sinh ra từ chính ``tep_can_sinh`` — cùng cái hàm
+        viết câu "Tệp cần sinh" trong prompt. Chép tay lần thứ hai là mở đường
+        cho hai bản lệch nhau.
+
+        Tệp MỚI ngoài danh sách vẫn cho qua: một module có quyền thêm tệp phụ
+        của chính nó, và tệp chưa có trên nhánh chính thì chưa là tài sản của
+        ai. Chỉ chặn đúng chỗ đau: ghi đè tệp đã merge.
+        """
+        cho_phep = set(self.tep_can_sinh(module_id))
+        da_merge = self.repo.files_on_main() if hasattr(self.repo, "files_on_main") else frozenset()
+        bo_ra = [d for d in artifact.files if d not in cho_phep and d in da_merge]
+        for duong_dan in bo_ra:
+            artifact.files.pop(duong_dan, None)
+        return sorted(bo_ra)
+
+    def _cau_bo_tep(self, bo_ra: Sequence[str], module_id: str) -> str:
+        """Nói ra việc đã bỏ. Bỏ im lặng là cách một bản vá biến mất không dấu vết."""
+        if not bo_ra:
+            return ""
+        return (
+            f"  ⚠ bỏ {len(bo_ra)} tệp ngoài phạm vi module {module_id} "
+            "(đã merge, chỉ đổi được qua vòng sinh của chính nó): "
+            + ", ".join(bo_ra)
+        )
+
     def _sinh_ma(self, prompt: Any, module_id: str) -> CodeArtifact:
         """Bước 5 — gọi mô hình. Ngân sách đã được adapter kiểm trước khi gọi."""
         artifact = self.llm.generate(prompt)
@@ -809,6 +852,11 @@ class Orchestrator:
         )
         ban_va = self.llm.generate(prompt)
 
+        # Khoá phạm vi TRƯỚC khi gộp. Gộp xong mới lọc thì tệp của module khác
+        # đã nằm lẫn trong tập và không còn phân biệt được nó đến từ bản vá hay
+        # từ chính lượt sinh (SL-154).
+        bo_ra = self.khoa_pham_vi_tep(ban_va, module_id)
+
         # Bản vá thay thế theo TỆP: mô hình chỉ trả về tệp nó sửa, các tệp khác
         # giữ nguyên. Ghi đè cả tập sẽ làm mất những tệp không liên quan.
         tep = dict(artifact.files)
@@ -825,7 +873,9 @@ class Orchestrator:
                 ),
                 evidence=f"vòng tự sửa, cổng {bao_cao_hong.gate}",
             )
-        return ban_va, self.canh_bao_luoc(prompt)
+        return ban_va, "\n".join(
+            c for c in (self._cau_bo_tep(bo_ra, module_id), self.canh_bao_luoc(prompt)) if c
+        )
 
     def _commit(self, artifact: CodeArtifact, module_id: str) -> str:
         """Bước 9 — ghi mã lên nhánh module với đủ dấu vết NFR-07."""

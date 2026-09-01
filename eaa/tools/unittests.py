@@ -47,6 +47,7 @@ __all__ = ["UnitTestGate", "host_gaps"]
 
 _TOM_TAT = re.compile(
     r"(?:(?P<passed>\d+) passed)|(?:(?P<failed>\d+) failed)|(?:(?P<errors>\d+) error)"
+    r"|(?:(?P<skipped>\d+) skipped)"
 )
 
 
@@ -138,7 +139,7 @@ class UnitTestGate:
     DUOI_SAN_PHAM_DICH: tuple[str, ...] = (".so", ".dylib", ".dll", ".o", ".a")
 
     @classmethod
-    def _don_san_pham_dich(cls, tests_dir: Path) -> list[str]:
+    def _don_san_pham_dich(cls, tests_dir: Path, work_dir: Path | None = None) -> list[str]:
         """Xóa thư viện đã dịch của lần chạy TRƯỚC, trước khi chạy lần này.
 
         Vì sao phải là cấu trúc chứ không phải một dòng dặn trong prompt: bộ
@@ -154,13 +155,34 @@ class UnitTestGate:
         phẩm dịch cũ khiến việc nuốt lỗi KHÔNG CÒN CHỖ ẨN: không có thư viện cũ
         thì ``ctypes`` sập, và cổng đỏ đúng lúc phải đỏ.
 
-        Chỉ xóa trong thư mục test, và chỉ những đuôi là sản phẩm dịch — thứ
-        lần chạy sau tự tạo lại được.
+        Quét ở CẢ HAI chỗ, vì tệp test nằm ở ``tests/`` còn thư viện nó dịch ra
+        thì KHÔNG (SL-152). Lệnh dịch trong bài kiểm ghi ``-o ./libX.so``, và
+        ``.`` của tiến trình pytest là ``work_dir``, không phải ``tests_dir``.
+        Nên bản quét cũ — chỉ nhìn ``tests_dir`` — chưa từng xóa được một tệp
+        nào của thứ nó sinh ra để chặn: thư viện của lần trước sống nguyên qua
+        mọi lượt chạy. Đo được: lượt sinh `drv_imu` ngày 02/09 bị chấm bằng
+        `libdrv_imu.so` dịch từ hôm trước, và ba vòng tự sửa đi vá một con số
+        do nhị phân CŨ trả về.
+
+        ``work_dir`` chỉ quét MỘT TẦNG. Thư mục con ``build/`` là sản phẩm của
+        cổng dịch chéo chạy trước cổng này, và của ``eaa build`` chạy sau — xóa
+        đệ quy là cổng này đi phá bằng chứng của cổng khác.
+
+        Chỉ xóa những đuôi là sản phẩm dịch — thứ lần chạy sau tự tạo lại được.
         """
         da_xoa: list[str] = []
-        if not tests_dir.is_dir():
-            return da_xoa
-        for path in sorted(tests_dir.rglob("*")):
+        da_tham: set[Path] = set()
+
+        ung_vien: list[Path] = []
+        if tests_dir.is_dir():
+            ung_vien.extend(sorted(tests_dir.rglob("*")))
+        if work_dir is not None and work_dir.is_dir():
+            ung_vien.extend(sorted(work_dir.iterdir()))
+
+        for path in ung_vien:
+            if path in da_tham:
+                continue
+            da_tham.add(path)
             if path.is_file() and path.suffix in cls.DUOI_SAN_PHAM_DICH:
                 path.unlink(missing_ok=True)
                 da_xoa.append(path.name)
@@ -211,7 +233,7 @@ class UnitTestGate:
                 ),
             )
 
-        self._don_san_pham_dich(tests_dir)
+        self._don_san_pham_dich(tests_dir, Path(self.work_dir))
 
         bat_dau = time.monotonic()
         moi_truong = dict(os.environ)
@@ -222,7 +244,23 @@ class UnitTestGate:
             )
         try:
             ket_qua = subprocess.run(
-                [sys.executable, "-m", "pytest", str(tests_dir), "-q", "--no-header"],
+                # `-rfEs` để đầu ra NÊU TÊN bài kiểm nào tự bỏ qua và vì lý do
+                # gì. Không có cờ ấy, tóm tắt chỉ nói "1 skipped" — đủ để cổng
+                # đỏ, không đủ để vòng tự sửa biết phải sửa cái gì (SL-153).
+                #
+                # Phải viết đủ `f` và `E`: cờ `-r` THAY THẾ mặc định chứ không
+                # cộng thêm vào, nên `-rs` một mình sẽ xoá luôn dòng `FAILED` —
+                # đổi một cổng nói rõ tên bài kiểm hỏng thành một cổng chỉ nói
+                # rằng có cái gì đó hỏng.
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    str(tests_dir),
+                    "-q",
+                    "--no-header",
+                    "-rfEs",
+                ],
                 cwd=str(self.work_dir),
                 env=moi_truong,
                 capture_output=True,
@@ -245,18 +283,43 @@ class UnitTestGate:
         so_lieu = self._dem(dau_ra)
         so_lieu["exit_code"] = ket_qua.returncode
 
-        dat = ket_qua.returncode == 0
-        loi = (
-            []
-            if dat
-            else [
+        loi: list[ToolError] = []
+        if ket_qua.returncode != 0:
+            loi.append(
                 ToolError(
                     f"{so_lieu.get('failed', 0)} test không đạt, "
                     f"{so_lieu.get('errors', 0)} lỗi. Trích đầu ra:\n"
                     + "\n".join(self._dong_that_bai(dau_ra))
                 )
-            ]
-        )
+            )
+
+        # Một bài kiểm TỰ BỎ QUA CHÍNH NÓ không phải là một bài kiểm đã đạt, mà
+        # pytest thoát 0 cho cả lượt chạy chỉ toàn `skipped` — nên cổng đọc
+        # "chưa kiểm gì" thành ĐẠT (SL-153).
+        #
+        # Đây không phải khả năng lý thuyết. Bài kiểm sinh cho `drv_imu` mở đầu
+        # bằng `if not os.path.exists(lib): pytest.skip("Library not found")`.
+        # Câu ấy biến đúng cái hỏng mà cổng phải bắt — mã không dịch được nên
+        # không có thư viện — thành một lượt chạy màu xanh.
+        #
+        # Cổng KHÔNG phân biệt được "bỏ qua vì không liên quan" với "bỏ qua vì
+        # thứ cần kiểm không tồn tại", và giữa hai cách đọc ấy chỉ một cách là
+        # an toàn. Firmware ở đây được viết tách lớp trừu tượng phần cứng chính
+        # là để chạy được trên máy chủ; một bài kiểm bỏ qua trên máy chủ là bài
+        # kiểm đang nói rằng lời hứa ấy chưa thành.
+        if so_lieu.get("skipped", 0):
+            ly_do = self._dong_bo_qua(dau_ra)
+            loi.append(
+                ToolError(
+                    f"{so_lieu['skipped']} bài kiểm TỰ BỎ QUA — cổng này đọc bỏ "
+                    "qua là CHƯA KIỂM, không phải đã đạt.\n"
+                    "Bỏ điều kiện bỏ qua, và nếu nó bỏ qua vì thiếu thư viện đã "
+                    "dịch thì hãy DỊCH trong chính bài kiểm rồi để lệnh dịch "
+                    "hỏng làm bài kiểm đỏ.\n" + "\n".join(ly_do)
+                )
+            )
+
+        dat = not loi
 
         # Phần KHÔNG kiểm được, nêu kể cả khi mọi test đều xanh — nhất là khi
         # mọi test đều xanh, vì đó đúng là lúc người đọc dễ mang cảm giác đã
@@ -281,13 +344,23 @@ class UnitTestGate:
 
     @staticmethod
     def _dem(dau_ra: str) -> dict[str, int]:
-        so_lieu = {"passed": 0, "failed": 0, "errors": 0}
+        so_lieu = {"passed": 0, "failed": 0, "errors": 0, "skipped": 0}
         for khop in _TOM_TAT.finditer(dau_ra):
             for ten, gia_tri in khop.groupdict().items():
                 if gia_tri:
                     so_lieu[ten] = int(gia_tri)
         so_lieu["tests_found"] = so_lieu["passed"] + so_lieu["failed"] + so_lieu["errors"]
         return so_lieu
+
+    @staticmethod
+    def _dong_bo_qua(dau_ra: str, gioi_han: int = 10) -> list[str]:
+        """Các dòng nói LÝ DO một bài kiểm tự bỏ qua chính nó."""
+        dong = [
+            d.strip()
+            for d in dau_ra.splitlines()
+            if d.lstrip().startswith("SKIPPED") or " skipped " in d or "Skipped:" in d
+        ]
+        return dong[:gioi_han]
 
     @staticmethod
     def _dong_that_bai(dau_ra: str, gioi_han: int = 20) -> list[str]:

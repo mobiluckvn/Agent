@@ -109,6 +109,10 @@ host_test:
     không bỏ qua mã thoát khác 0. Nuốt lỗi dịch rồi nạp thư viện của lần chạy
     trước là cách làm cổng báo ĐẠT trên nguồn không dịch nổi.
 
+    KHÔNG `pytest.skip` khi thiếu thư viện đã dịch. Bài kiểm phải TỰ DỊCH lấy
+    thư viện nó cần; thiếu thư viện nghĩa là mã không dịch được, và đó đúng là
+    thứ cổng phải bắt. Cổng đọc bỏ qua là CHƯA KIỂM và sẽ đỏ.
+
     Mỗi tệp trả về phải là mã Python hợp lệ, chạy được ngay.
 
 # Phiên bản tối thiểu; eaa doctor đối chiếu và ghi vào env_lock.json (FR-ENV-01/04).

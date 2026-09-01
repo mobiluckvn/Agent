@@ -286,6 +286,19 @@ class GitRepo:
     def has_changes(self) -> bool:
         return bool(self._git("status", "--porcelain"))
 
+    def files_on_main(self) -> frozenset[str]:
+        """Những tệp đang nằm trên nhánh chính — tức mã ĐÃ QUA G3 và đã merge.
+
+        Dùng để trả lời đúng một câu: tệp này có phải tài sản của một module
+        khác đã được người duyệt hay không (SL-154). Trả về rỗng khi kho chưa
+        có nhánh chính — lúc ấy chưa có gì để bảo vệ.
+        """
+        try:
+            ra = self._git("ls-tree", "-r", "--name-only", self.main_branch)
+        except GitError:
+            return frozenset()
+        return frozenset(d for d in ra.splitlines() if d)
+
     # -- nhánh -------------------------------------------------------------
 
     def branch_for(self, module_id: str) -> str:

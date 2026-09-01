@@ -2190,3 +2190,39 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Cách tìm** | Bốn lần trong một buổi: `git checkout -q main thất bại — Your local changes would be overwritten` |
 | **Vì sao đây là ngõ cụt** | Mã chưa commit ấy là do CHÍNH Agent vừa viết hỏng. Thông báo bảo người dùng đi "commit or stash" nó, và không nói ra điều đó |
 | **Đã sửa** | `start_module` dọn cây trước khi đổi nhánh — xóa được vì đây là kho SẢN PHẨM SINH, mọi thứ chưa commit là rác của lượt trước. Nhưng vẫn TRẢ VỀ danh sách đã xóa và in ra: dọn dẹp im lặng là cách một tệp ai đó sửa tay biến mất mà không ai biết |
+
+## SL-152 · LỆCH THẬT · Bước dọn thư viện cũ quét thư mục mà thư viện không nằm ở đó
+
+| | |
+|---|---|
+| **Cách tìm** | `eaa gen drv_imu` ngày 02/09: bài kiểm báo `Expected ~0.0183, got 0.0`. Con số ấy đúng với mã HÔM TRƯỚC. `libdrv_imu.so` mang dấu thời gian 23:16 ngày 01/09, trong khi lượt chạy là 06:0x ngày 02/09 |
+| **Cơ chế** | Cổng `unittests` có sẵn `_don_san_pham_dich`, kèm chú thích dài đúng về vì sao nó cần thiết. Nó quét `tests_dir`. Lệnh dịch trong bài kiểm ghi `-o ./libX.so`, và `.` của tiến trình pytest là `work_dir`. Hai thư mục khác nhau — nên trong suốt thời gian tồn tại, bước dọn chưa xoá được một tệp nào của thứ nó sinh ra để chặn |
+| **Vì sao đắt** | Một lượt sinh + ba vòng tự sửa, bốn lượt gọi mô hình, đi vá một sai lệch mà mã đang sửa không gây ra. Và cổng KHÔNG sai theo cách nhìn thấy được: nó đỏ, chỉ là đỏ vì nhị phân cũ |
+| **Chiều nguy hơn** | Cùng cơ chế ấy làm cổng XANH trên mã không dịch nổi, nếu bài kiểm nuốt lỗi dịch — đúng cái chú thích của hàm đã cảnh báo |
+| **Đã sửa** | Quét cả `work_dir`, MỘT TẦNG. Không đệ quy: `work_dir/build/` là sản phẩm của cổng dịch chéo chạy trước và của `eaa build` chạy sau; quét đệ quy là cổng này đi phá bằng chứng của cổng khác |
+| **Bài canh** | `tests/test_tc116_don_thu_vien_cu_dung_cho.py` — 5 bài |
+
+## SL-153 · LỆCH THẬT · Bài kiểm tự bỏ qua chính nó được đọc thành ĐẠT
+
+| | |
+|---|---|
+| **Cách tìm** | Bài kiểm sinh cho `drv_imu` mở đầu bằng `if not os.path.exists(lib): pytest.skip("Library not found")`. Câu ấy biến đúng cái hỏng cổng phải bắt — mã không dịch được nên không có thư viện — thành một lượt chạy màu xanh |
+| **Cơ chế** | `dat = returncode == 0`, và pytest thoát 0 cho một lượt chỉ toàn `skipped` |
+| **Vì sao là lỗ thứ hai chứ không phải hệ quả của SL-152** | Hai chỗ hở ngược chiều nhau và cùng dẫn tới một chỗ: có thư viện cũ thì cổng chấm nhầm bằng nó (SL-152); không có thì cổng bỏ qua và báo đạt (SL-153). Bịt một chỗ là mở chỗ kia |
+| **Ý đã có sẵn** | Cổng đã nói đúng câu ấy cho trường hợp KHÔNG CÓ test nào: *"chưa có gì để chạy" không phải là "đã kiểm chứng"*. Bỏ qua là đúng trường hợp ấy, chỉ khác ở chỗ tệp test có tồn tại |
+| **Đã sửa** | `skipped > 0` → cổng KHÔNG ĐẠT, kèm tên bài và lý do bỏ qua để vòng tự sửa biết sửa gì. Cổng không phân biệt được "bỏ qua vì không liên quan" với "bỏ qua vì thứ cần kiểm không tồn tại", và giữa hai cách đọc chỉ một cách an toàn |
+| **Bẫy đi kèm** | Cờ `-r` của pytest THAY THẾ mặc định chứ không cộng thêm. `-rs` một mình xoá luôn dòng `FAILED` — đổi một cổng nói rõ tên bài kiểm hỏng thành một cổng chỉ nói rằng có cái gì đó hỏng. Phải là `-rfEs` |
+| **Bài canh** | `tests/test_tc117_bo_qua_khong_phai_da_kiem.py` — 5 bài |
+
+## SL-154 · LỆCH THẬT · Vòng sinh mã của module này viết đè module đã merge
+
+| | |
+|---|---|
+| **Cách tìm** | `AttributeError: dlsym(i2c_init): symbol not found`. `eaa gen drv_imu` trả về `src/drv_i2c.c` ở CẢ BA vòng tự sửa, mỗi lần viết lại từ đầu, xoá mất bốn hàm công khai của một module đã merge từ hôm trước |
+| **Mô hình không làm sai lời nó được dặn** | Cổng `unittests` chạy CẢ thư mục test; báo cáo lỗi nó nhận được mang tên `tests/test_drv_i2c.py`; nó đi sửa chỗ được chỉ |
+| **Chỗ hở** | `write_artifact` chặn đường dẫn THOÁT RA NGOÀI thư mục làm việc — và chỉ thế. Bên trong thư mục ấy thì tệp nào cũng ghi được. Danh sách `output_files` có tồn tại, nhưng nó chỉ đi vào một câu trong prompt: *"Tệp cần sinh: …"*. Lại là một luật sống trong lời dặn |
+| **Bất biến đặt ra** | **Mã đã merge chỉ đổi qua vòng sinh của CHÍNH module đó.** Mỗi tệp trên nhánh chính đã qua một lượt review G3 mang tên một module; một lượt sinh cho module khác viết đè lên nó là xoá quyết định ấy mà không ai bấm nút gì |
+| **Ranh giới** | Chặn theo "đã có trên nhánh chính", KHÔNG theo "ngoài danh sách tệp cần sinh". Một module có quyền thêm tệp phụ của chính nó, và tệp chưa merge thì chưa là tài sản của ai. Một cổng hay báo nhầm sớm muộn cũng bị tắt đi |
+| **Đã sửa** | `Orchestrator.khoa_pham_vi_tep` chạy ngay sau MỖI lượt gọi mô hình — cả lượt sinh đầu lẫn từng vòng vá — và lọc TRƯỚC bước gộp bản vá. Danh sách cho phép sinh từ chính `tep_can_sinh`, cùng hàm viết câu trong prompt. Tệp bị bỏ được NÊU TÊN vào nhật ký từng vòng |
+| **Còn nợ** | Nguyên nhân gốc chưa đụng tới: cổng `unittests` của module M báo lỗi bài kiểm của module N như thể là lỗi của M. Bộ lọc chặn được hậu quả, không chặn được việc vòng tự sửa đốt lượt gọi cho một cổng nó không sửa được |
+| **Bài canh** | `tests/test_tc118_khong_ghi_de_module_da_merge.py` — 12 bài |
