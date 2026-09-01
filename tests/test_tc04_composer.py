@@ -194,8 +194,8 @@ def test_tc05_chunk_chua_duyet_G2_khong_bao_gio_vao_prompt(
     composer: PromptComposer,
 ) -> None:
     prompt = composer.build(Task(module_id="drv_imu", uses=("imu",)))
-    assert "ds-032" not in prompt.full_text()
-    assert "ACCEL_XOUT_H" not in prompt.full_text()
+    assert "ds-atme-gpio-02" not in prompt.full_text()
+    assert "PORTD" not in prompt.full_text()
 
 
 def test_chunk_kem_theo_cau_trich_dan_de_mo_hinh_dung_dung(

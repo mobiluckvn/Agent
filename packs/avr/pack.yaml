@@ -79,17 +79,20 @@ host_test:
   # Module không chạm thanh ghi thì không cần tới nó.
   mock_include: hostmock
   contract: >-
-    Bài kiểm là mã PYTHON chạy bằng pytest, đặt ở `tests/test_<module>.py` của
-    dự án. Nó dịch tệp `src/<module>.c` bằng trình dịch của MÁY CHỦ thành một
-    thư viện dùng chung, nạp bằng `ctypes`, rồi gọi thẳng các hàm của module và
-    đối chiếu giá trị trả về. KHÔNG viết bài kiểm bằng C, và KHÔNG chép lại
-    thuật toán sang Python rồi kiểm bản chép — làm thế là kiểm bản chép chứ
-    không kiểm mã sẽ chạy trên chip.
+    Bài kiểm là mã PYTHON chạy bằng pytest, đặt ở `tests/test_<module>.py`. Nó
+    dịch `src/<module>.c` bằng trình dịch MÁY CHỦ thành thư viện dùng chung,
+    nạp bằng `ctypes`, gọi thẳng hàm của module và đối chiếu giá trị trả về.
+    KHÔNG viết bài kiểm bằng C, và KHÔNG chép thuật toán sang Python rồi kiểm
+    bản chép — thế là kiểm bản chép, không kiểm mã sẽ chạy trên chip.
 
-    Kiểm những thứ chạy được trên máy chủ: phép tính, máy trạng thái, xử lý
-    biên và tràn số. KHÔNG kiểm được ở đây: giá trị thật ghi vào thanh ghi, độ
-    trễ ngắt, hành vi ngoại vi — những thứ ấy thuộc cổng mô phỏng và nghiệm thu
-    vật lý tại G4.
+    Kiểm được ở đây: phép tính, máy trạng thái, thao tác bit, xử lý biên.
+    KHÔNG kiểm được: thời gian, độ trễ ngắt, hành vi ngoại vi thật — những thứ
+    ấy thuộc cổng mô phỏng và nghiệm thu vật lý tại G4.
+
+    Thanh ghi trong tiêu đề giả là Ô NHỚ THƯỜNG. Bài kiểm dựng cảnh bằng cách
+    ghi thẳng vào chúng trước khi gọi hàm, và soi lại chúng sau khi gọi. Thân
+    ngắt viết bằng `ISR(...)` trở thành hàm thường mang đúng tên véc-tơ, nên
+    gọi được từ bài kiểm.
 
     TUYỆT ĐỐI KHÔNG kiểm bằng cách ĐỌC VĂN BẢN MÃ NGUỒN, kiểu
     `assert "delay(" not in code`. Đó là làm lại việc của cổng phân tích tĩnh
@@ -219,16 +222,30 @@ capabilities:
     description: Phân tích tĩnh theo bộ quy tắc trong rules/.
     command:
       - cppcheck
-      - --enable=warning,style,performance,portability
+      # `style` BỎ RA khỏi danh sách bật.
+      #
+      # Cùng với `--error-exitcode=1`, một ghi chú thẩm mỹ kiểu "phạm vi biến
+      # này thu hẹp được" làm công cụ thoát mã 1, cổng đỏ, và vòng tự sửa đốt
+      # ba lượt gọi mô hình cho một thứ không liên quan gì tới đúng/sai. Cổng
+      # chặn vì lý do thẩm mỹ là cổng sẽ bị tắt đi (SL-143).
+      - --enable=warning,performance,portability
       - --error-exitcode=1
       - --inline-suppr
       - --platform=avr8
       - --std=c11
+      # Tiêu đề giả: cppcheck cần tìm thấy <avr/io.h>, nếu không nó ngừng phân
+      # tích cú pháp ngay dòng đầu và báo `unknown type name 'uint32_t'` — một
+      # lỗi của CÁCH GỌI, không phải của mã.
+      - "-I{mock_include}"
+      - --suppress=missingIncludeSystem
       - "{source}"
     timeout_s: 120
     parse:
       success_exit_codes: [0]
-      error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+(?:error|warning):\\s+(?P<msg>.+)$"
+      # Bắt MỌI mức nghiêm trọng cppcheck in ra, không chỉ error/warning.
+      # Thoát khác 0 mà quy tắc parse không bắt được gì thì thông báo trở thành
+      # "công cụ hỏng ở đâu đó" — và orchestrator coi đó là lỗi mã.
+      error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+(?:error|warning|style|performance|portability|information):\\s+(?P<msg>.+)$"
 
   flash:
     description: >-

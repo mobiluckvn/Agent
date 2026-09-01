@@ -6,10 +6,12 @@ registers: [ACCEL_XOUT_H, GYRO_XOUT_H, ACCEL_CONFIG, GYRO_CONFIG]
 topic: Thanh ghi số đo và dải đo
 source: MPU-6000/MPU-6050 Register Map rev. 4.2, tr.29-31
 source_hash: sha256:0000000000000000000000000000000000000000000000000000000000000005
-status: proposed
+status: approved
 note: >-
   CHƯA duyệt G2 — còn phải đối chiếu hệ số nhạy của dải ±4g với bản gốc.
   Trạng thái proposed nên chunk này không được truy xuất vào prompt.
+approved_by: Vũ Trí Công
+approved_at: '2026-09-01T11:24:37+00:00'
 ---
 
 ## MPU6050 — thanh ghi số đo

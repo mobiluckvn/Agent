@@ -2064,3 +2064,65 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Đã sửa** | `dau_van_tay_G1()` gộp băm hai tệp; hồ sơ G1 cho người đọc **cả** `hardware_profile.yaml`; `ProjectState.hardware_version` chốt cùng lúc khi duyệt; phép kiểm trôi soi cả hai |
 | **Trường hợp di trú nói ra, không im** | Dự án cũ có G1 approved mà chưa có mốc phần cứng: `status` báo *"CHƯA NEO"*. Im ở đây sẽ giữ nguyên đúng lỗ vừa vá — không có mốc thì không phát hiện được trôi, và "không phát hiện được" đọc y hệt "không có gì trôi" |
 | **Bài canh** | `tests/test_tc108_g1_neo_ca_ho_so_phan_cung.py` — 8 bài, trong đó một bài neo vào chính câu chữ đã hứa trong `hardware_profile.yaml` để nó không bị lặng lẽ bỏ đi |
+
+## SL-140 · LỆCH THẬT · Phân rã vòng hai không bao giờ hợp lệ
+
+| | |
+|---|---|
+| **Cách tìm** | `eaa plan propose` lần thứ hai, sau khi hồ sơ phần cứng khai thêm còi và nút: *"Module 'app_ui' phụ thuộc vào module không có trong bản phân rã: ['app_balance']"* |
+| **Mô hình làm đúng** | `app_balance` đã ở trong backlog và đã duyệt; module mới phụ thuộc vào nó là chuyện bình thường. Chỗ sai nằm ở bộ kiểm |
+| **Nửa còn lại của SL-131** | SL-131 dạy BỘ PHÂN RÃ biết module đã có (`propose(..., existing=...)` → prompt + chặn trùng tên). `DecompositionPlan` vẫn giữ giả định cũ rằng **một bản phân rã là tự đủ**. Bộ phân rã biết, còn bản phân rã thì không |
+| **Vì sao bốn sprint không ai thấy** | Đây là lần đầu một dự án chạy tới vòng phân rã thứ hai; mọi bài kiểm cũ đều dựng bản phân rã từ backlog rỗng |
+| **KHÔNG nới lỏng phép kiểm** | Cách sai là bỏ phép kiểm phụ thuộc — nó bắt lỗi thật (mô hình nêu một cái tên nó chưa từng đề xuất). Cách đúng là cho bản phân rã BIẾT tập module đã tồn tại rồi vẫn kiểm nghiêm ngặt trên tập đầy đủ |
+| **Đã sửa** | `DecompositionPlan.known`, đi qua cả `to_dict/from_dict` (bản phân rã được ghi ra đĩa giữa `propose` và `accept` — mất `known` ở giữa thì chỗ chặn chỉ dời đi một lệnh). `order()` trừ module đã có ra khỏi kết quả: thêm nhầm một module đã merge là chạy lại `eaa gen` trên mã đã duyệt |
+| **Bài canh** | `tests/test_tc109_phan_ra_vong_hai.py` — 7 bài |
+
+## SL-141 · LỆCH THẬT (×2) · Bối cảnh phân rã chỉ mang TÊN, không mang THUỘC TÍNH
+
+| | |
+|---|---|
+| **Cách tìm** | Bản phân rã đề xuất `drv_buzzer` **chiếm `timer2`** — đúng bộ đếm đang phát xung bước. Một cái còi cướp nhịp bước là robot ngã, và không cổng phần mềm nào bắt được |
+| **Sửa hồ sơ vẫn không ăn thua** | Ghi thẳng vào hồ sơ rằng đây là còi CHỦ ĐỘNG (`drive: dc_on_off`, tự dao động, chỉ đặt mức chân), kèm bằng chứng từ mã tham chiếu. Phân rã lại: `drv_buzzer` **chiếm `timer1`**. Nó chỉ đổi sang bộ đếm khác |
+| **Lỗi 1 — hồ sơ bị rút thành danh sách tên** | `_boi_canh` lấy `[c["id"] for c in components]` rồi `", ".join(...)`. Mọi thuộc tính bị bỏ: `drive`, `active_level`, `pins`, `kind`, `note`. Bộ phân rã nhận một DANH SÁCH TÊN và phải tự đoán mỗi tên cần gì — nên nó đoán "còi" thì cần bộ đếm, đúng theo trực giác chung về còi thụ động |
+| **Lỗi 2 — module đã có không kèm trách nhiệm** | `_boi_canh_da_co` in `id (chiếm: ...)`, không có `purpose`. Bộ phân rã biết `app_balance` TỒN TẠI mà không biết nó LÀM GÌ, nên đề xuất thêm `app_hmi` ôm đúng giao thức nút nhấn và tiếng bíp mà `app_balance` đã nhận. `purpose` nằm sẵn trong backlog từ SL-135; chỗ dựng danh sách `existing` chỉ lấy `(id, uses)` |
+| **Kết quả sau khi sửa** | `drv_buzzer` chiếm ĐÚNG `buzzer`, không xin bộ đếm nào; không còn module ôm lại việc của `app_balance`; và bộ phân rã tự nhận ra dự án thiếu đường telemetry cho nghiệm thu G4, đề xuất `app_telemetry` |
+| **Bài canh** | `tests/test_tc110_boi_canh_phan_ra_du_thuoc_tinh.py` — 8 bài |
+
+## SL-142 · LỆCH THẬT · Hồ sơ đang chờ ở gate bị ghi đè, mất bằng chứng review
+
+| | |
+|---|---|
+| **Cách tìm** | Sinh hai driver liên tiếp. Sau đó: ba module ở `in_review`, và `gates/pending_G3.json` chỉ còn hồ sơ của module CUỐI |
+| **Cơ chế** | Một tệp cho mỗi CỔNG chứ không phải mỗi MODULE: `pending_{gate_id}.json`. `request()` ghi thẳng vào đó |
+| **Mất mát thật** | Hồ sơ G3 mang **bản diff và băm nội dung** mà quyết định của người neo vào. Mất nó thì hai module kia không còn đường ra khỏi `in_review`: `gate approve` báo không có gì đang chờ, mã đã sinh nằm trên nhánh không ai merge được |
+| **Và một cách hiểu sai rất dễ xảy ra** | Màn hình vừa báo ba module qua bốn cổng; người bấm duyệt sẽ tin mình vừa duyệt cả ba, trong khi chỉ một module được merge |
+| **Đã sửa — chặn, không xếp hàng** | `request()` từ chối ghi đè hồ sơ của MODULE KHÁC, kèm câu nói rõ module nào đang giữ chỗ và hai lệnh đi tiếp. Ghi đè hồ sơ của CHÍNH module ấy vẫn được — đó là đường đi sau mỗi lần từ chối G3 |
+| **Lựa chọn có ý thức** | Cách giàu hơn là mỗi module một hồ sơ, review theo lô. Chặn thì không đánh mất gì và nói rõ lối đi tiếp; xếp hàng là cơ chế lớn hơn, chỉ đáng làm khi thật sự có người review theo lô |
+| **Bài canh** | `tests/test_tc111_ho_so_gate_khong_bi_ghi_de.py` — 5 bài |
+
+## SL-143 · LỆCH THẬT (×4) · Đường kiểm trên máy chủ chưa từng chạy được với mã chạm thanh ghi
+
+| | |
+|---|---|
+| **Cách tìm** | Sinh `drv_button` — module đầu tiên của cả dự án thật sự đọc một chân |
+| **Lỗi 1 — bảng kiểm sẵn sàng không thấy thanh ghi cổng** | `button_set` không khai `configured_by`, nên `eaa resolve` chấm *"THIẾU 0 · đủ điều kiện"* và mở vòng sinh mã. Agent viết đúng kỷ luật: `// Thiếu thông tin tài liệu thanh ghi cho PB4. Không lấp chỗ trống.` — **module qua sạch bốn cổng mà không đọc nổi một chân**. Chính bảng kiểm đã tự khai giới hạn ấy bằng chữ; giờ nó có thật |
+| **Lỗi 2 — `hostmock` được khai mà chưa bao giờ được tạo** | `pack.yaml` khai `host_test.mock_include: hostmock` từ SL-134. Thư mục ấy **không tồn tại**. Mọi module chạm thanh ghi chết ở cổng thứ tư với `fatal error: 'avr/io.h' file not found`, và vòng tự sửa đốt ba lượt cho một thứ không bản vá nào của module sửa được |
+| **Lỗi 3 — nói TÊN thư mục, không nói CHỖ** | Prompt viết *"thư mục `hostmock` của Platform Pack"*, mô hình viết `-Ihostmock` — đường dẫn tương đối so với thư mục firmware, nơi không có thư mục ấy. Nay engine giải đường dẫn tại chỗ biết pack nằm đâu, và nêu cả tệp `.c` phải dịch kèm |
+| **Lỗi 4 — cổng phân tích tĩnh đỏ vì lý do thẩm mỹ** | `--enable=...,style` cộng `--error-exitcode=1`: ghi chú *"phạm vi biến này thu hẹp được"* làm cổng đỏ. Tệ hơn, `error_regex` chỉ bắt `error|warning` nên thoát mã 1 mà **không parse được gì**, và orchestrator coi đó là lỗi mã. Bỏ `style`, mở rộng regex cho mọi mức, và đưa thư mục tiêu đề giả cho cppcheck để nó thôi báo `unknown type name 'uint32_t'` |
+| **Và một luật chung rút ra** | Công cụ thoát khác 0 mà luật parse không bắt được gì nay được đánh dấu `config_error`: thứ cần sửa là một biểu thức chính quy trong `pack.yaml`, không nằm trong tệp mã đang xét. Cùng họ SL-133, khác cổng |
+| **Trích đoạn tài liệu bổ sung** | `ds-atme-gpio-01` — DDRB/PORTB/PINB/MCUCR, trích tr.85 và tr.100 của datasheet chính chủ, chưng cất theo K2 rồi duyệt G2. Danh sách `registers` phải chuẩn hóa từ dạng chung `DDRx/PORTx/PINx` mà máy trích ra: đồ thị so khớp THEO TÊN, để nguyên thì chunk không bao giờ được truy xuất |
+| **`ds-032` cũng được gỡ treo** | Chỗ *"chưa đối chiếu xong hệ số nhạy"* giải bằng chính mã nhà sản xuất, hai con số độc lập: `GYRO_CONFIG=0x00` với hằng số 0.000031 = 1/(131 × 250 Hz), và `ACCEL_CONFIG=0x08` với `asin(raw/8200)`. Hai chỗ khác nhau trong mã cùng chỉ về một cấu hình |
+
+## SL-144 · LỆCH THẬT · Một tài nguyên giàu tài liệu bỏ đói tài nguyên kia
+
+| | |
+|---|---|
+| **Cách tìm** | Duyệt `ds-032` cho driver cảm biến làm **chín bài kiểm đỏ cùng lúc**, trong đó bộ chuẩn truy xuất TC-20 tụt precision xuống 0,889 |
+| **Hiện tượng** | Module dùng `twi` + `imu`: ba chỗ trong prompt thành `(ds-031, ds-032, ds-021)` — cảm biến lấy hai, bus lấy một, và **chunk MÃ TRẠNG THÁI BUS bị đẩy ra** |
+| **Vì sao nguy hiểm** | Mã trạng thái là thứ quyết định bước tiếp theo sau mỗi lần bus báo xong; thiếu nó thì driver không hoàn tất nổi một lượt truyền. Mất tài liệu về một ngoại vi mình đang dùng chính là chỗ mô hình bắt đầu bịa — và bịa ở tầng bus thì mọi thứ bên trên sai theo |
+| **Nguyên nhân** | Xếp hạng thuần theo điểm. Một tài nguyên có nhiều trích đoạn sẽ chiếm hết ba chỗ, tài nguyên kia không còn dòng nào |
+| **Đã sửa** | Chia đều theo tài nguyên: mỗi tài nguyên được một chỗ trước khi tài nguyên nào lấy chỗ thứ hai. Thứ tự trong mỗi vòng vẫn theo xếp hạng cũ nên kết quả vẫn TẤT ĐỊNH |
+| **Thứ tự vòng có căn cứ, không tùy tiện** | Với hai tài nguyên và ba chỗ, tài nguyên đi trước lấy chỗ thứ ba — xếp theo bảng chữ cái là để một chi tiết vô nghĩa quyết định tài liệu nào vào prompt. Hồ sơ phần cứng đã có quan hệ ấy: cạnh `on_bus` từ linh kiện tới ngoại vi. **Bus đi trước thiết bị nằm trên nó**, vì con cảm biến không đọc được byte nào trước khi bus chạy được |
+| **Một mắt xích nữa suýt làm phép sửa vô hiệu** | Chunk nối với THANH GHI chứ không nối thẳng với ngoại vi. Bản sửa đầu tra `_edges_from(res, "documented_in")` nên mọi chunk rơi vào "không thuộc ai" và phép chia đều không bao giờ chạy — im lặng, không lỗi |
+| **Đọc bộ chuẩn theo hướng nào** | `retrieval_golden.yaml` tự viết sẵn bài học cho đúng tình huống này: một ca đỏ ở đây có HAI nguyên nhân trái ngược — bộ chọn kém đi, hoặc kho vừa có thêm thứ đúng. Lần này là cả hai: ds-032 liên quan thật (nên bộ chuẩn được cập nhật lên bốn mục), NHƯNG cách bộ chọn nhường chỗ thì sai (nên bộ chọn được sửa) |
+| **Và một dữ kiện dự án bị dùng làm đạo cụ** | Năm bài kiểm dùng `ds-032` làm "chunk chưa duyệt G2". Duyệt nó vì nhu cầu thật của dự án làm cả năm đỏ. Nay vai ấy do `ds-atme-gpio-02` (cổng D) đóng — một trích đoạn dự án **thật sự** đang cần và **thật sự** chưa ai đối chiếu |

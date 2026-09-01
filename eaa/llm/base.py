@@ -59,9 +59,9 @@ LAYER_BUDGETS: dict[str, int] = {
     "interfaces": 1_000,         # Interface các module phụ thuộc (K3)
     "error_rules": 300,          # Quy tắc từ Error Ledger (K5)
     "project_rules": 1_200,      # Luật thiết kế riêng của dự án (NFR-05)
-    "host_test": 500,            # Hợp đồng bài kiểm trên máy chủ, từ pack
+    "host_test": 600,            # Hợp đồng bài kiểm trên máy chủ, từ pack
     "task": 500,                 # Nhiệm vụ + tiêu chí nghiệm thu
-    "repair": 1_800,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
+    "repair": 1_700,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
 }
 # `project_rules` và `host_test` tách ra khỏi `task`, phần ngân sách lấy từ
 # `repair` để tổng vẫn đúng 8.000 (SL-135). Hai lý do, và lý do thứ hai mới là
@@ -78,6 +78,10 @@ LAYER_BUDGETS: dict[str, int] = {
 # `repair` xuống 1.800 vẫn dư: prompt vá cố ý KHÔNG chứa toàn văn tệp, chỉ có
 # thông báo lỗi và đúng những hàm liên quan (AIS §3.2) — một hàm C cỡ vài chục
 # dòng vào khoảng 300 token.
+#
+# `host_test` nâng 500 → 600 vì hợp đồng nay mang thêm ĐƯỜNG DẪN ĐÃ GIẢI của
+# thư mục tiêu đề giả, và đường dẫn dài ngắn tùy máy. Để nó sát trần là để một
+# lượt sinh mã hỏng chỉ vì kho nằm sâu hơn vài thư mục.
 #
 # `project_rules` được nâng 1.000 → 1.200 sau một lần đo thật, không phải đoán:
 # luật thiết kế của một module điều khiển gồm sáu điều, mỗi điều kèm con số làm

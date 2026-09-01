@@ -172,6 +172,15 @@ class DecompositionPlan:
     proposed_at: str = field(default_factory=_now)
     #: Cảnh báo phát hiện lúc kiểm — không chặn, nhưng phải đọc.
     warnings: tuple[str, ...] = ()
+    #: Module ĐÃ CÓ trong backlog từ vòng phân rã trước.
+    #:
+    #: Bản phân rã vốn giả định mình là tự đủ: mọi phụ thuộc phải nằm trong
+    #: chính nó. Giả định ấy đúng ở vòng ĐẦU, và sai ở mọi vòng sau — module
+    #: mới dựa vào module đã duyệt là chuyện bình thường. SL-131 đã dạy BỘ
+    #: PHÂN RÃ biết danh sách này để dựng prompt và chặn trùng tên; trường
+    #: dưới đây là nửa còn lại, để BẢN phân rã kiểm được trên tập đầy đủ
+    #: thay vì từ chối thẳng (SL-140).
+    known: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.modules:
@@ -181,13 +190,15 @@ class DecompositionPlan:
         if trung:
             raise DecomposeError(f"Mã module trùng nhau: {sorted(trung)}")
 
-        biet = set(ma)
+        # Kiểm trên TẬP ĐẦY ĐỦ, không nới lỏng phép kiểm: một cái tên không có
+        # ở cả hai chỗ vẫn là mô hình nêu ra một module chưa từng tồn tại.
+        biet = set(ma) | set(self.known)
         for m in self.modules:
             la = [d for d in m.depends_on if d not in biet]
             if la:
                 raise DecomposeError(
                     f"Module {m.id!r} phụ thuộc vào module không có trong bản "
-                    f"phân rã: {la}"
+                    f"phân rã lẫn trong backlog: {la}"
                 )
 
     @property
@@ -205,7 +216,12 @@ class DecompositionPlan:
         được trước, và phát hiện điều đó lúc lập kế hoạch rẻ hơn nhiều so với
         lúc đã viết nửa số module.
         """
-        con_lai = {m.id: set(m.depends_on) for m in self.modules}
+        # Trừ đi module đã có: chúng đã xong nên không tạo ràng buộc thứ tự
+        # cho vòng này, và KHÔNG được lọt vào kết quả — `plan accept` đọc
+        # danh sách ấy để thêm module mới, thêm nhầm một module đã merge là
+        # chạy lại `eaa gen` trên mã đã duyệt (SL-140).
+        da_co = set(self.known)
+        con_lai = {m.id: set(m.depends_on) - da_co for m in self.modules}
         ket_qua: list[str] = []
         while con_lai:
             san_sang = sorted(k for k, v in con_lai.items() if not v)
@@ -224,7 +240,12 @@ class DecompositionPlan:
 
     def parallel_groups(self) -> list[list[str]]:
         """Nhóm module làm song song được — cùng bậc phụ thuộc."""
-        con_lai = {m.id: set(m.depends_on) for m in self.modules}
+        # Trừ đi module đã có: chúng đã xong nên không tạo ràng buộc thứ tự
+        # cho vòng này, và KHÔNG được lọt vào kết quả — `plan accept` đọc
+        # danh sách ấy để thêm module mới, thêm nhầm một module đã merge là
+        # chạy lại `eaa gen` trên mã đã duyệt (SL-140).
+        da_co = set(self.known)
+        con_lai = {m.id: set(m.depends_on) - da_co for m in self.modules}
         nhom: list[list[str]] = []
         while con_lai:
             bac = sorted(k for k, v in con_lai.items() if not v)
@@ -244,6 +265,7 @@ class DecompositionPlan:
             "proposed_at": self.proposed_at,
             "warnings": list(self.warnings),
             "modules": [m.to_dict() for m in self.modules],
+            "known": list(self.known),
         }
 
     @classmethod
@@ -256,6 +278,7 @@ class DecompositionPlan:
             proposed_by=str(d.get("proposed_by", "")),
             proposed_at=str(d.get("proposed_at", "")) or _now(),
             warnings=tuple(str(x) for x in (d.get("warnings") or [])),
+            known=tuple(str(x) for x in (d.get("known") or [])),
         )
 
     def save(self, path: str | Path) -> Path:
@@ -413,6 +436,10 @@ class LlmDecomposer:
             goal=goal,
             proposed_by=getattr(self.llm, "model", "") or getattr(self.llm, "provider", ""),
             warnings=tuple(canh_bao),
+            # Chuyển tiếp danh sách module đã có xuống bản phân rã. Thiếu dòng
+            # này thì bộ phân rã biết chúng còn bản phân rã thì không, và mọi
+            # vòng phân rã thứ hai chết ở khâu kiểm phụ thuộc (SL-140).
+            known=tuple(_ma_da_co(existing)),
         )
 
     @staticmethod
@@ -431,11 +458,13 @@ class LlmDecomposer:
         """
         phan: list[str] = []
         if hardware is not None:
-            ngoai_vi = [str(p.get("id", "")) for p in getattr(hardware, "peripherals", [])]
-            linh_kien = [str(c.get("id", "")) for c in getattr(hardware, "components", [])]
-            co = [x for x in ngoai_vi + linh_kien if x]
-            if co:
-                phan.append("Tài nguyên phần cứng CÓ THẬT: " + ", ".join(co))
+            dong = _dong_tai_nguyen(getattr(hardware, "peripherals", []))
+            dong += _dong_tai_nguyen(getattr(hardware, "components", []))
+            if dong:
+                phan.append(
+                    "Tài nguyên phần cứng CÓ THẬT (chỉ dùng những thứ dưới đây):\n"
+                    + "\n".join(dong)
+                )
         if constraints is not None:
             from eaa.composer import _bang_rang_buoc
 
@@ -443,6 +472,46 @@ class LlmDecomposer:
             if bang.strip():
                 phan.append(bang)
         return "\n".join(phan) + ("\n" if phan else "")
+
+
+#: Khóa của hồ sơ phần cứng KHÔNG đưa vào bối cảnh phân rã.
+#:
+#: Danh sách thanh ghi thuộc về đường sinh mã (lớp K6 dựng từ đồ thị), không
+#: thuộc bước quyết định "chia thành module nào". Đưa nó vào đây là đốt ngân
+#: sách cho thứ chưa dùng tới.
+_BO_QUA_KHI_PHAN_RA = frozenset({"configured_by", "whoami_expected", "id"})
+
+
+def _dong_tai_nguyen(muc_list) -> list[str]:
+    """Mỗi tài nguyên MỘT DÒNG, kèm thuộc tính của nó.
+
+    Bản trước rút cả hồ sơ thành một danh sách tên ngăn cách bằng dấu phẩy, và
+    mọi thuộc tính bị bỏ: `drive`, `active_level`, `pins`, `kind`, `note`. Bộ
+    phân rã nhận một danh sách TÊN rồi phải tự đoán mỗi cái tên cần gì.
+
+    Nó đoán sai theo đúng cách trực giác chung sẽ sai: hồ sơ ghi rõ còi là loại
+    tự dao động, chỉ cần đặt mức chân; prompt không mang dòng ấy, nên bản phân
+    rã xin một bộ đếm cho còi — lần đầu xin `timer2`, đúng bộ đếm đang phát
+    xung bước (SL-141).
+    """
+    dong: list[str] = []
+    for muc in muc_list or ():
+        if not isinstance(muc, dict):
+            continue
+        ma = str(muc.get("id", "")).strip()
+        if not ma:
+            continue
+        thuoc_tinh: list[str] = []
+        for khoa, gia_tri in muc.items():
+            if khoa in _BO_QUA_KHI_PHAN_RA or gia_tri in (None, "", [], {}):
+                continue
+            if isinstance(gia_tri, dict):
+                gia_tri = ", ".join(f"{k}={v}" for k, v in gia_tri.items())
+            elif isinstance(gia_tri, (list, tuple)):
+                gia_tri = ", ".join(str(x) for x in gia_tri)
+            thuoc_tinh.append(f"{khoa}={gia_tri}")
+        dong.append(f"  {ma}" + (f" · {'; '.join(thuoc_tinh)}" if thuoc_tinh else ""))
+    return dong
 
 
 def _boi_canh_da_co(da_co) -> str:
@@ -453,23 +522,49 @@ def _boi_canh_da_co(da_co) -> str:
     có backlog. Người duyệt phải tự nhớ ra, và đó là chỗ dễ quên nhất khi bản
     phân rã dài.
     """
-    muc = [(str(i), tuple(str(x) for x in (u or ()))) for i, u in (da_co or [])]
-    muc = [(i, u) for i, u in muc if i]
+    muc: list[tuple[str, tuple[str, ...], str]] = []
+    for x in da_co or []:
+        # Chấp nhận cả dạng cũ `(mã, ngoại vi)` lẫn dạng có trách nhiệm.
+        ma = str(x[0]).strip()
+        dung = tuple(str(y) for y in (x[1] or ())) if len(x) > 1 else ()
+        viec = str(x[2]).strip() if len(x) > 2 else ""
+        if ma:
+            muc.append((ma, dung, viec))
     if not muc:
         return ""
-    dong = ["## DỰ ÁN ĐÃ CÓ SẴN — ĐỪNG ĐỀ XUẤT LẠI"]
-    for i, u in muc:
+    dong = ["## DỰ ÁN ĐÃ CÓ SẴN — ĐỪNG ĐỀ XUẤT LẠI, VÀ ĐỪNG ÔM LẠI VIỆC CỦA CHÚNG"]
+    for i, u, v in muc:
         dong.append(f"  {i}" + (f" (chiếm: {', '.join(u)})" if u else ""))
+        # Trách nhiệm, không chỉ tên. Biết một module TỒN TẠI mà không biết nó
+        # LÀM GÌ thì vẫn đề xuất chồng lên: bản phân rã đầu tiên đẻ ra `app_hmi`
+        # ôm đúng giao thức nút nhấn và tiếng bíp mà `app_balance` đã nhận
+        # (SL-141).
+        if v:
+            dong.append(f"      việc của nó: {v}")
     dong.append(
         "Cần thêm việc cho một module đã có thì nói RÕ là mở rộng module ấy, "
-        "đừng đề xuất một module mới chiếm cùng ngoại vi."
+        "đừng đề xuất một module mới chiếm cùng ngoại vi hay ôm cùng trách nhiệm."
     )
     return "\n".join(dong) + "\n"
 
 
+def _ma_da_co(da_co) -> list[str]:
+    """Chỉ lấy MÃ module từ danh sách `(mã, ngoại vi)` của backlog."""
+    ket_qua: list[str] = []
+    for muc in da_co or ():
+        ma = str(muc[0] if isinstance(muc, (tuple, list)) else muc).strip().lower()
+        if ma:
+            ket_qua.append(ma)
+    return ket_qua
+
+
 def _kiem_trung_da_co(modules, da_co) -> list[str]:
     """Module đề xuất giẫm lên module đã có — trùng tên, hoặc trùng ngoại vi."""
-    muc = [(str(i), {str(x).strip().lower() for x in (u or ())}) for i, u in (da_co or [])]
+    # Chấp nhận cả dạng cũ `(mã, ngoại vi)` lẫn dạng có kèm trách nhiệm.
+    muc = [
+        (str(x[0]).strip(), {str(y).strip().lower() for y in (x[1] or ())} if len(x) > 1 else set())
+        for x in (da_co or [])
+    ]
     muc = [(i, u) for i, u in muc if i]
     if not muc:
         return []

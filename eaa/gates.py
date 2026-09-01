@@ -307,6 +307,42 @@ class HumanGate:
         lên bàn. Orchestrator gọi tới đây rồi thoát với mã 2 (chờ gate).
         """
         self.gates_dir.mkdir(parents=True, exist_ok=True)
+
+        # Không ghi đè hồ sơ của MODULE KHÁC đang chờ.
+        #
+        # Một tệp cho mỗi CỔNG, không phải cho mỗi MODULE — nên sinh module thứ
+        # hai trong khi G3 còn hồ sơ của module thứ nhất sẽ xoá mất bản diff và
+        # băm nội dung mà quyết định của người neo vào. Module bị xoá hồ sơ kẹt
+        # vĩnh viễn ở `in_review`: `gate approve` báo không có gì đang chờ, mã
+        # đã sinh nằm trên nhánh không ai merge được (SL-142).
+        #
+        # Chọn CHẶN thay vì xếp hàng nhiều hồ sơ: chặn không đánh mất gì và nói
+        # rõ lối đi tiếp. Xếp hàng là cơ chế lớn hơn, chỉ đáng làm khi thật sự
+        # có người review theo lô.
+        if payload.module:
+            cu = self._pending_path(payload.gate_id)
+            if cu.is_file():
+                try:
+                    dang_cho = GateRequest.from_dict(
+                        json.loads(cu.read_text(encoding="utf-8"))
+                    ).payload
+                except Exception:  # noqa: BLE001 - hồ sơ hỏng thì cho ghi đè
+                    dang_cho = None
+                if dang_cho is not None and dang_cho.module and (
+                    dang_cho.module != payload.module
+                ):
+                    raise GateError(
+                        f"{payload.gate_id} đang giữ hồ sơ của module "
+                        f"{dang_cho.module!r}, chưa ai quyết định.\n"
+                        f"    Ghi hồ sơ của {payload.module!r} đè lên sẽ xoá mất "
+                        "bản diff và băm nội dung mà quyết định neo vào, và "
+                        f"{dang_cho.module!r} sẽ kẹt lại ở 'in_review' không có "
+                        "đường ra.\n"
+                        f"    Quyết định trước đã: eaa gate approve "
+                        f"{payload.gate_id}  —  hoặc  eaa gate reject "
+                        f"{payload.gate_id} --reason ..."
+                    )
+
         yeu_cau = GateRequest(payload=payload, requested_at=_now())
         self._pending_path(payload.gate_id).write_text(
             json.dumps(yeu_cau.to_dict(), ensure_ascii=False, indent=2) + "\n",

@@ -108,26 +108,26 @@ def test_nap_du_chunk_cua_du_an_mau(kho: DatasheetStore) -> None:
     hoat_dong = {c.id for c in kho.active()}
 
     assert {"ds-012", "ds-021", "ds-022", "ds-031", "ds-041"} <= hoat_dong
-    assert "ds-032" not in hoat_dong, "chunk chưa duyệt G2 không được truy xuất"
+    assert "ds-atme-gpio-02" not in hoat_dong, "chunk chưa duyệt G2 không được truy xuất"
     assert len(kho.all()) > len(hoat_dong), "phải có ít nhất một chunk chưa hiệu lực"
 
 
 def test_chunk_chua_duyet_G2_khong_lot_vao_truy_xuat(kho: DatasheetStore) -> None:
     """ds-032 đang ở trạng thái proposed."""
-    de_xuat = next(c for c in kho.all() if c.id == "ds-032")
+    de_xuat = next(c for c in kho.all() if c.id == "ds-atme-gpio-02")
     assert de_xuat.status == PROPOSED
     assert not de_xuat.is_active
 
     assert de_xuat not in kho.active()
-    assert kho.by_register("ACCEL_XOUT_H") == []
+    assert kho.by_register("PORTD") == []
     assert kho.by_peripheral("imu") == [c for c in kho.active() if c.peripheral == "imu"]
 
     with pytest.raises(KbError, match="đã duyệt G2"):
-        kho.get("ds-032")
+        kho.get("ds-atme-gpio-02")
 
     # Vẫn tra được khi cố ý yêu cầu — để đối chiếu lịch sử, không để đưa vào prompt.
-    assert kho.get("ds-032", include_inactive=True).id == "ds-032"
-    assert len(kho.by_register("ACCEL_XOUT_H", include_inactive=True)) == 1
+    assert kho.get("ds-atme-gpio-02", include_inactive=True).id == "ds-atme-gpio-02"
+    assert len(kho.by_register("PORTD", include_inactive=True)) == 1
 
 
 def test_khop_ten_thanh_ghi_la_khop_chinh_xac(kho: DatasheetStore) -> None:
@@ -168,7 +168,7 @@ def test_trich_dan_bat_buoc_dung_dinh_dang(kho: DatasheetStore) -> None:
 def test_tap_thanh_ghi_co_tai_lieu_chi_gom_ban_active(kho: DatasheetStore) -> None:
     regs = kho.registers()
     assert "TWBR" in regs and "TCCR1A" in regs
-    assert "ACCEL_XOUT_H" not in regs, "thanh ghi chỉ có trong chunk proposed thì coi như CHƯA có tài liệu"
+    assert "PORTD" not in regs, "thanh ghi chỉ có trong chunk proposed thì coi như CHƯA có tài liệu"
 
 
 # --------------------------------------------------------------------------

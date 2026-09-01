@@ -471,7 +471,85 @@ class KnowledgeGraph:
         xep_hang = sorted(
             diem.items(), key=lambda kv: (-kv[1][0], -kv[1][1], kv[0])
         )
-        return [chunk_id for chunk_id, _ in xep_hang[:top_k]]
+        return self._chia_deu_theo_tai_nguyen(
+            [c for c, _ in xep_hang], module_id, top_k
+        )
+
+    def _chia_deu_theo_tai_nguyen(
+        self, xep_hang: list[str], module_id: str, top_k: int
+    ) -> list[str]:
+        """Mỗi tài nguyên được một chỗ trước khi tài nguyên nào lấy chỗ thứ hai.
+
+        Xếp hạng thuần theo điểm để một tài nguyên GIÀU TÀI LIỆU chiếm hết ba
+        chỗ, và tài nguyên kia không còn dòng nào. Đo được trên chính dự án
+        này: module dùng `twi` + `imu`, sau khi ds-032 qua G2 thì ba chỗ thành
+        (ds-031, ds-032, ds-021) — cảm biến lấy hai, bus lấy một, và chunk MÃ
+        TRẠNG THÁI BUS bị đẩy ra.
+
+        Thiếu nó thì driver không hoàn tất nổi một lượt truyền: mã trạng thái
+        là thứ quyết định bước tiếp theo sau mỗi lần bus báo xong. Mất tài liệu
+        về một ngoại vi mình đang dùng là chỗ mô hình bắt đầu bịa, và bịa ở
+        tầng bus thì mọi thứ bên trên đều sai theo (SL-144).
+
+        Vòng đầu chia mỗi tài nguyên một chunk tốt nhất của nó; hết vòng đầu
+        mới xét tới chunk thứ hai. Thứ tự trong mỗi vòng vẫn theo xếp hạng cũ,
+        nên kết quả vẫn TẤT ĐỊNH.
+        """
+        tai_nguyen = sorted(self._edges_from(module_id, "uses"))
+        if len(tai_nguyen) < 2 or len(xep_hang) <= top_k:
+            return xep_hang[:top_k]
+
+        # BUS ĐI TRƯỚC THIẾT BỊ NẰM TRÊN NÓ.
+        #
+        # Thứ tự vòng chia không được tùy tiện: với hai tài nguyên và ba chỗ,
+        # tài nguyên đi trước lấy chỗ thứ ba. Xếp theo bảng chữ cái là để một
+        # chi tiết vô nghĩa quyết định tài liệu nào vào prompt.
+        #
+        # Hồ sơ phần cứng đã nói quan hệ ấy — cạnh `on_bus` từ linh kiện tới
+        # ngoại vi. Con cảm biến không đọc được một byte nào trước khi bus chạy
+        # được, nên tài liệu về bus là điều kiện cần của tài liệu về cảm biến.
+        tai_nguyen.sort(key=lambda r: (len(self._edges_from(r, "on_bus")), r))
+
+        # Chunk nào thuộc tài nguyên nào — qua THANH GHI của tài nguyên ấy, vì
+        # chunk nối với thanh ghi chứ không nối thẳng với ngoại vi. Bỏ bước
+        # này thì mọi chunk rơi vào "không thuộc ai" và phép chia đều không
+        # bao giờ chạy.
+        cua: dict[str, list[str]] = {r: [] for r in tai_nguyen}
+        thuoc_ve: dict[str, set[str]] = {}
+        for res in tai_nguyen:
+            tap = set(self._edges_from(res, "documented_in"))
+            for reg in self._edges_from(res, "configured_by"):
+                tap.update(self._edges_from(reg, "documented_in"))
+            thuoc_ve[res] = tap
+
+        con_lai: list[str] = []
+        for chunk_id in xep_hang:
+            for res in tai_nguyen:
+                if chunk_id in thuoc_ve[res]:
+                    cua[res].append(chunk_id)
+                    break
+            else:
+                con_lai.append(chunk_id)
+
+        ket_qua: list[str] = []
+        vong = 0
+        while len(ket_qua) < top_k:
+            them = False
+            for res in tai_nguyen:
+                if len(ket_qua) >= top_k:
+                    break
+                if vong < len(cua[res]):
+                    ket_qua.append(cua[res][vong])
+                    them = True
+            if not them:
+                break
+            vong += 1
+
+        for chunk_id in con_lai:
+            if len(ket_qua) >= top_k:
+                break
+            ket_qua.append(chunk_id)
+        return ket_qua[:top_k]
 
     def select_chunks(
         self, module_id: str, datasheets: DatasheetStore, top_k: int = DEFAULT_TOP_K

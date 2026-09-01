@@ -24,11 +24,23 @@ noise:
 cases:
   - module: drv_bus_sensor
     uses: [twi, imu]
-    relevant: [ds-021, ds-022, ds-031]
+    relevant: [ds-021, ds-022, ds-031, ds-032]
     note: >-
       Driver đọc cảm biến qua bus hai dây ở chế độ master. Cần tốc độ bit
       (ds-021), mã trạng thái master (ds-022), và trình tự khởi động cảm biến
       (ds-031). KHÔNG cần chế độ slave (ds-023) dù nó cùng ngoại vi.
+
+      ds-032 thêm vào 01/09/2026 cùng lúc chunk ấy qua G2 — đúng lần thứ hai
+      của tình huống mà ghi chú ở ca `drv_uart_telemetry` bên dưới đã mô tả.
+      Bộ chọn tìm ra ds-032 ngay và đẩy ds-022 ra khỏi ba chỗ; bộ chuẩn, viết
+      từ hồi ds-032 còn `proposed`, chấm đó là chọn nhầm và precision tụt
+      xuống 0,889.
+
+      Đọc theo hướng nào là chuyện quan trọng ở đây. ds-032 mang ACCEL_XOUT_H
+      và GYRO_XOUT_H — đúng những thanh ghi mà một driver đọc cảm biến phải
+      đọc. Nó liên quan THẬT, nên bộ chuẩn phải được cập nhật, không phải bộ
+      chọn phải bị siết lại. Ca này giờ có bốn trích đoạn liên quan trên ba
+      chỗ: bộ chọn được phép bỏ một, miễn ba cái nó giữ đều đúng.
 
   - module: drv_timer_tick
     uses: [timer1]

@@ -186,10 +186,19 @@ def _boi_canh_host_test(host_test: Any) -> str:
     if ht.get("compiler"):
         co = " ".join(str(x) for x in (ht.get("cflags") or []))
         dong += ["", f"Trình dịch máy chủ: `{ht['compiler']}` {co}".rstrip()]
-    if ht.get("mock_include"):
+
+    # Đường dẫn ĐÃ GIẢI, không phải tên thư mục.
+    #
+    # Bản trước nói "thư mục `hostmock` của Platform Pack", và mô hình viết
+    # `-Ihostmock` — một đường dẫn TƯƠNG ĐỐI so với thư mục firmware, nơi không
+    # có thư mục ấy. Tiêu đề giả nằm trong pack, cách đó vài tầng. Nói tên mà
+    # không nói chỗ là mời một đường dẫn sai (SL-143).
+    duong_dan = ht.get("mock_include_path") or ht.get("mock_include")
+    if duong_dan:
+        dong.append(f"Tiêu đề giả cho mã chạm thanh ghi: `-I{duong_dan}`")
+    for nguon in ht.get("support_sources") or ():
         dong.append(
-            f"Tiêu đề giả cho mã chạm thanh ghi: thư mục `{ht['mock_include']}` "
-            "của Platform Pack."
+            f"Dịch KÈM tệp này, nếu không sẽ thiếu ký hiệu lúc liên kết: `{nguon}`"
         )
     return "\n".join(dong) + "\n"
 

@@ -412,8 +412,21 @@ class StaticGate:
                 errors=[ToolError(str(exc))],
             )
 
+        # Thư mục tiêu đề GIẢ của pack cũng đưa cho công cụ phân tích tĩnh.
+        #
+        # Không có nó, cppcheck không tìm thấy `<avr/io.h>`, ngừng phân tích cú
+        # pháp ở dòng đầu và báo `unknown type name 'uint32_t'` — một lỗi CỦA
+        # CÁCH GỌI CÔNG CỤ, không phải của mã. Engine không biết thư mục ấy tên
+        # gì; nó chỉ chuyển tiếp đường dẫn pack khai (FR-PLT-01).
+        gia = getattr(self.manifest, "root", None)
+        thu_muc_gia = ""
+        if gia is not None:
+            ung_vien = Path(gia) / "hostmock"
+            if ung_vien.is_dir():
+                thu_muc_gia = str(ung_vien)
+
         return self.runner.run(
             "static",
-            {"source": nguon[0], "sources": nguon},
+            {"source": nguon[0], "sources": nguon, "mock_include": thu_muc_gia},
             gate_name=f"{self.name}:external",
         )

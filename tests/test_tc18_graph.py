@@ -84,7 +84,7 @@ def test_chi_chunk_da_duyet_G2_co_mat_trong_do_thi(kg: KnowledgeGraph) -> None:
     """Chunk proposed không vào đồ thị → Graph-RAG không thể chọn phải nó."""
     chunks = set(kg.nodes_of_kind("chunk"))
     assert {"ds-012", "ds-021", "ds-022", "ds-031", "ds-041"} <= chunks
-    assert "ds-032" not in chunks
+    assert "ds-atme-gpio-02" not in chunks
 
     # ds-023 và ds-051 là chunk NHIỄU của bộ chuẩn TC-20. Chúng có mặt ở đây
     # đúng như mong muốn: một chunk nhiễu bị lọc ngay ở tầng đồ thị thì nó

@@ -214,10 +214,19 @@ class ToolRunner:
             # Công cụ báo hỏng nhưng biểu thức bắt lỗi không khớp gì. Không được
             # im lặng: giữ lại đầu ra thô làm thông báo, và nói rõ là quy tắc
             # parse của pack cần chỉnh.
+            #
+            # Và đánh dấu là LỖI CẤU HÌNH: thứ cần sửa là một biểu thức chính
+            # quy trong `pack.yaml`, không nằm trong tệp mã đang xét. Mô hình
+            # không sửa được nó, nên mở vòng tự sửa ở đây chỉ đốt ba lượt gọi
+            # và làm hỏng mã đang đúng — đúng như SL-133, chỉ khác cổng.
+            so_lieu["config_error"] = True
             loi = [
                 ToolError(
                     f"Công cụ thoát với mã {exit_code} nhưng quy tắc "
-                    f"parse của pack không bắt được lỗi nào. Đầu ra thô:\n"
+                    f"parse của pack không bắt được lỗi nào.\n"
+                    "Đây là lỗi CẤU HÌNH của Platform Pack, KHÔNG PHẢI LỖI MÃ: "
+                    "sửa `parse.error_regex` (hoặc cờ dòng lệnh) trong pack.yaml "
+                    "cho khớp đầu ra thật dưới đây.\n"
                     f"{dau_ra.strip()[:2000]}"
                 )
             ]

@@ -826,7 +826,20 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
             (repo_root() / "packs" / kb.constraints.platform / "pack.yaml")
             .read_text(encoding="utf-8")
         ) or {}
-        composer.host_test = _pack_yaml.get("host_test")
+        _ht = _pack_yaml.get("host_test")
+        if isinstance(_ht, dict) and _ht.get("mock_include"):
+            # Giải đường dẫn thư mục tiêu đề giả NGAY tại đây, nơi biết pack
+            # nằm ở đâu. Đưa xuống một cái tên trần thì mô hình phải đoán chỗ,
+            # và nó đoán tương đối so với thư mục firmware — sai (SL-143).
+            _goc_pack = repo_root() / "packs" / kb.constraints.platform
+            _gia = _goc_pack / str(_ht["mock_include"])
+            if _gia.is_dir():
+                _ht = dict(_ht)
+                _ht["mock_include_path"] = str(_gia)
+                _ht["support_sources"] = [
+                    str(p) for p in sorted(_gia.glob("*.c"))
+                ]
+        composer.host_test = _ht
     except Exception:  # noqa: BLE001 - chưa cài pack thì thôi
         composer.host_test = None
     gates = HumanGate(project / "gates", store, ledger)
@@ -2973,7 +2986,13 @@ def _plan_propose(project: Path, args: argparse.Namespace) -> int:
             muc_tieu,
             hardware=ctx.kb.hardware,
             constraints=ctx.kb.constraints,
-            existing=[(m.id, tuple(m.uses or ())) for m in ctx.store.load().backlog],
+            # Kèm TRÁCH NHIỆM, không chỉ tên và ngoại vi: `purpose` nằm sẵn
+            # trong backlog từ SL-135, và bỏ nó lại ở đây khiến bộ phân rã biết
+            # module tồn tại mà không biết nó làm gì (SL-141).
+            existing=[
+                (m.id, tuple(m.uses or ()), getattr(m, "purpose", ""))
+                for m in ctx.store.load().backlog
+            ],
         )
     except DecomposeError as exc:
         raise CliError(str(exc)) from exc

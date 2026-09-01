@@ -107,7 +107,19 @@ components:
     # Readiness Check chặn vòng sinh mã — và chặn ĐÚNG: module không được viết
     # mã đặt dải đo khi tài liệu về dải đo chưa ai duyệt. Thêm chúng vào cùng
     # lúc duyệt ds-032, không sớm hơn.
-    configured_by: [WHO_AM_I, PWR_MGMT_1, SMPLRT_DIV, CONFIG]
+    # ACCEL_CONFIG/GYRO_CONFIG thêm 01/09/2026, cùng lúc duyệt ds-032 — đúng
+    # như dòng trên đã hẹn. Chỗ treo "chưa đối chiếu xong hệ số nhạy" được gỡ
+    # bằng chính mã tham chiếu của bộ kit, hai con số độc lập:
+    #
+    #   · `GYRO_CONFIG = 0x00` (±250 °/s) và hằng số tích phân góc 0.000031
+    #     = 1/(131 × 250 Hz) — khớp 131 LSB/(°/s) của dải ±250.
+    #   · `ACCEL_CONFIG = 0x08` (±4 g) và `asin(raw / 8200)` — khớp 8192 LSB/g
+    #     của dải ±4 g.
+    #
+    # Hai con số ấy nằm ở hai chỗ khác nhau trong mã và cùng chỉ về một cấu
+    # hình. Đó là đối chiếu, không phải suy đoán.
+    configured_by: [WHO_AM_I, PWR_MGMT_1, SMPLRT_DIV, CONFIG,
+                    ACCEL_CONFIG, GYRO_CONFIG, ACCEL_XOUT_H, GYRO_XOUT_H]
   # CHÂN SỬA NGÀY 01/09/2026 — hồ sơ cũ mô tả một THIẾT KẾ, không phải cái bo
   # trên bàn. Nó nằm im bốn sprint vì chưa lần nào có xung thật đi ra chân thật.
   #
@@ -196,13 +208,29 @@ components:
     part: buzzer_5v
     pins: {signal: PB2}
     active_level: 1        # digitalWrite(COI, HIGH) là kêu
-    note: Còi chip 5V, kênh báo hiệu DUY NHẤT mà người dùng nghe được.
+    # CÒI CHỦ ĐỘNG: nó tự dao động, chỉ cần đặt MỨC chân, KHÔNG cần PWM và
+    # KHÔNG cần bộ đếm nào. Mã tham chiếu làm đúng thế — `digitalWrite(COI,
+    # HIGH)` rồi `digitalWrite(COI, LOW)` sau một số vòng đếm, không có
+    # `tone()` và không cấu hình timer nào cho nó.
+    #
+    # Khai rõ ở đây vì thiếu dòng này, bản phân rã đầu tiên đã xin `timer2`
+    # cho còi — đúng bộ đếm đang phát xung bước. Một cái còi cướp mất nhịp
+    # bước là robot ngã, và không cổng phần mềm nào bắt được.
+    drive: dc_on_off
+    # Thanh ghi cổng B — khai ra 01/09/2026. Thiếu dòng này, bảng kiểm sẵn sàng
+    # chấm "THIẾU 0" và mở vòng sinh mã, rồi Agent viết đúng kỷ luật:
+    #     // Thiếu thông tin tài liệu thanh ghi cho PB4. Không lấp chỗ trống.
+    # Module qua sạch bốn cổng mà không đọc nổi một chân (SL-143).
+    configured_by: [DDRB, PORTB]
+    note: Còi chip 5V tự dao động, kênh báo hiệu DUY NHẤT người dùng nghe được.
   - id: button_set
     part: tactile_switch
     pins: {signal: PB4}
     active_level: 0        # nút nối về GND, dùng pull-up nội
     pullup: internal
     debounce_ms: 20        # theo mybutton.h của bộ kit
+    # PINB để ĐỌC mức thật của chân; PORTB để bật điện trở kéo lên nội.
+    configured_by: [DDRB, PORTB, PINB]
     note: Nút SET, dùng làm lệnh "bắt đầu hiệu chỉnh" của giao thức khởi động.
 
 # Cách nạp firmware xuống bo, và cách nhận ra bo khi nó được cắm vào USB.
