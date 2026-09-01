@@ -58,6 +58,12 @@ COLUMNS: tuple[str, ...] = (
     "commit",
     "gate",
     "result",
+    # Lớp prompt đã bị lược để vừa ngân sách, ngăn cách bằng dấu chấm phẩy.
+    # Vòng tự sửa chạm N vì THIẾU NGỮ CẢNH là một chẩn đoán khác hẳn vì mã khó;
+    # không có cột này thì hai thứ ấy trông giống hệt nhau trong số liệu, và
+    # cách chữa của chúng thì ngược nhau — một bên tăng top-k, một bên chia nhỏ
+    # module (AIS §12, SL-136).
+    "trimmed",
     "note",
 )
 

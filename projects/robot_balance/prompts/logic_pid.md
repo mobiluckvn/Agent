@@ -1,58 +1,70 @@
 ---
 id: logic_pid
-description: Luật thiết kế bộ điều khiển PID cho robot cân bằng — số nguyên fixed-point, chống windup, chống xung đạo hàm
+description: Luật thiết kế PID cho robot cân bằng — fixed-point, đạo hàm theo số đo, chống windup, đổi hệ số không giật
 ---
-Bộ điều khiển tham chiếu của dự án nằm ở `sim/controller.py` (công đoạn D4, chạy
-Model-in-the-Loop). Bản C số nguyên phải giữ ĐÚNG cấu trúc điều khiển ấy — chọn
-sai cấu trúc thì không bộ tham số nào cứu được.
+Bản tham chiếu: `sim/controller.py` (công đoạn D4). Bản C số nguyên phải giữ
+ĐÚNG cấu trúc điều khiển ấy — sai cấu trúc thì không bộ tham số nào cứu được.
 
-### Số học fixed-point, không phải hệ số nguyên
+### 1. Fixed-point, không phải hệ số nguyên
 
-Hệ số của bộ điều khiển tham chiếu là số thực: `kp = 38.0`, `ki = 90.0`,
-`kd = 3.4`. Một `int` không biểu diễn được `3.4`, và làm tròn xuống `3` là đổi
-hệ số 12% — đủ để đổi hẳn đáp ứng của hệ.
+Hệ số tham chiếu là số thực: `kp = 38.0`, `ki = 90.0`, `kd = 3.4`. Làm tròn
+`3.4` → `3` là đổi hệ số 12%, đủ đổi hẳn đáp ứng.
 
-Vì vậy hệ số được lưu ở dạng **dấu phẩy tĩnh (fixed-point)**: mỗi hệ số là số
-nguyên đã nhân sẵn với một hệ số tỉ lệ lũy thừa hai (ví dụ `Q8`, tỉ lệ 256), và
-mọi tích `hệ_số × sai_số` phải **dịch phải trả lại tỉ lệ ấy** trước khi cộng vào
-đầu ra. Khai hệ số tỉ lệ thành một hằng số có tên, đừng rải số 256 khắp mã.
+* Mỗi hệ số là số nguyên đã nhân sẵn một tỉ lệ lũy thừa hai (ví dụ Q8 = 256).
+* Tỉ lệ là một hằng số CÓ TÊN, không rải số 256 khắp mã.
+* Nhân trước, chia sau, trung gian ở bề rộng lớn hơn. Ngược lại thì mất phần
+  lẻ đúng lúc sai số còn nhỏ.
 
-Nhân trước, dịch sau, và tính trung gian ở bề rộng lớn hơn — làm ngược lại thì
-mất hết phần lẻ đúng ở chỗ nó quan trọng nhất, là lúc sai số còn nhỏ.
+### 2. Đạo hàm lấy theo SỐ ĐO
 
-### Đạo hàm lấy theo SỐ ĐO, không theo sai số
+Nguyên văn ràng buộc dự án:
 
-Nguyên văn ràng buộc của dự án:
+> **Derivative kick** — đạo hàm lấy theo SỐ ĐO chứ không theo sai số.
 
-> **Derivative kick** — đạo hàm lấy theo SỐ ĐO chứ không theo sai số; đổi điểm
-> đặt sẽ tạo một xung đạo hàm vô nghĩa nếu lấy theo sai số.
+* `d = -kd * (số_đo - số_đo_trước)`. KHÔNG phải `kd * (sai_số - sai_số_trước)`.
+* Dấu trừ là hệ quả của đổi biến, không phải lựa chọn.
+* Trạng thái nhớ giữa hai lượt là **số đo trước**, không phải sai số trước.
+* Lượt gọi ĐẦU TIÊN: đạo hàm bằng 0. Lấy hiệu với 0 sinh đúng cái xung đang tránh.
 
-Nghĩa là `d = -kd * (số_đo - số_đo_trước)`, **không phải**
-`kd * (sai_số - sai_số_trước)`. Dấu trừ là hệ quả của việc đổi biến, không phải
-một lựa chọn. Trạng thái nhớ lại giữa hai lượt gọi là **số đo trước**, không
-phải sai số trước.
-
-Ở lượt gọi ĐẦU TIÊN chưa có số đo trước; lấy hiệu với 0 sẽ sinh đúng cái xung ta
-đang tránh. Lượt đầu phải cho thành phần đạo hàm bằng 0.
-
-### Tích phân ngừng cộng dồn khi đầu ra đã bão hòa
+### 3. Tích phân ngừng cộng dồn khi đầu ra bão hòa
 
 Nguyên văn:
 
 > **Integral windup** — khi lệnh đã bão hòa, thành phần tích phân ngừng cộng
-> dồn, nếu không nó sẽ tích một khoản "nợ" mà hệ không thể trả và gây vọt lố.
+> dồn, nếu không nó tích một khoản "nợ" hệ không trả được và gây vọt lố.
 
-Đây là điều kiện theo **trạng thái bão hòa của đầu ra**, không chỉ là kẹp tích
-phân vào một trần cố định. Trần riêng cho tích phân (`integral_limit` trong bản
-tham chiếu) là **hàng rào thứ hai**, không thay được hàng rào thứ nhất.
+Cần **CẢ HAI** hàng rào, không phải chọn một:
 
-### Bài kiểm phải chứng minh những điều trên
+* (a) ngừng cộng dồn khi đầu ra bão hòa cùng chiều sai số;
+* (b) trần riêng cho tích phân — bản tham chiếu đặt `integral_limit = 1.5` SI.
 
-Bài kiểm sinh kèm phải có ít nhất:
+(a) một mình bị **nhiễu đo đánh bại**: thành phần đạo hàm nhiễu kéo đầu ra dự
+kiến xuống dưới trần, nên tích phân vẫn cộng. Đo trên chính bản C: nhiễu ±10
+mrad, tích phân lên 4896 trong khi trần đầu ra là 3000 — một khoản nợ lớn hơn
+cả dải lệnh.
 
-* một phép thử **đổi điểm đặt** trong khi số đo giữ nguyên — thành phần đạo hàm
-  phải bằng 0; nếu nó nhảy lên thì mã đang lấy đạo hàm theo sai số;
-* một phép thử hệ số **phân số** (ví dụ `kd = 3.4` ở dạng fixed-point) cho ra
-  đầu ra khác với khi làm tròn thành `3`;
-* một phép thử **giữ sai số lớn kéo dài cho tới khi đầu ra bão hòa** — tích phân
-  không được tiếp tục lớn lên.
+### 4. Chu kỳ cố định — phải ghi cách quy đổi hệ số
+
+`dt` cố định 10 ms, không truyền vào hàm, nên gộp sẵn trong `ki` và `kd`. Hệ số
+do đó KHÔNG cùng đơn vị với bản mô phỏng.
+
+Ghi ngay trong tệp tiêu đề: cách quy đổi từ hệ số SI của `sim/controller.py`
+(`kp = 38.0`; `ki = 90.0` mỗi giây; `kd = 3.4` giây; góc bằng radian) ra số
+nguyên Q8, kèm ĐƠN VỊ của điểm đặt, số đo, **giá trị trả về, `out_min` và
+`out_max`**. Chọn đo góc bằng mrad thì đầu ra lệch đúng 1000 lần so với lệnh
+SI — nói ra con số ấy, đừng để người đọc tự suy.
+
+### 5. Đổi hệ số khi đang chạy không được làm giật
+
+Ở G4 người chỉnh tham số **trên robot đang cân bằng**. Hàm đặt hệ số KHÔNG được
+xóa tích phân, xóa số đo trước, hay đặt lại cờ "lượt đầu" — ba thứ ấy đang giữ
+robot đứng. Khởi tạo là việc RIÊNG, tách khỏi đặt hệ số.
+
+### 6. Bài kiểm phải chứng minh từng điều trên
+
+* đổi điểm đặt, số đo giữ nguyên → đạo hàm bằng 0;
+* `kd = 3.4` dạng Q8 cho đầu ra khác `kd = 3`;
+* giữ sai số lớn tới khi đầu ra bão hòa → tích phân không lớn thêm;
+* **số đo nhiễu quanh một lệch tĩnh, chạy dài** → tích phân không vượt trần
+  riêng của nó (đây là bài bắt được chỗ thiếu hàng rào (b));
+* đổi hệ số giữa chừng → tích phân và số đo trước còn nguyên.

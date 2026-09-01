@@ -335,7 +335,7 @@ class PromptComposer:
             ),
             PromptLayer(
                 "error_rules",
-                self._lop_quy_tac_loi(task, chunks),
+                self._lop_quy_tac_loi(task, chunks, dem),
                 budget=ngan_sach.get("error_rules", 0),
             ),
             # Hai lớp dưới đứng TRƯỚC lớp nhiệm vụ, và sống sót qua vòng vá:
@@ -508,8 +508,27 @@ class PromptComposer:
         ]
         return "\n".join(giu) if giu else noi_dung
 
-    def _lop_quy_tac_loi(self, task: Task, chunks: Sequence[Chunk]) -> str:
-        """K5 — top-3 quy tắc chưng cất từ Error Ledger (FR-KB-03, TC-10)."""
+    def _lop_quy_tac_loi(
+        self,
+        task: Task,
+        chunks: Sequence[Chunk],
+        dem: Callable[[str], int] | None = None,
+    ) -> str:
+        """K5 — top-3 quy tắc chưng cất từ Error Ledger (FR-KB-03, TC-10).
+
+        Lấy top-k rồi NHÉT VỪA phần của lớp, ưu tiên giữ NGUYÊN VẸN quy tắc
+        xếp hạng cao nhất thay vì cắt cụt cả ba.
+
+        Vì sao phải nhét vừa ở đây: quy tắc do người viết lúc từ chối gate
+        không bị chặn độ dài (`LedgerEntry.as_rule` chỉ cắt nhánh suy ra từ mô
+        tả). Một lý do từ chối viết cẩn thận dễ vượt 300 token của lớp — và
+        khi lớp vượt phần, bộ lược ngân sách **xóa sạch cả lớp**. Nghĩa là câu
+        người vừa viết ra để dạy mô hình đừng lặp lại lỗi sẽ không tới được
+        mô hình, trong khi prompt mới dùng chưa tới một phần ba trần tổng.
+
+        Gặp thật ở SL-135: `eaa gate reject` in ra *"Lý do đã ghi vào Error
+        Ledger và sẽ có mặt trong prompt lần sinh lại"*, và nó đã không có mặt.
+        """
         if self.ledger is None:
             return ""
 
@@ -522,9 +541,34 @@ class PromptComposer:
         )
         if not quy_tac:
             return ""
-        return "## LỖI ĐÃ GẶP — TUYỆT ĐỐI TRÁNH LẶP LẠI\n" + "\n".join(
-            f"- {r}" for r in quy_tac
-        )
+
+        do_dai = dem or estimate_tokens
+        tran = self.config.layer_budgets.get("error_rules", 0)
+        tieu_de = "## LỖI ĐÃ GẶP — TUYỆT ĐỐI TRÁNH LẶP LẠI"
+        if not tran:
+            return tieu_de + "\n" + "\n".join(f"- {r}" for r in quy_tac)
+
+        # Quy tắc ĐẦU BẢNG luôn có mặt — nguyên vẹn nếu vừa, cắt có dấu nếu
+        # không. Không được phép bỏ nó để lấy một quy tắc ngắn hơn ở dưới:
+        # thứ hạng đã nói nó liên quan nhất (lỗi của chính module này, vừa bị
+        # người từ chối), còn quy tắc dưới nó thường là lỗi cũ đã khép. Bản
+        # sửa đầu của SL-136 mắc đúng lỗi này — nó "nhét vừa" bằng cách lặng
+        # lẽ nhảy qua lý do từ chối mới nhất và giữ lý do của vòng trước.
+        dau = f"- {quy_tac[0]}"
+        if do_dai(f"{tieu_de}\n{dau}") > tran:
+            duoi = " […] (rút gọn — bản đầy đủ: eaa ledger show)"
+            than = quy_tac[0]
+            while than and do_dai(f"{tieu_de}\n- {than}{duoi}") > tran:
+                than = than[: max(0, len(than) - 40)].rstrip()
+            dau = f"- {than}{duoi}"
+
+        giu = [dau]
+        for r in quy_tac[1:]:
+            thu = giu + [f"- {r}"]
+            if do_dai("\n".join([tieu_de, *thu])) <= tran:
+                giu = thu
+
+        return "\n".join([tieu_de, *giu])
 
     def _trich_trang_thai(self, task: Task, state: Any) -> list[str]:
         """K4 — chỉ phần Project State liên quan module hiện tại, không cả backlog.

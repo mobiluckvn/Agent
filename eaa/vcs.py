@@ -237,8 +237,16 @@ class GitRepo:
             self._git("commit", "-q", "-m", "Khởi tạo kho firmware")
         self._bo_qua_san_pham_dich()
 
-    #: Thư mục sản phẩm dịch — dẫn xuất từ mã nguồn, không thuộc lịch sử.
-    BUILD_DIRS: tuple[str, ...] = ("build/",)
+    #: Sản phẩm dịch — dẫn xuất từ mã nguồn, không thuộc lịch sử.
+    #:
+    #: Ba mục sau đến từ cổng kiểm trên máy chủ (SL-134): nó dịch mã C thành
+    #: thư viện dùng chung rồi gọi bằng Python, nên mỗi lần chạy sinh ra
+    #: ``tests/__pycache__/`` và ``tests/*.so`` NGAY TRONG kho firmware. Danh
+    #: sách này không được nới theo, nên chúng lọt vào commit của module và vào
+    #: đúng bản diff người phải đọc ở G3 — vài trăm dòng nhị phân xen giữa mã
+    #: cần review. Và lần chạy sau, một tệp .pyc đổi nội dung đủ để chặn
+    #: ``git checkout`` và làm hỏng cả lượt sinh (SL-136).
+    BUILD_DIRS: tuple[str, ...] = ("build/", "__pycache__/", "*.pyc", "*.so")
 
     def _bo_qua_san_pham_dich(self) -> None:
         """Loại thư mục build khỏi tầm nhìn của Git, bằng .git/info/exclude.

@@ -123,6 +123,38 @@ class UnitTestGate:
     graph: Any = None
     constraints: Any = None
 
+    #: Đuôi tệp là SẢN PHẨM DỊCH của chính bộ test, không phải mã nguồn.
+    DUOI_SAN_PHAM_DICH: tuple[str, ...] = (".so", ".dylib", ".dll", ".o", ".a")
+
+    @classmethod
+    def _don_san_pham_dich(cls, tests_dir: Path) -> list[str]:
+        """Xóa thư viện đã dịch của lần chạy TRƯỚC, trước khi chạy lần này.
+
+        Vì sao phải là cấu trúc chứ không phải một dòng dặn trong prompt: bộ
+        test dịch mã C thành thư viện dùng chung rồi nạp bằng ``ctypes``. Nếu
+        nó bọc lệnh dịch trong ``try/except`` — và mô hình đã viết đúng như
+        thế — thì lệnh dịch hỏng bị nuốt, ``ctypes`` nạp thư viện CÒN SÓT của
+        lần chạy trước, và cổng báo ĐẠT trên một tệp nguồn **thậm chí không
+        dịch nổi**. Đo được: sau khi xóa một dấu chấm phẩy trong `logic_pid.c`,
+        bộ test vẫn xanh 4/4.
+
+        Hợp đồng của pack đã cấm nuốt lỗi dịch. Nhưng một luật chỉ sống trong
+        prompt là luật phụ thuộc vào việc mô hình có đọc kỹ hay không. Xóa sản
+        phẩm dịch cũ khiến việc nuốt lỗi KHÔNG CÒN CHỖ ẨN: không có thư viện cũ
+        thì ``ctypes`` sập, và cổng đỏ đúng lúc phải đỏ.
+
+        Chỉ xóa trong thư mục test, và chỉ những đuôi là sản phẩm dịch — thứ
+        lần chạy sau tự tạo lại được.
+        """
+        da_xoa: list[str] = []
+        if not tests_dir.is_dir():
+            return da_xoa
+        for path in sorted(tests_dir.rglob("*")):
+            if path.is_file() and path.suffix in cls.DUOI_SAN_PHAM_DICH:
+                path.unlink(missing_ok=True)
+                da_xoa.append(path.name)
+        return da_xoa
+
     def run(self, artifact: CodeArtifact | None = None) -> ToolReport:
         tests_dir = Path(self.tests_dir)
 
@@ -167,6 +199,8 @@ class UnitTestGate:
                     else {"tests_found": 0, "config_error": True}
                 ),
             )
+
+        self._don_san_pham_dich(tests_dir)
 
         bat_dau = time.monotonic()
         try:

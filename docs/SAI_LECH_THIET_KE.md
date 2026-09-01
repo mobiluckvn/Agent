@@ -2005,3 +2005,47 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Chỗ mất mát cũ** | `purpose` của bản phân rã đã duyệt không còn trong state (tệp bản phân rã bị xóa sau khi nhận). Khôi phục lại từ `llm_calls.jsonl` — nhật ký gọi mô hình giữ nguyên văn phản hồi, nên bản phân rã còn đọc lại được |
 | **Đường khác cũng được nối lại** | `eaa interface` đã đọc `getattr(muc, "purpose", "")` từ trước — nó luôn nhận chuỗi rỗng. Hợp đồng gọi của mọi module cho tới nay được thiết kế mà không biết module ấy để làm gì |
 | **Bài canh** | `tests/test_tc105_y_dinh_toi_duoc_bo_sinh_ma.py` — 9 bài: `purpose` sống sót qua đĩa, state cũ vẫn đọc được, nhiệm vụ mang ý định, mẫu của module khác không bị lấy nhầm, và dự án phải khai đủ ba luật thiết kế |
+
+## SL-136 · LỆCH THẬT (×4) · Lý do người từ chối gate không tới được prompt
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §3 (K5, Hình 1); §12 (KPI theo dõi mất ngữ cảnh); FR-KB-03, TC-10 |
+| **Cách tìm** | KIỂM một lời hứa thay vì tin nó. `eaa gate reject` in ra *"Lý do đã ghi vào Error Ledger và sẽ có mặt trong prompt lần sinh lại"*. Dựng lại đúng prompt ấy ngoài luồng rồi đếm token từng lớp |
+| **Cái đếm được** | `TỔNG: 2070/8000` · `đã bị lược: ['error_rules']`. **Lý do từ chối không có trong prompt.** Thừa 5930 token mà lớp 300 token bị xóa sạch |
+| **Lỗi 1 — chặn độ dài sai nhánh** | `LedgerEntry.as_rule` cắt ở nhánh SUY RA từ mô tả lỗi và **không cắt nhánh quy tắc do người viết** — đúng nhánh `gate reject` dùng, và đúng nhánh dễ dài, vì người viết lý do thì viết cho người đọc |
+| **Lỗi 2 — K5 lấy top-3 rồi ghép thẳng** | Không nhét vừa phần của lớp. Ba quy tắc dài là chắc chắn vượt 300 token |
+| **Lỗi 3 — vượt phần thì XÓA CẢ LỚP** | Bộ lược ngân sách cắt bỏ nguyên lớp `error_rules` chứ không rút gọn. Mất toàn bộ thay vì mất phần đuôi |
+| **Lỗi 4 — và cái giấu được cả ba** | `prompt.trimmed` có từ sprint đầu, chú thích ghi *"để KPI theo dõi"*. KPI **chưa bao giờ nhận được nó**; không lệnh nào in nó ra. Việc lược là im lặng tuyệt đối. Lần thứ **sáu** của dạng "mã đúng nằm chết" |
+| **Vì sao lỗi 4 mới là lỗi đắt nhất** | Ba lỗi trên đều lộ ra ngay nếu có một dòng chữ nói "đã lược error_rules". Không có dòng ấy, mã sinh ra thiếu đúng phần quan trọng nhất và mọi thứ trông vẫn xanh. Vòng tự sửa chạm N vì THIẾU NGỮ CẢNH và vì mã khó trông giống hệt nhau trong số liệu — mà cách chữa của chúng thì ngược nhau |
+| **Đã sửa** | `_lop_quy_tac_loi` nhét vừa phần của lớp, giữ NGUYÊN VẸN quy tắc đầu bảng (lỗi của chính module, vừa bị người từ chối) thay vì cắt cụt cả ba; không quy tắc nào vừa thì cắt **có dấu** kèm chỗ đọc bản đầy đủ. `Orchestrator.canh_bao_luoc()` nói ra ở cả lượt sinh đầu lẫn mọi vòng vá. Cột KPI `trimmed` |
+| **Đo lại sau khi sửa** | `error_rules 242 token` · `TỔNG 2312` · `đã lược: (không)`, và câu *"pid_set_tunings kiêm luôn khởi tạo"* có mặt trong prompt |
+| **Lỗi 5 — sản phẩm dịch lọt vào diff review** | Cổng kiểm trên máy chủ (SL-134) dịch mã C thành thư viện dùng chung ngay trong kho firmware, sinh `tests/__pycache__/` và `tests/*.so`. `GitRepo.BUILD_DIRS` chỉ có `build/` và không được nới theo. Chúng vào commit module và vào **đúng bản diff người phải đọc ở G3**; rồi một tệp `.pyc` đổi nội dung chặn luôn `git checkout` và làm hỏng cả lượt sinh |
+| **Hai cổng đã chặn đúng trên đường sửa** | Thêm cột KPI bị chặn vì *"Cột KPI không có trong lược đồ"*; rồi bị chặn lần nữa vì tệp cũ có lược đồ khác, kèm chỉ dẫn giữ lại số liệu đã thu. Cả hai lần đều nói đúng lối đi tiếp — đối lập với nhóm "ngõ cụt" |
+| **Phụ — thông báo vượt ngân sách chỉ sang chỗ không liên quan** | Nó luôn nói *"giảm top-k chunk, rút gọn lớp interface, chưng cất thêm quy tắc lỗi"*, đúng cho ba lớp và sai cho những lớp còn lại. Gặp hai lần trong một buổi (`task`, rồi `project_rules`). Nay mỗi lớp có lối đi riêng, và một bài canh đòi lớp nào cũng phải có |
+| **Bài canh** | `tests/test_tc106_ly_do_tu_choi_toi_duoc_prompt.py` — 9 bài; `tests/test_tc105_*` thêm 2 bài cho thông báo vượt ngân sách |
+
+## SL-137 · LỆCH THẬT (×2) · Cổng kiểm thử chạy trên thư viện của lần trước
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §2 (pytest runner); FR-VER-01; công đoạn C2 |
+| **Cách tìm** | Review G3 vòng ba của `logic_pid`, đọc phần đầu tệp test do mô hình sinh |
+| **Cái nó viết** | ``try: subprocess.check_call(['cc', ...]) / except Exception: pass  # Bỏ qua nếu test runner đã tự biên dịch`` rồi ``ctypes.CDLL(lib_path)`` |
+| **Đo, không suy đoán** | Xóa MỘT dấu chấm phẩy trong `logic_pid.c` rồi chạy lại: `4 passed in 0.09s`. **Bốn bài kiểm xanh trên một tệp nguồn không dịch nổi** |
+| **Vì sao nguy hiểm** | `unittests` là mắt xích thứ tư của chuỗi kiểm chứng và là cổng bắt buộc để merge. Ở trạng thái ấy nó không kiểm chứng gì cả — cùng họ với SL-120, nơi `avrdude` báo thành công sau khi đọc 0 byte |
+| **Đã sửa — cấu trúc, không phải lời dặn** | Cổng xóa sản phẩm dịch (`*.so`, `*.dylib`, `*.dll`, `*.o`, `*.a`) trong thư mục test TRƯỚC mỗi lần chạy. Không còn thư viện cũ thì việc nuốt lỗi dịch **không còn chỗ ẩn**: `ctypes` sập, cổng đỏ đúng lúc phải đỏ |
+| **Và lời dặn vẫn giữ** | Hợp đồng `host_test` của pack cấm thẳng `try/except` quanh lệnh dịch — nó nói VÌ SAO, còn cưỡng chế nằm ở cấu trúc. Một luật chỉ sống trong prompt là luật phụ thuộc vào việc mô hình có đọc kỹ hay không, mà chính mô hình ấy vừa viết ra `except Exception: pass` kèm lời giải thích nghe rất hợp lý |
+| **Lỗi kèm — sản phẩm dịch vào diff review** | `GitRepo.BUILD_DIRS` chỉ loại trừ `build/`. Cổng kiểm trên máy chủ sinh `tests/__pycache__/` và `tests/*.so` ngay trong kho firmware, nên chúng vào commit module và vào **đúng bản diff người phải đọc ở G3**; rồi một tệp `.pyc` đổi nội dung chặn luôn `git checkout` và làm hỏng cả lượt sinh |
+| **Bài canh** | `tests/test_tc107_cong_kiem_khong_chay_tren_thu_vien_cu.py` — 6 bài, trong đó một bài **dựng lại đúng cái bẫy**: dịch một thư viện chạy được, viết bộ test nuốt lỗi y bản mô hình sinh, làm hỏng nguồn, rồi đòi cổng phải đỏ |
+
+## SL-138 · PHƯƠNG PHÁP · Sửa cái được nêu tên, làm hỏng cái không được nêu
+
+| | |
+|---|---|
+| **Cách tìm** | Ba vòng review G3 liên tiếp của `logic_pid`, mỗi vòng đo lại bằng ctypes trên chính bản C |
+| **Hình dạng** | Vòng 2 nêu 2 điểm → sửa đúng 2, **thoái lui 3 chỗ khác**. Vòng 3 nêu 3 điểm → sửa đúng 3, **thoái lui 2 chỗ khác** |
+| **Thoái lui ở vòng 3, đo được** | (a) tích phân cộng dồn SAU khi chia cho tỉ lệ Q8: sai số 1 mrad kéo dài 1 s → tích phân = **0**, mất 100%; 2 mrad → mất 44%. Integrator chết đúng ở dải sai số nhỏ mà nó sinh ra để khử. Vòng 2 làm đúng (`int64` giữ nguyên thang Q8). (b) mất `int64` ở trung gian: `kd_Q8 × d_meas` tràn `int32` từ 24672 mrad; một lượt đọc I²C hỏng trả 32767 làm đạo hàm **đổi dấu** — đo được đầu ra `+3000` ở chỗ phải là `-3000`, tức lệnh hết cỡ về phía ngược lại |
+| **Vì sao không phải "mô hình cẩu thả"** | Mỗi vòng, `eaa gen` sinh lại CẢ tệp test. Không có gì neo lại hành vi đã được duyệt ở vòng trước: mã cũ bị xóa, test cũ bị xóa, và mọi bảo đảm bốc hơi cùng lúc. **Vòng tự sửa không có bánh cóc.** Cái duy nhất tích lũy qua các vòng là danh sách yêu cầu tôi viết tay trong mẫu prompt của dự án |
+| **Bài học phương pháp** | Một bản review nêu N điểm sẽ được sửa đúng N điểm. Nó không giữ giùm những điểm đã đúng — chỉ có TEST mới giữ được, và test phải sống sót qua lần sinh lại |
+| **Chưa sửa** | Đề xuất: prompt sinh lại mang theo TÊN + docstring của những bài kiểm đã có (khoảng 150 token, không phải cả tệp), kèm luật "những hành vi này đã được duyệt, chỉ được thêm, không được bỏ hay làm yếu đi" |

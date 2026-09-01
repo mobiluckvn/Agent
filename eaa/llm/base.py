@@ -58,10 +58,10 @@ LAYER_BUDGETS: dict[str, int] = {
     "datasheet_chunks": 1_500,   # Chunk top-3 (K2 + K7)
     "interfaces": 1_000,         # Interface các module phụ thuộc (K3)
     "error_rules": 300,          # Quy tắc từ Error Ledger (K5)
-    "project_rules": 1_000,      # Luật thiết kế riêng của dự án (NFR-05)
+    "project_rules": 1_200,      # Luật thiết kế riêng của dự án (NFR-05)
     "host_test": 500,            # Hợp đồng bài kiểm trên máy chủ, từ pack
     "task": 500,                 # Nhiệm vụ + tiêu chí nghiệm thu
-    "repair": 2_000,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
+    "repair": 1_800,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
 }
 # `project_rules` và `host_test` tách ra khỏi `task`, phần ngân sách lấy từ
 # `repair` để tổng vẫn đúng 8.000 (SL-135). Hai lý do, và lý do thứ hai mới là
@@ -75,8 +75,33 @@ LAYER_BUDGETS: dict[str, int] = {
 #    thế: nó viết `tests/test_dummy.c` trong một vòng vá, khi không còn gì
 #    nói cổng ấy chạy pytest.
 #
-# `repair` xuống 2.000 vẫn dư: prompt vá cố ý KHÔNG chứa toàn văn tệp, chỉ có
-# thông báo lỗi và đúng những hàm liên quan (AIS §3.2).
+# `repair` xuống 1.800 vẫn dư: prompt vá cố ý KHÔNG chứa toàn văn tệp, chỉ có
+# thông báo lỗi và đúng những hàm liên quan (AIS §3.2) — một hàm C cỡ vài chục
+# dòng vào khoảng 300 token.
+#
+# `project_rules` được nâng 1.000 → 1.200 sau một lần đo thật, không phải đoán:
+# luật thiết kế của một module điều khiển gồm sáu điều, mỗi điều kèm con số làm
+# bằng chứng, rơi vào khoảng 1.100 token. Con số 1.000 ban đầu không dựa trên
+# gì cả.
+
+#: Lớp nào vượt phần thì rút gọn Ở ĐÂU. Không có bảng này, thông báo chỉ nói
+#: đúng một câu — *"giảm top-k chunk, rút gọn lớp interface, chưng cất thêm quy
+#: tắc lỗi"* — và câu ấy đúng cho ba lớp, sai cho những lớp còn lại: người vừa
+#: viết dài một tệp mẫu prompt bị chỉ sang ba chỗ không liên quan gì tới nó.
+#: Một cổng chặn đúng mà không nói được lối đi tiếp thì vẫn là ngõ cụt.
+_LOI_KHUYEN_LOP: dict[str, str] = {
+    "datasheet_chunks": "  → giảm top_k_chunks",
+    "interfaces": "  → rút interface còn khai báo, hoặc bớt phụ thuộc",
+    "error_rules": "  → giảm top_k_error_rules",
+    "project_rules": "  → rút gọn tệp mẫu prompt của dự án: <dự án>/prompts/<module>.md",
+    "host_test": "  → rút gọn khối `host_test` trong pack.yaml của nền tảng",
+    "task": "  → rút gọn trách nhiệm/tiêu chí nghiệm thu của module trong backlog",
+    "hardware_facts": "  → bớt tài nguyên `uses` của module, hoặc gộp sự kiện trong đồ thị",
+    "repair": "  → lỗi cổng quá dài hoặc hàm liên quan quá lớn; tách hàm ra nhỏ hơn",
+    # Lớp K1 mang tên `role_constraints` trong bảng ngân sách nhưng đi trong
+    # prompt dưới tên `system_instruction` — tra bằng khóa của bảng ngân sách.
+    "role_constraints": "  → rút gọn bảng ràng buộc trong constraints.yaml",
+}
 
 _FILE_BLOCK = re.compile(
     r"```(?:[a-zA-Z0-9_+-]*\s*)?file:(?P<path>[^\n`]+)\n(?P<body>.*?)```",
@@ -251,7 +276,8 @@ class Prompt:
         tong = sum(bao_cao.values())
 
         vuot_lop = [
-            f"  - {lop.name}: {bao_cao.get(lop.name, 0)} token / ngân sách {lop.budget}"
+            f"  - {lop.name}: {bao_cao.get(lop.name, 0)} token / ngân sách "
+            f"{lop.budget}{_LOI_KHUYEN_LOP.get(lop.name, '')}"
             for lop in self.layers
             if lop.budget and bao_cao.get(lop.name, 0) > lop.budget
         ]
@@ -259,7 +285,8 @@ class Prompt:
             vuot_lop.insert(
                 0,
                 f"  - system_instruction: {bao_cao['system_instruction']} token "
-                f"/ ngân sách {self.system_budget}",
+                f"/ ngân sách {self.system_budget}"
+                f"{_LOI_KHUYEN_LOP.get('role_constraints', '')}",
             )
 
         if tong <= self.budget and not vuot_lop:
@@ -274,8 +301,8 @@ class Prompt:
             dong.append("Lớp vượt ngân sách:")
             dong.extend(vuot_lop)
         dong.append(
-            "Không gọi API. Đây là lỗi lắp ráp: giảm top-k chunk, rút gọn lớp "
-            "interface, hoặc chưng cất thêm quy tắc lỗi (AIS §3)."
+            "Không gọi API. Đây là lỗi lắp ráp, và chỗ sửa là chính lớp nêu "
+            "trên — không phải cắt bừa một lớp khác (AIS §3)."
         )
         raise BudgetExceeded(
             "\n".join(dong), total=tong, budget=self.budget, layers=bao_cao

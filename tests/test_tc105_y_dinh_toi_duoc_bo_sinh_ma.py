@@ -165,6 +165,44 @@ def test_luat_thiet_ke_SONG_SOT_qua_vong_va() -> None:
         assert ten in dung, f"{ten} phải là LỚP RIÊNG, không nằm trong lớp task"
 
 
+def test_lop_vuot_ngan_sach_phai_noi_RUT_GON_O_DAU() -> None:
+    """Cổng chặn đúng mà chỉ sang chỗ không liên quan thì vẫn là ngõ cụt.
+
+    Gặp hai lần trong một buổi: lớp `task` vượt phần, rồi lớp `project_rules`
+    vượt phần. Cả hai lần thông báo nói đúng một câu — *"giảm top-k chunk, rút
+    gọn lớp interface, chưng cất thêm quy tắc lỗi"* — ba việc **không liên quan
+    gì** tới hai lớp ấy. Người vừa viết dài một tệp mẫu prompt bị chỉ sang ba
+    chỗ khác, và phải tự suy ra chỗ đúng.
+    """
+    from eaa.llm.base import BudgetExceeded, Prompt, PromptLayer
+
+    prompt = Prompt(
+        system_instruction="",
+        layers=[PromptLayer("project_rules", "chữ " * 500, budget=10)],
+        module="mod_x",
+    )
+    try:
+        prompt.check_budget()
+    except BudgetExceeded as exc:
+        loi = str(exc)
+    else:  # pragma: no cover - phải vượt mới đúng đề bài
+        pytest.fail("không báo vượt ngân sách")
+
+    assert "prompts/" in loi, (
+        "báo lớp `project_rules` vượt phần mà không nói tệp mẫu prompt nằm ở "
+        f"đâu để rút gọn:\n{loi}"
+    )
+
+
+def test_moi_lop_deu_co_loi_khuyen_rieng() -> None:
+    """Một lớp không có lối đi tiếp là một ngõ cụt còn sót."""
+    from eaa.llm.base import LAYER_BUDGETS
+    from eaa.llm.base import _LOI_KHUYEN_LOP as khuyen
+
+    thieu = sorted(set(LAYER_BUDGETS) - set(khuyen))
+    assert not thieu, f"các lớp này vượt phần mà không nói rút gọn ở đâu: {thieu}"
+
+
 def test_ngan_sach_lop_van_cong_dung_tran_tong() -> None:
     """Thêm lớp thì phần của nó phải lấy từ đâu đó, không phải in thêm ra."""
     from eaa.llm.base import LAYER_BUDGETS, TOTAL_BUDGET

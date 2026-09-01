@@ -292,7 +292,14 @@ def test_tc16_vuot_ngan_sach_thi_khong_co_loi_goi_mo_hinh_nao(
 def test_luoc_quy_tac_loi_truoc_khi_tuyen_bo_vuot_ngan_sach(
     composer: PromptComposer,
 ) -> None:
-    """Nhường chỗ theo thứ tự ưu tiên, và ghi lại đã nhường cái gì."""
+    """Nhường chỗ theo thứ tự ưu tiên, và ghi lại đã nhường cái gì.
+
+    Bài này phải làm TRẦN TỔNG chật thì mới đúng đề. Trước SL-136 nó dựng cảnh
+    chật bằng cách cho quy tắc lỗi dài quá PHẦN CỦA LỚP — nhưng lúc ấy lớp quy
+    tắc chưa biết tự nhét vừa, nên "vượt phần của lớp" và "hết chỗ thật" trông
+    giống nhau. Nay lớp quy tắc tự nhét vừa 300 token của nó, nên muốn kiểm
+    việc NHƯỜNG CHỖ thì phải để nó cạnh tranh với một trần tổng thật sự chật.
+    """
     for i in range(5):
         composer.ledger.add(
             module="drv_bus_sensor",
@@ -300,11 +307,44 @@ def test_luoc_quy_tac_loi_truoc_khi_tuyen_bo_vuot_ngan_sach(
             description=f"lỗi {i}",
             rule="quy tắc rất dài " * 60,
         )
+    # Trần tổng chỉ vừa đủ cho vai trò + chunk + nhiệm vụ: quy tắc lỗi phải là
+    # thứ nhường chỗ đầu tiên.
+    goc = composer.config
+    composer.config = ComposerConfig(budget=goc.budget, layer_budgets=goc.layer_budgets)
+    truoc = composer.build(NHIEM_VU_BUS)
+    composer.config = ComposerConfig(
+        budget=truoc.total_tokens() - 100, layer_budgets=goc.layer_budgets
+    )
+
     prompt = composer.build(NHIEM_VU_BUS)
 
     assert "error_rules" in prompt.trimmed
     assert prompt.layer("error_rules") is None
     assert "TWBR" in prompt.full_text(), "chunk tài liệu KHÔNG được lược cùng"
+
+
+def test_quy_tac_loi_TU_NHET_VUA_thay_vi_bi_xoa_ca_lop(
+    composer: PromptComposer,
+) -> None:
+    """SL-136 — còn chỗ trong trần tổng thì không được vứt cả lớp quy tắc.
+
+    Lý do người viết lúc từ chối gate đi qua đúng lớp này. Vứt cả lớp vì nó dài
+    hơn phần của nó, trong khi trần tổng còn thừa quá nửa, là ném đi tín hiệu
+    riêng biệt nhất về đúng module đang sinh.
+    """
+    for i in range(5):
+        composer.ledger.add(
+            module="drv_bus_sensor",
+            category="other",
+            description=f"lỗi {i}",
+            rule=f"KHÔNG lặp lại lỗi {i}: " + "quy tắc rất dài " * 60,
+        )
+    prompt = composer.build(NHIEM_VU_BUS)
+
+    assert "error_rules" not in prompt.trimmed, "vẫn xóa cả lớp dù trần tổng còn thừa"
+    lop = prompt.layer("error_rules")
+    assert lop is not None and lop.content.strip(), "lớp quy tắc lỗi rỗng"
+    assert prompt.total_tokens() <= prompt.budget
 
 
 def test_chunk_tai_lieu_khong_bao_gio_bi_luoc_am_tham(composer: PromptComposer) -> None:

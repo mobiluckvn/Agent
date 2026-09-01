@@ -91,14 +91,15 @@ host_test:
     trễ ngắt, hành vi ngoại vi — những thứ ấy thuộc cổng mô phỏng và nghiệm thu
     vật lý tại G4.
 
-    TUYỆT ĐỐI KHÔNG viết bài kiểm bằng cách ĐỌC VĂN BẢN MÃ NGUỒN, kiểu
-    `assert "delay(" not in code`. Đó là làm lại việc của cổng phân tích tĩnh,
-    và nó không chứng minh gì về HÀNH VI — một hàm sai hoàn toàn vẫn qua được.
-    Bài kiểm ở đây phải GỌI hàm và đối chiếu giá trị trả về.
+    TUYỆT ĐỐI KHÔNG kiểm bằng cách ĐỌC VĂN BẢN MÃ NGUỒN, kiểu
+    `assert "delay(" not in code`. Đó là làm lại việc của cổng phân tích tĩnh
+    và không chứng minh gì về HÀNH VI — một hàm sai hoàn toàn vẫn qua được.
+
+    Lệnh dịch hỏng PHẢI làm cả bộ kiểm chết ngay: không `try/except` bọc quanh
+    nó, không bỏ qua mã thoát khác 0. Nuốt lỗi dịch rồi nạp thư viện của lần
+    chạy trước là cách làm cổng báo ĐẠT trên tệp nguồn không dịch nổi.
 
     Mỗi tệp trả về phải là mã Python hợp lệ, thụt lề đúng, chạy được ngay.
-    Một tệp test hỏng cú pháp làm cả cổng đỏ vì lý do không liên quan đến
-    module.
 
 # Phiên bản tối thiểu; eaa doctor đối chiếu và ghi vào env_lock.json (FR-ENV-01/04).
 # CẢNH BÁO: những số này lặp lại `min_version` trong `tools.yaml` của pack —

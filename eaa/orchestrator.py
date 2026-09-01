@@ -267,6 +267,9 @@ class Orchestrator:
 
         branch = self.repo.start_module(module_id)
         nhat_ky: list[str] = []
+        canh_bao = self.canh_bao_luoc(prompt)
+        if canh_bao:
+            nhat_ky.append(canh_bao)
         so_lan_va = 0
 
         while True:
@@ -321,7 +324,9 @@ class Orchestrator:
                 note=f"vòng tự sửa {so_lan_va}/{self.config.max_repairs}",
             )
             try:
-                artifact = self._va_loi(task, state, hong[0], artifact, module_id)
+                artifact, canh_bao = self._va_loi(task, state, hong[0], artifact, module_id)
+                if canh_bao:
+                    nhat_ky.append(canh_bao)
             except Exception as exc:  # noqa: BLE001
                 return self._that_bai(
                     module_id,
@@ -687,9 +692,32 @@ class Orchestrator:
             tokens_out=artifact.tokens_out,
             prompt_hash=artifact.prompt_hash,
             constraints_version=artifact.constraints_version,
+            # Lớp nào đã bị lược để vừa ngân sách. `prompt.trimmed` được ghi từ
+            # sprint đầu với chú thích "để KPI theo dõi", và KPI chưa bao giờ
+            # nhận được nó — nên việc lược là im lặng tuyệt đối. Chính sự im
+            # lặng ấy giấu SL-135: lý do người từ chối tại G3 bị xóa khỏi
+            # prompt mà không dòng nào nói ra.
+            trimmed=";".join(getattr(prompt, "trimmed", ()) or ()),
             result="pass",
         )
         return artifact
+
+    @staticmethod
+    def canh_bao_luoc(prompt: Any) -> str:
+        """Câu nói ra rằng prompt vừa gửi đi thiếu một phần — rỗng nếu không thiếu.
+
+        Vòng tự sửa chạm N vì thiếu ngữ cảnh là một chẩn đoán khác hẳn vòng tự
+        sửa chạm N vì mã khó; phân biệt được hai thứ ấy chỉ khi việc lược bỏ
+        không im lặng (AIS §12).
+        """
+        da_luoc = list(getattr(prompt, "trimmed", ()) or ())
+        if not da_luoc:
+            return ""
+        return (
+            "  ⚠ đã lược khỏi prompt để vừa ngân sách: "
+            + ", ".join(da_luoc)
+            + "\n    (mã sinh ra thiếu đúng phần này — xem lại nếu kết quả sai lệch)"
+        )
 
     def _ten_cong(self) -> list[str]:
         return [getattr(g, "name", type(g).__name__) for g in self.gate_chain]
@@ -758,8 +786,12 @@ class Orchestrator:
         bao_cao_hong: ToolReport,
         artifact: CodeArtifact,
         module_id: str,
-    ) -> CodeArtifact:
-        """Bước 7–8 — prompt vá chỉ mang lỗi và hàm liên quan (AIS §3.2)."""
+    ) -> tuple[CodeArtifact, str]:
+        """Bước 7–8 — prompt vá chỉ mang lỗi và hàm liên quan (AIS §3.2).
+
+        Trả kèm câu cảnh báo lược bỏ: vòng vá là chỗ ngân sách chật nhất, nên
+        cũng là chỗ dễ mất ngữ cảnh nhất mà không ai hay.
+        """
         prompt = self.composer.build_repair(
             task, state, bao_cao_hong, artifact.files, counter=self.llm.count_tokens
         )
@@ -781,7 +813,7 @@ class Orchestrator:
                 ),
                 evidence=f"vòng tự sửa, cổng {bao_cao_hong.gate}",
             )
-        return ban_va
+        return ban_va, self.canh_bao_luoc(prompt)
 
     def _commit(self, artifact: CodeArtifact, module_id: str) -> str:
         """Bước 9 — ghi mã lên nhánh module với đủ dấu vết NFR-07."""
