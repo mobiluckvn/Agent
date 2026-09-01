@@ -3705,7 +3705,10 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
 
         if args.port or args.seconds:
             # Kênh máy đọc THẲNG từ mạch thay vì từ tệp người tự bắt về.
-            ban_thu = _thu_telemetry(project, args.port, args.seconds or 5.0)
+            # Ưu tiên cờ người gõ, rồi tới khai báo của kịch bản, rồi mới
+            # tới mặc định. Kịch bản biết nó chạy bao lâu; lệnh thì không.
+            giay = args.seconds or kich_ban.collect_seconds or 5.0
+            ban_thu = _thu_telemetry(project, args.port, giay)
             print(ban_thu.render())
             if not ban_thu.trustworthy:
                 raise CliError(

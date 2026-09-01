@@ -265,6 +265,17 @@ class Scenario:
     firmware_template: str = ""
     #: Triệu chứng gợi tới kịch bản này — dùng để chọn kịch bản từ mô tả người.
     symptoms: tuple[str, ...] = ()
+    #: Thời gian thu telemetry cho kịch bản này, giây. 0 = dùng mặc định.
+    #:
+    #: Cửa sổ thu phải dài hơn thời gian kịch bản CHẠY, cộng phần bootloader
+    #: chờ trước khi nhường quyền. Mặc định 5 giây vừa cho kịch bản đo tĩnh và
+    #: NGẮN HƠN kịch bản chuyển động — DS-07 quay 4 giây, và với 5 giây thì
+    #: lệnh bỏ cuộc trước khi bo kịp phát khung.
+    #:
+    #: Hỏng theo hướng dễ đọc nhầm nhất: bản in nói *"telemetry không có
+    #: trường pulses_emitted"*, nghe như firmware hỏng, trong khi thật ra là
+    #: người quan sát bỏ đi sớm (SL-129).
+    collect_seconds: float = 0.0
 
     @property
     def fully_automatic(self) -> bool:
@@ -358,6 +369,7 @@ class ScenarioLibrary:
             ),
             firmware_template=str(d.get("firmware_template", "")),
             symptoms=tuple(str(x) for x in (d.get("symptoms") or [])),
+            collect_seconds=float(d.get("collect_seconds", 0) or 0),
         )
 
     def get(self, scenario_id: str) -> Scenario:

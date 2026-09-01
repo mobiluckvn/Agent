@@ -111,6 +111,10 @@ scenarios:
       bản mà phép giao hai kênh có giá trị nhất: máy chỉ biết nó ĐÃ PHÁT xung,
       không biết trục có QUAY hay không.
     motion: true
+    # Chạy ~0,8 s (2 × 200 xung ở 1 kHz, cộng nghỉ giữa hai động cơ), bootloader
+    # cũ chờ tới 2 s. Mặc định 5 giây tình cờ đủ — nhưng "tình cờ đủ" không phải
+    # một khai báo, và kịch bản kế tiếp sẽ không may như thế (SL-129).
+    collect_seconds: 8
     safety_checklist:
       - Robot đã được kê lên giá, bánh KHÔNG chạm đất
       - Không có vật cản hay tay người trong vùng bánh quay
@@ -167,6 +171,10 @@ scenarios:
       Đọc Vcc bằng ADC nội trong lúc động cơ chạy, phát hiện sụt áp. Kiểm đúng
       rủi ro brown-out đã lường trước ở thiết kế phần cứng (công đoạn B2).
     motion: true
+    # 200 lượt × ~10 ms ≈ 2 giây dưới tải, cộng bootloader chờ tới 2 s. Mặc
+    # định 5 giây sát quá — và "sát" nghĩa là một lần chạy chậm hơn bình thường
+    # sẽ báo "firmware không phát trường X" cho một firmware chạy đúng (SL-129).
+    collect_seconds: 10
     safety_checklist:
       - Robot đã được kê lên giá, bánh KHÔNG chạm đất
       - Đồng hồ đo đã kẹp đúng điểm đo nguồn logic
@@ -284,6 +292,11 @@ scenarios:
       chiều ngược nhau. Khai sai thì robot quay tại chỗ thay vì đi tới, và
       không cổng phần mềm nào bắt được.
     motion: true
+    # Kịch bản quay 4 giây, và bootloader cũ chờ 1-2 giây trước khi nhường
+    # quyền. Cửa sổ mặc định 5 giây cắt mất khung số liệu, và bản in khi ấy nói
+    # "telemetry không có trường pulses_emitted" — nghe như firmware hỏng, chứ
+    # không như người quan sát bỏ đi sớm (SL-129).
+    collect_seconds: 12
     safety_checklist:
       - Robot đã được kê lên giá, bánh KHÔNG chạm đất
       - Không có vật cản hay tay người trong vùng bánh quay
