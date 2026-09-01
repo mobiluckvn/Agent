@@ -628,17 +628,52 @@ class Orchestrator:
 
     def _dung_task(self, state: Any, module_id: str) -> Task:
         """Bước 3 — giao nhiệm vụ kèm phần Project State liên quan (K4)."""
-        muc = state.module(module_id)
+        return self.dung_nhiem_vu(module_id, state.module(module_id))
+
+    @classmethod
+    def dung_nhiem_vu(cls, module_id: str, muc: Any = None) -> Task:
+        """Nhiệm vụ giao cho một lượt sinh mã.
+
+        Mục tiêu lấy từ TRÁCH NHIỆM của chính module, không phải một câu chung.
+        Trước SL-135 chỗ này viết cứng *"Hiện thực module X theo ràng buộc và
+        tài liệu đã duyệt"* — giống hệt nhau cho mọi module — nên prompt sinh
+        mã không mang theo ý định nào cả, và mã sai ý định vẫn qua sạch bốn
+        cổng: cổng đo mã có chạy được không, không đo mã có làm đúng việc
+        không.
+
+        Bài kiểm cũng do cùng mô hình viết, nên nó kiểm đúng cái hiểu sai ấy.
+        Một bài kiểm tự viết chỉ bắt được chỗ mã lệch với ý định; muốn nó bắt
+        được ý định sai thì ý định phải đến từ chỗ khác — từ đây.
+        """
+        trach_nhiem = str(getattr(muc, "purpose", "") or "").strip()
+        muc_tieu = (
+            f"Hiện thực module {module_id}: {trach_nhiem}"
+            if trach_nhiem
+            else f"Hiện thực module {module_id} theo ràng buộc và tài liệu đã duyệt."
+        )
+        nghiem_thu = [
+            "Qua toàn bộ chuỗi cổng kiểm chứng.",
+            "Mọi hàm cấu hình thanh ghi có dòng trích dẫn nguồn.",
+        ]
+        if trach_nhiem:
+            # Đặt trách nhiệm thành một tiêu chí nghiệm thu, không chỉ một câu
+            # mô tả: bài kiểm sinh kèm phải chứng minh ĐÚNG việc này.
+            nghiem_thu.insert(0, f"Làm đúng trách nhiệm đã duyệt: {trach_nhiem}")
+        cung_cap = tuple(getattr(muc, "provides", ()) or ())
+        if cung_cap:
+            nghiem_thu.insert(
+                1 if trach_nhiem else 0,
+                "Xuất ĐÚNG những hàm bản phân rã đã hứa, giữ nguyên tên: "
+                + ", ".join(f"`{h}`" for h in cung_cap)
+                + ". Module khác gọi theo tên này.",
+            )
         return Task(
             module_id=module_id,
-            goal=f"Hiện thực module {module_id} theo ràng buộc và tài liệu đã duyệt.",
-            acceptance=(
-                "Qua toàn bộ chuỗi cổng kiểm chứng.",
-                "Mọi hàm cấu hình thanh ghi có dòng trích dẫn nguồn.",
-            ),
-            uses=tuple(muc.uses) if muc else (),
-            depends_on=tuple(muc.depends_on) if muc else (),
-            output_files=self.tep_can_sinh(module_id),
+            goal=muc_tieu,
+            acceptance=tuple(nghiem_thu),
+            uses=tuple(getattr(muc, "uses", ()) or ()),
+            depends_on=tuple(getattr(muc, "depends_on", ()) or ()),
+            output_files=cls.tep_can_sinh(module_id),
         )
 
     def _sinh_ma(self, prompt: Any, module_id: str) -> CodeArtifact:

@@ -194,6 +194,32 @@ def _boi_canh_host_test(host_test: Any) -> str:
     return "\n".join(dong) + "\n"
 
 
+def _boi_canh_mau_du_an(prompts: Any, module_id: str) -> str:
+    """Luật thiết kế RIÊNG của dự án cho một module, nếu dự án có khai.
+
+    `PromptLibrary` là cơ chế đã có sẵn cho đúng việc này — *"mẫu của dự án ghi
+    đè mẫu của pack… để một dự án chỉnh được cách diễn đạt cho bài toán của nó
+    mà không phải sửa pack"* (NFR-05). Nó được nạp vào kho tri thức từ sprint
+    đầu và **chưa đường nào đọc**, nên tri thức thiết kế của dự án không có
+    cách nào vào tới prompt (SL-135).
+
+    Lấy đúng mẫu mang tên module, không lấy mẫu của module khác: nhét luật của
+    module này vào prompt module kia là làm nhiễu chứ không làm giàu.
+    """
+    if prompts is None:
+        return ""
+    try:
+        if not prompts.has(module_id):
+            return ""
+        mau = prompts.get(module_id)
+    except Exception:  # noqa: BLE001 - thư mục mẫu hỏng không được chặn sinh mã
+        return ""
+    than = (getattr(mau, "body", "") or "").strip()
+    if not than:
+        return ""
+    return "## LUẬT THIẾT KẾ CỦA DỰ ÁN CHO MODULE NÀY\n" + than + "\n"
+
+
 def _bang_rang_buoc(constraints: Any) -> str:
     """K1 — dịch ràng buộc thành mệnh lệnh ngắn thay vì văn xuôi giải thích.
 
@@ -311,6 +337,19 @@ class PromptComposer:
                 "error_rules",
                 self._lop_quy_tac_loi(task, chunks),
                 budget=ngan_sach.get("error_rules", 0),
+            ),
+            # Hai lớp dưới đứng TRƯỚC lớp nhiệm vụ, và sống sót qua vòng vá:
+            # luật thiết kế của dự án và hợp đồng bài kiểm không được biến mất
+            # đúng lúc mô hình đang sửa mã (SL-135).
+            PromptLayer(
+                "project_rules",
+                _boi_canh_mau_du_an(getattr(self.kb, "prompts", None), task.module_id),
+                budget=ngan_sach.get("project_rules", 0),
+            ),
+            PromptLayer(
+                "host_test",
+                _boi_canh_host_test(getattr(self, "host_test", None)),
+                budget=ngan_sach.get("host_test", 0),
             ),
             PromptLayer(
                 "task",
@@ -521,10 +560,6 @@ class PromptComposer:
         trang_thai = self._trich_trang_thai(task, state)
         if trang_thai:
             phan.append("\n### TRẠNG THÁI\n" + "\n".join(f"- {d}" for d in trang_thai))
-
-        ht = _boi_canh_host_test(getattr(self, "host_test", None))
-        if ht:
-            phan.append("\n" + ht)
 
         phan.append("\n" + self.OUTPUT_FORMAT)
         return "\n\n".join(phan)

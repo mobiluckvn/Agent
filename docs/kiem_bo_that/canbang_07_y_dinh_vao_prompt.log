@@ -1,0 +1,114 @@
+═══════════════════════════════════════════════════════════════════════════
+ canbang_07 — Giúp Agent BIẾT nó sai: nối lại đường đi của ý định
+ SL-135 · TC-105 · 01/09/2026
+═══════════════════════════════════════════════════════════════════════════
+
+BỐI CẢNH
+
+`logic_pid` là module đầu tiên của cả dự án qua đủ bốn cổng với 0 vòng tự sửa.
+Mã dịch được, kích thước đạt, phân tích tĩnh sạch, bài kiểm tự viết xanh. Và
+review G3 thấy hai lỗi thiết kế thật:
+
+    int64_t d_term = (int64_t)ctx->kd * (error - ctx->prev_error);
+    int64_t p_term = (int64_t)ctx->kp * error;
+
+  (1) đạo hàm lấy theo SAI SỐ → xung đạo hàm khi đổi điểm đặt
+  (2) hệ số nguyên, không tỉ lệ fixed-point → kd = 3.4 thành 3
+
+Câu hỏi của người dùng: *"Cần phải giúp Agent biết sai để sửa"* — không phải
+tôi đi sửa hộ nó dòng C ấy.
+
+
+TRUY NGUYÊN — ba mắt xích đứt, không phải một
+
+  eaa plan propose   →  bản phân rã có purpose, provides, period_ms
+  người duyệt G1     →  người đọc và đồng ý CHÍNH những câu ấy
+  eaa plan accept    →  vào backlog còn: id, uses, depends_on
+                        ─────────────────────────────────────
+                        purpose và provides bị vứt NGAY TẠI CHỖ NHẬN
+
+  Orchestrator._dung_task:
+      goal = "Hiện thực module {id} theo ràng buộc và tài liệu đã duyệt."
+                        ─────────────────────────────────────
+                        giống hệt nhau cho MỌI module
+
+  KnowledgeBase.prompts = PromptLibrary(pack/prompts, project/prompts)
+      $ grep -rn "\.prompts\b" eaa/*.py | grep -v kb.py
+      (không có kết quả)
+                        ─────────────────────────────────────
+                        cơ chế NFR-05 dành riêng cho việc này, nạp vào rồi
+                        không đường nào đọc — lần thứ NĂM của dạng
+                        "mã đúng nằm chết"
+
+Và tri thức thì đã có sẵn từ đầu: `sim/controller.py` của chính dự án viết
+đích danh hai lỗi kinh điển phải tránh. Chúng nằm đó dưới dạng văn xuôi trong
+docstring của một tệp mà bộ sinh mã không đọc.
+
+  → Không thiếu tri thức. Thiếu ĐƯỜNG DẪN.
+
+
+VÌ SAO BÀI KIỂM TỰ VIẾT KHÔNG CỨU ĐƯỢC
+
+Bản cũ có `test_pid_compute_derivative` khẳng định `out == 20` cho
+`kd * (error - prev)`. Nó xanh vì nó kiểm đúng cái hiểu sai ấy — cùng một mô
+hình viết cả mã lẫn bài kiểm.
+
+  Một bài kiểm tự viết chỉ bắt được chỗ MÃ LỆCH VỚI Ý ĐỊNH.
+  Nó không bắt được Ý ĐỊNH SAI. Muốn thế thì ý định phải đến từ chỗ khác.
+
+
+ĐÃ SỬA
+
+  1. BacklogItem giữ `purpose` và `provides`; state cũ không có hai trường
+     này vẫn đọc được.
+  2. `plan accept` chép sang thay vì vứt.
+  3. `Orchestrator.dung_nhiem_vu()` lấy trách nhiệm module làm mục tiêu, và
+     đặt cả trách nhiệm lẫn danh sách hàm phải xuất thành TIÊU CHÍ NGHIỆM THU.
+  4. `_boi_canh_mau_du_an()` nối `PromptLibrary` vào prompt sinh mã.
+  5. `projects/robot_balance/prompts/logic_pid.md` — chép nguyên văn hai ràng
+     buộc từ `sim/controller.py`, và ĐÒI bài kiểm chứng minh từng điều.
+
+Phụ: `eaa interface` từ trước đã đọc `getattr(muc, "purpose", "")` — nó luôn
+nhận chuỗi rỗng. Hợp đồng gọi của mọi module cho tới nay được thiết kế mà
+không biết module ấy để làm gì.
+
+
+MỘT CỔNG ĐÃ CHẶN, VÀ NÓ CHẶN ĐÚNG
+
+Lượt sinh lại đầu tiên:
+
+    Prompt trong trần tổng (1868/8000) nhưng có lớp vượt phần của nó.
+    Lớp vượt ngân sách:
+      - task: 1498 token / ngân sách 500
+    Không gọi API.
+
+Không gọi API là đúng. Nhưng nó lộ ra chỗ lệch thứ hai: cả hợp đồng bài kiểm
+của pack (SL-134) lẫn luật thiết kế của dự án đều đang bị nhét vào lớp
+"nhiệm vụ". Mà `build_repair` **bỏ lớp task** — nghĩa là cả hai biến mất ở
+đúng vòng vá, lúc mô hình đang sửa mã và dễ tái phạm nhất. SL-133 chính là
+thế: nó viết `tests/test_dummy.c` trong một vòng vá.
+
+Tách thành hai lớp riêng, ngân sách lấy từ `repair` (3.500 → 2.000) để tổng
+vẫn đúng 8.000: `project_rules` 1.000, `host_test` 500.
+
+
+KẾT QUẢ — sinh lại, 0 vòng tự sửa, và hai lỗi biến mất
+
+    // Derivative term on measurement
+    if (!pid->first_run) {
+        int32_t d_meas = measurement - pid->last_measurement;
+        d_term = (int32_t)(-((int64_t)pid->kd * d_meas) / PID_Q_SCALE);
+    }
+    int32_t p_term = (int32_t)(((int64_t)pid->kp * error) / PID_Q_SCALE);
+
+Chống bão hòa theo TRẠNG THÁI BÃO HÒA CỦA ĐẦU RA, không chỉ kẹp trần:
+
+    if (tentative_out > pid->out_max && error > 0) { /* ngừng cộng dồn */ }
+
+Tên hàm khớp `provides` đã duyệt: `pid_compute`, `pid_set_tunings`.
+
+Và bài kiểm nay là bài kiểm PHÂN BIỆT ĐƯỢC — `test_derivative_on_measurement`
+đổi điểm đặt trong khi số đo giữ nguyên và đòi đầu ra bằng 0. Bản mã cũ trượt
+bài này.
+
+Bài canh: tests/test_tc105_y_dinh_toi_duoc_bo_sinh_ma.py (11 bài)

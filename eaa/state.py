@@ -127,6 +127,16 @@ class BacklogItem:
     id: str
     status: str = "todo"
     retries: int = 0
+    #: Một câu module này chịu trách nhiệm gì — do bước phân rã viết ra và
+    #: người duyệt ở G1. Giữ lại vì đây là thứ DUY NHẤT nói được Ý ĐỊNH của
+    #: module cho lượt sinh mã; bỏ nó thì mọi module nhận cùng một câu giao
+    #: việc chung chung, và mã sai ý định vẫn qua sạch bốn cổng (SL-135).
+    purpose: str = ""
+    #: Hàm module này hứa cung cấp cho module khác, theo bản phân rã đã duyệt.
+    #: Cùng lý do với ``purpose``: đây là phần HỢP ĐỒNG người đã đọc, và nếu
+    #: không ai mang nó tới lượt sinh mã thì mô hình đặt tên hàm khác đi cũng
+    #: không cổng nào biết (SL-135).
+    provides: list[str] = field(default_factory=list)
     #: Tài nguyên phần cứng module này chiếm dụng; nguồn dựng Knowledge Graph
     #: và kiểm tra xung đột ngay lúc khai báo (FR-KG-01/02, quy trình P2).
     #: Engine chỉ coi đây là chuỗi mờ — ý nghĩa do Platform Pack và Project định.
@@ -139,6 +149,8 @@ class BacklogItem:
             "id": self.id,
             "status": self.status,
             "retries": self.retries,
+            "purpose": self.purpose,
+            "provides": list(self.provides),
             "uses": list(self.uses),
             "depends_on": list(self.depends_on),
             "updated_at": self.updated_at,
@@ -169,6 +181,8 @@ class BacklogItem:
             id=module_id,
             status=status,
             retries=retries,
+            purpose=str(data.get("purpose", "")),
+            provides=[str(x) for x in (data.get("provides") or [])],
             uses=list(data.get("uses", [])),
             depends_on=list(data.get("depends_on", [])),
             updated_at=data.get("updated_at", ""),

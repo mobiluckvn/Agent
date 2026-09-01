@@ -2938,6 +2938,11 @@ def _plan_accept(project: Path, store: Any, args: argparse.Namespace) -> int:
             state.backlog.append(
                 BacklogItem(
                     id=de_xuat.id,
+                    # Trách nhiệm module đi cùng vào backlog. Nó là thứ người
+                    # vừa đọc và duyệt; vứt ở đây thì lượt sinh mã không còn
+                    # nguồn nào biết module này để làm gì (SL-135).
+                    purpose=de_xuat.purpose,
+                    provides=list(de_xuat.provides),
                     uses=list(de_xuat.uses),
                     depends_on=list(de_xuat.depends_on),
                 )
@@ -3029,6 +3034,7 @@ def cmd_interface(args: argparse.Namespace) -> int:
         spec = LlmInterfaceDesigner(llm=ctx.llm).design(
             module_id=muc.id,
             purpose=getattr(muc, "note", "") or getattr(muc, "purpose", ""),
+            provides=tuple(getattr(muc, "provides", ()) or ()),
             uses=tuple(muc.uses),
             constraints=ctx.kb.constraints,
         )

@@ -58,9 +58,25 @@ LAYER_BUDGETS: dict[str, int] = {
     "datasheet_chunks": 1_500,   # Chunk top-3 (K2 + K7)
     "interfaces": 1_000,         # Interface các module phụ thuộc (K3)
     "error_rules": 300,          # Quy tắc từ Error Ledger (K5)
+    "project_rules": 1_000,      # Luật thiết kế riêng của dự án (NFR-05)
+    "host_test": 500,            # Hợp đồng bài kiểm trên máy chủ, từ pack
     "task": 500,                 # Nhiệm vụ + tiêu chí nghiệm thu
-    "repair": 3_500,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
+    "repair": 2_000,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
 }
+# `project_rules` và `host_test` tách ra khỏi `task`, phần ngân sách lấy từ
+# `repair` để tổng vẫn đúng 8.000 (SL-135). Hai lý do, và lý do thứ hai mới là
+# lý do thật:
+#
+# 1. Chúng không phải "nhiệm vụ". Một cái là tri thức thiết kế của dự án, một
+#    cái là hợp đồng của nền tảng — gộp vào lớp nhiệm vụ thì không ai chỉnh
+#    được phần của mình mà không đụng phần của người khác.
+# 2. `build_repair` **bỏ lớp `task`**. Nằm trong đó nghĩa là biến mất ở đúng
+#    vòng vá — lúc mô hình đang sửa mã và dễ tái phạm nhất. SL-133 chính là
+#    thế: nó viết `tests/test_dummy.c` trong một vòng vá, khi không còn gì
+#    nói cổng ấy chạy pytest.
+#
+# `repair` xuống 2.000 vẫn dư: prompt vá cố ý KHÔNG chứa toàn văn tệp, chỉ có
+# thông báo lỗi và đúng những hàm liên quan (AIS §3.2).
 
 _FILE_BLOCK = re.compile(
     r"```(?:[a-zA-Z0-9_+-]*\s*)?file:(?P<path>[^\n`]+)\n(?P<body>.*?)```",

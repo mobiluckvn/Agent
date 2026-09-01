@@ -84,6 +84,19 @@ hàm. Kỹ thuật này vừa nén (~70% ở vòng sửa), vừa chống một l
 của LLM: "sửa chỗ này, hỏng chỗ kia" do viết lại cả file. Ngân sách
 3.500 token dự phòng trong Hình 1 dành cho lớp này.
 
+> **Điều chỉnh 01/09/2026 (SL-135).** Lớp này rút còn **2.000 token**; 1.500
+> token chuyển sang hai lớp mới: `project_rules` (1.000 — luật thiết kế riêng
+> của dự án, lấy từ thư viện mẫu prompt của NFR-05) và `host_test` (500 — hợp
+> đồng bài kiểm trên máy chủ, do Platform Pack khai). Tổng vẫn đúng 8.000.
+>
+> Lý do rút được: prompt vá cố ý KHÔNG chứa toàn văn tệp, chỉ có thông báo lỗi
+> và đúng những hàm liên quan — 2.000 token vẫn dư cho việc đó.
+>
+> Lý do PHẢI tách: hai khối trên trước đây nằm trong lớp `task`, mà vòng vá bỏ
+> lớp `task`. Chúng biến mất ở đúng vòng vá — lúc mô hình đang sửa mã và dễ
+> tái phạm nhất. Nay chúng là lớp riêng nên có mặt ở cả lượt sinh đầu lẫn mọi
+> vòng vá.
+
 **3.3. Chống Context Loss — khẳng định lại thiết kế**
 
 Vì mọi lần gọi là stateless và ngữ cảnh luôn được LẮP RÁP LẠI từ các kho
