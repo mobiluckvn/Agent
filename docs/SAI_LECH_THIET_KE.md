@@ -1871,3 +1871,34 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Giới hạn có chủ ý** | 4000 xung ≈ 1,25 vòng, không phải "chạy tới khi ai rút điện". Và checklist an toàn có thêm một mục DS-03 không có: **dây đã buộc gọn** — DS-03 quay 1/16 vòng, kịch bản này quay hơn một vòng, và một vòng là đủ để cuốn một sợi dây vào bánh |
 | **Ba bài canh cũ phải sửa, và lý do đáng ghi** | Hai bài so số kịch bản bằng dấu BẰNG (`== 6`, `== [DS-01…DS-06]`), nên thêm một kịch bản là đỏ. Nhưng thêm kịch bản là việc bình thường của một dự án; thứ đáng canh là **sáu kịch bản của thiết kế phải CÓ MẶT**, không phải "chỉ được có sáu". Đổi sang phép so bao hàm |
 | **Lỗi phép đo của chính tôi, tự lộ trong một lượt** | Chạy tám lượt với cửa sổ thu 2,2 giây → cả tám báo `KHÁC THƯỜNG`, thiếu khung động cơ phải. Bo không sai: bootloader cũ chờ 1–2 giây trước khi nhường quyền, và tôi cắt mất khung bằng chính phép đo của mình. Báo cáo con số ấy như dữ kiện thì người dùng đã đi tìm lỗi ở động cơ phải. Cùng loại với SL-120, khác mỗi chỗ nó lộ ra sau một phút thay vì sau hai ngày |
+
+---
+
+## SL-128 · LỆCH THẬT · Chốt một đại lượng mức HỆ THỐNG bằng một phép đo mức LINH KIỆN
+
+> Chỗ sai này nằm ở **suy luận của tôi**, không ở quan sát của người dùng và
+> không ở mã. Ghi lại vì nó là dạng sai khó thấy nhất: dữ liệu đúng, người
+> trung thực, kết luận vẫn sai.
+
+| | |
+|---|---|
+| **Cách tìm** | DS-07 cho hai bánh chạy cùng lúc với `dir_left=0, dir_right=1`. Người quan sát: *"Hai bánh quay đều. Hướng di chuyển về phía sau"* |
+| **Điều tôi đã làm** | DS-03 quay TỪNG bánh một. Người dùng nói *"trái tiến, phải lùi"*, và tôi đọc câu ấy thành `dir_forward_level` trái = 0, phải = 1, rồi ghi vào hồ sơ kèm chữ "đo được" |
+| **Vì sao sai** | Nhìn MỘT bánh quay thì không suy ra được **robot** sẽ đi về đâu. Chiều tiến của cả xe chỉ có nghĩa khi hai bánh cùng chạy, và còn phụ thuộc bánh nằm bên nào của thân xe. Quan hệ giữa hai mức (phải KHÁC nhau) thì DS-03 chốt được; chiều tuyệt đối thì không |
+| **Quy tắc rút ra, đã ghi vào hồ sơ** | **Đại lượng nào chỉ có nghĩa ở mức HỆ THỐNG thì đừng chốt nó bằng một phép đo ở mức LINH KIỆN**, dù phép đo ấy sạch và người quan sát trung thực |
+| **Đã sửa** | Đảo cả hai giá trị; DS-07 xác nhận robot đi tới |
+| **Phần canh được và phần không** | Bài kiểm đòi hai bánh khai mức DIR **khác nhau** — đó là bất biến của việc lắp đối xứng gương và kiểm được bằng dữ liệu. Chiều tuyệt đối thì **không bài kiểm nào canh nổi**: nó cần mắt người nhìn robot chạy. Ghi rõ ranh giới ấy trong chính bài kiểm |
+
+---
+
+## SL-129 · LỆCH THẬT · Cửa sổ thu telemetry là hằng số, và nó đổ lỗi cho bo khi hết giờ
+
+| | |
+|---|---|
+| **Cách tìm** | `eaa diagnose run DS-07` in ra bốn dòng `✗ telemetry không có trường …` cho một firmware vừa chạy hoàn toàn đúng — người dùng đứng cạnh và nhìn thấy bánh quay đủ 4 giây |
+| **Lỗi** | Cửa sổ thu là hằng số **5 giây**. DS-07 quay 4 giây, bootloader cũ chờ 1–2 giây trước khi nhường quyền — nên lệnh bỏ cuộc **trước khi bo kịp phát khung** |
+| **Hỏng theo hướng đổ lỗi nhầm** | *"Telemetry không có trường `pulses_emitted`"* đọc thành *"firmware không phát trường ấy"*. Sự thật là **người quan sát bỏ đi sớm**. Hai câu dẫn tới hai việc trái ngược: một bên đi sửa firmware, một bên chỉ cần chờ lâu hơn |
+| **Đã sửa** | `Scenario.collect_seconds`. Thứ tự ưu tiên: cờ người gõ → khai báo của kịch bản → mặc định. **Kịch bản biết nó chạy bao lâu; lệnh thì không** |
+| **Bài kiểm bắt luôn hai kịch bản khác** | DS-03 và DS-05 cũng chưa khai. DS-03 *tình cờ* đủ với mặc định — nhưng "tình cờ đủ" không phải một khai báo, và kịch bản viết sau sẽ không may như thế. Có bài canh đòi **mọi** kịch bản chuyển động phải khai |
+| **Tôi vừa tự mắc đúng lỗi ấy một phút trước** | Chạy tám lượt DS-03 với cửa sổ thu 2,2 giây, cả tám báo `KHÁC THƯỜNG`. Khác biệt duy nhất: lỗi của tôi lộ ra sau một phút, còn lỗi trong sản phẩm thì nằm im tới khi có kịch bản chạy đủ lâu để chạm trần |
+| **Bài canh** | `tests/test_tc99_cua_so_thu.py` — 5 bài, trong đó một bài **tính** thời gian chạy từ chính firmware (`DIAG_PULSES × chu kỳ`) rồi đòi cửa sổ thu rộng hơn thế cộng biên bootloader |

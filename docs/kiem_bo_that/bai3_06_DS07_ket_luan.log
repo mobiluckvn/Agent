@@ -1,0 +1,24 @@
+  Đang thu 12s từ /dev/cu.usbserial-143410 ở 9600 baud…
+  Cổng        : /dev/cu.usbserial-143410
+  Thời gian   : 12.1s
+  Khung nhận  : 3 (3 đạt, 0 hỏng)
+
+
+── Kết luận chẩn đoán DS-07 ──
+[ĐÃ KIỂM]
+    có bằng chứng trực tiếp — một phép đo, một lần đọc ngược, một cổng đã chạy
+
+Vùng lỗi: không phát hiện lỗi
+
+Kênh máy: ĐẠT
+  • ✓ Số xung bước đã phát cho mỗi bánh: pulses_emitted=4000, sàn 4000
+  • ✓ Tần số xung: pulse_freq_hz=1000, dải [900, 1100]
+  • ✓ Mức DIR bánh trái khi tiến: dir_left=1, dải [0, 1]
+  • ✓ Mức DIR bánh phải khi tiến: dir_right=0, dải [0, 1]
+
+Kênh người:
+  • chay_tron_deu_dai: có
+  • hai_banh_cung_chieu: có
+  • hai_banh_deu_nhau: có
+
+Hành động đề xuất: Không phát hiện lỗi trong phạm vi kịch bản này.

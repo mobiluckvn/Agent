@@ -1,0 +1,22 @@
+  Đang thu 8s từ /dev/cu.usbserial-143410 ở 9600 baud…
+  Cổng        : /dev/cu.usbserial-143410
+  Thời gian   : 8.4s
+  Khung nhận  : 4 (4 đạt, 0 hỏng)
+
+
+── Kết luận chẩn đoán DS-03 ──
+[ĐÃ KIỂM]
+    có bằng chứng trực tiếp — một phép đo, một lần đọc ngược, một cổng đã chạy
+
+Vùng lỗi: không phát hiện lỗi
+
+Kênh máy: ĐẠT
+  • ✓ Số xung bước đã phát: pulses_emitted=200, sàn 200
+  • ✓ Tần số xung đo tại chân OC1A: pulse_freq_hz=1000, dải [900, 1100]
+
+Kênh người:
+  • dung_chieu: có
+  • quay_tron_deu: có
+  • truc_quay: có
+
+Hành động đề xuất: Không phát hiện lỗi trong phạm vi kịch bản này.
