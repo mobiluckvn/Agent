@@ -104,7 +104,8 @@ class MachineCriterion:
 
     key: str
     description: str
-    #: So khớp: ``equals`` · ``in_range`` · ``present`` · ``min`` · ``max``.
+    #: So khớp: ``equals`` · ``one_of`` · ``in_range`` · ``present`` ·
+    #: ``min`` · ``max`` · ``contains``.
     op: str = "present"
     expected: Any = None
     low: float | None = None
@@ -120,6 +121,33 @@ class MachineCriterion:
         if self.op == "equals":
             dat = str(gia_tri).lower() == str(self.expected).lower()
             return dat, f"{self.key}={gia_tri}, kỳ vọng {self.expected}"
+        if self.op == "one_of":
+            # "Thuộc tập chấp nhận được" — KHÁC `equals` nới ra.
+            #
+            # Có những đại lượng mà nhiều giá trị đều đúng: một linh kiện có
+            # bản tương thích, một nhà cung cấp đổi mã giữa hai lô. Sửa
+            # `expected` sang giá trị mới thì ĐÁNH MẤT giá trị cũ, và lần sau
+            # cắm đúng con chip thiết kế vào thì phép kiểm lại đỏ. Sau vài
+            # vòng như thế, nó chỉ còn nhớ thứ cắm gần nhất.
+            #
+            # Tập mở rộng CÓ CHỦ Ý: mỗi giá trị vào tập là một lần người quyết
+            # định, và thứ ngoài tập vẫn bị bắt.
+            tap = (
+                self.expected if isinstance(self.expected, (list, tuple, set))
+                else [self.expected]
+            )
+            tap = [x for x in tap if x is not None]
+            if not tap:
+                raise DiagnosticError(
+                    f"{self.key}: phép so 'one_of' có tập kỳ vọng RỖNG. Trả đạt "
+                    "thì mọi giá trị lọt; trả trượt thì không ai hiểu vì sao. "
+                    "Khai đủ tập, hoặc dùng phép so khác."
+                )
+            dat = any(str(gia_tri).lower() == str(x).lower() for x in tap)
+            return dat, (
+                f"{self.key}={gia_tri}, chấp nhận "
+                + "/".join(str(x) for x in tap)
+            )
         if self.op == "contains":
             day = gia_tri if isinstance(gia_tri, (list, tuple)) else [gia_tri]
             dat = any(str(x).lower() == str(self.expected).lower() for x in day)

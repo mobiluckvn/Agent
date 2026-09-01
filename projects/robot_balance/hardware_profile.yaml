@@ -60,7 +60,29 @@ components:
     address: 0x68
     provides: [accel_xyz, gyro_xyz, temperature]
     whoami_register: 0x75
-    whoami_expected: 0x68
+    # TẬP mã nhận dạng chấp nhận được, không phải một giá trị.
+    #
+    # 0x68 — mã của MPU6050 đúng như thiết kế, theo tài liệu chính chủ (ds-031).
+    # 0x72 — ĐO ĐƯỢC trên con chip đang cắm, ngày 01/09/2026.
+    #
+    # Vì sao nới: con chip trả 0x72 đã được kiểm là TƯƠNG THÍCH THANH GHI ở mọi
+    # thanh ghi dự án dùng, đo trên chính bo này:
+    #
+    #   · trả lời ở địa chỉ bus 0x68                        (DS-01)
+    #   · đọc được WHO_AM_I 0x75                            (DS-02)
+    #   · ghi PWR_MGMT_1 0x6B đánh thức được — nếu không thì mọi số đọc về là 0
+    #   · đọc chùm 14 byte từ ACCEL_XOUT_H 0x3B ra dữ liệu hợp lý
+    #   · hệ số thang đo mặc định 16384 LSB/g và 131 LSB/(°/s) quy ra
+    #     0,36 mg và 0,03 °/s — ĐÚNG DẢI VẬT LÝ. Dải đo mặc định khác thì hai
+    #     con số ấy đã lệch hẳn một hệ số. Đây là bằng chứng mạnh nhất.
+    #
+    # Vì sao KHÔNG sửa thẳng thành 0x72: như thế là đánh mất 0x68, và cắm con
+    # chip đúng thiết kế vào thì phép kiểm lại đỏ. Mỗi lần sửa một giá trị là
+    # mỗi lần mất giá trị cũ; sau vài vòng nó chỉ còn nhớ thứ cắm gần nhất.
+    #
+    # Tập này MỞ RỘNG CÓ CHỦ Ý: thêm một mã là một quyết định tại G1, và con
+    # chip thứ ba ngoài tập vẫn bị bắt.
+    whoami_expected: [0x68, 0x72]
     # Thanh ghi của CHÍNH linh kiện này, không phải của bus nó nằm trên.
     #
     # Thiếu khai báo này, đồ thị không có đường nào nối module tới trích đoạn

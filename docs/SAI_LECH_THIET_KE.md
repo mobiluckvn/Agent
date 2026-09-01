@@ -1776,3 +1776,32 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Hai lỗi tự tôi gây khi sửa** | (1) Một chuỗi xuống dòng thật lọt vào giữa literal, làm `eaa/cli.py` không import nổi. (2) Biến tên `telemetry` giữ CHUỖI khung thô chứ không phải dict, nên `evaluate_machine` lấy chỉ số trên chuỗi và sập |
 | **Và bài kiểm của tôi suýt che mất lỗi (1)** | Fixture dùng `pytest.skip` khi `eaa init` hỏng. Lỗi cú pháp biến thành **bốn dòng "skipped"**, bảng test xanh, CLI không chạy được. Đã đổi thành `assert` kèm nguyên văn đầu ra. **Một điều kiện bỏ qua rộng hơn cần thiết là một chỗ cho lỗi thật trốn vào** |
 | **Bài canh** | `tests/test_tc95_kenh_may_truoc_khi_hoi_nguoi.py` — 4 bài |
+
+---
+
+## SL-122 · BỔ SUNG · Phép so `one_of`, và vì sao nó không phải `equals` nới ra
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7.2 (kênh máy); hồ sơ phần cứng §components |
+| **Cách tìm** | Bài 2 phiên kiểm bo thật: cảm biến trả mã nhận dạng `0x72`, hồ sơ khai `0x68`. Đo trên chính bo ấy cho thấy nó **tương thích thanh ghi** ở mọi thanh ghi dự án dùng |
+| **Bằng chứng tương thích, đo được** | Trả lời ở địa chỉ bus `0x68`; đọc được `WHO_AM_I`; ghi `PWR_MGMT_1` đánh thức được (không thì mọi số đọc về là 0); đọc chùm 14 byte từ `ACCEL_XOUT_H` ra dữ liệu hợp lý; và **hệ số thang đo mặc định quy ra 0,36 mg / 0,03 °/s — đúng dải vật lý**. Dòng cuối là bằng chứng mạnh nhất: dải đo mặc định khác thì hai con số ấy đã lệch hẳn một hệ số |
+| **Vì sao không sửa `expected` thành `0x72`** | Như thế là **đánh mất `0x68`**. Cắm con chip đúng thiết kế vào thì phép kiểm lại đỏ, và người ta sẽ sửa tiếp — mỗi lần một giá trị, mỗi lần mất giá trị cũ. Sau vài vòng, phép kiểm nhận dạng chỉ còn nhớ con chip cắm gần nhất |
+| **Vì sao không bỏ hẳn phép kiểm** | Nó là câu hỏi RẺ NHẤT trong cả kịch bản — *"có đúng con chip ta nghĩ không"*. Sai ở đây thì mọi thanh ghi sau đều đọc nhầm bảng |
+| **Đã thêm** | `one_of`: tập chấp nhận được. **Mở rộng có chủ ý** — thêm một mã là một quyết định tại G1, và con chip thứ ba ngoài tập vẫn bị bắt |
+| **Tập RỖNG là lỗi nói ra, không phải kết cục im lặng** | Trả đạt thì mọi giá trị lọt; trả trượt thì không ai hiểu vì sao. Nói ra là đường duy nhất còn lại |
+| **Bằng chứng phải nằm CẠNH con số** | Lý do nới nằm trong `hardware_profile.yaml`, ngay dưới `whoami_expected`, không nằm trong commit message — bằng chứng trong commit message là bằng chứng không ai đọc lại. Có bài kiểm canh điều đó |
+| **Bài canh** | `tests/test_tc96_one_of.py` — 9 bài |
+
+---
+
+## SL-123 · LỆCH THẬT (×2) · Nhiễu nền: đơn vị thô hơn đại lượng, và phép kiểm chỉ có trần
+
+| | |
+|---|---|
+| **Cách tìm** | DS-02 báo `accel_noise_mg = 0`. Tôi nghi cảm biến không đọc được; người dùng phản biện rằng bo đang nằm yên nên thế là bình thường |
+| **Cả hai đều có phần đúng** | Người dùng đúng về **điều kiện đo** — nằm yên chính là điều kiện đo nhiễu nền. Tôi đúng về **độ phân giải**: `nhieu_a * 1000 / 16384` cho ra mg nguyên, mà nhiễu lành mạnh là 4–8 LSB tức 0,2–0,5 mg, nên nó làm tròn thành **0**. Đường con quay ngay dưới, cùng đoạn mã, nhân 100 để giữ hai chữ số thập phân |
+| **Giải bằng số, không bằng lời** | Nâng độ phân giải rồi đo lại: **0,36 mg**, lần sau **0,24**, lần sau nữa **0,3** — đúng dải dự đoán, và đổi giữa các lần như nhiễu thật phải thế. Hai giả thuyết trái nhau mà cùng nghe hợp lý thì **đi đo rẻ hơn đi thuyết phục**: ba phút |
+| **Lỗi 2 — trần một mình không bắt được cảm biến chết** | Phép kiểm nhiễu chỉ khai `max`. Chip còn ngủ trả về toàn số 0, và **0 nằm dưới mọi trần**. Chính chú thích đầu `DS-02.c` đã cảnh báo *"một loạt số 0 trông y hệt một cảm biến đứng rất yên"* — mà phép kiểm vẫn để hở |
+| **Đã sửa** | Cả hai chỉ số dùng `in_range` có **sàn**, lấy từ số đo thật chia đôi để chừa biên. MEMS đang sống không bao giờ cho nhiễu bằng 0 |
+| **Bài học chung** | Một phép đo mà đơn vị của nó thô hơn đại lượng cần đo thì nó không đo gì cả — và con số nó trả về vẫn trông như một con số |

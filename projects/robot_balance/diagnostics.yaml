@@ -67,10 +67,12 @@ scenarios:
     symptoms: [không phản ứng khi nghiêng, góc sai, trôi góc, cảm biến]
     firmware_template: diagnostics/DS-02.c
     machine:
+      # Tập chấp nhận được, không phải một giá trị — xem lý do đầy đủ và bằng
+      # chứng đo được ở `hardware_profile.yaml`, mục components/imu.
       - key: who_am_i
         description: Mã nhận dạng thiết bị
-        op: equals
-        expected: "0x68"
+        op: one_of
+        expected: ["0x68", "0x72"]
       # Nhiễu nền có SÀN, không chỉ có trần — đo được ngày 01/09/2026.
       #
       # Trần một mình không phân biệt được "cảm biến rất yên" với "cảm biến
