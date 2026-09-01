@@ -1,0 +1,17 @@
+  Đang thu 5s từ /dev/cu.usbserial-143410 ở 9600 baud…
+  Cổng        : /dev/cu.usbserial-143410
+  Thời gian   : 5.2s
+  Khung nhận  : 104 (104 đạt, 0 hỏng)
+
+
+── Kết luận chẩn đoán DS-04 ──
+[SUY RA]
+    bắc cầu đúng trên dữ liệu dự án đã khai, nhưng chưa ai kiểm ở đời thật
+
+Vùng lỗi: không phát hiện lỗi
+
+Kênh máy: ĐẠT
+  • ✓ Vòng lặp lại thành công: loopback_ok=True, kỳ vọng True
+  • ✓ Tốc độ khung thực tế: frame_rate_hz=162, sàn 50
+
+Hành động đề xuất: Không phát hiện lỗi trong phạm vi kịch bản này.

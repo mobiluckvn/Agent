@@ -1,0 +1,14 @@
+
+Nạp firmware
+────────────
+  Kiểm trước khi nạp: đạt.
+  Tự chọn cổng: /dev/cu.usbserial-143410 (Bo tương thích, cầu USB rời)
+
+  Vũ Trí Công đã duyệt đúng ảnh này lúc 2026-08-31T15:56:28+00:00 (sha256:1de31df1baaccdfb…) — nạp
+
+Đã nạp sha256:1de31df1baac… lên /dev/cu.usbserial-143410.
+Commit đang chạy trên thiết bị: 937b6c3bfc
+Kiểm sau khi nạp: ĐÃ KIỂM — đọc ngược khớp ảnh. (diag_DS-04.hex, băm sha256:1de31df1baac…)
+
+Từ đây mọi số đo lấy về đều gắn với commit trên. Xem lại lịch sử:
+  eaa flash --history

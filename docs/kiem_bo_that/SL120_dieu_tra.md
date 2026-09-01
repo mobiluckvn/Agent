@@ -108,3 +108,66 @@ Bo vẫn đang chạy firmware gốc của bộ kit — khớp với những byt
 đọc được trên dây (khung lệnh module MP3 trong mã tham chiếu BLKLab), và giải
 thích vì sao đổi baud firmware mà dữ liệu trên dây không đổi.
 
+---
+
+## Bản sửa — ba tầng, vì chỉ đổi chữ định dạng thì lần sau vẫn hỏng im lặng
+
+| Tầng | Sửa gì |
+|---|---|
+| Dữ liệu pack | `:e` → `:i`; `error_regex` bắt cả `Error:` lẫn `avrdude: error:` |
+| Dữ liệu pack | thêm `require_regex` đòi `N bytes of flash written/verified`, N > 0 |
+| Engine | `ParseSpec.require_regex` + cưỡng chế trong `ToolRunner.doc_ket_qua()` |
+
+Tầng thứ ba mới là tầng đáng kể: nó là cái duy nhất còn đúng khi công cụ đổi
+phiên bản hay đổi câu chữ. **Mã thoát 0 chỉ nói công cụ không thấy lý do phàn
+nàn; nó không nói công cụ đã làm gì.**
+
+Tách `doc_ket_qua()` thành hàm lớp để kiểm được bằng **đầu ra THẬT đã ghi lại**
+— chính đoạn văn bản từng lừa được hai phiên làm việc giờ nằm trong bộ kiểm.
+
+Pack chưa khai `require_regex` thì hành vi giữ nguyên: thêm một luật mới không
+được đổi ngầm kết cục của những pack chưa biết tới nó.
+
+## Nạp lại, và KIỂM ĐỘC LẬP
+
+`eaa flash` in ra **đúng câu như hôm qua** — nên không tin, đọc chip ra nhị
+phân thô rồi so bằng `cmp`:
+
+```
+✅ KHỚP — 974 byte trên chip trùng ảnh đã nạp
+vector ngắt: 0c94 3400   (hôm qua: 0c94 8100 — mã của bộ kit)
+```
+
+Firmware của ta nằm trên chip **lần đầu tiên**.
+
+## Số đo Bài 1 — kênh UART, trên bo thật
+
+```
+Khung nhận  : 104 (104 đạt, 0 hỏng)
+loopback_ok : True          (kỳ vọng True)
+frame_rate  : 162 Hz        (sàn 50)
+Vùng lỗi    : không phát hiện lỗi
+```
+
+## Nhìn lại cách làm
+
+Việc gì đã tiết kiệm thời gian:
+
+* **Nghi mã mình trước, nghi sản phẩm sau.** Bước 1 tốn 3 phút và loại sạch
+  một nhánh; nếu bỏ qua nó thì mọi kết luận sau đều lung lay.
+* **Bỏ hẳn mã tự viết ra khỏi phép so** (`avr-objcopy` + đọc nhị phân thô)
+  thay vì đi soi bộ đọc HEX từng dòng.
+* **Chạy tay đúng lệnh mà pack khai.** Nguyên nhân hiện ra ngay dòng đầu.
+  Không cần đọc mã engine dòng nào.
+
+Việc gì đã tốn thời gian vô ích hôm qua:
+
+* Đoán tốc độ truyền bằng cách quét baud và chấm điểm "tỉ lệ ký tự đọc được".
+  Dữ liệu trên dây khi ấy **không phải của ta**, nên mọi con số đều vô nghĩa.
+  Đáng lẽ phải kiểm "firmware có thật sự nằm trên chip không" TRƯỚC khi đo bất
+  cứ thứ gì — rẻ hơn hẳn và trả lời được câu quan trọng hơn.
+* Đọc cầu chì qua bootloader: trả `0x00` cả ba byte vì bootloader không hỗ trợ
+  lệnh ấy, và **không báo lỗi**. Một phép đo trông như dữ liệu.
+
+Bài học chung của cả hai: **kiểm cái nền trước khi đo cái xây trên nó.** Hôm
+qua tôi đo tín hiệu của một chương trình chưa từng được nạp.

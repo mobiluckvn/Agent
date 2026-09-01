@@ -1,0 +1,1 @@
+{"scenario": "DS-04", "verdict": "không phát hiện lỗi", "machine_passed": true, "machine_evidence": ["✓ Vòng lặp lại thành công: loopback_ok=True, kỳ vọng True", "✓ Tốc độ khung thực tế: frame_rate_hz=162, sàn 50"], "human_answers": {}, "action": "Không phát hiện lỗi trong phạm vi kịch bản này.", "at": "2026-09-01T00:10:43+00:00"}
