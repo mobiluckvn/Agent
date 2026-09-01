@@ -171,3 +171,64 @@ Việc gì đã tốn thời gian vô ích hôm qua:
 
 Bài học chung của cả hai: **kiểm cái nền trước khi đo cái xây trên nó.** Hôm
 qua tôi đo tín hiệu của một chương trình chưa từng được nạp.
+
+---
+
+# Bài 2 — cảm biến. Phần đo được, và một tranh luận đã giải bằng số
+
+## Số đo trên bo
+
+| Kịch bản | Đo được |
+|---|---|
+| DS-01 quét bus I2C | `i2c_addresses=['0x68']` — cảm biến có mặt, đúng địa chỉ hồ sơ khai |
+| DS-02 | `who_am_i = 0x72` (hồ sơ khai `0x68`) |
+| | `accel_noise_mg` 0.36 rồi 0.24 ở lần sau |
+| | `gyro_noise_dps` 0.03 rồi 0.05 |
+| | `samples = 100` |
+
+## Một tranh luận, và cách giải nó
+
+Tôi nghi `accel_noise_mg = 0` là dấu hiệu cảm biến không đọc được. Người dùng
+phản biện: *"Nó đang được đặt nằm yên trên mặt phẳng thì đó là bình thường mà."*
+
+Cả hai đều có phần đúng, và **phép đo giải quyết được, tranh luận thì không**:
+
+* Người dùng đúng về **điều kiện đo** — nằm yên chính là điều kiện đo nhiễu nền.
+* Tôi đúng về **độ phân giải** — `nhieu_a * 1000 / 16384` cho ra mg nguyên,
+  trong khi nhiễu lành mạnh là 4–8 LSB tức 0,2–0,5 mg, nên nó làm tròn thành 0.
+  Đường con quay ngay dưới, cùng đoạn mã, nhân 100 để giữ hai chữ số thập phân.
+
+Nâng độ phân giải rồi đo lại: **0,36 mg**. Đúng dải dự đoán. Cảm biến lành, và
+phép đo thì đang làm tròn mất toàn bộ tín hiệu nó sinh ra để đo.
+
+Bài học về cách làm: khi hai bên có hai giả thuyết trái nhau và cả hai đều
+nghe hợp lý, **đi đo rẻ hơn đi thuyết phục** — ở đây là ba phút.
+
+## Cách C giải bằng thực nghiệm, không cần tài liệu mới
+
+Đã thử lấy register map MPU-6500/9250 từ `invensense.tdk.com`: cả hai URL
+chuyển hướng sang trang HTML động, không có PDF tĩnh. `eaa research
+--official-only` trả về 5 địa chỉ, **không trang chính chủ nào đọc được**, và
+lệnh nói thẳng mọi thứ còn lại là hạng *mở* — manh mối, không phải nguồn cho
+giá trị cấu hình. Lớp phân hạng nguồn làm đúng việc của nó.
+
+Người dùng chỉ ra đường ngắn hơn: **dùng tài liệu chính chủ đã có** (MPU6050,
+qua G2) làm phép thử. Con chip đã trả lời 100 mẫu bằng đúng bản đồ thanh ghi
+ấy — nên câu hỏi tương thích trả lời được bằng chính dữ liệu đã có:
+
+| Thanh ghi MPU6050 dự án dùng | Trên con chip này |
+|---|---|
+| địa chỉ bus `0x68` | ✓ |
+| `WHO_AM_I` `0x75` | ✓ đọc được, trả `0x72` |
+| `PWR_MGMT_1` `0x6B` | ✓ ghi vào đánh thức được |
+| `ACCEL_XOUT_H` `0x3B`, chùm 14 byte | ✓ ra gia tốc + con quay hợp lý |
+| 16384 LSB/g và 131 LSB/(°/s) | ✓ quy ra 0,36 mg và 0,03 °/s — đúng dải vật lý |
+
+Dòng cuối là bằng chứng mạnh nhất: dải đo mặc định khác thì hai con số ấy đã
+lệch hẳn một hệ số.
+
+## Lỗi thứ hai phơi ra từ số 0
+
+Phép kiểm nhiễu chỉ có **trần**, nên **cảm biến chết cũng đạt**: chip còn ngủ
+trả về toàn số 0, và 0 nằm dưới mọi trần. Đã thêm **sàn** cho cả hai, lấy từ
+số đo thật chia đôi để chừa biên. MEMS đang sống không bao giờ cho nhiễu 0.

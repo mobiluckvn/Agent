@@ -71,13 +71,25 @@ scenarios:
         description: Mã nhận dạng thiết bị
         op: equals
         expected: "0x68"
+      # Nhiễu nền có SÀN, không chỉ có trần — đo được ngày 01/09/2026.
+      #
+      # Trần một mình không phân biệt được "cảm biến rất yên" với "cảm biến
+      # không đọc được": một con chip còn ngủ trả về toàn số 0, và 0 luôn
+      # dưới mọi trần. Chính chú thích đầu DS-02.c đã cảnh báo điều đó, mà
+      # phép kiểm thì vẫn để hở.
+      #
+      # Sàn lấy từ số đo thật trên bo, chia đôi để chừa biên: gia tốc kế đo
+      # được 0,36 mg khi nằm yên, con quay 0,03 °/s. MEMS đang sống thì
+      # KHÔNG BAO GIỜ cho nhiễu bằng 0.
       - key: accel_noise_mg
         description: Nhiễu nền gia tốc kế
-        op: max
+        op: in_range
+        low: 0.05
         high: 30
       - key: gyro_noise_dps
         description: Nhiễu nền con quay hồi chuyển
-        op: max
+        op: in_range
+        low: 0.01
         high: 2.0
       - key: samples
         description: Số mẫu thu được

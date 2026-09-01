@@ -1,0 +1,25 @@
+  Đang thu 5s từ /dev/cu.usbserial-143410 ở 9600 baud…
+  Cổng        : /dev/cu.usbserial-143410
+  Thời gian   : 5.2s
+  Khung nhận  : 4 (4 đạt, 0 hỏng)
+
+
+Kênh máy đã có — DS-02
+──────────────────────
+  ✗ Mã nhận dạng thiết bị: who_am_i=0x72, kỳ vọng 0x68
+  ✓ Nhiễu nền gia tốc kế: accel_noise_mg=0.24, dải [0.05, 30]
+  ✓ Nhiễu nền con quay hồi chuyển: gyro_noise_dps=0.05, dải [0.01, 2.0]
+  ✓ Số mẫu thu được: samples=100, sàn 100
+
+Cần quan sát của người — DS-02
+──────────────────────────────
+  --answer nghieng_trai_gia_tri_am=<có|không>
+      Nghiêng robot sang TRÁI. Giá trị góc hiển thị có chuyển sang ÂM không?
+  --answer truc_dung_chieu=<có|không>
+      Trục dữ liệu có khớp trục vật lý (nghiêng trước/sau, không phải trái/phải)?
+
+Chẩn đoán là phép GIAO của hai kênh. Với nửa dữ liệu, kết luận nào cũng có thể sai mà vẫn nghe chắc chắn.
+
+  ⚠ Kênh máy ĐÃ TRƯỢT ở trên. Quan sát của bạn vẫn cần để
+    chốt VÙNG LỖI, nhưng nó sẽ không lật được kết cục — biết
+    trước thì bạn chọn được có bỏ công ra bây giờ hay không.
