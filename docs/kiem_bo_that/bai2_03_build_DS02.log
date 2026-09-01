@@ -1,0 +1,10 @@
+
+Dựng firmware chẩn đoán — DS-02
+───────────────────────────────
+  Kiểm cảm biến MPU6050
+
+  Bộ khung   : /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-02.c
+  Ảnh nạp được: /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-02.hex
+
+Nạp nó: eaa flash --image /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-02.hex
+Thu số đo rồi kết luận: eaa diagnose run DS-02 --port <cổng>

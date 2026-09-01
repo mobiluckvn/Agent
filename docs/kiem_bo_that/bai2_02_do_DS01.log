@@ -1,0 +1,16 @@
+  Đang thu 5s từ /dev/cu.usbserial-143410 ở 9600 baud…
+  Cổng        : /dev/cu.usbserial-143410
+  Thời gian   : 5.1s
+  Khung nhận  : 3 (3 đạt, 0 hỏng)
+
+
+── Kết luận chẩn đoán DS-01 ──
+[SUY RA]
+    bắc cầu đúng trên dữ liệu dự án đã khai, nhưng chưa ai kiểm ở đời thật
+
+Vùng lỗi: không phát hiện lỗi
+
+Kênh máy: ĐẠT
+  • ✓ Địa chỉ MPU6050 trả lời trên bus: i2c_addresses=['0x68'], cần có 0x68
+
+Hành động đề xuất: Không phát hiện lỗi trong phạm vi kịch bản này.
