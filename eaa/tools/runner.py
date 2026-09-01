@@ -161,38 +161,76 @@ class ToolRunner:
         argv: list[str],
         duration: float,
     ) -> ToolReport:
-        parse = goi.parse
         dau_ra = (ket_qua.stdout or "") + (ket_qua.stderr or "")
+        bao_cao = self.doc_ket_qua(
+            goi.parse, exit_code=ket_qua.returncode, output=dau_ra, gate=ten_cong
+        )
+        bao_cao.metrics["command"] = " ".join(argv)
+        bao_cao.duration_s = duration
+        return bao_cao
 
-        loi = self._bat(parse.error_regex, dau_ra, Severity.ERROR)
-        canh_bao = self._bat(parse.warning_regex, dau_ra, Severity.WARNING)
-        so_lieu = self._do(parse, dau_ra)
+    @classmethod
+    def doc_ket_qua(
+        cls,
+        parse: Any,
+        *,
+        exit_code: int,
+        output: str,
+        gate: str = "",
+    ) -> ToolReport:
+        """Đọc kết quả một lượt chạy thành ToolReport.
 
-        dat = ket_qua.returncode in parse.success_exit_codes and not loi
+        Tách khỏi phần gọi tiến trình để kiểm được bằng đầu ra THẬT đã ghi lại,
+        không phải bằng một tiến trình giả. Chính đầu ra dưới đây từng lừa được
+        cả hai phiên làm việc (SL-120), nên nó phải có mặt trong bộ kiểm.
+        """
+        dau_ra = output
+        loi = cls._bat(parse.error_regex, dau_ra, Severity.ERROR)
+        canh_bao = cls._bat(parse.warning_regex, dau_ra, Severity.WARNING)
+        so_lieu = cls._do(parse, dau_ra)
 
-        if not dat and not loi:
+        dat = exit_code in parse.success_exit_codes and not loi
+
+        # BẰNG CHỨNG ĐÃ LÀM VIỆC. Mã thoát 0 chỉ nói công cụ không thấy lý do
+        # phàn nàn — nó không nói công cụ đã làm gì. Pack khai `require_regex`
+        # thì đầu ra phải mang dấu hiệu ấy, nếu không thì ĐẠT là một lời khai
+        # không có gì đỡ.
+        thieu_bang_chung = False
+        mau_doi = getattr(parse, "require_regex", None)
+        if dat and mau_doi and not re.search(mau_doi, dau_ra, flags=re.MULTILINE):
+            dat = False
+            thieu_bang_chung = True
+            loi = loi + [
+                ToolError(
+                    "Công cụ thoát 0 nhưng đầu ra KHÔNG có dấu hiệu nào chứng "
+                    "minh nó đã làm việc (pack đòi: "
+                    f"{mau_doi!r}). Một phép kiểm không kiểm gì là KHÔNG ĐẠT, "
+                    "không phải đạt. Đầu ra thô:\n"
+                    f"{dau_ra.strip()[:2000]}"
+                )
+            ]
+
+        if not dat and not loi and not thieu_bang_chung:
             # Công cụ báo hỏng nhưng biểu thức bắt lỗi không khớp gì. Không được
             # im lặng: giữ lại đầu ra thô làm thông báo, và nói rõ là quy tắc
             # parse của pack cần chỉnh.
             loi = [
                 ToolError(
-                    f"Công cụ thoát với mã {ket_qua.returncode} nhưng quy tắc "
+                    f"Công cụ thoát với mã {exit_code} nhưng quy tắc "
                     f"parse của pack không bắt được lỗi nào. Đầu ra thô:\n"
                     f"{dau_ra.strip()[:2000]}"
                 )
             ]
 
-        so_lieu["exit_code"] = ket_qua.returncode
-        so_lieu["command"] = " ".join(argv)
+        so_lieu["exit_code"] = exit_code
 
         return ToolReport(
-            gate=ten_cong,
+            gate=gate,
             passed=dat,
             errors=loi,
             warnings=canh_bao,
             metrics=so_lieu,
             raw_output=dau_ra,
-            duration_s=duration,
         )
 
     @staticmethod

@@ -111,9 +111,21 @@ class ParseSpec:
     warning_regex: str | None = None
     #: tên số liệu → regex có đúng một nhóm bắt số. Ví dụ khóa: ``flash_bytes``.
     metric_regex: dict[str, str] = field(default_factory=dict)
+    #: Dấu hiệu BẮT BUỘC phải có trong đầu ra thì mới tính là ĐẠT.
+    #:
+    #: Mã thoát 0 không phải bằng chứng công cụ đã làm việc — nó chỉ nói công
+    #: cụ không thấy lý do để phàn nàn. Một công cụ có quyền coi "không có gì
+    #: để làm" là thành công; người gọi thì không, vì với một cổng kiểm chứng
+    #: thì "không kiểm gì" và "kiểm và thấy khớp" là hai kết cục trái ngược.
+    #:
+    #: Đo được ở SL-120: lệnh nạp firmware đọc 0 byte từ tệp, ghi 0 byte, thoát
+    #: 0 — và cả hai phiên làm việc đều tin rằng firmware đã nằm trên chip.
+    require_regex: str | None = None
 
     def __post_init__(self) -> None:
-        for ten, mau in [("error_regex", self.error_regex), ("warning_regex", self.warning_regex)]:
+        for ten, mau in [("error_regex", self.error_regex),
+                         ("warning_regex", self.warning_regex),
+                         ("require_regex", self.require_regex)]:
             if mau is not None:
                 _compile_regex(mau, f"{ten}")
         for ten_so_lieu, mau in self.metric_regex.items():
@@ -506,6 +518,7 @@ def _parse_invocation(ten: str, than: Any, path: Path) -> ToolInvocation:
     try:
         parse = ParseSpec(
             success_exit_codes=tuple(parse_raw.get("success_exit_codes", (0,))),
+            require_regex=parse_raw.get("require_regex"),
             error_regex=parse_raw.get("error_regex"),
             warning_regex=parse_raw.get("warning_regex"),
             metric_regex=dict(parse_raw.get("metric_regex") or {}),

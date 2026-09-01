@@ -183,11 +183,20 @@ capabilities:
       - -b
       - "{baud}"
       - -U
-      - "flash:w:{binary}:e"
+      # `:i` = Intel HEX, ĐÚNG định dạng ảnh mà pack này sinh ra.
+      #
+      # Trước SL-120 chỗ này là `:e` (ELF). avrdude không đọc được tệp, ghi
+      # 0 byte, rồi THOÁT 0 — nên hai phiên làm việc liền tin rằng firmware
+      # đã nằm trên chip trong khi bo vẫn chạy mã gốc của bộ kit.
+      - "flash:w:{binary}:i"
     timeout_s: 180
     parse:
       success_exit_codes: [0]
-      error_regex: "^avrdude:\\s+(?:error|ERROR):\\s+(?P<msg>.+)$"
+      # Bắt cả hai đời câu chữ: avrdude cũ in `avrdude: error: …`, bản 8.2 in
+      # `Error: …`. Chỉ khớp đời cũ thì dòng lỗi VÔ HÌNH với lớp phân tích.
+      error_regex: "^(?:avrdude:\\s+)?(?:[Ee]rror|ERROR)[:\\s]+(?P<msg>.+)$"
+      # Bằng chứng đã thật sự ghi. Mã thoát 0 không nói công cụ đã làm gì.
+      require_regex: "\\b[1-9]\\d* bytes of flash (?:written|verified)\\b"
 
   flash_verify:
     description: >-
@@ -206,11 +215,15 @@ capabilities:
       - -b
       - "{baud}"
       - -U
-      - "flash:v:{binary}:e"
+      # `:i` = Intel HEX — xem chú thích ở năng lực `flash` phía trên.
+      - "flash:v:{binary}:i"
     timeout_s: 180
     parse:
       success_exit_codes: [0]
-      error_regex: "^avrdude:\\s+(?:error|ERROR|verification error)[:\\s]+(?P<msg>.+)$"
+      error_regex: "^(?:avrdude:\\s+)?(?:[Ee]rror|ERROR|verification error)[:\\s]+(?P<msg>.+)$"
+      # Đọc ngược 0 byte KHÔNG phải là "khớp". Đây là chỗ hỏng đắt nhất của
+      # SL-120: cổng báo ĐÃ KIỂM trong khi nó không kiểm gì cả.
+      require_regex: "\\b[1-9]\\d* bytes of flash verified\\b"
 
   sim:
     description: >-
