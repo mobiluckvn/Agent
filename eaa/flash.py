@@ -369,14 +369,28 @@ class FlashApprovals:
                 continue
         return ra
 
-    def find(self, image) -> "FlashApproval | None":
+    def find(self, image, required_safety=()) -> "FlashApproval | None":
+        """Quyết định khớp ảnh này VÀ thỏa mãn yêu cầu an toàn, mới nhất trước.
+
+        Sổ chỉ ghi thêm, nên cùng một ảnh có thể có NHIỀU bản ghi: một bản
+        duyệt vội, rồi một bản duyệt đủ. Trả về bản gặp trước là để bản tệ nhất
+        thắng vĩnh viễn — mọi lần duyệt lại sau đó đều vô nghĩa.
+
+        Duyệt ngược từ bản mới nhất, và chỉ nhận bản phủ đủ ``required_safety``.
+        """
         anh = Path(image)
         if not anh.is_file():
             return None
         bam = self.digest(anh)
-        for k in self.all():
-            if k.image_digest == bam:
-                return k
+        can = [str(m).strip().lower() for m in (required_safety or [])]
+        for k in reversed(self.all()):
+            if k.image_digest != bam:
+                continue
+            if can:
+                da = {str(m).strip().lower() for m in (k.safety_confirmed or ())}
+                if any(m not in da for m in can):
+                    continue
+            return k
         return None
 
 
@@ -593,15 +607,7 @@ class Flasher:
         """
         if self.approvals is None:
             return None
-        k = self.approvals.find(image)
-        if k is None:
-            return None
-        can = [str(m).strip().lower() for m in (required_safety or [])]
-        if can:
-            da = {str(m).strip().lower() for m in (getattr(k, "safety_confirmed", ()) or ())}
-            if any(m not in da for m in can):
-                return None
-        return k
+        return self.approvals.find(image, required_safety=required_safety)
 
     def _hoi(self, tom_tat: str, image=None, required_safety=()) -> bool:
         # Sổ trước: đây là đường của phiên không terminal, và là đường Agent đi.

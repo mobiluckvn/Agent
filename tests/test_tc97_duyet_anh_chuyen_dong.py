@@ -224,3 +224,28 @@ def test_thieu_MOT_muc_trong_quyet_dinh_van_bi_chan(tmp_path: Path) -> None:
 
     f = Flasher(runner=None, approvals=so)
     assert f.da_duoc_duyet(anh, required_safety=CHECKLIST) is None
+
+
+def test_ban_ghi_LONG_LEO_di_truoc_khong_che_mat_ban_ghi_DU(tmp_path: Path) -> None:
+    """Sổ append-only thì cùng một ảnh có NHIỀU bản ghi. Phải tìm bản THỎA MÃN.
+
+    Tự tôi dính: `find()` trả bản ghi ĐẦU TIÊN khớp băm, mà bản đầu tiên là
+    quyết định rác tôi lỡ ghi lúc thử. Người dùng sau đó duyệt lại đầy đủ, có
+    cả ba mục an toàn — và lệnh nạp vẫn từ chối, vì nó chỉ nhìn bản ghi đầu.
+
+    Một sổ chỉ ghi thêm mà phép tra chỉ đọc bản đầu thì mọi lần sửa sau đều vô
+    nghĩa: bản ghi tệ nhất thắng vĩnh viễn.
+    """
+    from eaa.flash import FlashApprovals, Flasher
+
+    anh = tmp_path / "dong.hex"
+    anh.write_text(":00000001FF\n", encoding="utf-8")
+
+    so = FlashApprovals(tmp_path / "so.jsonl")
+    so.approve(anh, by="bản rác")                      # ghi trước, thiếu an toàn
+    so.approve(anh, by="người kiểm", motion=True, safety_confirmed=CHECKLIST)
+
+    f = Flasher(runner=None, approvals=so)
+    k = f.da_duoc_duyet(anh, required_safety=CHECKLIST)
+    assert k is not None, "bản ghi đủ bị bản ghi lỏng lẻo đi trước che mất"
+    assert k.actor == "người kiểm"
