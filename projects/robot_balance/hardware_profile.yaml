@@ -124,16 +124,36 @@ components:
   # trong đầu người viết: mọi phép quy đổi xung → góc đều dùng nó, và không
   # chỗ nào khai. Một hằng số không khai thì không đối chiếu được, và câu hỏi
   # cho người đã lệch khỏi firmware vì đúng lý do ấy (SL-126).
+  # TRÁI/PHẢI chốt bằng MẮT ngày 01/09/2026, không suy ra.
+  #
+  # Bản trước gán động cơ 1 (STEP1/DIR1 = D5/D4) cho bên TRÁI — một giả định,
+  # vì sơ đồ nguyên lý và mã tham chiếu đều chỉ đánh số 1/2 và không nói bên
+  # nào. DS-03 phát xung TỪNG ĐỘNG CƠ một; người quan sát thấy bánh PHẢI quay
+  # trước, tức động cơ 1 là bên phải. Mã tham chiếu xác nhận: khối tính xung
+  # `right_motor` thao tác trên D5/D4, khối `left_motor` trên D7/D6.
+  #
+  # `dir_forward_level` — mức logic của chân DIR để bánh đi TỚI.
+  #
+  # Hai động cơ lắp ĐỐI XỨNG GƯƠNG, nên cùng một mức DIR cho ra hai chiều
+  # quay ngược nhau. Đo được: đặt cả hai DIR = 0 thì bánh phải LÙI còn bánh
+  # trái TIẾN. Mã tham chiếu làm đúng thế — với cùng một dấu của giá trị điều
+  # khiển, nó đặt DIR1 và DIR2 ở hai mức ngược nhau.
+  #
+  # Khai ra ở đây vì đây là chỗ duy nhất mọi module đọc chung. Không khai thì
+  # module đầu tiên điều khiển hai bánh sẽ đặt cùng mức cho cả hai, và robot
+  # quay tại chỗ thay vì đi tới — một lỗi không cổng phần mềm nào bắt được.
   - id: motor_driver_left
     part: a4988
     microstep: 16
     steps_per_rev: 200
-    pins: {step: PD5, dir: PD4}
+    pins: {step: PD7, dir: PD6}
+    dir_forward_level: 0
   - id: motor_driver_right
     part: a4988
     microstep: 16
     steps_per_rev: 200
-    pins: {step: PD7, dir: PD6}
+    pins: {step: PD5, dir: PD4}
+    dir_forward_level: 1
 
 # Cách nạp firmware xuống bo, và cách nhận ra bo khi nó được cắm vào USB.
 #

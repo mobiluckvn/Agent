@@ -30,10 +30,13 @@ void eaa_emit(const char *json);
 /* KHÔNG có chân ENABLE. Sơ đồ nguyên lý của bo chỉ có bốn nét STEP1/DIR1/
  * STEP2/DIR2; A4988 bật cứng. Bản trước khai PIN_EN = PB0 và ghi mức thấp vào
  * đó — một chân thuộc khối khác (SL-125). */
-#define PIN_STEP_L PD5   /* STEP1 — D5 */
-#define PIN_DIR_L  PD4   /* DIR1  — D4 */
-#define PIN_STEP_R PD7   /* STEP2 — D7 */
-#define PIN_DIR_R  PD6   /* DIR2  — D6 */
+/* Trái/phải chốt bằng mắt 01/09/2026: động cơ 1 (STEP1/DIR1) là bên PHẢI.
+ * Bản trước gán ngược, và nhãn sai trong bản đo là thứ dẫn người đi kiểm nhầm
+ * bên khi có bánh hỏng (SL-127). */
+#define PIN_STEP_L PD7   /* STEP2 — D7, bánh TRÁI */
+#define PIN_DIR_L  PD6   /* DIR2  — D6 */
+#define PIN_STEP_R PD5   /* STEP1 — D5, bánh PHẢI */
+#define PIN_DIR_R  PD4   /* DIR1  — D4 */
 
 /* 200 xung ở 1 kHz = 0,2 giây, và với vi bước 1/16 thì đó là 1/16 vòng.
  * Chọn dưới một vòng có chủ ý: robot đang kê trên giá, nhưng một lệnh quay
