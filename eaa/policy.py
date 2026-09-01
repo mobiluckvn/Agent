@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 __all__ = [
     "Level",
@@ -41,6 +42,7 @@ __all__ = [
     "GATE_PURPOSE",
     "PolicyViolation",
     "PhaseSkip",
+    "PhaseNotComplete",
     "GateNotApproved",
     "level",
     "stage",
@@ -314,6 +316,15 @@ class PhaseSkip(PolicyViolation):
     """Cố chuyển sang một pha không kề — ví dụ A→D."""
 
 
+class PhaseNotComplete(PolicyViolation):
+    """Cung chuyển pha mở về mặt gate, nhưng việc của pha hiện tại chưa xong.
+
+    Tách khỏi :class:`GateNotApproved` vì hai thứ đòi hai hành động khác nhau:
+    một bên là "đi tìm người bấm duyệt", bên kia là "làm nốt việc". Gộp chúng
+    lại là bắt người đọc tự đoán mình đang thiếu cái gì.
+    """
+
+
 class GateNotApproved(PolicyViolation):
     """Cung chuyển pha hợp lệ nhưng gate trên cung đó chưa có chữ ký người."""
 
@@ -378,8 +389,12 @@ def gate_for_transition(current: str, target: str | None) -> str | None:
         ) from None
 
 
+#: Trạng thái module coi là ĐÃ XONG phần phát triển.
+_MODULE_XONG: frozenset[str] = frozenset({"merged"})
+
+
 def check_transition(
-    current: str, target: str | None, gates: dict[str, str]
+    current: str, target: str | None, gates: dict[str, str], backlog: Any = None
 ) -> None:
     """Kiểm tra một lần chuyển pha; im lặng nghĩa là được phép.
 
@@ -404,6 +419,30 @@ def check_transition(
             f"{trang_thai!r} — chưa thể chuyển {current} → {dich}. "
             f"Chạy 'eaa gate show' rồi 'eaa gate approve {gate}'."
         )
+
+    # Rời pha D là tuyên bố "firmware viết xong". Gate không đủ để nói câu ấy.
+    #
+    # G3 là cổng CỦA TỪNG MODULE, nhưng trạng thái của nó là một ô duy nhất
+    # trong `gates` và không quay về `pending` sau khi merge. Nên duyệt G3 lần
+    # đầu cho module ĐẦU TIÊN là mở vĩnh viễn cửa ra khỏi pha phát triển — đo
+    # được ở bài robot cân bằng: merge module thứ ba trên bảy, dự án nhảy sang
+    # pha E, và lệnh `gen` kế tiếp bị từ chối vì "chỉ chạy ở pha D" (SL-146).
+    #
+    # Không lộ ra suốt bốn sprint vì chưa dự án nào đi qua hơn một module.
+    if current == "D" and target == "E" and backlog:
+        con_do = [
+            getattr(m, "id", str(m))
+            for m in backlog
+            if getattr(m, "status", "") not in _MODULE_XONG
+        ]
+        if con_do:
+            raise PhaseNotComplete(
+                f"Còn {len(con_do)} module chưa merge: {', '.join(con_do)}.\n"
+                "    Rời pha D là tuyên bố firmware đã viết xong — tuyên bố ấy "
+                "sai khi backlog còn việc, và pha E đặt mức phân quyền về HUMAN "
+                "nên vòng sinh mã sẽ đóng lại.\n"
+                f"    Làm nốt: eaa gen {con_do[0]}"
+            )
 
 
 def can_transition(current: str, target: str | None, gates: dict[str, str]) -> bool:

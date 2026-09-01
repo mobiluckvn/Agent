@@ -200,7 +200,7 @@ def test_xem_truoc_khong_commit_khong_xin_gate():
     from eaa import orchestrator
 
     src = inspect.getsource(orchestrator.Orchestrator.run_module)
-    nhanh = src[src.index("if self.config.preview:"):src.index("branch = self.repo.start_module")]
+    nhanh = src[src.index("if self.config.preview:"):src.index("self.repo.start_module")]
     for cam in ("_commit(", "_xin_gate(", "_luu_bang_chung("):
         assert cam not in nhanh, f"nhánh xem trước không được gọi {cam}"
     assert '"preview"' in nhanh
@@ -213,7 +213,7 @@ def test_xem_truoc_noi_ro_ma_CHUA_DUOC_KIEM():
     from eaa import orchestrator
 
     src = inspect.getsource(orchestrator.Orchestrator.run_module)
-    nhanh = src[src.index("if self.config.preview:"):src.index("branch = self.repo.start_module")]
+    nhanh = src[src.index("if self.config.preview:"):src.index("self.repo.start_module")]
     assert "CHƯA ĐƯỢC KIỂM" in nhanh
     assert "chưa từng được dịch" in nhanh
 

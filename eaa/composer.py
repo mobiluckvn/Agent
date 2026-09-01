@@ -402,11 +402,32 @@ class PromptComposer:
         prompt = self.build(task, state, counter=dem)
 
         prompt.layers = [l for l in prompt.layers if l.name != "task"]
+
+        # Phần của lớp `repair` là SÀN, không phải trần.
+        #
+        # Nó là lớp cuối được thêm vào và nó thay chỗ lớp `task`, nên nó không
+        # cạnh tranh với ai: chỗ các lớp khác không dùng tới thì để trống. Kích
+        # thước của nó lại do THÂN HÀM ĐANG HỎNG quyết định — thứ thay đổi theo
+        # từng module.
+        #
+        # Giữ nó làm trần cứng nghĩa là "hàm của bạn to quá, chúng tôi thậm chí
+        # không thử sửa" trong khi gần nửa trần tổng bỏ không. Đo được ba lần
+        # liên tiếp ở bài robot cân bằng: 1836/1600 rồi 1916/1800, với prompt
+        # tổng lần lượt 4752 và 4255 trên 8000 (SL-147).
+        #
+        # Trần TỔNG vẫn là trần thật và vẫn chặn — chỉ chỗ trống mới được dùng.
+        san = self.config.layer_budgets.get("repair", 0)
+        da_dung = sum(l.tokens(dem) for l in prompt.layers)
+        if prompt.system_instruction:
+            da_dung += dem(prompt.system_instruction)
+        cho_trong = max(0, prompt.budget - da_dung)
+        phan_cua_no = max(san, cho_trong)
+
         prompt.layers.append(
             PromptLayer(
                 "repair",
-                self._lop_va(task, report, sources),
-                budget=self.config.layer_budgets.get("repair", 0),
+                self._lop_va(task, report, sources, tran=phan_cua_no, dem=dem),
+                budget=phan_cua_no,
                 required=True,
             )
         )
@@ -617,7 +638,15 @@ class PromptComposer:
         phan.append("\n" + self.OUTPUT_FORMAT)
         return "\n\n".join(phan)
 
-    def _lop_va(self, task: Task, report: Any, sources: Mapping[str, str]) -> str:
+    def _lop_va(
+        self,
+        task: Task,
+        report: Any,
+        sources: Mapping[str, str],
+        *,
+        tran: int = 0,
+        dem: Callable[[str], int] | None = None,
+    ) -> str:
         """Nội dung lớp vá: lỗi của cổng + đúng hàm liên quan + yêu cầu trả bản vá."""
         cong = getattr(report, "gate", "kiểm chứng")
         loi = list(getattr(report, "errors", []) or [])
@@ -645,17 +674,62 @@ class PromptComposer:
             phan.append(f"\n### ĐOẠN LỖI — {ten_tep} (quanh dòng {so_dong})\n```c\n{doan}\n```")
 
         if not da_trich:
+            # Không định vị được hàm lỗi — và đây KHÔNG phải lúc mời hỏi lại.
+            #
+            # Bản trước viết "hãy hỏi lại phần mã cần thiết". Đường ống không
+            # có kênh nào nhận câu hỏi: nó chỉ bóc khối ```file:``` từ phản hồi.
+            # Nên mọi vòng vá rơi vào nhánh này đều kết thúc bằng "Phản hồi
+            # không chứa khối file: nào" và tính là một lần hỏng — sáu lần liên
+            # tiếp trong một buổi, mỗi lần một lượt gọi mô hình (SL-149).
+            #
+            # Nhánh này chạy đúng khi lỗi KHÔNG nằm ở một dòng của tệp nguồn:
+            # bài kiểm đỏ, lỗi liên kết, lỗi định dạng. Lúc ấy thứ mô hình cần
+            # là TOÀN VĂN những tệp liên quan, không phải một lời mời hỏi.
+            # Nhét vừa CHỖ TRỐNG THẬT, không dội hết. Gửi tất cả tệp làm
+            # prompt vượt 8137/8000 và vòng vá lại chết — chỉ đổi một kiểu
+            # hỏng lấy một kiểu hỏng khác.
+            #
+            # Thứ tự ưu tiên: tệp được thông báo lỗi nhắc tên trước, rồi tới
+            # mã nguồn, cuối cùng là mã kiểm. Tệp nào không vừa thì NÊU TÊN —
+            # mô hình cần biết nó đang không nhìn thấy gì.
+            do_dai = dem or estimate_tokens
+            nhac_ten = " ".join(str(e) for e in loi)
+            def _uu_tien(ten: str) -> tuple[int, str]:
+                return (0 if ten in nhac_ten else (1 if ten.endswith((".c", ".h")) else 2), ten)
+
+            con_lai_tran = max(0, tran - do_dai("\n\n".join(phan)) - 200)
+            bo_qua: list[str] = []
+            for ten_tep in sorted(sources, key=_uu_tien):
+                khoi = f"\n### TOÀN VĂN — {ten_tep}\n```\n{sources[ten_tep]}\n```"
+                gia = do_dai(khoi)
+                if gia <= con_lai_tran:
+                    phan.append(khoi)
+                    con_lai_tran -= gia
+                else:
+                    bo_qua.append(ten_tep)
+            if bo_qua:
+                phan.append(
+                    "\n(KHÔNG kèm được vì hết chỗ: " + ", ".join(bo_qua)
+                    + " — sửa trong phạm vi những tệp có ở trên)"
+                )
             phan.append(
-                "\n(không định vị được hàm chứa lỗi từ báo cáo; hãy hỏi lại "
-                "phần mã cần thiết thay vì viết lại cả tệp)"
+                "\n### ĐỊNH DẠNG TRẢ LỜI\n"
+                "Lỗi này không định vị được về một hàm, nên trả về TOÀN BỘ tệp "
+                "cần sửa, mỗi tệp một khối:\n"
+                "```file:<đường dẫn tệp>\n<toàn bộ nội dung tệp sau khi sửa>\n```\n"
+                "Chỉ gửi những tệp thật sự phải đổi. **Bắt buộc** có ít nhất một "
+                "khối như trên — câu trả lời không có khối nào tính là một lần "
+                "hỏng của vòng tự sửa, và không ai đọc được nó."
             )
+            return "\n\n".join(phan)
 
         phan.append(
             "\n### ĐỊNH DẠNG TRẢ LỜI\n"
             "Chỉ trả về CÁC HÀM đã sửa, mỗi hàm trong một khối:\n"
             "```file:<đường dẫn tệp>\n<toàn bộ hàm đã sửa, kể cả dòng khai báo>\n```\n"
             "KHÔNG viết lại toàn bộ tệp — viết lại cả tệp thường sửa chỗ này, "
-            "hỏng chỗ kia."
+            "hỏng chỗ kia.\n"
+            "**Bắt buộc** có ít nhất một khối như trên."
         )
         return "\n\n".join(phan)
 

@@ -56,12 +56,12 @@ LAYER_BUDGETS: dict[str, int] = {
     "role_constraints": 800,     # Vai trò + ràng buộc cứng (K1)
     "hardware_facts": 400,       # Hồ sơ phần cứng trích lọc (K6)
     "datasheet_chunks": 1_500,   # Chunk top-3 (K2 + K7)
-    "interfaces": 1_000,         # Interface các module phụ thuộc (K3)
+    "interfaces": 800,         # Interface các module phụ thuộc (K3)
     "error_rules": 300,          # Quy tắc từ Error Ledger (K5)
     "project_rules": 1_200,      # Luật thiết kế riêng của dự án (NFR-05)
-    "host_test": 600,            # Hợp đồng bài kiểm trên máy chủ, từ pack
+    "host_test": 700,            # Hợp đồng bài kiểm trên máy chủ, từ pack
     "task": 500,                 # Nhiệm vụ + tiêu chí nghiệm thu
-    "repair": 1_700,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
+    "repair": 1_800,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
 }
 # `project_rules` và `host_test` tách ra khỏi `task`, phần ngân sách lấy từ
 # `repair` để tổng vẫn đúng 8.000 (SL-135). Hai lý do, và lý do thứ hai mới là
@@ -75,13 +75,20 @@ LAYER_BUDGETS: dict[str, int] = {
 #    thế: nó viết `tests/test_dummy.c` trong một vòng vá, khi không còn gì
 #    nói cổng ấy chạy pytest.
 #
-# `repair` xuống 1.800 vẫn dư: prompt vá cố ý KHÔNG chứa toàn văn tệp, chỉ có
+# `repair` về lại 1.800 sau khi 1.600 chặn một vòng vá thật: cổng dịch trả về
+# ba dòng lỗi kèm thân hàm liên quan là 1.836 token, trong khi prompt tổng mới
+# dùng 4.752/8.000. Phần bù lấy từ `interfaces` (1.000 → 800) — lớp ấy chỉ chứa
+# KHAI BÁO của module phụ thuộc, và 800 token vẫn đủ cho vài tệp tiêu đề.
+#
+# `repair` 1.800 vẫn dư: prompt vá cố ý KHÔNG chứa toàn văn tệp, chỉ có
 # thông báo lỗi và đúng những hàm liên quan (AIS §3.2) — một hàm C cỡ vài chục
 # dòng vào khoảng 300 token.
 #
-# `host_test` nâng 500 → 600 vì hợp đồng nay mang thêm ĐƯỜNG DẪN ĐÃ GIẢI của
-# thư mục tiêu đề giả, và đường dẫn dài ngắn tùy máy. Để nó sát trần là để một
-# lượt sinh mã hỏng chỉ vì kho nằm sâu hơn vài thư mục.
+# `host_test` nâng 500 → 700 theo hai bước, mỗi bước sau một lần chạm trần
+# thật. Hợp đồng này mang ĐƯỜNG DẪN ĐÃ GIẢI của thư mục tiêu đề giả (dài ngắn
+# tùy máy) cộng những luật rút ra từ chính các lượt sinh hỏng: cách với tới
+# thanh ghi qua `in_dll`, và bắt buộc đặt `restype`. Mỗi luật ấy đổi bằng một
+# lượt gọi mô hình bị đốt, nên chỗ cho chúng là chỗ rẻ nhất trong cả bảng.
 #
 # `project_rules` được nâng 1.000 → 1.200 sau một lần đo thật, không phải đoán:
 # luật thiết kế của một module điều khiển gồm sáu điều, mỗi điều kèm con số làm

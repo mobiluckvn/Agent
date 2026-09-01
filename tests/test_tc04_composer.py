@@ -414,15 +414,31 @@ def test_prompt_sua_bo_lop_nhiem_vu_goc(composer: PromptComposer) -> None:
     assert prompt.layer("repair") is not None
 
 
-def test_khong_dinh_vi_duoc_ham_loi_thi_noi_ro_thay_vi_gui_ca_tep(
+def test_khong_dinh_vi_duoc_ham_loi_thi_GUI_TOAN_VAN_va_van_doi_ban_va(
     composer: PromptComposer,
 ) -> None:
+    """Bài này ĐỔI HÀNH VI KIỂM ngày 01/09/2026, và lý do phải ghi lại.
+
+    Bản cũ đòi prompt nói "không định vị được hàm" và KHÔNG gửi toàn văn tệp.
+    Ý đằng sau đúng — đừng dội cả tệp khi không cần. Nhưng nó để mô hình không
+    có vật liệu nào để vá, kèm một lời mời *"hãy hỏi lại phần mã cần thiết"*,
+    trong khi đường ống chỉ bóc khối ```file:``` và không có kênh nhận câu hỏi.
+
+    Đo được: SÁU vòng tự sửa liên tiếp rơi vào nhánh này, cả sáu kết thúc bằng
+    "Phản hồi không chứa khối file: nào" và bị tính là hỏng. Không lần nào là
+    lỗi của mô hình (SL-149).
+
+    Nhánh này chạy khi lỗi không gắn với một dòng nguồn — bài kiểm đỏ, lỗi liên
+    kết. Lúc ấy toàn văn LÀ thứ cần. Nửa quan trọng của bản cũ vẫn được giữ, ở
+    bài ngay dưới đây: lỗi CÓ định vị được thì vẫn chỉ gửi hàm (TC-19).
+    """
     bao_cao = ToolReport(gate="compile", passed=False, errors=[ToolError("lỗi chung chung")])
     toan_van = composer.build_repair(
         NHIEM_VU_BUS, None, bao_cao, {"src/m.c": NGUON_200_DONG}
     ).full_text()
-    assert "không định vị được hàm" in toan_van
-    assert "dòng đệm" not in toan_van
+    assert "hỏi lại" not in toan_van, "vẫn mời mô hình làm việc đường ống không nhận"
+    assert "dòng đệm" in toan_van, "không đưa vật liệu nào để vá"
+    assert "```file:" in toan_van
 
 
 # --------------------------------------------------------------------------

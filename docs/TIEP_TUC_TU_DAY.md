@@ -1,180 +1,73 @@
-# Tiếp tục từ đây — phiên kiểm Agent với bo thật
+# Tiếp tục từ đây — bàn giao phiên 01/09/2026
 
-Dừng lúc: **2026-08-31 tối**. Nhánh `main`, mọi thứ đã đẩy.
-Bo AVR đang **cắm và nhận được**. Toolchain **đủ**. Đã nạp firmware xuống bo.
+Mục tiêu đang đuổi: **robot đứng được**, theo giao thức khởi động bằng tiếng bíp
+(1 bíp chờ nút → nút → 5 bíp hiệu chỉnh khi người giữ robot thẳng đứng → 2 bíp
+thả tay → cân bằng).
 
----
+## Trạng thái backlog
 
-## 1. VIỆC ĐẦU TIÊN SÁNG MAI — một mâu thuẫn chưa giải
+| Module | Trạng thái | Ghi chú |
+|---|---|---|
+| `drv_buzzer` | **merged** | bật/tắt mức PB2, không chặn, đúng còi chủ động |
+| `drv_button` | **merged** | PINB4, kéo lên nội, chống dội 20 ms, bắt sườn nhấn |
+| `drv_i2c` | **merged** | TWI master chạy bằng ngắt, 400 kHz |
+| `drv_stepper` | **merged** | Timer2 CTC 20 µs, đếm ngưỡng, DIR trái=1/phải=0 |
+| `drv_imu` | `handoff` | mã C ĐÚNG rồi; chỉ bài kiểm còn lệch (xem dưới) |
+| `logic_pid` | `in_review` | bản cũ theo công thức fixed-point — **phải sinh lại** |
+| `app_balance` | `todo` | máy trạng thái bíp + vòng 4 ms |
+| `app_telemetry` | `todo` | cần cho đo nghiệm thu G4, chưa cần để robot đứng |
+| `drv_uart` | `todo` | tồn từ bài UART cũ, không cần cho việc đứng |
 
-`eaa flash` báo:
+Pha D. G1/G2 approved, G3 vừa bị từ chối cho `drv_imu`.
 
-```
-Kiểm sau khi nạp: ĐÃ KIỂM — đọc ngược khớp ảnh.
-```
+## Việc kế tiếp, theo đúng thứ tự
 
-Nhưng đọc ngược **bằng tay** thì không khớp:
+1. **`eaa gen drv_imu`** — lần chạy cuối cho mã C đúng: đọc chùm từ `0x3B` lấy
+   byte [4:5] = ACCEL_Z, gyro Y, `0.000031`, `0.9996/0.0004`, `ACCEL_CONFIG=0x08`.
+   Chỗ còn đỏ là **bài kiểm** tự đặt một con số kỳ vọng (`0.0429`) rồi không
+   khớp. Đọc bài kiểm trước khi sinh lại: nếu mã C vẫn đúng như trên thì chỉ
+   cần bài kiểm tính lại kỳ vọng từ chính công thức.
+2. **`eaa gen logic_pid`** — bản đang `in_review` viết theo công thức Q8
+   fixed-point của `sim/`; `prompts/logic_pid.md` nay đã đổi sang công thức
+   nhà sản xuất (float, kp=12/ki=0.4/kd=10, kẹp ±400, vùng chết ±5).
+3. **`eaa gen app_balance`** — máy trạng thái năm trạng thái + vòng 4 ms.
+4. `eaa build` → `eaa flash` → thử đứng.
 
-```bash
-cd /private/tmp/.../scratchpad   # hoặc bất kỳ thư mục tạm nào
-avrdude -c arduino -p m328p -P /dev/cu.usbserial-143410 -b 57600 -U flash:r:doc_ve.hex:i
-```
+Nhớ: G3 chỉ giữ được hồ sơ của MỘT module. Duyệt hoặc từ chối xong mới sinh
+module kế (SL-142 cưỡng chế điều này).
 
-So với ảnh đã nạp:
+## Đã sửa trong phiên này — bảy lỗi engine chặn đường sinh mã
 
 | | |
 |---|---|
-| Ảnh đã nạp | 974 byte, `0x0000–0x03cd` |
-| Khác nhau trong vùng ấy | **895 / 974 byte** |
-| Ngoài vùng ảnh | còn **16.345 byte khác `0xFF`**, tới `0x7f9d` — mã cũ vẫn nằm đó |
+| SL-145 | Tiêu đề giả không giống thật: thanh ghi là macro nên `in_dll` không thấy; thiếu tên chân kiểu cũ `PD4` |
+| SL-146 | Duyệt G3 một module là mở cửa ra khỏi cả pha D, và pha E đóng vòng sinh mã |
+| SL-147 | Trần lớp vá chặn vòng tự sửa khi còn nửa ngân sách trống |
+| SL-148 | Đường dẫn tiêu đề giả phụ thuộc việc mô hình nhớ gõ `-I` |
+| SL-149 | Prompt vá mời mô hình HỎI, mà đường ống chỉ nhận bản vá — sáu lượt gọi bị đốt |
+| SL-150 | Cổng phân tích tĩnh áp luật mã C lên tệp kiểm Python |
+| SL-151 | Một lượt sinh hỏng để lại cây bẩn, khoá cứng lượt sau |
 
-Hai phép đọc ngược nói ngược nhau. **Đúng một trong hai là sai, và cần biết cái nào.**
+Cùng SL-140…144 ghi ở phiên trước đó trong cùng ngày.
 
-Vì sao đây là việc quan trọng nhất: nếu bản báo "ĐÃ KIỂM" sai thì sản phẩm
-đang khẳng định *"thứ trên bàn là thứ đã được duyệt"* trong khi không phải —
-hỏng đúng bất biến trung tâm, ở chặng cuối.
+## Tri thức đã nạp
 
-**Cách kiểm chưa làm:**
+* `ds-atme-gpio-01` — DDRB/PORTB/PINB (cổng B: còi PB2, nút PB4)
+* `ds-atme-gpio-02` — DDRD/PORTD/PIND (cổng D: bốn chân xung bước)
+* `ds-atme-timer2-01` — TCCR2A/B, OCR2A, TIMSK2, bảng chia trước RIÊNG của Timer2
+* `ds-032` — gỡ treo bằng chính mã nhà sản xuất (hai con số độc lập xác nhận
+  `GYRO_CONFIG=0x00` và `ACCEL_CONFIG=0x08`)
 
-1. Xem `eaa` chạy lệnh đọc ngược nào (`packs/avr/pack.yaml`, năng lực `verify`)
-   và nó so cái gì với cái gì.
-2. Kiểm bộ đọc Intel HEX tôi viết trong phép so tay — nó có thể sai chứ không
-   phải `eaa` sai. Ưu tiên nghi ngờ chỗ này trước.
-3. Nạp một ảnh khác hẳn (ví dụ DS-01) rồi đọc ngược: nếu nội dung chip KHÔNG
-   đổi theo, thì lệnh nạp không có tác dụng thật.
+Hồ sơ phần cứng nay khai đủ: còi, nút, timer2, `tilt_axis` (accel Z / gyro Y),
+dải đo, và bảng chân đã sửa sang PD4–PD7.
 
-**Manh mối mạnh:** những byte đọc được trên dây (`7E 02 0C EF`, `7E 03 06 0A EF`)
-trùng đúng khung lệnh module MP3 JQ6500 trong mã tham chiếu BLKLab V3
-(`Serial.write(0x7E); … Serial.write(0xEF);` ở cuối tệp `.ino`). Tức **bo đang
-chạy firmware gốc của bộ kit**, không phải firmware ta nạp.
+## Còn nợ
 
----
-
-## 2. Trạng thái phần cứng — đã đo, đã chốt
-
-| Tham số | Hồ sơ khai ban đầu | Đo được | Ghi ở đâu |
-|---|---|---|---|
-| Cổng | — | `/dev/cu.usbserial-143410` | `eaa ports` tự nhận |
-| Chip | atmega328p | `1E 95 0F` ✓ đúng | đọc bằng avrdude |
-| Tốc độ bootloader | 115200 ✗ | **57600** | đã sửa `hardware_profile.yaml`, duyệt lại G1 |
-| Tốc độ telemetry | 115200 | đang thử 9600 | `diagnostics.yaml` |
-
-Bo trả về hai chùm **đúng 19 byte** cách nhau đều (~3,3 s), và nội dung
-**không đổi** khi ta đổi baud của firmware từ 115200 xuống 9600 — đó chính là
-manh mối dẫn tới mục 1.
-
-Đọc cầu chì qua bootloader Arduino trả `0x00` cho cả ba byte: nó **không hỗ
-trợ lệnh ấy** và không báo lỗi. Đừng dùng số đó.
-
----
-
-## 3. Bài 1 (UART) — tới đâu
-
-Mã `drv_uart` đã sinh, **đúng**, nằm trên nhánh `feature/drv_uart` của kho
-`projects/robot_balance/firmware` (kho Git riêng):
-
-* chờ `UDRE0` **có hạn giờ** — tôn trọng lệnh cấm `blocking_io`
-* đọc cờ lỗi **trước** khi đọc `UDR0`, đúng luật datasheet
-* mọi truy cập thanh ghi có `// ref: ds-041` / `ds-043`
-* `compile` / `size` / `static` **ĐẠT** với toolchain thật
-
-**Chưa merge được** vì cổng `unittests` chưa đạt: dự án chưa có bộ kiểm thử
-đơn vị nào. Cổng nói đúng — *"chưa có gì để chạy" không phải "đã kiểm chứng"*.
-Muốn qua G3 thì phải viết test chạy trên máy chủ qua lớp phần cứng giả
-(`eaa/tools/unittests.py` giải thích cách).
-
-Tri thức đã đủ: `ds-043` (datasheet chính chủ Microchip, tr.200-203, đã qua
-G2) phủ `UDR0`, `UDRE0`, `RXC0`, `TXC0`.
-
----
-
-## 4. Bài 2 (cảm biến) — chưa bắt đầu
-
-Đường đã rõ, dùng đúng thứ có sẵn: kịch bản **DS-02 "Kiểm cảm biến MPU6050"**
-(`eaa diagnose build DS-02`). Nhưng nó chặn sau mục 1: chưa tin được là
-firmware ta nạp có thật sự chạy hay không thì mọi số đo cảm biến đều vô nghĩa.
-
-Chunk `ds-032` (dải đo và hệ số nhạy MPU6050) **cố ý còn ở `proposed`** —
-đừng duyệt nó cho tới khi đối chiếu xong hệ số nhạy. Tôi đã lỡ duyệt nó một
-lần và trả về ngay (xem SL-117, mục còn treo).
-
----
-
-## 5. Review mã tham chiếu — đã làm một phần
-
-`eaa chat` đọc `sources/…/V3_Balancing_Robot_PID_App.ino` và bắt đúng ba vi
-phạm ràng buộc cứng:
-
-| Thư viện | Vi phạm |
-|---|---|
-| `Adafruit_NeoPixel` | tắt ngắt toàn cục >120 µs khi đẩy dữ liệu LED — vượt trần `motor_response_us` 50 µs, mất xung bước |
-| `SoftwareSerial` | chặn CPU, can thiệp ngắt — vi phạm `CẤM blocking_io`, phá chu kỳ 10 ms |
-| `SimpleKalmanFilter` | số thực nặng — vi phạm `arithmetic: integer` |
-
-Sơ đồ chân rút được: MPU6050 `0x68`, nút D12, còi D10, HC-05 TX=D8 RX=D9.
-
-**Giới hạn đã lộ:** Agent chỉ đọc được PHẦN ĐẦU tệp — lớp quan sát cắt đầu ra
-cho vừa ngân sách, và `survey --read` **không có cách đọc tiếp phần sau**
-(không có offset/khoảng dòng). Nó tự khai điều đó rồi thử `cat` và bị từ chối
-đúng. Đây là việc nên sửa: thêm `--lines` hay `--from` cho `survey --read`.
-
----
-
-## 6. Đã tìm và sửa được gì trong phiên này
-
-**Mười lăm lỗi thật**, ghi đầy đủ ở `docs/SAI_LECH_THIET_KE.md` mục
-**SL-109 … SL-119**. Test đi từ 2.077 → **2.145**.
-
-Bốn nhóm đáng nhớ nhất:
-
-1. **Ngõ cụt, không phải cổng** (SL-110, SL-113, SL-117, SL-119). Cùng một
-   hình dạng lặp lại bốn lần ở bốn chỗ khác nhau: lệnh dừng lại và **không
-   nêu lối đi tiếp**, nên một phiên làm việc qua người trung gian không bao
-   giờ đi qua được — dù người có đồng ý bao nhiêu lần. Đã dựng cửa cho cả
-   bốn: `doctor approve`, ghim băm ở G1, `DatasheetStore.approve`,
-   `flash approve`.
-
-2. **Mã đúng nằm chết** — bốn lần. Câu trả lời đúng đã được viết ra, nằm
-   trong tệp, đi vào prompt, và **không có đường tới nơi cần nó**:
-   `InstallNotConfirmed`, lời giải thích trong `NGOAI_DANH_MUC`, chỗ giữ
-   `{baud}` trong khuôn firmware, `verify_checksum()` không ai gọi.
-
-3. **Bất biến đúng theo nghĩa tệ nhất** (SL-117). *"Tri thức chỉ vào kho qua
-   G2"* đúng — vì `DatasheetStore` là kho chỉ đọc và **không gì vào được cả**.
-   Mọi chunk `approved` trong dự án đều được viết tay sẵn.
-
-4. **Lời hứa an toàn không có gì đứng sau** (SL-113). `verify_checksum` có
-   hàm, có test, không có người gọi; và `fix()` in ra một dòng khẳng định việc
-   ấy đã xảy ra.
-
-Và bốn lần **bài canh cũ bắt lỗi tôi vừa tự gây ra**: TC-38 (tên chip thật
-trong docstring engine), `tool_for` nuốt `doctor approve`, rồi nuốt
-`flash approve`, và một bài kiểm của tôi gán `subprocess.run` toàn cục làm
-hỏng mọi bài chạy sau.
-
----
-
-## 7. Lệnh hay dùng
-
-```bash
-cd /Users/v/Documents/KTDT
-P="--project projects/robot_balance"
-
-.venv/bin/python -m eaa.cli $P status
-.venv/bin/python -m eaa.cli $P ports
-.venv/bin/python -m eaa.cli $P doctor
-.venv/bin/python -m eaa.cli $P diagnose list
-.venv/bin/python -m eaa.cli $P diagnose build DS-04
-.venv/bin/python -m eaa.cli $P flash approve --image <hex> --actor "Vũ Trí Công"
-.venv/bin/python -m eaa.cli $P flash --image <hex> --actor "Vũ Trí Công"
-.venv/bin/python -m eaa.cli $P diagnose run DS-04 --port /dev/cu.usbserial-143410
-
-.venv/bin/python -m pytest -q -m "not cham"      # ~3 phút
-```
-
-Nhật ký từng bước của phiên: `docs/kiem_bo_that/`.
-
-**Lưu ý về cách làm việc:** người dùng đã ủy quyền tôi gõ hộ các lệnh duyệt
-(`doctor approve`, `gate approve`, `flash approve`) dưới tên họ. Sổ ghi
-"Vũ Trí Công" còn phím thì tôi bấm — giới hạn ấy đã nêu rõ trong phiên và
-đúng với mọi lệnh duyệt của sản phẩm này.
+* **10 test E2E TC-15 đỏ** — prompt đổi thì băm đổi, bộ phát lại cố ý không bịa
+  phản hồi. Ghi lại bằng `scripts/record_e2e_fixture.py` với mô hình thật.
+* `stepper_set_speed` gọi `sei()` vô điều kiện thay vì khôi phục `SREG` — bật
+  ngắt sớm nếu người gọi đang trong đoạn găng. Chưa chặn được gì, nhưng phải
+  sửa trước khi có module khác gọi nó từ trong ngắt.
+* `drv_i2c` không có quá hạn: bus treo thì trạng thái ở `BUSY` mãi. Lớp an toàn
+  của `app_balance` (số đo bất động N chu kỳ) che được, nhưng đó là che chứ
+  không phải sửa.

@@ -187,7 +187,10 @@ class Orchestrator:
         """
         with self.state_store.with_lock():
             state = self.state_store.load()
-            check_transition(state.phase, target, state.gates)
+            # Kèm backlog: cung D → E gác bằng G3, mà G3 là cổng của TỪNG
+            # module. Không đưa backlog xuống thì duyệt module đầu tiên là
+            # mở cửa ra khỏi cả pha phát triển (SL-146).
+            check_transition(state.phase, target, state.gates, backlog=state.backlog)
             if target is None:
                 return
             state.phase = target
@@ -265,8 +268,17 @@ class Orchestrator:
                 artifact=artifact,
             )
 
-        branch = self.repo.start_module(module_id)
+        da_don = self.repo.start_module(module_id)
+        branch = self.repo.branch_for(module_id)
         nhat_ky: list[str] = []
+        if da_don:
+            # Nói ra việc dọn. Một lượt sinh hỏng để lại mã chưa commit, và
+            # xóa nó im lặng là cách một tệp ai đó sửa tay biến mất không dấu
+            # vết (SL-151).
+            nhat_ky.append(
+                "  ⚠ đã dọn mã còn sót của lượt trước: " + ", ".join(sorted(da_don)[:6])
+                + (" …" if len(da_don) > 6 else "")
+            )
         canh_bao = self.canh_bao_luoc(prompt)
         if canh_bao:
             nhat_ky.append(canh_bao)

@@ -218,8 +218,28 @@ class StaticGate:
             for ten in thieu
         ]
 
+    #: Đuôi tệp mà luật của cổng này áp dụng — mã NGUỒN của firmware.
+    DUOI_MA_NGUON: tuple[str, ...] = (".c", ".h")
+
     def _quet_tep(self, duong_dan: str, noi_dung: str) -> list[ToolError]:
         phat_hien: list[ToolError] = []
+
+        # Luật ở đây là luật của mã C: cấm `delay()`, cấm đệ quy, bắt buộc
+        # trích dẫn nguồn khi cấu hình thanh ghi. Áp chúng lên tệp KIỂM viết
+        # bằng Python là vô nghĩa và có hại:
+        #
+        #   tests/test_<module>.py:41: hàm <tên>() cấu hình <thanh ghi>
+        #                              nhưng không có trích dẫn
+        #
+        # Dòng ấy nói về một hàm GIẢ trong bài kiểm, dựng ra để lái driver. Nó
+        # không chạy trên chip, không cấu hình gì cả. Cổng đỏ, vòng tự sửa mở,
+        # và mô hình được yêu cầu thêm trích dẫn tài liệu vào mã Python
+        # (SL-150).
+        #
+        # Bộ sinh mã bắt đầu trả về tệp test từ SL-134; luật của cổng này thì
+        # có từ Sprint 2 và chưa bao giờ được hỏi "áp lên tệp nào".
+        if not duong_dan.endswith(self.DUOI_MA_NGUON):
+            return phat_hien
 
         for luat in self._luat_ap_dung():
             if luat.kind == "regex":

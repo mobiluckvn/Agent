@@ -80,11 +80,30 @@ def test_do_thi_dung_tu_dong_tu_ho_so_phan_cung(kg: KnowledgeGraph) -> None:
     assert "PD5" in kg.nodes_of_kind("pin")
 
 
-def test_chi_chunk_da_duyet_G2_co_mat_trong_do_thi(kg: KnowledgeGraph) -> None:
-    """Chunk proposed không vào đồ thị → Graph-RAG không thể chọn phải nó."""
+def test_chi_chunk_da_duyet_G2_co_mat_trong_do_thi(
+    kg: KnowledgeGraph, hardware: HardwareProfile, tmp_path: Path
+) -> None:
+    """Chunk proposed không vào đồ thị → Graph-RAG không thể chọn phải nó.
+
+    Phần "chunk chưa duyệt" dựng NGAY TẠI ĐÂY thay vì mượn một chunk của dự án
+    mẫu. Lý do là kinh nghiệm: vai ấy đã do `ds-032` đóng, rồi tới
+    `ds-atme-gpio-02` — và mỗi lần dự án duyệt chunk ấy vì một nhu cầu thật
+    thì bài kiểm đỏ, dù engine không đổi một dòng. Một bài canh engine mà dựa
+    vào dữ liệu dự án thì nó đo hai thứ cùng lúc và không nói được thứ nào vừa
+    đổi (cùng bài học với `test_hai_module_cung_dieu_khien_mot_chan`).
+    """
     chunks = set(kg.nodes_of_kind("chunk"))
     assert {"ds-012", "ds-021", "ds-022", "ds-031", "ds-041"} <= chunks
-    assert "ds-atme-gpio-02" not in chunks
+
+    kho = tmp_path / "datasheets"
+    kho.mkdir()
+    (kho / "cho_duyet.md").write_text(
+        "---\nid: ds-chua-duyet\ndevice: atmega328p\nperipheral: twi\n"
+        "registers: [TWBR]\nstatus: proposed\n---\n\nnội dung chưa ai đối chiếu\n",
+        encoding="utf-8",
+    )
+    rieng = KnowledgeGraph.build(hardware, DatasheetStore(kho))
+    assert "ds-chua-duyet" not in set(rieng.nodes_of_kind("chunk"))
 
     # ds-023 và ds-051 là chunk NHIỄU của bộ chuẩn TC-20. Chúng có mặt ở đây
     # đúng như mong muốn: một chunk nhiễu bị lọc ngay ở tầng đồ thị thì nó

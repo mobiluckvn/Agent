@@ -840,8 +840,10 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
                     str(p) for p in sorted(_gia.glob("*.c"))
                 ]
         composer.host_test = _ht
+        _duong_dan_tieu_de_gia = str((_ht or {}).get("mock_include_path") or "")
     except Exception:  # noqa: BLE001 - chưa cài pack thì thôi
         composer.host_test = None
+        _duong_dan_tieu_de_gia = ""
     gates = HumanGate(project / "gates", store, ledger)
 
     firmware = project / "firmware"
@@ -894,6 +896,9 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
             module=module_hien_tai,
             graph=graph,
             constraints=kb.constraints,
+            # Thư mục tiêu đề giả vào MÔI TRƯỜNG, để lệnh dịch trong bài kiểm
+            # tìm thấy tiêu đề nền tảng dù mô hình có nhớ viết `-I...` hay không.
+            mock_include=_duong_dan_tieu_de_gia,
         ),
     ]
 

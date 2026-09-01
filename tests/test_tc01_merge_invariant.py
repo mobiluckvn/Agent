@@ -212,7 +212,10 @@ def test_bao_cao_tu_mau_thuan_khong_the_ton_tai() -> None:
 
 
 def _chuan_bi_nhanh(repo: GitRepo, artifact: CodeArtifact) -> str:
-    branch = repo.start_module("drv_bus_sensor")
+    # `start_module` nay trả về DANH SÁCH TỆP ĐÃ DỌN, không trả tên nhánh:
+    # nó phải nói ra việc nó vừa xóa mã còn sót của lượt hỏng trước (SL-151).
+    repo.start_module("drv_bus_sensor")
+    branch = repo.branch_for("drv_bus_sensor")
     from eaa.tools.compile import write_artifact
 
     write_artifact(artifact, repo.root)

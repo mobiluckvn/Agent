@@ -29,75 +29,77 @@
 
 #include <stdint.h>
 
-/* Không gian I/O giả. `ctypes` lấy được con trỏ tới nó qua `eaa_io_space()`,
- * nên bài kiểm đọc/ghi được đúng những byte mà mã đang thao tác. */
-#define EAA_IO_SIZE 256
-extern volatile uint8_t eaa_io[EAA_IO_SIZE];
-volatile uint8_t *eaa_io_space(void);
-
-#define _EAA_REG(addr) (eaa_io[(addr)])
-
+/* Thanh ghi là BIẾN TOÀN CỤC mang đúng tên của nó.
+ *
+ * Không phải macro trỏ vào một mảng. Lý do rất thực tế: bài kiểm Python với
+ * tới thanh ghi bằng `ctypes.c_uint8.in_dll(lib, "PORTB")` — đó là phản xạ
+ * đầu tiên của bất cứ ai viết bài kiểm, và mô hình cũng làm đúng thế. Macro
+ * thì không sinh ra ký hiệu nào để `dlsym` tìm thấy, nên bài kiểm chết với
+ * `symbol not found` dù mã C hoàn toàn đúng (SL-145).
+ *
+ * Bên C chúng vẫn dùng y hệt: `PORTB |= (1 << PORTB2);`
+ */
 /* --- Cổng vào/ra ------------------------------------------------------- */
-#define PINB   _EAA_REG(0x03)
-#define DDRB   _EAA_REG(0x04)
-#define PORTB  _EAA_REG(0x05)
-#define PINC   _EAA_REG(0x06)
-#define DDRC   _EAA_REG(0x07)
-#define PORTC  _EAA_REG(0x08)
-#define PIND   _EAA_REG(0x09)
-#define DDRD   _EAA_REG(0x0A)
-#define PORTD  _EAA_REG(0x0B)
+extern volatile uint8_t PINB;
+extern volatile uint8_t DDRB;
+extern volatile uint8_t PORTB;
+extern volatile uint8_t PINC;
+extern volatile uint8_t DDRC;
+extern volatile uint8_t PORTC;
+extern volatile uint8_t PIND;
+extern volatile uint8_t DDRD;
+extern volatile uint8_t PORTD;
 
 /* --- Bộ đếm ------------------------------------------------------------ */
-#define TCCR0A _EAA_REG(0x44)
-#define TCCR0B _EAA_REG(0x45)
-#define TCNT0  _EAA_REG(0x46)
-#define OCR0A  _EAA_REG(0x47)
-#define OCR0B  _EAA_REG(0x48)
-#define TIMSK0 _EAA_REG(0x6E)
+extern volatile uint8_t TCCR0A;
+extern volatile uint8_t TCCR0B;
+extern volatile uint8_t TCNT0;
+extern volatile uint8_t OCR0A;
+extern volatile uint8_t OCR0B;
+extern volatile uint8_t TIMSK0;
 
-#define TCCR1A _EAA_REG(0x80)
-#define TCCR1B _EAA_REG(0x81)
-#define TCCR1C _EAA_REG(0x82)
-#define TIMSK1 _EAA_REG(0x6F)
+extern volatile uint8_t TCCR1A;
+extern volatile uint8_t TCCR1B;
+extern volatile uint8_t TCCR1C;
+extern volatile uint8_t TIMSK1;
 /* Thanh ghi 16 bit của bộ đếm 1 — trên chip là cặp byte cao/thấp. */
-#define TCNT1L _EAA_REG(0x84)
-#define TCNT1H _EAA_REG(0x85)
-#define OCR1AL _EAA_REG(0x88)
-#define OCR1AH _EAA_REG(0x89)
-#define OCR1BL _EAA_REG(0x8A)
-#define OCR1BH _EAA_REG(0x8B)
-#define TCNT1  (*(volatile uint16_t *)&eaa_io[0x84])
-#define OCR1A  (*(volatile uint16_t *)&eaa_io[0x88])
-#define OCR1B  (*(volatile uint16_t *)&eaa_io[0x8A])
+extern volatile uint8_t TCNT1L;
+extern volatile uint8_t TCNT1H;
+extern volatile uint8_t OCR1AL;
+extern volatile uint8_t OCR1AH;
+extern volatile uint8_t OCR1BL;
+extern volatile uint8_t OCR1BH;
+extern volatile uint16_t TCNT1;
+extern volatile uint16_t OCR1A;
+extern volatile uint16_t OCR1B;
 
-#define TCCR2A _EAA_REG(0xB0)
-#define TCCR2B _EAA_REG(0xB1)
-#define TCNT2  _EAA_REG(0xB2)
-#define OCR2A  _EAA_REG(0xB3)
-#define OCR2B  _EAA_REG(0xB4)
-#define TIMSK2 _EAA_REG(0x70)
+extern volatile uint8_t TCCR2A;
+extern volatile uint8_t TCCR2B;
+extern volatile uint8_t TCNT2;
+extern volatile uint8_t OCR2A;
+extern volatile uint8_t OCR2B;
+extern volatile uint8_t TIMSK2;
 
 /* --- Bus hai dây ------------------------------------------------------- */
-#define TWBR   _EAA_REG(0xB8)
-#define TWSR   _EAA_REG(0xB9)
-#define TWAR   _EAA_REG(0xBA)
-#define TWDR   _EAA_REG(0xBB)
-#define TWCR   _EAA_REG(0xBC)
-#define TWAMR  _EAA_REG(0xBD)
+extern volatile uint8_t TWBR;
+extern volatile uint8_t TWSR;
+extern volatile uint8_t TWAR;
+extern volatile uint8_t TWDR;
+extern volatile uint8_t TWCR;
+extern volatile uint8_t TWAMR;
 
 /* --- Cổng nối tiếp ----------------------------------------------------- */
-#define UCSR0A _EAA_REG(0xC0)
-#define UCSR0B _EAA_REG(0xC1)
-#define UCSR0C _EAA_REG(0xC2)
-#define UBRR0L _EAA_REG(0xC4)
-#define UBRR0H _EAA_REG(0xC5)
-#define UDR0   _EAA_REG(0xC6)
-#define UBRR0  (*(volatile uint16_t *)&eaa_io[0xC4])
+extern volatile uint8_t UCSR0A;
+extern volatile uint8_t UCSR0B;
+extern volatile uint8_t UCSR0C;
+extern volatile uint8_t UBRR0L;
+extern volatile uint8_t UBRR0H;
+extern volatile uint8_t UDR0;
+extern volatile uint16_t UBRR0;
 
 /* --- Điều khiển chung -------------------------------------------------- */
-#define MCUCR  _EAA_REG(0x55)
-#define SREG   _EAA_REG(0x5F)
+extern volatile uint8_t MCUCR;
+extern volatile uint8_t SREG;
 
 /* --- Vị trí bit -------------------------------------------------------- */
 /* Đặt bằng số thứ tự bit, đúng như tài liệu. Mã thường viết `(1 << DDB4)`,
@@ -230,6 +232,40 @@ volatile uint8_t *eaa_io_space(void);
 #define UPM01 5
 #define UMSEL00 6
 #define UMSEL01 7
+
+/* Tên chân kiểu cũ của avr-libc: PB0..PB7, PC0..PC5, PD0..PD7.
+ *
+ * avr-libc định nghĩa chúng và mã thật hay dùng — `(1 << PD4)` đọc gọn hơn
+ * `(1 << PORTD4)`. Mock thiếu chúng thì cổng dịch AVR ĐẠT còn cổng kiểm trên
+ * máy chủ đỏ với `use of undeclared identifier 'PD4'`, và mô hình bị đẩy vào
+ * vòng vá cho một lỗi của MOCK chứ không của mã (SL-145).
+ *
+ * Quy tắc: mock phải giống thật ở mọi tên mã sẽ dùng. Thiếu một tên là dựng
+ * ra một lỗi không tồn tại trên thiết bị.
+ */
+#define PB0 0
+#define PB1 1
+#define PB2 2
+#define PB3 3
+#define PB4 4
+#define PB5 5
+#define PB6 6
+#define PB7 7
+#define PC0 0
+#define PC1 1
+#define PC2 2
+#define PC3 3
+#define PC4 4
+#define PC5 5
+#define PC6 6
+#define PD0 0
+#define PD1 1
+#define PD2 2
+#define PD3 3
+#define PD4 4
+#define PD5 5
+#define PD6 6
+#define PD7 7
 
 /* Bit của MCUCR */
 #define PUD 4

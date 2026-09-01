@@ -9,43 +9,53 @@ registers:
 topic: 'Thanh ghi cổng D: DDRD/PORTD/PIND — bốn chân xung bước nằm ở đây'
 source: ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061B.pdf, tr.101
 source_hash: sha256:b9b9d83cda56a95d999ea8d54fe5a540748ae9020e5e7ae19b913d384ba9320e
-status: proposed
-confidence: medium
+status: approved
+confidence: high
 note: >-
-  CHƯA DUYỆT, và cố ý để vậy. Danh sách `registers` đã chuẩn hóa từ đám tên
-  bit máy trích ra (PORTD7, PORTD6...) về đúng ba thanh ghi — đồ thị so khớp
-  theo tên, để nguyên dạng bit thì chunk không bao giờ được truy xuất. Nhưng
-  THÂN chunk vẫn là bản máy trích, chưa ai đối chiếu từng bit với bản gốc.
-
-  Đây là trạng thái trung gian thật: đã chưng cất phần siêu dữ liệu, chưa
-  chưng cất phần nội dung. Duyệt nó khi `drv_stepper` cần — bốn chân xung
-  bước PD4–PD7 nằm ở cổng này.
+  Chưng cất theo K2 và đối chiếu từng bit với bản gốc ngày 01/09/2026, cùng
+  lúc `drv_stepper` cần tới. Quy tắc ba bit và điện trở kéo lên giống hệt cổng
+  B (xem ds-atme-gpio-01) — chỉ khác địa chỉ; không chép lại phần ấy.
+approved_by: Vũ Trí Công
+approved_at: '2026-09-01T14:04:04+00:00'
 ---
 
-## Trích đoạn gpio
+## Trích đoạn gpio — cổng D của ATmega328P
 
-### Trích đoạn nguyên văn (CHƯA chưng cất — kỹ sư đối chiếu và rút gọn)
+### Địa chỉ và bit
 
-ATmega48A/PA/88A/PA/168A/PA/328/P
- 2020 Microchip Technology Inc.        Da ta Sheet Complete      DS40002061B-page 101 
-14.4.7 PINC – The Port C Input Pins Address (1)
-14.4.8 PORTD – The Port D Data Register
-14.4.9 DDRD – The Port D Data Direction Register
-14.4.10 PIND – The Port D Input Pins Address(1)
-Note: 1. Writing to the pin register prov ides toggle functionality for IO (see ”Toggling the Pin” on page 85)
-B i t 76543210
-0x06 (0x26) – PINC6 PINC5 PINC4 PINC3 PINC2 PINC1 PINC0 PINC
-Read/Write R R/W R/W R/W R/W R/W R/W R/W
-Initial Value 0 N/A N /A N/A N/A N/A N/A N/A
-B i t 76543210
-0x0B (0x2B) PORTD7 PORTD6 PORTD5 PORTD4 PORT D3 PORTD2 PORTD1 PORTD0 PORTD
-Read/Write R/W R/W R/W R/W R/W R/W R/W R/W
-I n i t i a l  V a l u e 00000000
-B i t 76543210
-0x0A (0x2A) DDD7 DDD6 DDD5 DDD4 DDD3 DDD2 DDD1 DDD0 DDRD
-Read/Write R/W R/W R/W R/W R/W R/W R/W R/W
-Initial Value 0 0 0 0 0 0 0 0
-B i t 76543210
-0x09 (0x29) PIND7 PIND6 PIND5 PIND4 PI ND3 PIND2 PIND1 PIND0 PIND
-Read/Write R/W R/W R/W R/W R/W R/W R/W R/W
-Initial Value N/A N/A N /A N/A N/A N/A N/A N/A
+| Thanh ghi | Địa chỉ I/O (bộ nhớ) | Bit 7…0 | Truy cập | Giá trị đầu |
+|---|---|---|---|---|
+| `PORTD` | 0x0B (0x2B) | PORTD7…PORTD0 | R/W | 0 |
+| `DDRD`  | 0x0A (0x2A) | DDD7…DDD0 | R/W | 0 |
+| `PIND`  | 0x09 (0x29) | PIND7…PIND0 | R/W | không xác định |
+
+Quy tắc ba bit `DDxn`/`PORTxn`/`PINxn`, bảng sự thật vào–ra, điện trở kéo lên
+nội và `MCUCR.PUD` giống hệt cổng B — xem `ds-atme-gpio-01`.
+
+### Áp vào dự án này
+
+Bốn chân xung bước nằm trên cổng này, và **không có chân enable** (A4988 bật
+cứng trên bo):
+
+| Nét | Chân | Bit |
+|---|---|---|
+| `STEP_R` | PD5 | `DDD5` / `PORTD5` |
+| `DIR_R`  | PD4 | `DDD4` / `PORTD4` |
+| `STEP_L` | PD7 | `DDD7` / `PORTD7` |
+| `DIR_L`  | PD6 | `DDD6` / `PORTD6` |
+
+Cả bốn là chân RA: `DDRD |= (1<<DDD7)|(1<<DDD6)|(1<<DDD5)|(1<<DDD4);`
+
+PD0 và PD1 là RXD/TXD của cổng nối tiếp — **đừng đụng tới hai bit ấy** khi
+cấu hình cổng D, nếu không kênh telemetry chết. Dùng phép hoặc/và theo mặt nạ,
+đừng gán thẳng cả byte.
+
+### Trích đoạn nguyên văn để đối chiếu
+
+```
+0x0B (0x2B) PORTD7 PORTD6 PORTD5 PORTD4 PORTD3 PORTD2 PORTD1 PORTD0  PORTD
+0x0A (0x2A) DDD7   DDD6   DDD5   DDD4   DDD3   DDD2   DDD1   DDD0    DDRD
+0x09 (0x29) PIND7  PIND6  PIND5  PIND4  PIND3  PIND2  PIND1  PIND0   PIND
+```
+
+— DS40002061B, mục 14.4.8–14.4.10 (tr.101)

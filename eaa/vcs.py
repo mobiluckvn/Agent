@@ -298,12 +298,50 @@ class GitRepo:
         else:
             self._git("checkout", "-q", branch)
 
-    def start_module(self, module_id: str) -> str:
-        """Về nhánh chính rồi mở nhánh làm việc cho module."""
+    def start_module(self, module_id: str) -> list[str]:
+        """Về nhánh chính rồi mở nhánh làm việc cho module.
+
+        Dọn mã sinh ra còn sót TRƯỚC khi đổi nhánh. Một lượt sinh hỏng giữa
+        chừng — vòng vá không trả về khối nào, cổng dịch đỏ — để lại `src/` và
+        `tests/` đầy tệp chưa commit, và lượt sau chết ngay ở bước đầu::
+
+            Lỗi: git checkout -q main thất bại (mã 1):
+            error: Your local changes would be overwritten by checkout
+
+        Câu ấy bảo người dùng đi "commit or stash" mã mà **chính Agent vừa
+        viết hỏng**, và không nói ra điều đó. Gặp bốn lần trong một buổi
+        (SL-151).
+
+        Xóa được vì đây là kho SẢN PHẨM SINH: mọi thứ chưa commit trong đó là
+        rác của lượt trước, không phải công của ai. Nhưng vẫn TRẢ VỀ danh sách
+        đã xóa — dọn dẹp im lặng là cách một tệp người ta sửa tay biến mất mà
+        không ai biết.
+        """
         branch = self.branch_for(module_id)
-        self.checkout(self.main_branch)
+        da_don: list[str] = []
+        try:
+            self.checkout(self.main_branch)
+        except GitError:
+            # CHỈ dọn khi việc đổi nhánh thật sự bị chặn.
+            #
+            # Bản đầu dọn vô điều kiện, và nó xóa cả tệp người khác đặt sẵn
+            # trong kho firmware — một bài kiểm viết tay chẳng hạn. "Mọi thứ
+            # chưa commit là rác của lượt trước" là một nhận định quá mạnh:
+            # đúng với phần lớn trường hợp, sai với đúng trường hợp gây thiệt
+            # hại. Thử trước, chỉ dọn khi buộc phải.
+            da_don = self._don_rac_luot_truoc()
+            self.checkout(self.main_branch)
         self.checkout(branch, create=True)
-        return branch
+        return da_don
+
+    def _don_rac_luot_truoc(self) -> list[str]:
+        """Hoàn tác mã sinh còn sót. Trả về danh sách tệp đã đụng tới."""
+        trang_thai = self._git("status", "--porcelain")
+        if not trang_thai.strip():
+            return []
+        ten = [d[3:].strip() for d in trang_thai.splitlines() if len(d) > 3]
+        self._git("checkout", "--", ".")
+        return ten
 
     # -- commit ------------------------------------------------------------
 

@@ -31,6 +31,7 @@ phỏng và ở nghiệm thu vật lý tại G4.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -122,6 +123,16 @@ class UnitTestGate:
     module: str = ""
     graph: Any = None
     constraints: Any = None
+    #: Thư mục tiêu đề GIẢ của Platform Pack.
+    #:
+    #: Đưa vào MÔI TRƯỜNG (`C_INCLUDE_PATH`) chứ không trông vào việc bài kiểm
+    #: nhớ viết `-I...`. Lệnh dịch do mô hình tự gõ lại ở mỗi module, và nó đã
+    #: quên cờ ấy đúng một lần trong bảy — đủ để đốt một lượt gọi cho một lỗi
+    #: không liên quan gì tới mã (SL-148).
+    #:
+    #: Engine không biết thư mục này tên gì; nó chỉ chuyển tiếp đường dẫn pack
+    #: khai (FR-PLT-01).
+    mock_include: str = ""
 
     #: Đuôi tệp là SẢN PHẨM DỊCH của chính bộ test, không phải mã nguồn.
     DUOI_SAN_PHAM_DICH: tuple[str, ...] = (".so", ".dylib", ".dll", ".o", ".a")
@@ -203,10 +214,17 @@ class UnitTestGate:
         self._don_san_pham_dich(tests_dir)
 
         bat_dau = time.monotonic()
+        moi_truong = dict(os.environ)
+        if self.mock_include:
+            cu = moi_truong.get("C_INCLUDE_PATH", "")
+            moi_truong["C_INCLUDE_PATH"] = (
+                f"{self.mock_include}{os.pathsep}{cu}" if cu else self.mock_include
+            )
         try:
             ket_qua = subprocess.run(
                 [sys.executable, "-m", "pytest", str(tests_dir), "-q", "--no-header"],
                 cwd=str(self.work_dir),
+                env=moi_truong,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

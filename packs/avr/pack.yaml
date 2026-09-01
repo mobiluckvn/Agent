@@ -85,24 +85,31 @@ host_test:
     KHÔNG viết bài kiểm bằng C, và KHÔNG chép thuật toán sang Python rồi kiểm
     bản chép — thế là kiểm bản chép, không kiểm mã sẽ chạy trên chip.
 
-    Kiểm được ở đây: phép tính, máy trạng thái, thao tác bit, xử lý biên.
-    KHÔNG kiểm được: thời gian, độ trễ ngắt, hành vi ngoại vi thật — những thứ
-    ấy thuộc cổng mô phỏng và nghiệm thu vật lý tại G4.
+    Kiểm được: phép tính, máy trạng thái, thao tác bit, xử lý biên. KHÔNG
+    kiểm được: thời gian, độ trễ ngắt, ngoại vi thật — thuộc G4.
 
-    Thanh ghi trong tiêu đề giả là Ô NHỚ THƯỜNG. Bài kiểm dựng cảnh bằng cách
-    ghi thẳng vào chúng trước khi gọi hàm, và soi lại chúng sau khi gọi. Thân
-    ngắt viết bằng `ISR(...)` trở thành hàm thường mang đúng tên véc-tơ, nên
-    gọi được từ bài kiểm.
+    Module phụ thuộc module khác thì DỊCH KÈM `src/<phụ_thuộc>.c`. Đừng viết
+    hàm giả (`weak`, stub) trong tệp module đang sinh: mã ấy đi thẳng vào
+    firmware thật và trùng định nghĩa lúc liên kết.
 
-    TUYỆT ĐỐI KHÔNG kiểm bằng cách ĐỌC VĂN BẢN MÃ NGUỒN, kiểu
-    `assert "delay(" not in code`. Đó là làm lại việc của cổng phân tích tĩnh
-    và không chứng minh gì về HÀNH VI — một hàm sai hoàn toàn vẫn qua được.
+    Đặt `argtypes` VÀ `restype` cho MỌI hàm trước khi gọi. Thiếu `restype`,
+    ctypes đọc giá trị trả về thành `int` và một hàm trả `bool` cho ra số rác
+    kiểu 26984449 — bài kiểm đỏ vì lý do không liên quan gì tới mã.
 
-    Lệnh dịch hỏng PHẢI làm cả bộ kiểm chết ngay: không `try/except` bọc quanh
-    nó, không bỏ qua mã thoát khác 0. Nuốt lỗi dịch rồi nạp thư viện của lần
-    chạy trước là cách làm cổng báo ĐẠT trên tệp nguồn không dịch nổi.
+    Thanh ghi trong tiêu đề giả là BIẾN TOÀN CỤC mang đúng tên thanh ghi. Bài
+    kiểm với tới chúng bằng `ctypes.c_uint8.in_dll(lib, "PORTB")`, dựng cảnh
+    bằng cách gán `.value` trước khi gọi hàm, và soi lại `.value` sau khi gọi.
+    Thân ngắt viết bằng `ISR(TIMER2_COMPA_vect)` trở thành hàm thường tên
+    `TIMER2_COMPA_vect_fn`, gọi thẳng từ bài kiểm được.
 
-    Mỗi tệp trả về phải là mã Python hợp lệ, thụt lề đúng, chạy được ngay.
+    KHÔNG kiểm bằng cách ĐỌC VĂN BẢN MÃ NGUỒN (`assert "delay(" not in code`):
+    đó là việc của cổng phân tích tĩnh và không chứng minh gì về HÀNH VI.
+
+    Lệnh dịch hỏng PHẢI làm bộ kiểm chết ngay: không `try/except` bọc quanh nó,
+    không bỏ qua mã thoát khác 0. Nuốt lỗi dịch rồi nạp thư viện của lần chạy
+    trước là cách làm cổng báo ĐẠT trên nguồn không dịch nổi.
+
+    Mỗi tệp trả về phải là mã Python hợp lệ, chạy được ngay.
 
 # Phiên bản tối thiểu; eaa doctor đối chiếu và ghi vào env_lock.json (FR-ENV-01/04).
 # CẢNH BÁO: những số này lặp lại `min_version` trong `tools.yaml` của pack —

@@ -93,6 +93,25 @@ components:
     # Tập này MỞ RỘNG CÓ CHỦ Ý: thêm một mã là một quyết định tại G1, và con
     # chip thứ ba ngoài tập vẫn bị bắt.
     whoami_expected: [0x68, 0x72]
+    # TRỤC ĐO — khai ra 01/09/2026, đọc từ mã tham chiếu của chính bộ kit.
+    #
+    # Trục nào đo được góc nghiêng phụ thuộc CÁCH GÁ con cảm biến lên thân
+    # robot, không suy ra được từ tài liệu con chip. Mã tham chiếu chạy được
+    # trên đúng cái bo này nói rõ:
+    #
+    #   Wire.write(0x3F);  → đọc 2 byte từ ACCEL_ZOUT_H  → góc nghiêng
+    #   Wire.write(0x43);  → đọc 4 byte: 0x43 GYRO_X, 0x45 GYRO_Y → tốc độ
+    #                        góc nghiêng lấy ở cặp thứ HAI (GYRO_Y)
+    #
+    # Thiếu khai báo này, module IMU đầu tiên sinh ra đọc ACCEL_X — một lựa
+    # chọn hợp lý trên giấy và sai trên bàn. Không cổng phần mềm nào bắt được:
+    # mã dịch sạch, test xanh, robot ngã.
+    tilt_axis:
+      accel: z          # ACCEL_ZOUT_H = 0x3F
+      gyro: y           # GYRO_YOUT_H  = 0x45
+    # Hệ số thang đo ứng với dải đo mã tham chiếu đặt.
+    accel_range: "4g"        # ACCEL_CONFIG = 0x08 → 8192 LSB/g
+    gyro_range: "250dps"     # GYRO_CONFIG  = 0x00 → 131 LSB/(°/s)
     # Thanh ghi của CHÍNH linh kiện này, không phải của bus nó nằm trên.
     #
     # Thiếu khai báo này, đồ thị không có đường nào nối module tới trích đoạn

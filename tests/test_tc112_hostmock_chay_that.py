@@ -97,52 +97,53 @@ def thu_vien(tmp_path_factory) -> ctypes.CDLL:
     )
 
     lib = ctypes.CDLL(str(thu_vien_path))
-    lib.eaa_io_space.restype = ctypes.c_void_p
     lib.x_nhan.restype = ctypes.c_bool
     lib.x_dem.restype = ctypes.c_uint16
     return lib
 
 
-def _io(lib: ctypes.CDLL):
-    return ctypes.cast(lib.eaa_io_space(), ctypes.POINTER(ctypes.c_uint8))
+def _reg(lib: ctypes.CDLL, ten: str):
+    """Với tới thanh ghi đúng cách bài kiểm sinh ra sẽ làm: qua tên ký hiệu.
 
-
-# Địa chỉ theo ds-atme-gpio-01 (DS40002061B tr.100).
-_PINB, _DDRB, _PORTB = 0x03, 0x04, 0x05
+    Đây là phản xạ đầu tiên của bất cứ ai viết bài kiểm, và mô hình cũng làm
+    đúng thế — bản mock đầu dùng macro trỏ vào mảng nên câu này chết với
+    `symbol not found` dù mã C hoàn toàn đúng (SL-145).
+    """
+    return ctypes.c_uint8.in_dll(lib, ten)
 
 
 def test_cau_hinh_chan_de_lai_dau_vet_kiem_duoc(thu_vien) -> None:
-    io = _io(thu_vien)
-    io[_DDRB] = 0
-    io[_PORTB] = 0
+    ddrb, portb = _reg(thu_vien, "DDRB"), _reg(thu_vien, "PORTB")
+    ddrb.value = 0
+    portb.value = 0
     thu_vien.x_init()
 
-    assert io[_DDRB] & (1 << 4) == 0, "nút phải là chân VÀO"
-    assert io[_PORTB] & (1 << 4), "chưa bật điện trở kéo lên nội — nút sẽ thả nổi"
-    assert io[_DDRB] & (1 << 2), "còi phải là chân RA"
+    assert ddrb.value & (1 << 4) == 0, "nút phải là chân VÀO"
+    assert portb.value & (1 << 4), "chưa bật điện trở kéo lên nội — nút sẽ thả nổi"
+    assert ddrb.value & (1 << 2), "còi phải là chân RA"
 
 
 def test_doc_chan_theo_PINB_khong_theo_PORTB(thu_vien) -> None:
     """`PORTB` là giá trị đã ghi ra, không phải điện áp đang có trên chân."""
-    io = _io(thu_vien)
+    pinb = _reg(thu_vien, "PINB")
     thu_vien.x_init()
 
-    io[_PINB] = 0xFF
+    pinb.value = 0xFF
     assert thu_vien.x_nhan() is False
-    io[_PINB] = 0xFF & ~(1 << 4)
+    pinb.value = 0xFF & ~(1 << 4)
     assert thu_vien.x_nhan() is True, "kéo chân xuống mà không thấy là nhấn"
 
 
 def test_ghi_chan_ra_chi_dung_dung_bit(thu_vien) -> None:
-    io = _io(thu_vien)
+    portb = _reg(thu_vien, "PORTB")
     thu_vien.x_init()
-    truoc = io[_PORTB]
+    truoc = portb.value
 
     thu_vien.x_coi(True)
-    assert (io[_PORTB] >> 2) & 1 == 1
+    assert (portb.value >> 2) & 1 == 1
     thu_vien.x_coi(False)
-    assert (io[_PORTB] >> 2) & 1 == 0
-    assert io[_PORTB] & ~(1 << 2) == truoc & ~(1 << 2), (
+    assert (portb.value >> 2) & 1 == 0
+    assert portb.value & ~(1 << 2) == truoc & ~(1 << 2), (
         "ghi chân còi làm đổi bit khác — đây là cách một driver phá cấu hình "
         "của driver bên cạnh"
     )

@@ -2126,3 +2126,67 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Một mắt xích nữa suýt làm phép sửa vô hiệu** | Chunk nối với THANH GHI chứ không nối thẳng với ngoại vi. Bản sửa đầu tra `_edges_from(res, "documented_in")` nên mọi chunk rơi vào "không thuộc ai" và phép chia đều không bao giờ chạy — im lặng, không lỗi |
 | **Đọc bộ chuẩn theo hướng nào** | `retrieval_golden.yaml` tự viết sẵn bài học cho đúng tình huống này: một ca đỏ ở đây có HAI nguyên nhân trái ngược — bộ chọn kém đi, hoặc kho vừa có thêm thứ đúng. Lần này là cả hai: ds-032 liên quan thật (nên bộ chuẩn được cập nhật lên bốn mục), NHƯNG cách bộ chọn nhường chỗ thì sai (nên bộ chọn được sửa) |
 | **Và một dữ kiện dự án bị dùng làm đạo cụ** | Năm bài kiểm dùng `ds-032` làm "chunk chưa duyệt G2". Duyệt nó vì nhu cầu thật của dự án làm cả năm đỏ. Nay vai ấy do `ds-atme-gpio-02` (cổng D) đóng — một trích đoạn dự án **thật sự** đang cần và **thật sự** chưa ai đối chiếu |
+
+## SL-145 · LỆCH THẬT (×2) · Tiêu đề giả không giống thật ở đúng chỗ mã chạm tới
+
+| | |
+|---|---|
+| **Cách tìm** | Sinh bảy module liên tiếp cho robot cân bằng, mỗi module chạm thanh ghi một kiểu khác nhau |
+| **Lỗi 1 — thanh ghi là MACRO nên không có ký hiệu** | Bản mock đầu định nghĩa `#define PORTB eaa_io[0x05]`. Bài kiểm sinh ra viết `ctypes.c_uint8.in_dll(lib, "PORTB")` — phản xạ đầu tiên của bất cứ ai — và chết với `symbol not found` dù mã C hoàn toàn đúng. Đổi sang BIẾN TOÀN CỤC mang đúng tên thanh ghi |
+| **Lỗi 2 — thiếu tên chân kiểu cũ** | avr-libc định nghĩa `PD4`, `PB2`…; mã thật hay dùng `(1 << PD4)`. Mock thiếu chúng thì cổng dịch AVR ĐẠT còn cổng kiểm máy chủ đỏ với `use of undeclared identifier 'PD4'` — mô hình bị đẩy vào vòng vá cho một lỗi CỦA MOCK |
+| **Luật rút ra** | Mock phải giống thật ở MỌI tên mã sẽ dùng. Thiếu một tên là dựng ra một lỗi không tồn tại trên thiết bị, và mô hình không có cách nào biết đó không phải lỗi của nó |
+
+## SL-146 · LỆCH THẬT · Duyệt một module là mở cửa ra khỏi cả pha phát triển
+
+| | |
+|---|---|
+| **Cách tìm** | Merge `drv_i2c` — module thứ ba trên bảy — rồi duyệt G2 cho một trích đoạn. Máy in *"Dự án chuyển sang pha E"*, và lệnh kế tiếp chết: *"vòng sinh mã chỉ chạy ở pha D"*. Bốn module còn nguyên `todo` |
+| **Cơ chế** | Cung D → E gác bằng G3, và `check_transition` chỉ nhìn `gates`. G3 là cổng của TỪNG MODULE nhưng trạng thái của nó là một ô duy nhất, và nó không quay về `pending` sau merge — nên duyệt lần đầu là mở cửa vĩnh viễn |
+| **Cái giá** | Pha E đặt mức phân quyền về HUMAN. Ra khỏi D không chỉ là một nhãn sai: nó ĐÓNG vòng sinh mã, và người phải tự sửa state để đi tiếp |
+| **Đã sửa** | `check_transition` nhận thêm `backlog`; cung D → E đòi mọi module `merged`. Lỗi tách riêng thành `PhaseNotComplete` vì nó đòi một hành động khác hẳn `GateNotApproved`: "làm nốt việc", không phải "đi tìm người bấm duyệt" |
+| **Bài canh** | `tests/test_tc113_khong_roi_pha_D_khi_con_module.py` — 7 bài |
+
+## SL-147 · LỆCH THẬT · Trần của lớp vá chặn vòng tự sửa khi còn nửa ngân sách trống
+
+| | |
+|---|---|
+| **Cách tìm** | Ba lần liên tiếp trong một buổi: `repair: 1836/1600` rồi `1916/1800`, với prompt tổng 4752 và 4255 trên 8000 |
+| **Vì sao lớp này khác mọi lớp khác** | Nó là lớp CUỐI được thêm và nó THAY CHỖ lớp `task` — không cạnh tranh với ai. Kích thước của nó do THÂN HÀM ĐANG HỎNG quyết định, thứ không kiểm soát được |
+| **Cách chữa sai** | Nới số. Tôi nới hai lần và nó chạm lại ngay module sau; nới lần ba là thừa nhận con số ấy không dựa trên gì |
+| **Đã sửa** | Phần của `repair` là SÀN, không phải trần: nó dùng chỗ trống thật còn lại. Trần TỔNG vẫn chặn |
+| **Bài canh** | `tests/test_tc114_lop_va_dung_duoc_cho_trong.py` — 4 bài |
+
+## SL-148 · LỆCH THẬT · Đường dẫn tiêu đề giả phụ thuộc việc mô hình nhớ gõ cờ
+
+| | |
+|---|---|
+| **Cách tìm** | Module thứ bảy: lệnh dịch trong bài kiểm có `-Isrc` và `eaa_io_space.c` nhưng THIẾU `-I<hostmock>`. Cổng đỏ vì `avr/io.h` không tìm thấy |
+| **Vì sao lặp lại được** | Lệnh dịch do mô hình tự gõ lại ở MỖI module. Hợp đồng nói rõ đường dẫn, và nó quên đúng một lần trong bảy — đủ để đốt một lượt gọi |
+| **Đã sửa** | Cổng `unittests` đặt `C_INCLUDE_PATH` cho tiến trình pytest. Lệnh dịch nào cũng tìm thấy, nhớ hay không nhớ cờ |
+
+## SL-149 · LỆCH THẬT · Prompt vá mời mô hình hỏi, đường ống không có kênh nhận câu hỏi
+
+| | |
+|---|---|
+| **Cách tìm** | SÁU vòng tự sửa liên tiếp kết thúc bằng *"Phản hồi không chứa khối ```file: nào"*. Sáu lượt gọi, sáu lần tính là hỏng, không lần nào là lỗi của mô hình |
+| **Cơ chế** | Khi lỗi không định vị được về một dòng nguồn — bài kiểm đỏ, lỗi liên kết — `extract_function` không trích được gì, và prompt rơi vào nhánh dự phòng: *"hãy hỏi lại phần mã cần thiết thay vì viết lại cả tệp"*. Mô hình làm đúng lời dặn: nó hỏi. `parse_file_blocks` chỉ bóc khối ```file:```, nên câu hỏi bị tính là sai định dạng |
+| **Ý đúng, chỗ áp sai** | Nhánh ấy muốn ngăn viết lại cả tệp một cách tùy tiện. Nhưng nó bảo mô hình làm một việc mà hệ thống KHÔNG NHẬN, và biến một nhánh dự phòng thành một ngõ cụt tất định |
+| **Đã sửa** | Không định vị được thì gửi TOÀN VĂN các tệp liên quan, nhét vừa chỗ trống thật, ưu tiên tệp được thông báo lỗi nhắc tên; tệp nào không vừa thì NÊU TÊN. Vẫn đòi khối `file:`, và nói rõ đó là bắt buộc. Nhánh định vị được thì KHÔNG đổi — TC-19 giữ nguyên |
+| **Bài canh** | `tests/test_tc115_vong_va_luon_doi_duoc_ban_va.py` — 5 bài |
+
+## SL-150 · LỆCH THẬT · Cổng phân tích tĩnh áp luật mã C lên tệp kiểm viết bằng Python
+
+| | |
+|---|---|
+| **Cách tìm** | `tests/test_drv_imu.py:41: [ref-citation] hàm i2c_write_async() cấu hình TWCR nhưng không có trích dẫn` |
+| **Vì sao vô nghĩa** | Dòng ấy nói về một hàm GIẢ trong bài kiểm, dựng ra để lái driver. Nó không chạy trên chip và không cấu hình gì. Cổng đỏ, vòng tự sửa mở, và mô hình được yêu cầu thêm trích dẫn tài liệu vào mã Python |
+| **Vì sao mới lộ ra** | Luật của cổng có từ Sprint 2 và chưa bao giờ được hỏi "áp lên tệp nào". Bộ sinh mã chỉ bắt đầu trả về tệp test từ SL-134 |
+| **Đã sửa** | Cổng chỉ quét `.c` và `.h` |
+
+## SL-151 · LỆCH THẬT · Một lượt sinh hỏng khoá cứng lượt sau
+
+| | |
+|---|---|
+| **Cách tìm** | Bốn lần trong một buổi: `git checkout -q main thất bại — Your local changes would be overwritten` |
+| **Vì sao đây là ngõ cụt** | Mã chưa commit ấy là do CHÍNH Agent vừa viết hỏng. Thông báo bảo người dùng đi "commit or stash" nó, và không nói ra điều đó |
+| **Đã sửa** | `start_module` dọn cây trước khi đổi nhánh — xóa được vì đây là kho SẢN PHẨM SINH, mọi thứ chưa commit là rác của lượt trước. Nhưng vẫn TRẢ VỀ danh sách đã xóa và in ra: dọn dẹp im lặng là cách một tệp ai đó sửa tay biến mất mà không ai biết |
