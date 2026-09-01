@@ -270,6 +270,64 @@ scenarios:
 # chưa có trong bảng thì engine trả "chưa kết luận được" và đề nghị bổ sung một
 # dòng sau khi tìm ra nguyên nhân — phiên chẩn đoán cũng là phiên nạp tri thức.
 
+  - id: DS-07
+    title: Hai động cơ chạy tiến cùng lúc, liên tục
+    description: >-
+      Cho cả hai động cơ chạy CÙNG LÚC và CÙNG CHIỀU TIẾN trong 4 giây (~1,25
+      vòng mỗi bánh). Bổ sung cho DS-03 ở hai chỗ DS-03 không với tới: một cú
+      giật 22° kết thúc trước khi tai kịp phân biệt tiếng rít với tiếng khởi
+      động, và quay từng bánh một thì không thấy được hai bánh có cùng chiều
+      VẬT LÝ hay không.
+
+      Câu thứ hai là phép kiểm của chính `dir_forward_level` trong hồ sơ phần
+      cứng: hai động cơ lắp đối xứng gương nên cùng một mức DIR cho ra hai
+      chiều ngược nhau. Khai sai thì robot quay tại chỗ thay vì đi tới, và
+      không cổng phần mềm nào bắt được.
+    motion: true
+    safety_checklist:
+      - Robot đã được kê lên giá, bánh KHÔNG chạm đất
+      - Không có vật cản hay tay người trong vùng bánh quay
+      - Nguồn động lực đã cấp đúng điện áp và dòng giới hạn đã chỉnh
+      # Mục này DS-03 không có, và có lý do: DS-03 quay 1/16 vòng, kịch bản này
+      # quay hơn một vòng. Dây đủ dài thì một vòng là đủ để bị cuốn vào bánh.
+      - Dây tín hiệu và dây nguồn đã buộc gọn, không sợi nào lòng thòng gần bánh
+    symptoms: [quay tại chỗ, không đi thẳng, lệch một bên, rít, giật, trượt bước]
+    firmware_template: diagnostics/DS-07.c
+    machine:
+      - key: pulses_emitted
+        description: Số xung bước đã phát cho mỗi bánh
+        op: min
+        low: 4000
+      - key: pulse_freq_hz
+        description: Tần số xung
+        op: in_range
+        low: 900
+        high: 1100
+      # Hai mức DIR phải KHÁC nhau. Bằng nhau nghĩa là hồ sơ đang khai hai bánh
+      # cùng mức tiến — tức quên mất chuyện lắp đối xứng gương.
+      - key: dir_left
+        description: Mức DIR bánh trái khi tiến
+        op: in_range
+        low: 0
+        high: 1
+      - key: dir_right
+        description: Mức DIR bánh phải khi tiến
+        op: in_range
+        low: 0
+        high: 1
+    human:
+      - key: hai_banh_cung_chieu
+        question: >-
+          Hai bánh có quay CÙNG MỘT CHIỀU vật lý không (cùng đẩy robot đi tới,
+          không phải một tiến một lùi)?
+      - key: chay_tron_deu_dai
+        question: >-
+          Suốt 4 giây đó có TRƠN ĐỀU không — không rít, không giật cục, không
+          bánh nào khựng lại giữa chừng?
+      - key: hai_banh_deu_nhau
+        question: >-
+          Hai bánh có quay ĐỀU NHƯ NHAU không, hay một bên rõ ràng chậm/yếu hơn?
+
 matrix:
 
   - machine: Không phát được xung (đếm = 0)
@@ -317,3 +375,32 @@ matrix:
     action: >-
       Brown-out — đúng rủi ro đã lường ở thiết kế phần cứng. Tách nguồn động
       lực khỏi nguồn điều khiển theo hardware_profile.yaml.
+
+  - machine: Xung phát đủ cho cả hai
+    human: Hai bánh quay ngược chiều nhau
+    when_machine: {machine_pass: true}
+    when_human: {hai_banh_cung_chieu: false}
+    verdict: hồ sơ phần cứng
+    action: >-
+      `dir_forward_level` trong hardware_profile.yaml khai sai cho ít nhất một
+      bên. Hai động cơ lắp đối xứng gương nên hai bên phải KHÁC mức. Đảo mức
+      của bên quay ngược, duyệt lại G1, đo lại. KHÔNG mở vòng sửa mã: chỗ sai
+      nằm ở hồ sơ, không ở logic.
+
+  - machine: Xung phát đủ cho cả hai
+    human: Cùng chiều nhưng một bên yếu hơn rõ rệt
+    when_machine: {machine_pass: true}
+    when_human: {hai_banh_cung_chieu: true, hai_banh_deu_nhau: false}
+    verdict: điện
+    action: >-
+      Hai driver không cùng dòng: so Vref hai con A4988 và chỉnh cho bằng nhau.
+      Nếu Vref đã bằng thì kiểm tiếp tiếp xúc bốn dây cuộn của bên yếu.
+
+  - machine: Xung phát đủ cho cả hai
+    human: Cùng chiều, đều nhau, nhưng rít hoặc khựng
+    when_machine: {machine_pass: true}
+    when_human: {hai_banh_cung_chieu: true, hai_banh_deu_nhau: true, chay_tron_deu_dai: false}
+    verdict: cơ khí
+    action: >-
+      Cơ hoặc điện: thiếu dòng ở tốc độ này, hoặc kẹt cơ khí. Giảm tần số xung
+      thử lại; nếu hết rít thì là dòng, còn rít nguyên thì người kiểm phần cơ.

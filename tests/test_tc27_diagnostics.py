@@ -72,9 +72,17 @@ def phien(thu_vien: ScenarioLibrary, tmp_path: Path) -> DiagnosticSession:
 
 
 def test_thu_vien_du_sau_kich_ban(thu_vien: ScenarioLibrary) -> None:
-    assert [s.id for s in thu_vien.scenarios] == [
-        "DS-01", "DS-02", "DS-03", "DS-04", "DS-05", "DS-06"
-    ]
+    """Sáu kịch bản của thiết kế phải CÓ MẶT — không phải "chỉ có sáu".
+
+    Bản trước so bằng dấu bằng, nên thêm một kịch bản là bài kiểm đỏ. Nhưng
+    thêm kịch bản là việc BÌNH THƯỜNG của một dự án: DS-07 sinh ra ngày
+    01/09/2026 vì DS-03 quay 1/16 vòng, quá ngắn để tai phân biệt tiếng rít.
+    Bài này canh sự TUÂN THỦ THIẾT KẾ — thiếu một kịch bản đã khai là lỗi,
+    có thêm thì không.
+    """
+    co = {s.id for s in thu_vien.scenarios}
+    can = {"DS-01", "DS-02", "DS-03", "DS-04", "DS-05", "DS-06"}
+    assert can <= co, f"thiếu kịch bản của thiết kế: {sorted(can - co)}"
 
 
 def test_kich_ban_tu_dong_hoan_toan_khong_co_muc_nguoi(thu_vien: ScenarioLibrary) -> None:

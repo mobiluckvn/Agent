@@ -1856,3 +1856,18 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Khai `steps_per_rev` vào hồ sơ** | Phép quy đổi xung → góc vốn dựa vào con số 200 nằm trong đầu người viết. Một hằng số không khai thì không đối chiếu được — và đó chính là lý do câu hỏi lệch khỏi firmware mà bốn sprint không ai thấy |
 | **Bài canh** | `tests/test_tc98_cau_hoi_khop_firmware.py` — 4 bài, canh quan hệ giữa hai thứ nằm ở hai tệp khác nhau: số xung trong firmware và câu chữ trong kịch bản. Thêm hai bài canh bộ luật: khóa nào luật dùng cũng phải có câu hỏi, và câu hỏi nào cũng phải có ít nhất một luật dùng tới |
 | **Ba bài canh cũ phải sửa theo** | `test_tc18_graph.py` dựa vào việc hai driver **tình cờ** dùng chung chân enable của dự án mẫu; bỏ enable là bài kiểm mất thứ nó đang canh dù engine không đổi một dòng. Đã dựng hồ sơ riêng ngay trong bài — một bài canh engine mà phụ thuộc dữ liệu dự án thì nó đo hai thứ cùng lúc và không nói được thứ nào vừa đổi |
+
+---
+
+## SL-127 · BỔ SUNG · Kịch bản DS-07, và hai sự thật phần cứng chốt bằng mắt
+
+| | |
+|---|---|
+| **Cách tìm** | Người dùng đề nghị: *"cho 02 động cơ cùng chạy tiến liên tục thì sẽ dễ phát hiện hơn"* — sau khi nhìn tám lượt giật 22° của DS-03 mà vẫn khó chấm "quay trơn đều" |
+| **Đúng, và DS-03 không với tới được** | Một cú giật 1/16 vòng kết thúc trước khi tai kịp phân biệt tiếng rít với tiếng khởi động. Và quay TỪNG bánh một thì không bao giờ thấy được hai bánh có cùng chiều VẬT LÝ hay không |
+| **Hai sự thật phần cứng chốt bằng quan sát** | **(1) Trái/phải đảo.** Hồ sơ gán động cơ 1 (D5/D4) cho bên trái — một giả định, vì sơ đồ và mã tham chiếu chỉ đánh số 1/2. Người dùng thấy bánh PHẢI quay trước. Mã tham chiếu xác nhận: khối `right_motor` thao tác D5/D4. **(2) `dir_forward_level` khác nhau hai bên.** Đo được: cả hai DIR = 0 thì bánh phải LÙI, bánh trái TIẾN — hai động cơ lắp đối xứng gương |
+| **Vì sao điều (2) đáng khai vào hồ sơ** | Không khai thì module đầu tiên điều khiển hai bánh sẽ đặt cùng mức cho cả hai, và **robot quay tại chỗ thay vì đi tới**. Mã hoàn toàn đúng với thứ nó được bảo, nên không cổng phần mềm nào bắt được |
+| **DS-07 là phép kiểm của chính khai báo ấy** | Nó cho hai bánh chạy cùng lúc, cùng chiều tiến, và hỏi người: *"hai bánh có quay cùng một chiều vật lý không"*. Trả lời "không" → vùng lỗi **`hồ sơ phần cứng`**, một vùng lỗi mà bộ luật trước đây không có (SL-125 đã nêu chỗ thiếu này) |
+| **Giới hạn có chủ ý** | 4000 xung ≈ 1,25 vòng, không phải "chạy tới khi ai rút điện". Và checklist an toàn có thêm một mục DS-03 không có: **dây đã buộc gọn** — DS-03 quay 1/16 vòng, kịch bản này quay hơn một vòng, và một vòng là đủ để cuốn một sợi dây vào bánh |
+| **Ba bài canh cũ phải sửa, và lý do đáng ghi** | Hai bài so số kịch bản bằng dấu BẰNG (`== 6`, `== [DS-01…DS-06]`), nên thêm một kịch bản là đỏ. Nhưng thêm kịch bản là việc bình thường của một dự án; thứ đáng canh là **sáu kịch bản của thiết kế phải CÓ MẶT**, không phải "chỉ được có sáu". Đổi sang phép so bao hàm |
+| **Lỗi phép đo của chính tôi, tự lộ trong một lượt** | Chạy tám lượt với cửa sổ thu 2,2 giây → cả tám báo `KHÁC THƯỜNG`, thiếu khung động cơ phải. Bo không sai: bootloader cũ chờ 1–2 giây trước khi nhường quyền, và tôi cắt mất khung bằng chính phép đo của mình. Báo cáo con số ấy như dữ kiện thì người dùng đã đi tìm lỗi ở động cơ phải. Cùng loại với SL-120, khác mỗi chỗ nó lộ ra sau một phút thay vì sau hai ngày |

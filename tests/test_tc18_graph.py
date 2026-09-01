@@ -281,9 +281,11 @@ def test_thanh_ghi_cua_module_di_qua_bus_cua_linh_kien(kg: KnowledgeGraph) -> No
 
 def test_chan_cua_module_lay_tu_linh_kien(kg: KnowledgeGraph) -> None:
     kg.add_module("drv_motor_l", uses=["motor_driver_left"])
-    # Chân lấy từ hồ sơ dự án, và hồ sơ ấy đã sửa theo sơ đồ nguyên lý của bo
-    # thật ngày 01/09/2026: PD5/PD4, không còn chân enable (SL-125).
-    assert kg.pins_for("drv_motor_l") == ["PD4", "PD5"]
+    # Chân lấy từ hồ sơ dự án, và hồ sơ ấy sửa hai lần trong ngày 01/09/2026:
+    # theo sơ đồ nguyên lý (bỏ chân enable, chuyển sang PORTD — SL-125), rồi
+    # theo QUAN SÁT trên bo (động cơ 1 là bên PHẢI, không phải trái — SL-127).
+    # Bên trái là D7/D6.
+    assert kg.pins_for("drv_motor_l") == ["PD6", "PD7"]
 
 
 # --------------------------------------------------------------------------

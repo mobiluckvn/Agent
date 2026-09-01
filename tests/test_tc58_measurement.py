@@ -43,7 +43,9 @@ def test_moi_kich_ban_deu_co_phan_do(thu_vien: ScenarioLibrary) -> None:
     """Trước bản này mới 2/6 kịch bản khai firmware_template."""
     thieu = [s.id for s in thu_vien.scenarios if not s.buildable]
     assert thieu == [], f"kịch bản chưa có phần đo: {thieu}"
-    assert len(thu_vien.scenarios) == 6
+    # Đếm SÀN, không đếm bằng: thêm kịch bản là việc bình thường, và luật thật
+    # sự cần canh nằm ở dòng trên — MỌI kịch bản đều phải có phần đo.
+    assert len(thu_vien.scenarios) >= 6
 
 
 def test_tep_do_cua_moi_kich_ban_ton_tai_that(thu_vien: ScenarioLibrary) -> None:
