@@ -3,19 +3,30 @@ import subprocess
 import ctypes
 import pytest
 
-lib = None
-
-def setup_module(module):
-    global lib
-    src_file = "src/drv_button.c"
-    lib_file = "drv_button.so"
+def compile_lib():
+    src = "src/drv_button.c"
+    lib = "libdrv_button.so"
+    mock_src = "/Users/v/Documents/KTDT/packs/avr/hostmock/eaa_io_space.c"
+    inc_dir = "/Users/v/Documents/KTDT/packs/avr/hostmock"
     
-    compile_cmd = ["cc", "-std=c11", "-Wall", "-fPIC", "-shared", "-o", lib_file, src_file]
-    result = subprocess.run(compile_cmd, capture_output=True, text=True)
+    cmd = [
+        "cc", "-std=c11", "-Wall", "-fPIC", "-shared",
+        f"-I{inc_dir}",
+        src, mock_src,
+        "-o", lib
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        pytest.fail(f"Compilation failed:\n{result.stderr}")
-        
-    lib = ctypes.CDLL(f"./{lib_file}")
+        print("Compile error:")
+        print(result.stderr)
+        pytest.fail("Compilation failed")
+    return lib
+
+@pytest.fixture(scope="module")
+def button_lib():
+    lib_path = compile_lib()
+    lib = ctypes.CDLL(f"./{lib_path}")
     
     lib.button_init.argtypes = []
     lib.button_init.restype = None
@@ -23,34 +34,47 @@ def setup_module(module):
     lib.button_get_event.argtypes = [ctypes.c_uint32]
     lib.button_get_event.restype = ctypes.c_int
     
-    lib.button_set_raw_pin_level.argtypes = [ctypes.c_uint8]
-    lib.button_set_raw_pin_level.restype = None
+    return lib
+
+def test_button_init(button_lib):
+    DDRB = ctypes.c_uint8.in_dll(button_lib, "DDRB")
+    PORTB = ctypes.c_uint8.in_dll(button_lib, "PORTB")
     
-    lib.button_init()
-
-def test_debounce_press():
-    # Initial state (released, level = 1)
-    lib.button_set_raw_pin_level(1)
-    assert lib.button_get_event(0) == 0
+    # Set initial values to verify changes
+    DDRB.value = 0xFF
+    PORTB.value = 0x00
     
-    # Press button (level = 0)
-    lib.button_set_raw_pin_level(0)
-    assert lib.button_get_event(10) == 0 # Not enough time
-    assert lib.button_get_event(20) == 0 # Still not enough time (10ms elapsed since change)
-    assert lib.button_get_event(30) == 1 # 20ms elapsed, PRESSED event
-    assert lib.button_get_event(40) == 0 # No new event
+    button_lib.button_init()
+    
+    assert (DDRB.value & (1 << 4)) == 0, "PB4 should be configured as input"
+    assert (PORTB.value & (1 << 4)) != 0, "PB4 internal pull-up should be enabled"
 
-def test_debounce_release():
-    # Release button (level = 1)
-    lib.button_set_raw_pin_level(1)
-    assert lib.button_get_event(50) == 0 # Not enough time
-    assert lib.button_get_event(70) == 2 # 20ms elapsed, RELEASED event
-    assert lib.button_get_event(80) == 0 # No new event
-
-def test_debounce_noise():
-    # Noise (glitch to 0 then back to 1)
-    lib.button_set_raw_pin_level(0)
-    assert lib.button_get_event(90) == 0
-    lib.button_set_raw_pin_level(1)
-    assert lib.button_get_event(100) == 0 # Reset timer
-    assert lib.button_get_event(120) == 0 # 20ms elapsed but state is 1 (same as debounced)
+def test_button_debounce(button_lib):
+    PINB = ctypes.c_uint8.in_dll(button_lib, "PINB")
+    
+    # Initial state: button released (pull-up makes it high)
+    PINB.value = (1 << 4)
+    assert button_lib.button_get_event(0) == 0 # BUTTON_EVENT_NONE
+    
+    # Press button (raw state goes low)
+    PINB.value = 0
+    assert button_lib.button_get_event(10) == 0 # BUTTON_EVENT_NONE (debounce time not met)
+    
+    # Still pressed, but time < 20ms from change
+    assert button_lib.button_get_event(25) == 0 # BUTTON_EVENT_NONE (10 + 20 = 30)
+    
+    # Time >= 20ms from change
+    assert button_lib.button_get_event(30) == 1 # BUTTON_EVENT_PRESSED
+    
+    # Still pressed, should return NONE
+    assert button_lib.button_get_event(40) == 0 # BUTTON_EVENT_NONE
+    
+    # Release button (raw state goes high)
+    PINB.value = (1 << 4)
+    assert button_lib.button_get_event(50) == 0 # BUTTON_EVENT_NONE
+    
+    # Time >= 20ms from change
+    assert button_lib.button_get_event(70) == 2 # BUTTON_EVENT_RELEASED
+    
+    # Still released, should return NONE
+    assert button_lib.button_get_event(80) == 0 # BUTTON_EVENT_NONE

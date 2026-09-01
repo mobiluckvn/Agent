@@ -1,47 +1,39 @@
 #include "drv_button.h"
+#include <avr/io.h>
 
-// Thiếu thông tin tài liệu thanh ghi cho PB4.
-// Không thể viết hàm cấu hình và đọc thanh ghi phần cứng.
-// Không lấp chỗ trống.
-
-static bool raw_state = false;
-static bool last_reading = false;
-static bool debounced_state = false;
-static uint32_t last_debounce_time = 0;
-static const uint32_t DEBOUNCE_DELAY_MS = 20;
+static uint8_t button_state_debounced = 1; // 1 = released, 0 = pressed
+static uint8_t button_state_raw_prev = 1;
+static uint32_t debounce_start_time = 0;
+static uint8_t last_reported_state = 1;
 
 void button_init(void) {
-    // Thiếu thông tin cấu hình thanh ghi cho PB4 (pullup, direction).
-    raw_state = false;
-    last_reading = false;
-    debounced_state = false;
-    last_debounce_time = 0;
-}
-
-void button_set_raw_pin_level(uint8_t level) {
-    // active_level = 0
-    raw_state = (level == 0);
+    // ref: ds-atme-gpio-01, ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061B.pdf, tr.85-100
+    DDRB &= ~(1 << 4);  // Configure PB4 as input
+    PORTB |= (1 << 4);  // Enable internal pull-up on PB4
 }
 
 button_event_t button_get_event(uint32_t current_time_ms) {
-    button_event_t event = BUTTON_EVENT_NONE;
-    bool current_reading = raw_state; 
+    uint8_t raw_state = (PINB & (1 << 4)) ? 1 : 0;
     
-    if (current_reading != last_reading) {
-        last_debounce_time = current_time_ms;
+    if (raw_state != button_state_raw_prev) {
+        debounce_start_time = current_time_ms;
+        button_state_raw_prev = raw_state;
     }
     
-    if ((current_time_ms - last_debounce_time) >= DEBOUNCE_DELAY_MS) {
-        if (current_reading != debounced_state) {
-            debounced_state = current_reading;
-            if (debounced_state) {
-                event = BUTTON_EVENT_PRESSED;
-            } else {
-                event = BUTTON_EVENT_RELEASED;
-            }
+    if ((current_time_ms - debounce_start_time) >= 20) {
+        if (raw_state != button_state_debounced) {
+            button_state_debounced = raw_state;
         }
     }
     
-    last_reading = current_reading;
-    return event;
+    if (button_state_debounced != last_reported_state) {
+        last_reported_state = button_state_debounced;
+        if (button_state_debounced == 0) {
+            return BUTTON_EVENT_PRESSED;
+        } else {
+            return BUTTON_EVENT_RELEASED;
+        }
+    }
+    
+    return BUTTON_EVENT_NONE;
 }
