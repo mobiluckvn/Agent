@@ -98,14 +98,36 @@ components:
     # mã đặt dải đo khi tài liệu về dải đo chưa ai duyệt. Thêm chúng vào cùng
     # lúc duyệt ds-032, không sớm hơn.
     configured_by: [WHO_AM_I, PWR_MGMT_1, SMPLRT_DIV, CONFIG]
+  # CHÂN SỬA NGÀY 01/09/2026 — hồ sơ cũ mô tả một THIẾT KẾ, không phải cái bo
+  # trên bàn. Nó nằm im bốn sprint vì chưa lần nào có xung thật đi ra chân thật.
+  #
+  # Bằng chứng, hai nguồn độc lập trong `sources/` của chính bộ kit này:
+  #
+  #   · sơ đồ nguyên lý (BLKLab_Balancing_Robot_Nguyen_Ly.pdf) — các nét mang
+  #     tên STEP1, DIR1, STEP2, DIR2, và KHÔNG có nét ENABLE nào về vi điều
+  #     khiển
+  #   · mã tham chiếu V3 — `#define STEP1 5 / DIR1 4 / STEP2 7 / DIR2 6`, và
+  #     `pinMode` chỉ đặt bốn chân ấy, không có chân enable nào
+  #
+  # Hồ sơ cũ khai PB1/PB2/PB3/PB4 (D9-D12) — KHÁC CẢ CỔNG. Trên bo này D11 là
+  # chân dữ liệu dải LED WS2812, nên bản đo DS-03 đầu tiên đã phát xung vào
+  # dải LED trong khi hai chân STEP thật nằm im. Máy báo đủ 200 xung ở 1 kHz;
+  # người nhìn thấy không bánh nào nhúc nhích (SL-125).
+  #
+  # `enable` BỎ HẲN, không phải để trống: A4988 bật cứng trên bo. Khai một chân
+  # enable không tồn tại là mời mã đi ghi vào một chân của khối khác.
+  #
+  # CÒN LÀ GIẢ ĐỊNH: động cơ 1 ↔ trái và động cơ 2 ↔ phải. Sơ đồ và mã tham
+  # chiếu đều chỉ đánh số 1/2, không nói bên nào. DS-03 phát xung TỪNG ĐỘNG CƠ
+  # một và hỏi người bánh nào quay — nên phép đo kế tiếp sẽ chốt được điều này.
   - id: motor_driver_left
     part: a4988
     microstep: 16
-    pins: {step: PB1, dir: PB2, enable: PB0}
+    pins: {step: PD5, dir: PD4}
   - id: motor_driver_right
     part: a4988
     microstep: 16
-    pins: {step: PB3, dir: PB4, enable: PB0}
+    pins: {step: PD7, dir: PD6}
 
 # Cách nạp firmware xuống bo, và cách nhận ra bo khi nó được cắm vào USB.
 #

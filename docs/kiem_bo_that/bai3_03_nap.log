@@ -1,11 +1,14 @@
-Lỗi: Chưa có xác nhận của người nên KHÔNG nạp (FR-DIA-02).
-Phiên không có terminal cũng tính là chưa xác nhận — một phiên không có người không được diễn giải thành một người đã đồng ý.
-
-Bạn duyệt ảnh này bằng lệnh sau, rồi chạy lại 'eaa flash':
-    eaa flash approve --image projects/robot_balance/firmware/build/diag_DS-03.hex --actor <tên bạn>
-Quyết định neo vào BĂM NỘI DUNG ảnh, nên ráp lại là phải duyệt lại.
 
 Nạp firmware
 ────────────
   Kiểm trước khi nạp: đạt.
   Tự chọn cổng: /dev/cu.usbserial-143410 (Bo tương thích, cầu USB rời)
+
+  Vũ Trí Công đã duyệt đúng ảnh này lúc 2026-09-01T02:46:22+00:00 (sha256:a168cc6276025d8b…) — nạp
+
+Đã nạp sha256:a168cc627602… lên /dev/cu.usbserial-143410.
+Commit đang chạy trên thiết bị: 937b6c3bfc
+Kiểm sau khi nạp: ĐÃ KIỂM — đọc ngược khớp ảnh. (diag_DS-03.hex, băm sha256:a168cc627602…)
+
+Từ đây mọi số đo lấy về đều gắn với commit trên. Xem lại lịch sử:
+  eaa flash --history

@@ -1,0 +1,24 @@
+  Đang thu 5s từ /dev/cu.usbserial-143410 ở 9600 baud…
+  Cổng        : /dev/cu.usbserial-143410
+  Thời gian   : 5.4s
+  Khung nhận  : 4 (4 đạt, 0 hỏng)
+
+
+── Kết luận chẩn đoán DS-03 ──
+[ĐÃ KIỂM]
+    có bằng chứng trực tiếp — một phép đo, một lần đọc ngược, một cổng đã chạy
+
+Vùng lỗi: điện
+
+Kênh máy: ĐẠT
+  • ✓ Số xung bước đã phát: pulses_emitted=200, sàn 200
+  • ✓ Tần số xung đo tại chân OC1A: pulse_freq_hz=1000, dải [900, 1100]
+
+Kênh người:
+  • du_mot_vong: không
+  • dung_chieu: không
+  • truc_quay: không
+
+Hành động đề xuất: Lỗi PHẦN ĐIỆN, không phải lỗi mã: dòng driver chưa chỉnh hoặc dây STEP/DIR lỏng. Chỉnh Vref của driver theo hướng dẫn nhà sản xuất, kiểm lại dây theo pin map trong hardware_profile.yaml. KHÔNG mở vòng sửa mã.
+
+KHÔNG mở vòng sửa mã: vùng lỗi nằm ngoài phần mềm. Sửa mã ở đây là bắt AI sửa một thứ không hỏng.

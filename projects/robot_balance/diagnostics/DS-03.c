@@ -27,11 +27,13 @@ void eaa_emit(const char *json);
 
 /* Chân theo pin_map trong hardware_profile.yaml. Đổi bo là đổi ở đó và ở đây;
  * engine không biết những hằng số này và không được biết. */
-#define PIN_EN     PB0   /* MOTOR_EN — mức THẤP là bật, chung cho hai driver */
-#define PIN_STEP_L PB1   /* STEP_L */
-#define PIN_DIR_L  PB2   /* DIR_L  */
-#define PIN_STEP_R PB3   /* STEP_R */
-#define PIN_DIR_R  PB4   /* DIR_R  */
+/* KHÔNG có chân ENABLE. Sơ đồ nguyên lý của bo chỉ có bốn nét STEP1/DIR1/
+ * STEP2/DIR2; A4988 bật cứng. Bản trước khai PIN_EN = PB0 và ghi mức thấp vào
+ * đó — một chân thuộc khối khác (SL-125). */
+#define PIN_STEP_L PD5   /* STEP1 — D5 */
+#define PIN_DIR_L  PD4   /* DIR1  — D4 */
+#define PIN_STEP_R PD7   /* STEP2 — D7 */
+#define PIN_DIR_R  PD6   /* DIR2  — D6 */
 
 /* 200 xung ở 1 kHz = 0,2 giây, và với vi bước 1/16 thì đó là 1/16 vòng.
  * Chọn dưới một vòng có chủ ý: robot đang kê trên giá, nhưng một lệnh quay
@@ -55,15 +57,15 @@ static uint8_t so_ra_chu(uint32_t gia_tri, char *ra)
 
 static void chan_ra(uint8_t chan)
 {
-    DDRB |= (uint8_t)(1u << chan);
+    DDRD |= (uint8_t)(1u << chan);
 }
 
 static void dat(uint8_t chan, uint8_t muc)
 {
     if (muc) {
-        PORTB |= (uint8_t)(1u << chan);
+        PORTD |= (uint8_t)(1u << chan);
     } else {
-        PORTB &= (uint8_t)~(1u << chan);
+        PORTD &= (uint8_t)~(1u << chan);
     }
 }
 
@@ -108,22 +110,21 @@ static void bao_cao(const char *ten_dong_co, uint16_t xung, uint16_t tan_so)
 
 void diag_run(void)
 {
-    chan_ra(PIN_EN);
     chan_ra(PIN_STEP_L);
     chan_ra(PIN_DIR_L);
     chan_ra(PIN_STEP_R);
     chan_ra(PIN_DIR_R);
 
-    /* Tắt trước đã. Trạng thái chân sau reset không xác định, và một driver
-     * bật sẵn trong lúc ta đang dựng cấu hình là một cú giật không ai chờ. */
-    dat(PIN_EN, 1u);
+    /* Đưa STEP/DIR về mức thấp trước. Trạng thái chân sau reset không xác
+     * định, và một xung rác trong lúc ta đang dựng cấu hình là một cú giật
+     * không ai chờ. Không tắt được driver bằng phần mềm: bo không có nét
+     * ENABLE về vi điều khiển. */
     dat(PIN_STEP_L, 0u);
     dat(PIN_STEP_R, 0u);
     dat(PIN_DIR_L, 0u);
     dat(PIN_DIR_R, 0u);
     _delay_ms(50);
 
-    dat(PIN_EN, 0u);       /* mức thấp = bật */
     _delay_ms(10);
 
     /* Từng động cơ MỘT, không đồng thời: chạy cả hai cùng lúc thì một trục
@@ -135,7 +136,8 @@ void diag_run(void)
     bao_cao("phai", phat_xung(PIN_STEP_R, DIAG_PULSES),
             (uint16_t)(1000000UL / (2UL * DIAG_HALF_US)));
 
-    /* Tắt lại khi xong. Để driver giữ dòng sau khi đo là cách làm nóng động cơ
-     * và đốt pin trong lúc không ai nhìn. */
-    dat(PIN_EN, 1u);
+    /* Không có gì để tắt: driver bật cứng trên bo. Đưa hai chân STEP về mức
+     * thấp cho gọn. */
+    dat(PIN_STEP_L, 0u);
+    dat(PIN_STEP_R, 0u);
 }
