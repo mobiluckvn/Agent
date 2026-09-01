@@ -132,8 +132,18 @@ scenarios:
         question: Trục động cơ có QUAY thật không?
       - key: dung_chieu
         question: Có quay đúng chiều mong đợi không?
-      - key: du_mot_vong
-        question: Có quay đủ một vòng không (không trượt bước, không kêu lạ)?
+      # Câu hỏi phải khớp thứ firmware THẬT SỰ làm. Bản trước hỏi "có quay đủ
+      # một vòng không", trong khi DS-03 cố ý chỉ phát 200 xung = 1/16 vòng
+      # (~22°) để một sợi dây không bị cuốn vào bánh. Người quan sát trung
+      # thực buộc phải trả lời "không", và luật {truc_quay: có, dung_chieu:
+      # có, quay_tron_deu: không} kết luận LỖI CƠ KHÍ — cho một robot đang chạy
+      # đúng (SL-126).
+      #
+      # Đổi tên khóa luôn: `du_mot_vong` tự nó đã mang giả định sai.
+      - key: quay_tron_deu
+        question: >-
+          Trục có quay TRƠN ĐỀU suốt nhịp ~22° đó không — không giật cục,
+          không rung tại chỗ, không kêu rít (dấu hiệu trượt bước)?
 
   - id: DS-04
     title: UART / telemetry
@@ -293,7 +303,7 @@ matrix:
   - machine: Xung phát đủ
     human: Quay giật, trượt bước, kêu lạ
     when_machine: {machine_pass: true}
-    when_human: {truc_quay: true, dung_chieu: true, du_mot_vong: false}
+    when_human: {truc_quay: true, dung_chieu: true, quay_tron_deu: false}
     verdict: cơ khí
     action: >-
       Cơ hoặc điện: thiếu dòng, tăng tốc quá gắt, hoặc kẹt cơ khí. Giảm tốc độ

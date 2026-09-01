@@ -13,6 +13,15 @@ biết xung có ra hay không. Một mình mỗi bên đều kết luận sai �
 Hệ quả kỹ thuật đáng chú ý: **không mở vòng sửa mã** là một hành vi tích cực,
 không phải sự thụ động. Mở vòng sửa ở đó là bắt mô hình sửa một thứ không hỏng
 — tốn tiền, và gần như chắc chắn làm hỏng thứ đang đúng.
+
+Khóa quan sát đổi tên 01/09/2026 — `du_mot_vong` → `quay_tron_deu`
+------------------------------------------------------------------
+
+Không phải đổi cho đẹp. Câu hỏi cũ (*"có quay đủ một vòng không"*) mâu thuẫn
+với chính firmware của kịch bản, vốn cố ý chỉ phát 200 xung = 1/16 vòng để một
+sợi dây không bị cuốn vào bánh. Người quan sát trung thực buộc phải trả lời
+"không", và bộ luật biến câu ấy thành kết luận LỖI CƠ KHÍ cho một robot đang
+chạy đúng. Xem SL-126 và `tests/test_tc98_cau_hoi_khop_firmware.py`.
 """
 
 from __future__ import annotations
@@ -162,7 +171,7 @@ def test_tc27_xung_du_ma_truc_khong_quay_la_loi_PHAN_DIEN(
     ket_luan = phien.diagnose(
         "DS-03",
         telemetry=TELEMETRY_XUNG_DU,
-        human_answers={"truc_quay": False, "dung_chieu": False, "du_mot_vong": False},
+        human_answers={"truc_quay": False, "dung_chieu": False, "quay_tron_deu": False},
     )
 
     assert ket_luan.verdict == Verdict.ELECTRICAL
@@ -174,7 +183,7 @@ def test_tc27_KHONG_mo_vong_sua_ma(phien: DiagnosticSession) -> None:
     ket_luan = phien.diagnose(
         "DS-03",
         telemetry=TELEMETRY_XUNG_DU,
-        human_answers={"truc_quay": False, "dung_chieu": False, "du_mot_vong": False},
+        human_answers={"truc_quay": False, "dung_chieu": False, "quay_tron_deu": False},
     )
 
     assert not ket_luan.opens_repair_loop
@@ -185,7 +194,7 @@ def test_tc27_huong_dan_kiem_theo_pin_map(phien: DiagnosticSession) -> None:
     ket_luan = phien.diagnose(
         "DS-03",
         telemetry=TELEMETRY_XUNG_DU,
-        human_answers={"truc_quay": False, "dung_chieu": False, "du_mot_vong": False},
+        human_answers={"truc_quay": False, "dung_chieu": False, "quay_tron_deu": False},
     )
     assert "pin map" in ket_luan.action or "hardware_profile" in ket_luan.action
     assert "Vref" in ket_luan.action
@@ -198,7 +207,7 @@ def test_tc27_khong_ghi_vao_error_ledger_khi_loi_khong_thuoc_ma(
     phien.diagnose(
         "DS-03",
         telemetry=TELEMETRY_XUNG_DU,
-        human_answers={"truc_quay": False, "dung_chieu": False, "du_mot_vong": False},
+        human_answers={"truc_quay": False, "dung_chieu": False, "quay_tron_deu": False},
     )
     assert ErrorLedger(tmp_path / "error_ledger.jsonl").entries() == []
 
@@ -207,7 +216,7 @@ def test_xung_khong_phat_duoc_thi_MOI_la_loi_ma(phien: DiagnosticSession) -> Non
     ket_luan = phien.diagnose(
         "DS-03",
         telemetry={"pulses_emitted": 0, "pulse_freq_hz": 0},
-        human_answers={"truc_quay": False, "dung_chieu": False, "du_mot_vong": False},
+        human_answers={"truc_quay": False, "dung_chieu": False, "quay_tron_deu": False},
     )
 
     assert ket_luan.verdict == Verdict.CODE
@@ -220,7 +229,7 @@ def test_loi_ma_thi_ghi_vao_error_ledger(phien: DiagnosticSession, tmp_path: Pat
     phien.diagnose(
         "DS-03",
         telemetry={"pulses_emitted": 0, "pulse_freq_hz": 0},
-        human_answers={"truc_quay": False, "dung_chieu": False, "du_mot_vong": False},
+        human_answers={"truc_quay": False, "dung_chieu": False, "quay_tron_deu": False},
     )
     muc = ErrorLedger(tmp_path / "error_ledger.jsonl").entries()
     assert muc and "DS-03" in muc[0].description
@@ -230,7 +239,7 @@ def test_quay_nguoc_chieu_la_loi_NOI_DAY(phien: DiagnosticSession) -> None:
     ket_luan = phien.diagnose(
         "DS-03",
         telemetry=TELEMETRY_XUNG_DU,
-        human_answers={"truc_quay": True, "dung_chieu": False, "du_mot_vong": False},
+        human_answers={"truc_quay": True, "dung_chieu": False, "quay_tron_deu": False},
     )
     assert ket_luan.verdict == Verdict.WIRING
     assert not ket_luan.opens_repair_loop
@@ -241,7 +250,7 @@ def test_quay_giat_truot_buoc_la_loi_CO_KHI(phien: DiagnosticSession) -> None:
     ket_luan = phien.diagnose(
         "DS-03",
         telemetry=TELEMETRY_XUNG_DU,
-        human_answers={"truc_quay": True, "dung_chieu": True, "du_mot_vong": False},
+        human_answers={"truc_quay": True, "dung_chieu": True, "quay_tron_deu": False},
     )
     assert ket_luan.verdict == Verdict.MECHANICAL
     assert not ket_luan.opens_repair_loop
@@ -251,7 +260,7 @@ def test_ca_hai_kenh_deu_dat_thi_khong_phat_hien_loi(phien: DiagnosticSession) -
     ket_luan = phien.diagnose(
         "DS-03",
         telemetry=TELEMETRY_XUNG_DU,
-        human_answers={"truc_quay": True, "dung_chieu": True, "du_mot_vong": True},
+        human_answers={"truc_quay": True, "dung_chieu": True, "quay_tron_deu": True},
     )
     assert ket_luan.verdict == Verdict.OK
     assert not ket_luan.opens_repair_loop
@@ -279,7 +288,7 @@ def test_thieu_MOT_muc_quan_sat_cung_khong_ket_luan(phien: DiagnosticSession) ->
         human_answers={"truc_quay": True, "dung_chieu": True},
     )
     assert ket_luan.verdict == Verdict.INCONCLUSIVE
-    assert "du_mot_vong" in ket_luan.action
+    assert "quay_tron_deu" in ket_luan.action
 
 
 def test_kich_ban_tu_dong_hoan_toan_ket_luan_duoc_ngay(phien: DiagnosticSession) -> None:
@@ -415,7 +424,7 @@ def test_bao_cao_ket_luan_doc_duoc(phien: DiagnosticSession) -> None:
     van_ban = phien.diagnose(
         "DS-03",
         telemetry=TELEMETRY_XUNG_DU,
-        human_answers={"truc_quay": False, "dung_chieu": False, "du_mot_vong": False},
+        human_answers={"truc_quay": False, "dung_chieu": False, "quay_tron_deu": False},
     ).render()
 
     assert "Kênh máy: ĐẠT" in van_ban

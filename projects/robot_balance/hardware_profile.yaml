@@ -120,13 +120,19 @@ components:
   # CÒN LÀ GIẢ ĐỊNH: động cơ 1 ↔ trái và động cơ 2 ↔ phải. Sơ đồ và mã tham
   # chiếu đều chỉ đánh số 1/2, không nói bên nào. DS-03 phát xung TỪNG ĐỘNG CƠ
   # một và hỏi người bánh nào quay — nên phép đo kế tiếp sẽ chốt được điều này.
+  # `steps_per_rev` khai ra ngày 01/09/2026. Trước đó nó là con số 200 nằm
+  # trong đầu người viết: mọi phép quy đổi xung → góc đều dùng nó, và không
+  # chỗ nào khai. Một hằng số không khai thì không đối chiếu được, và câu hỏi
+  # cho người đã lệch khỏi firmware vì đúng lý do ấy (SL-126).
   - id: motor_driver_left
     part: a4988
     microstep: 16
+    steps_per_rev: 200
     pins: {step: PD5, dir: PD4}
   - id: motor_driver_right
     part: a4988
     microstep: 16
+    steps_per_rev: 200
     pins: {step: PD7, dir: PD6}
 
 # Cách nạp firmware xuống bo, và cách nhận ra bo khi nó được cắm vào USB.

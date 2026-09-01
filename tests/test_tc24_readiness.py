@@ -195,14 +195,25 @@ def test_muc_Should_thieu_thi_khong_chan(du_an: Path) -> None:
 
 
 def test_chan_khong_co_trong_so_do_noi_day_bi_bao_thieu(du_an: Path) -> None:
+    """Chân do linh kiện đòi mà sơ đồ nối dây không khai thì phải bị báo THIẾU.
+
+    Tên chân lấy từ hồ sơ dự án lúc chạy, không viết cứng: hồ sơ ấy đã đổi một
+    lần theo sơ đồ nguyên lý của bo thật (SL-125), và một bài kiểm viết cứng
+    tên chân sẽ đỏ mỗi lần phần cứng được sửa cho ĐÚNG hơn.
+    """
     ho_so = du_an / "hardware_profile.yaml"
-    ho_so.write_text(
-        ho_so.read_text(encoding="utf-8").replace("  PB1:", "  PB1_da_doi_ten:"),
-        encoding="utf-8",
-    )
+    goc = ho_so.read_text(encoding="utf-8")
+
+    import yaml as _yaml
+
+    hs = _yaml.safe_load(goc)
+    drv = next(c for c in hs["components"] if c["id"] == "motor_driver_left")
+    chan = sorted(str(v) for v in (drv.get("pins") or {}).values())[0]
+
+    ho_so.write_text(goc.replace(f"  {chan}:", f"  {chan}_da_doi_ten:"), encoding="utf-8")
     ric = _checker(du_an).build_ric("drv_motor", uses=["motor_driver_left"])
     thieu = {i.key for i in ric.items if i.status == ItemStatus.MISSING}
-    assert "PB1" in thieu
+    assert chan in thieu
 
 
 def test_tai_nguyen_khong_ton_tai_bi_bao_thieu(du_an: Path) -> None:

@@ -158,15 +158,41 @@ def test_khai_bao_tai_nguyen_khong_ton_tai_bi_bat(kg: KnowledgeGraph) -> None:
     assert "timer9" in phat_hien[0].message
 
 
-def test_hai_module_cung_dieu_khien_mot_chan_qua_hai_linh_kien(kg: KnowledgeGraph) -> None:
-    """Xung đột chỉ hiện sau một bước nữa trong đồ thị — đọc từng tệp mã không thấy."""
-    kg.add_module("drv_motor_l", uses=["motor_driver_left"])
-    kg.add_module("drv_motor_r", uses=["motor_driver_right"])
+def test_hai_module_cung_dieu_khien_mot_chan_qua_hai_linh_kien(tmp_path) -> None:
+    """Xung đột chỉ hiện sau một bước nữa trong đồ thị — đọc từng tệp mã không thấy.
+
+    Dựng hồ sơ RIÊNG thay vì mượn hồ sơ dự án mẫu.
+    ------------------------------------------------
+
+    Bản trước dựa vào việc hai driver của `robot_balance` tình cờ dùng chung
+    chân `enable: PB0`. Ngày 01/09/2026 đo trên bo thật cho thấy bo KHÔNG có nét
+    ENABLE nào về vi điều khiển, nên trường ấy bị bỏ — và bài kiểm mất luôn thứ
+    nó đang canh, dù engine không đổi một dòng.
+
+    Một bài canh engine mà phụ thuộc vào dữ liệu dự án thì nó đo hai thứ cùng
+    lúc và không nói được thứ nào vừa đổi. Dựng dữ liệu tối thiểu ngay tại đây
+    thì nó chỉ còn đo đúng cái nó nói nó đo.
+    """
+    (tmp_path / "hardware_profile.yaml").write_text(
+        "version: 1\nproject: thu\n"
+        "mcu: {part: chip_bia, clock_hz: 16000000}\n"
+        "components:\n"
+        "  - id: linh_kien_a\n    part: bia\n    pins: {step: PX1, enable: PX0}\n"
+        "  - id: linh_kien_b\n    part: bia\n    pins: {step: PX2, enable: PX0}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "datasheets").mkdir()
+    kg = KnowledgeGraph.build(
+        HardwareProfile.load(tmp_path / "hardware_profile.yaml"),
+        DatasheetStore(tmp_path / "datasheets"),
+    )
+    kg.add_module("mod_a", uses=["linh_kien_a"])
+    kg.add_module("mod_b", uses=["linh_kien_b"])
 
     theo_chan = {c.resource: c for c in kg.conflicts() if c.kind == "pin_shared"}
-    assert "PB0" in theo_chan, "hai driver dùng chung chân cho phép PB0"
-    assert theo_chan["PB0"].modules == ("drv_motor_l", "drv_motor_r")
-    assert "PB1" not in theo_chan, "chân xung riêng của từng driver thì không xung đột"
+    assert "PX0" in theo_chan, "hai linh kiện dùng chung chân PX0"
+    assert theo_chan["PX0"].modules == ("mod_a", "mod_b")
+    assert "PX1" not in theo_chan, "chân riêng của từng linh kiện thì không xung đột"
 
 
 def test_mot_module_dung_hai_linh_kien_chung_chan_thi_khong_xung_dot(
@@ -255,7 +281,9 @@ def test_thanh_ghi_cua_module_di_qua_bus_cua_linh_kien(kg: KnowledgeGraph) -> No
 
 def test_chan_cua_module_lay_tu_linh_kien(kg: KnowledgeGraph) -> None:
     kg.add_module("drv_motor_l", uses=["motor_driver_left"])
-    assert kg.pins_for("drv_motor_l") == ["PB0", "PB1", "PB2"]
+    # Chân lấy từ hồ sơ dự án, và hồ sơ ấy đã sửa theo sơ đồ nguyên lý của bo
+    # thật ngày 01/09/2026: PD5/PD4, không còn chân enable (SL-125).
+    assert kg.pins_for("drv_motor_l") == ["PD4", "PD5"]
 
 
 # --------------------------------------------------------------------------

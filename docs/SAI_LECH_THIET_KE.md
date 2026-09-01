@@ -1826,3 +1826,33 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Tôi tự chứng minh chỗ ấy cần thiết** | Lúc thử xem `flash approve` có cảnh báo không, tôi đã ghi một quyết định THẬT cho ảnh DS-03 với tên người vô nghĩa và không xác nhận an toàn nào. Sổ append-only nên nó nằm đó; sau bản sửa, nó không còn mở được đường nạp |
 | **Cổng mới không làm phiền đường không nguy hiểm** | Ảnh đo tĩnh và ảnh không có thẻ vẫn duyệt như cũ. Một cổng đòi thừa thì sớm muộn bị bấm cho xong, và lúc nó đòi đúng thì cũng bị bấm cho xong |
 | **Bài canh** | `tests/test_tc97_duyet_anh_chuyen_dong.py` — 9 bài |
+
+---
+
+## SL-125 · LỆCH THẬT · Hồ sơ phần cứng mô tả một THIẾT KẾ, không phải cái bo trên bàn
+
+| | |
+|---|---|
+| **Cách tìm** | Bài 3. DS-03 báo đủ 200 xung ở 1 kHz trên cả hai động cơ; người dùng nhìn thấy **không bánh nào nhúc nhích**. Phép giao hai kênh kết luận *"vùng lỗi: điện — KHÔNG mở vòng sửa mã"* |
+| **Nguyên nhân thật** | Bản đồ chân sai **cả cổng**. Hồ sơ khai PB1/PB2/PB3/PB4 (D9–D12); bo thật dùng PD5/PD4/PD7/PD6 (D5/D4/D7/D6). Trên bo này **D11 là chân dữ liệu dải LED WS2812**, nên bản đo đầu tiên phát xung vào dải LED trong khi hai chân STEP thật nằm im |
+| **Hai nguồn độc lập, cả hai nằm sẵn trong `sources/`** | Sơ đồ nguyên lý của kit (các nét `STEP1/DIR1/STEP2/DIR2`, và **không có nét ENABLE** nào về vi điều khiển) và mã tham chiếu V3 (`#define STEP1 5 / DIR1 4 / STEP2 7 / DIR2 6`) |
+| **`enable` bỏ hẳn, không để trống** | A4988 bật cứng trên bo. Khai một chân enable không tồn tại là mời mã đi ghi vào chân của khối khác — bản trước ghi mức thấp vào PB0 |
+| **Vì sao nằm im bốn sprint** | Chưa lần nào có **xung thật đi ra chân thật**. Mọi cổng kiểm chứng đều xanh: mã dịch được, vừa bộ nhớ, sạch phân tích tĩnh — vì không cổng nào biết chân nào nối đi đâu |
+| **Vùng lỗi hệ chấm là "điện", bệnh thật là "hồ sơ sai"** | Chỉ dẫn *"kiểm lại dây theo pin map"* dẫn tới đúng chỗ, nhưng bộ luật chỉ có các vùng kiểu *điện / cơ khí / mã* — **không có vùng "hồ sơ phần cứng sai"**, mà đó lại là vùng dễ xảy ra nhất khi hồ sơ viết từ thiết kế còn bo thì mua sẵn |
+| **Kết quả sau khi sửa** | Bánh quay. Đổi hồ sơ ⇒ duyệt lại G1 |
+| **Còn là giả định** | Động cơ 1 ↔ trái, 2 ↔ phải. Sơ đồ và mã tham chiếu đều chỉ đánh số 1/2 |
+
+---
+
+## SL-126 · LỆCH THẬT · Câu hỏi cho NGƯỜI mâu thuẫn với firmware, và biến robot tốt thành "lỗi cơ khí"
+
+| | |
+|---|---|
+| **Cách tìm** | Ngay sau khi động cơ quay được lần đầu, đọc lại ba câu hỏi mà DS-03 sắp hỏi người |
+| **Lỗi** | Câu hỏi: *"Có quay **đủ một vòng** không (không trượt bước, không kêu lạ)?"* — trong khi firmware của chính kịch bản ấy cố ý chỉ phát **200 xung = 1/16 vòng** (~22°), và chú thích nói rõ vì sao: *"một lệnh quay nhiều vòng vẫn đủ để một sợi dây bị cuốn vào bánh"* |
+| **Hậu quả** | Người quan sát TRUNG THỰC buộc phải trả lời "không". Bộ luật có đúng một dòng cho tổ hợp `{truc_quay: có, dung_chieu: có, du_mot_vong: không}` → **vùng lỗi: cơ khí**. Một robot chạy hoàn toàn đúng bị chấm là hỏng cơ, và người ta đi tháo bánh ra kiểm |
+| **Vì sao nguy hơn một câu chữ vụng** | Kênh người được dựng lên để làm ĐỐI CHỨNG cho kênh máy — nó tồn tại vì số liệu một mình có thể "đẹp" mà sai. Một câu hỏi sai ở đây không chỉ mất tác dụng đối chứng: nó **chủ động bơm dữ liệu sai** vào phép giao, và phép giao không có cách nào biết |
+| **Đã sửa** | Đổi câu hỏi cho khớp thứ firmware thật sự làm, và **đổi luôn tên khóa** (`du_mot_vong` → `quay_tron_deu`): cái tên cũ tự nó đã mang giả định sai |
+| **Khai `steps_per_rev` vào hồ sơ** | Phép quy đổi xung → góc vốn dựa vào con số 200 nằm trong đầu người viết. Một hằng số không khai thì không đối chiếu được — và đó chính là lý do câu hỏi lệch khỏi firmware mà bốn sprint không ai thấy |
+| **Bài canh** | `tests/test_tc98_cau_hoi_khop_firmware.py` — 4 bài, canh quan hệ giữa hai thứ nằm ở hai tệp khác nhau: số xung trong firmware và câu chữ trong kịch bản. Thêm hai bài canh bộ luật: khóa nào luật dùng cũng phải có câu hỏi, và câu hỏi nào cũng phải có ít nhất một luật dùng tới |
+| **Ba bài canh cũ phải sửa theo** | `test_tc18_graph.py` dựa vào việc hai driver **tình cờ** dùng chung chân enable của dự án mẫu; bỏ enable là bài kiểm mất thứ nó đang canh dù engine không đổi một dòng. Đã dựng hồ sơ riêng ngay trong bài — một bài canh engine mà phụ thuộc dữ liệu dự án thì nó đo hai thứ cùng lúc và không nói được thứ nào vừa đổi |
