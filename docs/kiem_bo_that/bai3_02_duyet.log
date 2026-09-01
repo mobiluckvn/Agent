@@ -1,0 +1,18 @@
+
+Nạp firmware
+────────────
+
+Duyệt ảnh nạp
+─────────────
+  ảnh : projects/robot_balance/firmware/build/diag_DS-03.hex
+  kịch bản: DS-03 — Kiểm động cơ bước (từng động cơ)
+
+  ⚠ ẢNH NÀY LÀM THIẾT BỊ CHUYỂN ĐỘNG. Checklist an toàn:
+      [x] Robot đã được kê lên giá, bánh KHÔNG chạm đất
+      [x] Không có vật cản hay tay người trong vùng bánh quay
+      [x] Nguồn động lực đã cấp đúng điện áp và dòng giới hạn đã chỉnh
+  băm : sha256:a168cc6276025d8bbb913b92c0647a732356050c8cac902456db0ecb2e8cbfdd
+
+Đã ghi quyết định — Vũ Trí Công.
+Nạp được rồi:  eaa flash --image projects/robot_balance/firmware/build/diag_DS-03.hex
+Quyết định neo vào BĂM NỘI DUNG ảnh, không vào đường dẫn. Ráp lại là ảnh khác, và phải duyệt lại.
