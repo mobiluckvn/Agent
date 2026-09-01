@@ -1,0 +1,10 @@
+
+Dựng firmware chẩn đoán — DS-01
+───────────────────────────────
+  Quét bus I2C
+
+  Bộ khung   : /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-01.c
+  Ảnh nạp được: /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-01.hex
+
+Nạp nó: eaa flash --image /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-01.hex
+Thu số đo rồi kết luận: eaa diagnose run DS-01 --port <cổng>
