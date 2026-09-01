@@ -1950,3 +1950,20 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Không khai gì thì KHÔNG ghi thẻ rỗng** | Thẻ rỗng đọc thành *"đã xét và thấy không nguy hiểm"*; không có thẻ thì đọc đúng nghĩa *"chưa ai xét"* |
 | **Checklist cho robot cân bằng, do dự án khai** | Sàn trống bán kính 1 m · có người đứng cạnh biết tắt nguồn ở đâu · công tắc ngắt trong tầm với chứ không phải rút giắc · đặt trên sàn chứ không trên mặt bàn cao · dây đủ dài để robot ngã mà không giật đứt |
 | **Bài canh** | `tests/test_tc102_the_an_toan_firmware_chinh.py` — 6 bài, trong đó một bài đòi checklist cân bằng KHÁC checklist chẩn đoán |
+
+---
+
+## SL-133 · LỆCH THẬT · Vòng tự sửa đốt cả ba lượt cho một cổng nó không thể sửa
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §6 (vòng tự sửa ≤ N=3); TC-06, TC-19 |
+| **Cách tìm** | Module đầu tiên của bài robot cân bằng. `eaa gen logic_pid`: compile/size/static ĐẠT cả ba lượt, `unittests` KHÔNG ĐẠT cả ba lượt, rồi hết lượt |
+| **Lỗi** | Lý do trượt là *"không có bộ kiểm thử đơn vị nào trong projects/…/tests"*. Mã module hoàn toàn đúng — nó vừa qua ba cổng còn lại. Thứ còn thiếu là **một phần của DỰ ÁN**, không nằm trong tệp đang sửa. **Không bản vá nào của module làm cổng ấy đạt được** |
+| **Cơ chế đã có sẵn và đã đúng** | `orchestrator` biết dừng khi gặp lỗi cấu hình, và câu nó nói ra đã đúng sẵn: *"Lỗi CẤU HÌNH, không phải lỗi mã — vòng tự sửa không mở… đưa nó vào vòng vá chỉ đốt lượt gọi và làm hỏng mã đang đúng"* |
+| **Cổng chỉ không đặt cờ** | `UnitTestGate` không đặt `config_error`, nên lỗi rơi vào nhánh mặc định "chắc tại mã". **Cơ chế đúng, phân loại thiếu** — và cái giá là 3 lượt gọi mô hình mỗi module, tức 15 lượt cho cả bản phân rã |
+| **Phân biệt hai chuyện** | *Chưa có test* là lỗi dự án. *Test có mà đỏ* ĐÚNG là việc của vòng tự sửa. Đánh dấu cả hai là lỗi cấu hình sẽ tắt vòng ấy ở đúng chỗ nó có ích |
+| **Lỗi thứ hai — mô hình không biết cổng chạy bằng gì** | Lượt vá cuối nó thử tạo `tests/test_dummy.c` — một tệp **C** — cho một cổng chạy **pytest**. Không chỗ nào nói điều đó, nên nó đoán bằng thứ quen nhất với ngữ cảnh: đây là dự án C |
+| **Đã sửa** | Đặt `config_error` khi CHƯA CÓ test (không đặt khi `allow_empty`, vì đó là chế độ có chủ ý). Thông báo nói thẳng ba điều: đây không phải lỗi mã · cổng chạy bằng pytest · test là mã Python gọi vào lớp giả lập, không phải mã C |
+| **Lần thứ ba cùng một hình dạng trong phiên** | SL-114 (lỗi cú pháp công cụ `avr-size`), SL-129 (hết giờ thu telemetry), và giờ là đây. Vòng tự sửa mặc định coi mọi cổng trượt là lỗi mã, và **ba lần trong một phiên nó sai** |
+| **Bài canh** | `tests/test_tc103_thieu_bo_kiem_khong_phai_loi_ma.py` — 6 bài |

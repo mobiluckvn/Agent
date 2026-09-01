@@ -1,0 +1,23 @@
+
+Vòng lặp chuẩn — logic_pid
+──────────────────────────
+── sinh lần đầu ──
+  compile: ĐẠT (0 lỗi, 0 cảnh báo, 0.07s)
+  size: ĐẠT (0 lỗi, 0 cảnh báo, 0.01s)
+  static: ĐẠT (0 lỗi, 0 cảnh báo, 0.00s)
+  unittests: KHÔNG ĐẠT (1 lỗi, 0 cảnh báo, 0.00s)
+      Không có bộ kiểm thử đơn vị nào trong /Users/v/Documents/KTDT/projects/robot_balance/tests. Cổng này KHÔNG đạt khi chưa có test — 'chưa có gì để chạy' không phải là 'đã kiểm chứng'.
+── vòng vá 1 ──
+  compile: ĐẠT (0 lỗi, 0 cảnh báo, 0.10s)
+  size: ĐẠT (0 lỗi, 0 cảnh báo, 0.02s)
+  static: ĐẠT (0 lỗi, 0 cảnh báo, 0.00s)
+  unittests: KHÔNG ĐẠT (1 lỗi, 0 cảnh báo, 0.00s)
+      Không có bộ kiểm thử đơn vị nào trong /Users/v/Documents/KTDT/projects/robot_balance/tests. Cổng này KHÔNG đạt khi chưa có test — 'chưa có gì để chạy' không phải là 'đã kiểm chứng'.
+── vòng vá 2 ──
+  compile: ĐẠT (0 lỗi, 0 cảnh báo, 0.10s)
+  size: ĐẠT (0 lỗi, 0 cảnh báo, 0.02s)
+  static: ĐẠT (0 lỗi, 0 cảnh báo, 0.00s)
+  unittests: KHÔNG ĐẠT (1 lỗi, 0 cảnh báo, 0.00s)
+      Không có bộ kiểm thử đơn vị nào trong /Users/v/Documents/KTDT/projects/robot_balance/tests. Cổng này KHÔNG đạt khi chưa có test — 'chưa có gì để chạy' không phải là 'đã kiểm chứng'.
+
+Vòng vá thất bại: Phản hồi chứa hai khối cho cùng một tệp: 'tests/test_dummy.c' — không xác định được bản nào là bản cuối.

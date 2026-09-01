@@ -136,10 +136,36 @@ class UnitTestGate:
                     ToolError(
                         f"Không có bộ kiểm thử đơn vị nào trong {tests_dir}. Cổng "
                         "này KHÔNG đạt khi chưa có test — 'chưa có gì để chạy' "
-                        "không phải là 'đã kiểm chứng'."
+                        "không phải là 'đã kiểm chứng'.\n"
+                        "\n"
+                        "Đây KHÔNG PHẢI LỖI MÃ của module vừa sinh: thứ còn "
+                        "thiếu là một phần của DỰ ÁN, không nằm trong tệp đang "
+                        "sửa. Không bản vá nào của module làm cổng này đạt "
+                        "được.\n"
+                        "\n"
+                        f"Bộ kiểm chạy bằng PYTEST trên máy chủ: đặt tệp "
+                        f"`test_*.py` vào {tests_dir}. Firmware được viết tách "
+                        "lớp trừu tượng phần cứng chính là để chạy được ở đây "
+                        "(công đoạn C2) — test là mã PYTHON gọi vào lớp giả "
+                        "lập, không phải mã C."
                     )
                 ],
-                metrics={"tests_found": 0},
+                # Phân loại là LỖI CẤU HÌNH để orchestrator dừng ngay thay vì mở
+                # vòng tự sửa. Cơ chế ấy đã có sẵn và câu nó nói ra đã đúng; cổng
+                # này chỉ chưa đặt cờ, nên lỗi rơi vào nhánh mặc định "chắc tại
+                # mã" và đốt sạch ba lượt gọi mô hình (SL-133).
+                #
+                # CHỈ cho trường hợp CHƯA CÓ test. Test có mà đỏ thì đúng là
+                # việc của vòng tự sửa — đánh dấu cả hai sẽ tắt vòng ấy ở đúng
+                # chỗ nó có ích.
+                # `allow_empty` là chế độ CÓ CHỦ Ý cho phép rỗng, nên nó không
+                # phải một sai lệch cấu hình — đánh dấu nó là lỗi sẽ dừng cả
+                # những lượt chạy đang cố tình bỏ qua cổng này.
+                metrics=(
+                    {"tests_found": 0}
+                    if self.allow_empty
+                    else {"tests_found": 0, "config_error": True}
+                ),
             )
 
         bat_dau = time.monotonic()
