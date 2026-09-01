@@ -214,7 +214,18 @@ void diag_run(void)
         /* Quy về đơn vị vật lý bằng số nguyên: mg và phần trăm độ/giây.
          * Nhân trước chia sau để không mất phần lẻ ở lõi không có dấu phẩy
          * động — thứ tự này là lý do con số ra được, không phải chi tiết vụn. */
-        uint32_t mg = (nhieu_a * 1000u) / (uint32_t)ACCEL_LSB_PER_G;
+        /* mg NHÂN 100 — giữ hai chữ số thập phân, đúng như đường con quay
+         * ngay dưới đã làm.
+         *
+         * Bản trước tính thẳng ra mg nguyên. Nhiễu nền lành mạnh của con chip
+         * này khi nằm yên là 4-8 LSB, tức 0,2-0,5 mg, nên nó LÀM TRÒN THÀNH 0.
+         * Và số 0 ấy không phân biệt được "cảm biến rất yên" với "cảm biến
+         * không đọc được" — đúng cái bẫy mà chú thích ở đầu tệp này đã nêu:
+         * chip còn ngủ thì mọi số đọc về đều là 0 và trông y hệt.
+         *
+         * Một phép đo mà đơn vị của nó thô hơn đại lượng cần đo thì nó không
+         * đo gì cả. */
+        uint32_t mg_x100 = (nhieu_a * 100000u) / (uint32_t)ACCEL_LSB_PER_G;
         uint32_t dps_x100 = (nhieu_g * 100u) / (uint32_t)GYRO_LSB_PER_DPS;
 
         i = 0u;
@@ -223,7 +234,10 @@ void diag_run(void)
         i += so_ra_chu((int32_t)thu, &khung[i]);
         const char *k2 = ", \"accel_noise_mg\": ";
         while (*k2 != '\0') { khung[i++] = *k2++; }
-        i += so_ra_chu((int32_t)mg, &khung[i]);
+        i += so_ra_chu((int32_t)(mg_x100 / 100u), &khung[i]);
+        khung[i++] = '.';
+        khung[i++] = (char)('0' + (char)((mg_x100 / 10u) % 10u));
+        khung[i++] = (char)('0' + (char)(mg_x100 % 10u));
         const char *k3 = ", \"gyro_noise_dps\": ";
         while (*k3 != '\0') { khung[i++] = *k3++; }
         i += so_ra_chu((int32_t)(dps_x100 / 100u), &khung[i]);

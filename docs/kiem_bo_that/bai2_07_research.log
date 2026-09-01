@@ -1,0 +1,22 @@
+Tra cứu: "MPU-6500 MPU-9250 WHO_AM_I register 0x75 value 0x72 register map"
+
+[KHÔNG KIỂM ĐƯỢC]
+    đã thử và không với tới — cần cách khác hoặc dụng cụ khác
+
+── tìm được 5 địa chỉ
+  · github.com
+      github.com  (qua trạm chuyển hướng)   [mở]
+      Based on web searches and community documentation, here is the information regarding the `WHO_AM_I` register (`0x75`) and the anomalous `0x72` value on MPU-6500 and MPU-9250 sensors.
+
+### 1. The `WHO_
+  · i2cdevlib.com
+      i2cdevlib.com  (qua trạm chuyển hướng)   [mở]
+  · discourse.group
+      discourse.group  (qua trạm chuyển hướng)   [mở]
+  · discourse.group
+      discourse.group  (qua trạm chuyển hướng)   [mở]
+  · pjrc.com
+      pjrc.com  (qua trạm chuyển hướng)   [mở]
+
+
+Không trang chính chủ nào đọc được. Mọi thứ trên đây là MANH MỐI: dùng để gỡ lỗi hoặc so công cụ, không dùng làm nguồn cho giá trị cấu hình phần cứng.
