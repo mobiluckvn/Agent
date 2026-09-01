@@ -1805,3 +1805,24 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Lỗi 2 — trần một mình không bắt được cảm biến chết** | Phép kiểm nhiễu chỉ khai `max`. Chip còn ngủ trả về toàn số 0, và **0 nằm dưới mọi trần**. Chính chú thích đầu `DS-02.c` đã cảnh báo *"một loạt số 0 trông y hệt một cảm biến đứng rất yên"* — mà phép kiểm vẫn để hở |
 | **Đã sửa** | Cả hai chỉ số dùng `in_range` có **sàn**, lấy từ số đo thật chia đôi để chừa biên. MEMS đang sống không bao giờ cho nhiễu bằng 0 |
 | **Bài học chung** | Một phép đo mà đơn vị của nó thô hơn đại lượng cần đo thì nó không đo gì cả — và con số nó trả về vẫn trông như một con số |
+
+---
+
+## SL-124 · LỆCH THẬT · Cánh cửa mới không mang theo thứ cửa cũ mang — và lần này là checklist AN TOÀN
+
+> Chỗ hở này do **chính bản sửa SL-119 của tôi tạo ra**, và nó là chỗ hở nguy
+> hiểm nhất cả phiên: nó cho phép nạp một ảnh làm **bánh xe quay** mà người
+> duyệt không hề biết.
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SRS-01 FR-DIA-02; EAA-AIS-05 §7.1 (kịch bản có chuyển động); SL-119 |
+| **Cách tìm** | Bài 3 phiên kiểm bo thật. Trước khi nạp DS-03 (`motion: true`), kiểm xem lệnh nạp có cưỡng chế checklist an toàn không |
+| **Trước SL-119** | Đường nạp duy nhất là hỏi trên terminal, và bản tóm tắt lúc hỏi kèm thẻ đi kèm ảnh: *"⚠ ẢNH NÀY LÀM THIẾT BỊ CHUYỂN ĐỘNG"* + checklist. Chú thích của chính hàm đọc thẻ nói rõ vì sao: *"một ảnh chẩn đoán làm robot chuyển động trông y hệt một ảnh đo tĩnh… đưa checklist ra đúng lúc người sắp bấm đồng ý, chứ không phải lúc dựng ảnh — giữa hai thời điểm ấy có thể là vài ngày"* |
+| **Lỗi** | Sổ duyệt ngoài luồng của SL-119 **đi vòng qua đúng chỗ ấy**. `eaa flash approve --image <ảnh>` in ra tên tệp và băm, hết. Đo được trên ảnh DS-03 thật: ba dòng, không một chữ về chuyển động |
+| **Bất biến bị vi phạm** | **Thông tin đi kèm một quyết định không được biến mất khi đường đi tới quyết định ấy đổi.** Mở một cánh cửa mới thì cửa ấy phải mang theo mọi thứ cửa cũ mang |
+| **Đã sửa — đường DUYỆT** | `flash approve` đọc thẻ, in cảnh báo và checklist, và **từ chối** nếu chưa có `--confirm-safety` cho từng mục, nguyên văn — cùng cơ chế `eaa diagnose run` đã dùng. Quyết định ghi vào sổ mang theo `motion` và `safety_confirmed` |
+| **Đã sửa — đường NẠP, và đây mới là phần bắt buộc** | Sổ là **append-only**, nên mọi bản ghi lỏng lẻo ghi trước khi luật này tồn tại vẫn nằm đó mãi và vẫn hợp lệ về băm. Sửa ở đường duyệt là chưa đủ: `Flasher.da_duoc_duyet()` nay nhận `required_safety` và từ chối quyết định không phủ đủ |
+| **Tôi tự chứng minh chỗ ấy cần thiết** | Lúc thử xem `flash approve` có cảnh báo không, tôi đã ghi một quyết định THẬT cho ảnh DS-03 với tên người vô nghĩa và không xác nhận an toàn nào. Sổ append-only nên nó nằm đó; sau bản sửa, nó không còn mở được đường nạp |
+| **Cổng mới không làm phiền đường không nguy hiểm** | Ảnh đo tĩnh và ảnh không có thẻ vẫn duyệt như cũ. Một cổng đòi thừa thì sớm muộn bị bấm cho xong, và lúc nó đòi đúng thì cũng bị bấm cho xong |
+| **Bài canh** | `tests/test_tc97_duyet_anh_chuyen_dong.py` — 9 bài |

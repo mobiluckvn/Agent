@@ -3,3 +3,4 @@
 {"image": "diag_DS-01.hex", "image_digest": "sha256:f512d012a74c1cfeab3495a65caf2a55fa30959180dffcf22288a1ae61c868f4", "actor": "Vũ Trí Công", "approved_at": "2026-09-01T00:14:58+00:00"}
 {"image": "diag_DS-02.hex", "image_digest": "sha256:8bdef71601a0dddcfb2d798b5424c149577f5885390c7920bd3a573cd3a6424c", "actor": "Vũ Trí Công", "approved_at": "2026-09-01T00:18:46+00:00"}
 {"image": "diag_DS-02.hex", "image_digest": "sha256:b2572e001e3ab77346415c872fec408c27fd0516a3c74215474ac75e38e15bc1", "actor": "Vũ Trí Công", "approved_at": "2026-09-01T01:03:15+00:00"}
+{"image": "diag_DS-03.hex", "image_digest": "sha256:a168cc6276025d8bbb913b92c0647a732356050c8cac902456db0ecb2e8cbfdd", "actor": "thử xem có cảnh báo không", "approved_at": "2026-09-01T02:26:31+00:00"}

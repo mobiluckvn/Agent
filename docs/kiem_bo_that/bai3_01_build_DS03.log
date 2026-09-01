@@ -1,0 +1,15 @@
+
+Dựng firmware chẩn đoán — DS-03
+───────────────────────────────
+  Kiểm động cơ bước (từng động cơ)
+
+  ⚠ Kịch bản này làm THIẾT BỊ CHUYỂN ĐỘNG. Checklist an toàn:
+      [ ] Robot đã được kê lên giá, bánh KHÔNG chạm đất
+      [ ] Không có vật cản hay tay người trong vùng bánh quay
+      [ ] Nguồn động lực đã cấp đúng điện áp và dòng giới hạn đã chỉnh
+
+  Bộ khung   : /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-03.c
+  Ảnh nạp được: /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-03.hex
+
+Nạp nó: eaa flash --image /Users/v/Documents/KTDT/projects/robot_balance/firmware/build/diag_DS-03.hex
+Thu số đo rồi kết luận: eaa diagnose run DS-03 --port <cổng>

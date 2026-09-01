@@ -2473,9 +2473,39 @@ def cmd_flash(args: argparse.Namespace) -> int:
                 "vào thiết bị thật; một quyết định không có người chịu trách "
                 "nhiệm thì không phải quyết định của con người."
             )
-        k = so_duyet.approve(anh, by=ai)
         _in_tieu_de("Duyệt ảnh nạp")
         print(f"  ảnh : {anh}")
+
+        # Ảnh làm THIẾT BỊ CHUYỂN ĐỘNG trông y hệt ảnh đo tĩnh. Trước SL-124,
+        # đường duyệt ngoài luồng này in ra đúng tên tệp và băm — người duyệt
+        # không hề biết mình vừa cho phép bánh xe quay. Cảnh báo ấy có sẵn ở
+        # nhánh hỏi trên terminal; mở một cánh cửa mới thì cửa ấy phải mang
+        # theo mọi thứ cửa cũ mang.
+        the = _the_cua_anh(anh)
+        muc_an_toan = [str(m) for m in (the.get("safety_checklist") or [])]
+        da_xac_nhan: list[str] = []
+        if the.get("motion"):
+            print(f"  kịch bản: {the.get('scenario', '?')} — {the.get('title', '')}")
+            print("\n  ⚠ ẢNH NÀY LÀM THIẾT BỊ CHUYỂN ĐỘNG. Checklist an toàn:")
+            khai = {c.strip().lower() for c in (args.confirm_safety or [])}
+            thieu = [m for m in muc_an_toan if m.strip().lower() not in khai]
+            for m in muc_an_toan:
+                dau = "[ ]" if m in thieu else "[x]"
+                print(f"      {dau} {m}")
+            if thieu:
+                raise CliError(
+                    f"Chưa xác nhận {len(thieu)} mục an toàn. Duyệt một ảnh làm "
+                    "thiết bị chuyển động là cho phép nó QUAY ngay khi nạp "
+                    "xong.\n"
+                    "Xác nhận từng mục, nguyên văn:\n"
+                    + "\n".join(f'    --confirm-safety "{m}"' for m in thieu),
+                    EXIT_WAITING_GATE,
+                )
+            da_xac_nhan = list(muc_an_toan)
+
+        k = so_duyet.approve(
+            anh, by=ai, motion=bool(the.get("motion")), safety_confirmed=da_xac_nhan
+        )
         print(f"  băm : {k.image_digest}")
         print(f"\nĐã ghi quyết định — {k.actor}.")
         print("Nạp được rồi:  eaa flash --image " + str(anh))
@@ -2509,6 +2539,10 @@ def cmd_flash(args: argparse.Namespace) -> int:
             params=tham_so,
             programmer=str(tham_so.get("programmer", "")),
             extra_notes=_canh_bao_an_toan_cua_anh(anh),
+            required_safety=(
+                [str(m) for m in (_the_cua_anh(anh).get("safety_checklist") or [])]
+                if _the_cua_anh(anh).get("motion") else []
+            ),
         )
     except FlashError as exc:
         raise CliError(str(exc), EXIT_WAITING_GATE) from exc
@@ -2578,6 +2612,20 @@ def cmd_telemetry(args: argparse.Namespace) -> int:
     if not ban_thu.frames:
         return EXIT_ENV_ERROR
     return EXIT_OK if ban_thu.trustworthy else EXIT_REPAIR_LIMIT
+
+
+def _the_cua_anh(image: Path) -> dict:
+    """Thẻ đi kèm ảnh, dạng dữ liệu. Không có thẻ thì trả ánh xạ rỗng."""
+    import json as _json
+
+    the = Path(str(image) + ".meta.json")
+    if not the.is_file():
+        return {}
+    try:
+        d = _json.loads(the.read_text(encoding="utf-8"))
+    except _json.JSONDecodeError:
+        return {}
+    return d if isinstance(d, dict) else {}
 
 
 def _canh_bao_an_toan_cua_anh(image: Path) -> list[str]:
@@ -5723,6 +5771,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_flash.add_argument("--port", default="", help="Cổng nối tiếp; bỏ trống thì tự nhận")
     p_flash.add_argument("--image", help="Ảnh cần nạp; mặc định lấy bản vừa ráp")
     p_flash.add_argument("--actor", help="Người chịu trách nhiệm lần nạp này")
+    p_flash.add_argument(
+        "--confirm-safety", action="append", dest="confirm_safety", default=[],
+        help="Xác nhận một mục checklist an toàn, nguyên văn (ảnh làm thiết bị "
+             "chuyển động thì bắt buộc, mỗi mục một lần)",
+    )
     p_flash.add_argument(
         "--history", action="store_true", help="Xem nhật ký nạp thay vì nạp"
     )

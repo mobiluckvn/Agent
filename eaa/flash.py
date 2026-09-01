@@ -271,6 +271,12 @@ class FlashApproval:
     image_digest: str
     actor: str
     approved_at: str
+    #: Ảnh này có làm thiết bị chuyển động không, và người đã xác nhận những
+    #: mục an toàn nào. Ghi vào sổ để sáu tháng sau còn truy được: một quyết
+    #: định an toàn không lưu nội dung mình xác nhận thì lúc cần nó không nói
+    #: được gì hơn "có người bấm đồng ý".
+    motion: bool = False
+    safety_confirmed: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return {
@@ -278,6 +284,8 @@ class FlashApproval:
             "image_digest": self.image_digest,
             "actor": self.actor,
             "approved_at": self.approved_at,
+            "motion": self.motion,
+            "safety_confirmed": list(self.safety_confirmed),
         }
 
 
@@ -308,7 +316,14 @@ class FlashApprovals:
     def digest(image) -> str:
         return "sha256:" + hashlib.sha256(Path(image).read_bytes()).hexdigest()
 
-    def approve(self, image, *, by: str) -> "FlashApproval":
+    def approve(
+        self,
+        image,
+        *,
+        by: str,
+        motion: bool = False,
+        safety_confirmed=(),
+    ) -> "FlashApproval":
         if not by.strip():
             raise FlashError(
                 "Phải ghi ai duyệt lần nạp này — một quyết định không có người "
@@ -321,6 +336,8 @@ class FlashApprovals:
             image_digest=self.digest(anh),
             actor=by.strip(),
             approved_at=_now(),
+            motion=bool(motion),
+            safety_confirmed=tuple(str(x) for x in (safety_confirmed or ())),
         )
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as f:
@@ -343,6 +360,10 @@ class FlashApprovals:
                     image_digest=str(d["image_digest"]),
                     actor=str(d["actor"]),
                     approved_at=str(d.get("approved_at", "")),
+                    motion=bool(d.get("motion", False)),
+                    safety_confirmed=tuple(
+                        str(x) for x in (d.get("safety_confirmed") or ())
+                    ),
                 ))
             except (ValueError, KeyError, TypeError):
                 continue
@@ -424,6 +445,9 @@ class Flasher:
         params: dict[str, Any] | None = None,
         programmer: str = "",
         extra_notes: Sequence[str] = (),
+        #: Checklist an toàn của ảnh, đọc từ thẻ đi kèm. Ảnh làm thiết bị
+        #: chuyển động thì quyết định trong sổ phải phủ đủ danh sách này.
+        required_safety: Sequence[str] = (),
     ) -> FlashRecord:
         kiem = self.preflight(image)
         if not kiem.ok:
@@ -447,7 +471,7 @@ class Flasher:
         )
         if extra_notes:
             tom_tat += "\n" + "\n".join(extra_notes)
-        if not self._hoi(tom_tat, image=anh):
+        if not self._hoi(tom_tat, image=anh, required_safety=required_safety):
             raise FlashNotConfirmed(
                 "Chưa có xác nhận của người nên KHÔNG nạp (FR-DIA-02).\n"
                 "Phiên không có terminal cũng tính là chưa xác nhận — một phiên "
@@ -556,16 +580,33 @@ class Flasher:
 
     # -- phần bên trong -----------------------------------------------------
 
-    def da_duoc_duyet(self, image) -> Any:
-        """Có ai duyệt ĐÚNG ảnh này chưa. Trả quyết định, hoặc ``None``."""
+    def da_duoc_duyet(self, image, required_safety=()) -> Any:
+        """Có ai duyệt ĐÚNG ảnh này chưa, và quyết định ấy có ĐỦ không.
+
+        ``required_safety`` là checklist an toàn của ảnh, đọc từ thẻ đi kèm.
+        Ảnh làm thiết bị chuyển động thì một quyết định không phủ đủ checklist
+        KHÔNG mở được đường nạp.
+
+        Vì sao phải kiểm ở cả đường nạp chứ không chỉ đường duyệt: sổ là
+        append-only, nên mọi bản ghi lỏng lẻo ghi trước khi luật này tồn tại
+        vẫn nằm đó mãi và vẫn hợp lệ về băm (SL-124).
+        """
         if self.approvals is None:
             return None
-        return self.approvals.find(image)
+        k = self.approvals.find(image)
+        if k is None:
+            return None
+        can = [str(m).strip().lower() for m in (required_safety or [])]
+        if can:
+            da = {str(m).strip().lower() for m in (getattr(k, "safety_confirmed", ()) or ())}
+            if any(m not in da for m in can):
+                return None
+        return k
 
-    def _hoi(self, tom_tat: str, image=None) -> bool:
+    def _hoi(self, tom_tat: str, image=None, required_safety=()) -> bool:
         # Sổ trước: đây là đường của phiên không terminal, và là đường Agent đi.
         if image is not None:
-            k = self.da_duoc_duyet(image)
+            k = self.da_duoc_duyet(image, required_safety=required_safety)
             if k is not None:
                 print(
                     f"\n  {k.actor} đã duyệt đúng ảnh này lúc {k.approved_at} "
