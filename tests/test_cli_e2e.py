@@ -53,8 +53,9 @@ def dung_moi_truong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         encoding="utf-8",
     )
     shutil.copytree(DU_AN_MAU / "datasheets", project / "datasheets")
-    (project / "tests").mkdir()
-    (project / "tests" / "test_smoke.py").write_text(
+    # Bộ kiểm nằm trong thư mục firmware — xem chú thích ở test_tc15_e2e.py.
+    (project / "firmware" / "tests").mkdir(parents=True, exist_ok=True)
+    (project / "firmware" / "tests" / "test_smoke.py").write_text(
         "def test_khung_du_an():\n    assert True\n", encoding="utf-8"
     )
 

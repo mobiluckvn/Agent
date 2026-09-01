@@ -638,7 +638,7 @@ class Orchestrator:
             ),
             uses=tuple(muc.uses) if muc else (),
             depends_on=tuple(muc.depends_on) if muc else (),
-            output_files=(f"src/{module_id}.c", f"src/{module_id}.h"),
+            output_files=self.tep_can_sinh(module_id),
         )
 
     def _sinh_ma(self, prompt: Any, module_id: str) -> CodeArtifact:
@@ -914,6 +914,29 @@ class Orchestrator:
             if muc.status in ("todo", "handoff"):
                 return muc.id
         return None
+
+    @staticmethod
+    def tep_can_sinh(module_id: str) -> tuple[str, ...]:
+        """Những tệp một lượt sinh mã phải trả về.
+
+        Có tệp TEST trong này, và đó là chỗ SL-134 sửa. `unittests` nằm trong
+        ``required_gates`` — không qua nó thì không merge, không merge thì không
+        ráp được firmware — nhưng danh sách này trước đây chỉ có `.c` và `.h`.
+        Một cổng bắt buộc đòi thứ không năng lực nào sinh ra, nên quy trình
+        không có cách nào tự qua cổng của chính nó.
+
+        Và nó không phải chuyện "quên viết test": thiết kế nói firmware được
+        viết tách lớp trừu tượng phần cứng CHÍNH LÀ để chạy được trên máy chủ
+        (công đoạn C2). Lời hứa ấy chỉ thành thật khi mỗi module ra đời KÈM bài
+        kiểm chứng minh nó chạy được ở đó.
+
+        Tên theo quy ước ``test_*.py`` vì cổng gom đúng mẫu ấy.
+        """
+        return (
+            f"src/{module_id}.c",
+            f"src/{module_id}.h",
+            f"tests/test_{module_id}.py",
+        )
 
     def _kpi(self, event: str, module_id: str, **truong: Any) -> None:
         if self.kpi is None:

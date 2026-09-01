@@ -71,8 +71,11 @@ def moi_truong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # có một lệnh thay dòng ``platform:`` — và nó khiến tệp được băm KHÁC tệp
     # nằm trong kho, nên không cách nào đối chiếu bản ghi với đầu vào. Bản đóng
     # băng đã mang sẵn ``platform: demo``.
-    (project / "tests").mkdir()
-    (project / "tests" / "test_smoke.py").write_text(
+    # Bộ kiểm nằm trong THƯ MỤC FIRMWARE, nơi bộ sinh mã ghi vào — không phải
+    # ở gốc dự án. Cổng `unittests` đọc đúng chỗ ấy từ SL-134; trước đó hai bên
+    # trỏ vào hai thư mục khác nhau và chưa lần nào có tệp test thật để lộ ra.
+    (project / "firmware" / "tests").mkdir(parents=True, exist_ok=True)
+    (project / "firmware" / "tests" / "test_smoke.py").write_text(
         "def test_khung_du_an():\n    assert True\n", encoding="utf-8"
     )
 

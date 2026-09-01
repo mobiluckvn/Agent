@@ -165,6 +165,35 @@ def extract_function(source: str, line: int, *, context: int = 2) -> str:
     return "\n".join(dong[bat_dau:ket_thuc])
 
 
+def _boi_canh_host_test(host_test: Any) -> str:
+    """Nói cho bộ sinh mã biết bài kiểm trên máy chủ trông thế nào.
+
+    Cách dịch một module cho máy chủ là chuyện của NỀN TẢNG, nên phần chữ đến
+    từ pack. Engine chỉ ghép nó vào đúng chỗ — cùng ranh giới mà TC-38 canh.
+    """
+    if not host_test:
+        return ""
+    ht = host_test if isinstance(host_test, dict) else {}
+    if not ht:
+        for ten in ("contract", "compiler", "cflags", "mock_include"):
+            gia_tri = getattr(host_test, ten, None)
+            if gia_tri:
+                ht[ten] = gia_tri
+    if not ht.get("contract"):
+        return ""
+
+    dong = ["## BÀI KIỂM TRÊN MÁY CHỦ (cổng `unittests`)", "", str(ht["contract"]).strip()]
+    if ht.get("compiler"):
+        co = " ".join(str(x) for x in (ht.get("cflags") or []))
+        dong += ["", f"Trình dịch máy chủ: `{ht['compiler']}` {co}".rstrip()]
+    if ht.get("mock_include"):
+        dong.append(
+            f"Tiêu đề giả cho mã chạm thanh ghi: thư mục `{ht['mock_include']}` "
+            "của Platform Pack."
+        )
+    return "\n".join(dong) + "\n"
+
+
 def _bang_rang_buoc(constraints: Any) -> str:
     """K1 — dịch ràng buộc thành mệnh lệnh ngắn thay vì văn xuôi giải thích.
 
@@ -241,6 +270,9 @@ class PromptComposer:
         self.graph = graph
         self.ledger = ledger
         self.config = config or ComposerConfig()
+        #: Khối `host_test` của Platform Pack — cách kiểm một module trên máy
+        #: chủ. Không có thì prompt không nói gì về nó, và mô hình đoán (SL-134).
+        self.host_test: Any = None
 
     # ----------------------------------------------------------------------
     # Lắp ráp
@@ -489,6 +521,10 @@ class PromptComposer:
         trang_thai = self._trich_trang_thai(task, state)
         if trang_thai:
             phan.append("\n### TRẠNG THÁI\n" + "\n".join(f"- {d}" for d in trang_thai))
+
+        ht = _boi_canh_host_test(getattr(self, "host_test", None))
+        if ht:
+            phan.append("\n" + ht)
 
         phan.append("\n" + self.OUTPUT_FORMAT)
         return "\n\n".join(phan)

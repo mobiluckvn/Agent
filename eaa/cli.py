@@ -783,6 +783,17 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
     kb.ledger = ledger
     kpi = KpiLogger(project / "kpi_log.csv", env_hash=state.env_hash)
     composer = PromptComposer(kb, graph, ledger)
+    # Cách kiểm trên máy chủ đến từ pack; engine chỉ ghép vào đúng chỗ.
+    try:
+        import yaml as _yaml
+
+        _pack_yaml = _yaml.safe_load(
+            (repo_root() / "packs" / kb.constraints.platform / "pack.yaml")
+            .read_text(encoding="utf-8")
+        ) or {}
+        composer.host_test = _pack_yaml.get("host_test")
+    except Exception:  # noqa: BLE001 - chưa cài pack thì thôi
+        composer.host_test = None
     gates = HumanGate(project / "gates", store, ledger)
 
     firmware = project / "firmware"
@@ -820,8 +831,16 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
             allowed_chunk_ids=[c.id for c in kb.datasheets.active()],
         ),
         UnitTestGate(
-            tests_dir=project / "tests",
-            work_dir=project,
+            # ĐÚNG thư mục bộ sinh mã ghi vào. Nó ghi `src/` và `tests/` trong
+            # thư mục làm việc của firmware; cổng trước đây đọc `<dự án>/tests`
+            # — hai chỗ khác nhau. Nên khi mô hình viết đúng tệp test, cổng vẫn
+            # báo "không có bộ kiểm thử đơn vị nào" (SL-134).
+            #
+            # Không ai sai một mình: bộ sinh ghi đúng chỗ của nó, cổng đọc đúng
+            # chỗ của nó, và hai chỗ ấy chưa bao giờ được đối chiếu — vì chưa
+            # lần nào có tệp test thật để lộ ra.
+            tests_dir=firmware / "tests",
+            work_dir=firmware,
             # Để cổng nêu được ĐÍCH DANH phần nó không kiểm tới (N-053). Không
             # có ba tham số này thì nó vẫn chạy y như trước, chỉ im lặng hơn.
             module=module_hien_tai,

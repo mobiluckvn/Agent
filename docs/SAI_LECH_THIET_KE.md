@@ -1967,3 +1967,22 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Đã sửa** | Đặt `config_error` khi CHƯA CÓ test (không đặt khi `allow_empty`, vì đó là chế độ có chủ ý). Thông báo nói thẳng ba điều: đây không phải lỗi mã · cổng chạy bằng pytest · test là mã Python gọi vào lớp giả lập, không phải mã C |
 | **Lần thứ ba cùng một hình dạng trong phiên** | SL-114 (lỗi cú pháp công cụ `avr-size`), SL-129 (hết giờ thu telemetry), và giờ là đây. Vòng tự sửa mặc định coi mọi cổng trượt là lỗi mã, và **ba lần trong một phiên nó sai** |
 | **Bài canh** | `tests/test_tc103_thieu_bo_kiem_khong_phai_loi_ma.py` — 6 bài |
+
+---
+
+## SL-134 · LỆCH THẬT (×3) · Quy trình đòi một thứ mà chính nó không sinh ra
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-SDD-03 §6; công đoạn C2 (firmware viết tách lớp trừu tượng để chạy được trên máy chủ); FR-VER-01 |
+| **Cách tìm** | Gỡ chỗ chặn của bài robot cân bằng, ngay sau SL-133 |
+| **Lỗi 1 — cổng bắt buộc đòi thứ không ai sinh** | `unittests` nằm trong `required_gates`, nhưng bộ điều phối bảo mô hình sinh **đúng hai tệp**: `src/<mod>.c` và `.h`. Không bao giờ có test. **Quy trình không có cách nào tự qua cổng của chính nó** — và nó đã chặn như thế từ sprint đầu, chỉ chưa ai đi tới module nào để phát hiện |
+| **Vì sao không phải "quên viết test"** | Thiết kế nói firmware được viết tách lớp trừu tượng phần cứng CHÍNH LÀ để chạy được trên máy chủ. Lời hứa ấy chỉ thành thật khi mỗi module ra đời KÈM bài kiểm chứng minh nó chạy được ở đó — sinh mã mà không sinh test là giữ lại lời hứa và bỏ phần trả giá cho nó |
+| **Lỗi 2 — không ai nói cổng ấy chạy bằng gì** | Cách dịch một module cho máy chủ là chuyện của NỀN TẢNG. Pack nay khai `host_test`: trình dịch máy chủ, cờ, thư mục tiêu đề giả, và hợp đồng — *bài kiểm là mã Python dịch `.c` bằng `cc` rồi gọi qua `ctypes`* |
+| **Lỗi 3 — cổng nhìn vào sai thư mục** | Bộ sinh mã ghi vào `firmware/src/` và `firmware/tests/`; cổng đọc `<dự án>/tests`. **Hai thư mục khác nhau.** Sau khi sửa hai lỗi trên, mô hình đã viết đúng `tests/test_logic_pid.py` — tệp nằm ngay đó — mà cổng vẫn báo *"không có bộ kiểm thử đơn vị nào"* |
+| **Không ai sai một mình** | Bộ sinh ghi đúng chỗ của nó, cổng đọc đúng chỗ của nó, và hai chỗ ấy **chưa bao giờ được đối chiếu** — vì chưa lần nào có tệp test thật để lộ ra |
+| **Kết quả** | `logic_pid` qua **đủ 4 cổng, 0 vòng tự sửa** — module đầu tiên của cả dự án làm được thế |
+| **Bài kiểm Agent tự viết là bài kiểm THẬT** | Nó dịch chính `src/logic_pid.c` bằng đúng cờ pack khai, nạp bằng `ctypes`, mirror cấu trúc, và kiểm riêng P/I/D, chặn biên, chống bão hòa tích phân. **Không** chép thuật toán sang Python rồi kiểm bản chép |
+| **Nhưng một lượt ghi khác cho thấy nó không luôn thế** | Khi ghi lại fixture E2E, mô hình sinh một test kiểu `assert "delay(" not in code` — **soi văn bản mã nguồn**, tức làm lại việc của cổng phân tích tĩnh, và không chứng minh gì về hành vi. Hợp đồng của pack nay cấm thẳng kiểu ấy |
+| **Cái giá của một prompt đổi** | Bộ phát lại của TC-15 khớp theo **băm prompt**, nên mọi cải tiến prompt làm 10 bài E2E đỏ. Nó nói đúng câu cần nói — *"Phát lại KHÔNG bịa phản hồi: một lượt tự sinh nội dung sẽ tạo bằng chứng giả"* — và chỉ sang `scripts/record_e2e_fixture.py`. Đã ghi lại bằng mô hình thật |
+| **Bài canh** | `tests/test_tc104_sinh_ma_kem_bo_kiem.py` — 7 bài, trong đó một bài đối chiếu **danh sách cổng bắt buộc** với **danh sách tệp phải sinh**: đòi `unittests` thì phải sinh ít nhất một tệp test |

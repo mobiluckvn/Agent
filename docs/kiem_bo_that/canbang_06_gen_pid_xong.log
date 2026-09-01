@@ -1,0 +1,12 @@
+
+Vòng lặp chuẩn — logic_pid
+──────────────────────────
+── sinh lần đầu ──
+  compile: ĐẠT (0 lỗi, 0 cảnh báo, 0.07s)
+  size: ĐẠT (0 lỗi, 0 cảnh báo, 0.01s)
+  static: ĐẠT (0 lỗi, 0 cảnh báo, 0.00s)
+  unittests: ĐẠT (0 lỗi, 1 cảnh báo, 1.31s)
+
+Module logic_pid qua đủ 4 cổng kiểm chứng sau 0 vòng tự sửa. Đang chờ G3 (review diff từng module trước khi merge).
+Xem: eaa gate show G3
+Duyệt: eaa gate approve G3

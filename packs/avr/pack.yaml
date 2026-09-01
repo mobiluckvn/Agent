@@ -63,6 +63,43 @@ diagnostics:
   output: diag_{scenario}.c
   image_name: diag_{scenario}
 
+# Cách kiểm một module TRÊN MÁY CHỦ.
+#
+# Nằm ở pack chứ không ở engine: trình dịch nào, cờ gì, tệp tiêu đề giả ở đâu —
+# tất cả là chuyện của nền tảng. Engine chỉ biết "có một cổng tên unittests
+# chạy pytest", không biết cách dịch một module AVR cho máy chủ.
+#
+# Không khai phần này thì mô hình đoán, và nó đã đoán sai một lần: ở SL-133 nó
+# viết `tests/test_dummy.c` — một tệp C — cho một cổng chạy pytest.
+host_test:
+  # Trình dịch của MÁY CHỦ, không phải của thiết bị.
+  compiler: cc
+  cflags: ["-std=c11", "-Wall", "-fPIC", "-shared"]
+  # Thư mục tiêu đề GIẢ, để mã dùng <avr/io.h> dịch được trên máy chủ.
+  # Module không chạm thanh ghi thì không cần tới nó.
+  mock_include: hostmock
+  contract: >-
+    Bài kiểm là mã PYTHON chạy bằng pytest, đặt ở `tests/test_<module>.py` của
+    dự án. Nó dịch tệp `src/<module>.c` bằng trình dịch của MÁY CHỦ thành một
+    thư viện dùng chung, nạp bằng `ctypes`, rồi gọi thẳng các hàm của module và
+    đối chiếu giá trị trả về. KHÔNG viết bài kiểm bằng C, và KHÔNG chép lại
+    thuật toán sang Python rồi kiểm bản chép — làm thế là kiểm bản chép chứ
+    không kiểm mã sẽ chạy trên chip.
+
+    Kiểm những thứ chạy được trên máy chủ: phép tính, máy trạng thái, xử lý
+    biên và tràn số. KHÔNG kiểm được ở đây: giá trị thật ghi vào thanh ghi, độ
+    trễ ngắt, hành vi ngoại vi — những thứ ấy thuộc cổng mô phỏng và nghiệm thu
+    vật lý tại G4.
+
+    TUYỆT ĐỐI KHÔNG viết bài kiểm bằng cách ĐỌC VĂN BẢN MÃ NGUỒN, kiểu
+    `assert "delay(" not in code`. Đó là làm lại việc của cổng phân tích tĩnh,
+    và nó không chứng minh gì về HÀNH VI — một hàm sai hoàn toàn vẫn qua được.
+    Bài kiểm ở đây phải GỌI hàm và đối chiếu giá trị trả về.
+
+    Mỗi tệp trả về phải là mã Python hợp lệ, thụt lề đúng, chạy được ngay.
+    Một tệp test hỏng cú pháp làm cả cổng đỏ vì lý do không liên quan đến
+    module.
+
 # Phiên bản tối thiểu; eaa doctor đối chiếu và ghi vào env_lock.json (FR-ENV-01/04).
 # CẢNH BÁO: những số này lặp lại `min_version` trong `tools.yaml` của pack —
 # hai chỗ khai cùng một điều, và chúng ĐÃ từng lệch nhau (SL-114). Chỗ nào
