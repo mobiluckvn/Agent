@@ -132,12 +132,27 @@ components:
   # trước, tức động cơ 1 là bên phải. Mã tham chiếu xác nhận: khối tính xung
   # `right_motor` thao tác trên D5/D4, khối `left_motor` trên D7/D6.
   #
-  # `dir_forward_level` — mức logic của chân DIR để bánh đi TỚI.
+  # `dir_forward_level` — mức logic của chân DIR để ROBOT đi TỚI.
   #
-  # Hai động cơ lắp ĐỐI XỨNG GƯƠNG, nên cùng một mức DIR cho ra hai chiều
-  # quay ngược nhau. Đo được: đặt cả hai DIR = 0 thì bánh phải LÙI còn bánh
-  # trái TIẾN. Mã tham chiếu làm đúng thế — với cùng một dấu của giá trị điều
-  # khiển, nó đặt DIR1 và DIR2 ở hai mức ngược nhau.
+  # Hai động cơ lắp ĐỐI XỨNG GƯƠNG, nên hai bên phải KHÁC mức. Quan hệ ấy chốt
+  # từ DS-03 và từ mã tham chiếu (cùng một dấu giá trị điều khiển thì DIR1 và
+  # DIR2 ở hai mức ngược nhau).
+  #
+  # CHIỀU TUYỆT ĐỐI thì DS-03 KHÔNG chốt được, và tôi đã kết luận vội một lần.
+  # ------------------------------------------------------------------------
+  # DS-03 quay từng bánh MỘT. Người quan sát nói "bánh trái tiến, bánh phải
+  # lùi", và tôi đọc câu ấy thành `dir_forward_level` trái = 0. Sai: nhìn MỘT
+  # bánh quay thì không suy ra được robot sẽ đi về đâu — chiều ấy chỉ có nghĩa
+  # khi cả hai bánh cùng chạy, và nó phụ thuộc cả vào việc bánh nằm bên nào
+  # của thân xe.
+  #
+  # DS-07 cho cả hai chạy cùng lúc. Với trái=0/phải=1, người quan sát thấy
+  # robot đi LÙI. Nên hai giá trị dưới đây là bản ĐÃ ĐẢO, và chúng đến từ phép
+  # đo đúng loại câu hỏi (SL-128).
+  #
+  # Quy tắc rút ra: đại lượng nào chỉ có nghĩa ở mức HỆ THỐNG thì đừng chốt nó
+  # bằng một phép đo ở mức LINH KIỆN, dù phép đo ấy sạch và người quan sát
+  # trung thực.
   #
   # Khai ra ở đây vì đây là chỗ duy nhất mọi module đọc chung. Không khai thì
   # module đầu tiên điều khiển hai bánh sẽ đặt cùng mức cho cả hai, và robot
@@ -147,13 +162,13 @@ components:
     microstep: 16
     steps_per_rev: 200
     pins: {step: PD7, dir: PD6}
-    dir_forward_level: 0
+    dir_forward_level: 1
   - id: motor_driver_right
     part: a4988
     microstep: 16
     steps_per_rev: 200
     pins: {step: PD5, dir: PD4}
-    dir_forward_level: 1
+    dir_forward_level: 0
 
 # Cách nạp firmware xuống bo, và cách nhận ra bo khi nó được cắm vào USB.
 #

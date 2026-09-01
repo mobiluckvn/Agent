@@ -118,3 +118,30 @@ def test_moi_cau_hoi_deu_duoc_it_nhat_MOT_luat_dung_toi() -> None:
         assert h["key"] in dung_toi, (
             f"câu hỏi {h['key']!r} không luật nào dùng tới"
         )
+
+
+# ═══════════ chiều DIR: quan hệ giữa hai bên là một BẤT BIẾN ═══════════
+
+
+def test_hai_banh_phai_khai_MUC_DIR_KHAC_NHAU() -> None:
+    """Hai động cơ lắp đối xứng gương thì `dir_forward_level` phải khác nhau.
+
+    Khai bằng nhau nghĩa là quên mất chuyện lắp gương, và hậu quả là robot
+    quay tại chỗ thay vì đi tới — mã hoàn toàn đúng với thứ nó được bảo, nên
+    không cổng phần mềm nào bắt được.
+
+    Bài này KHÔNG canh được chiều tuyệt đối: chiều ấy chỉ có nghĩa ở mức HỆ
+    THỐNG và chỉ chốt được bằng mắt người nhìn robot chạy (SL-128). Nó canh
+    đúng phần canh được — quan hệ giữa hai bên.
+    """
+    hs = yaml.safe_load((DU_AN / "hardware_profile.yaml").read_text(encoding="utf-8"))
+    muc = {
+        c["id"]: c.get("dir_forward_level")
+        for c in hs["components"] if c["id"].startswith("motor_driver")
+    }
+    assert all(v is not None for v in muc.values()), (
+        f"có driver chưa khai dir_forward_level: {muc}"
+    )
+    assert len(set(muc.values())) == len(muc), (
+        f"hai bánh khai CÙNG mức DIR tiến: {muc} — quên chuyện lắp đối xứng gương"
+    )

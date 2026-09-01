@@ -45,11 +45,13 @@ void eaa_emit(const char *json);
 #define PIN_STEP_R PD5   /* STEP1 — D5, bánh PHẢI */
 #define PIN_DIR_R  PD4   /* DIR1  — D4            */
 
-/* Mức DIR để bánh đi TỚI, từ `dir_forward_level` của hồ sơ phần cứng.
- * Hai bên KHÁC NHAU vì hai động cơ lắp đối xứng gương — đo được trên bo:
- * đặt cả hai DIR = 0 thì bánh phải LÙI còn bánh trái TIẾN. */
-#define DIR_TIEN_L  0u
-#define DIR_TIEN_R  1u
+/* Mức DIR để ROBOT đi TỚI, từ `dir_forward_level` của hồ sơ phần cứng.
+ *
+ * Hai bên KHÁC NHAU vì hai động cơ lắp đối xứng gương. Chiều TUYỆT ĐỐI chốt
+ * bằng chính kịch bản này: bản trước dùng trái=0/phải=1 và người quan sát thấy
+ * robot đi LÙI, nên hai giá trị đã đảo (SL-128). */
+#define DIR_TIEN_L  1u
+#define DIR_TIEN_R  0u
 
 /* 4000 xung mỗi bánh ở 1 kHz = 4 giây, và với vi bước 1/16 trên động cơ 200
  * bước/vòng thì đó là 1,25 vòng.
