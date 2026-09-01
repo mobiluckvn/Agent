@@ -3677,6 +3677,26 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         tra_loi = _doc_tra_loi_nguoi(args.answer or [])
 
         if kich_ban.human and not tra_loi:
+            # Chấm kênh máy TRƯỚC rồi mới hỏi người. Chưa kết luận khi thiếu
+            # nửa dữ liệu là đúng; GIẤU phần đã biết thì không.
+            #
+            # Đo được ở Bài 2 phiên kiểm bo thật: phép kiểm mã nhận dạng đã
+            # trượt ngay lúc dữ liệu về, và lệnh vẫn sai người đi nghiêng bo,
+            # quan sát, gõ trả lời — một việc chân tay không đổi được kết cục
+            # (SL-121).
+            # `telemetry` ở đây là CHUỖI khung thô, không phải dict — cùng thứ
+            # `diagnose()` nhận và tự bóc. Truyền thẳng vào `evaluate_machine`
+            # thì nó lấy chỉ số trên một chuỗi và sập.
+            do_duoc = (
+                phien.parse_telemetry(telemetry)
+                if isinstance(telemetry, str) else dict(telemetry)
+            )
+            dat_may, bang_chung = phien.evaluate_machine(kich_ban, do_duoc)
+            if bang_chung:
+                _in_tieu_de(f"Kênh máy đã có — {kich_ban.id}")
+                for dong in bang_chung:
+                    print(f"  {dong}")
+
             _in_tieu_de(f"Cần quan sát của người — {kich_ban.id}")
             for h in kich_ban.human:
                 print(f"  --answer {h.key}=<có|không>")
@@ -3685,6 +3705,12 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
                 "\nChẩn đoán là phép GIAO của hai kênh. Với nửa dữ liệu, kết luận "
                 "nào cũng có thể sai mà vẫn nghe chắc chắn."
             )
+            if not dat_may:
+                print(
+                    "\n  ⚠ Kênh máy ĐÃ TRƯỢT ở trên. Quan sát của bạn vẫn cần để\n"
+                    "    chốt VÙNG LỖI, nhưng nó sẽ không lật được kết cục — biết\n"
+                    "    trước thì bạn chọn được có bỏ công ra bây giờ hay không."
+                )
             return EXIT_WAITING_GATE
 
         ket_luan = phien.diagnose(

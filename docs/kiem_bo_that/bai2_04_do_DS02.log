@@ -1,0 +1,14 @@
+  Đang thu 5s từ /dev/cu.usbserial-143410 ở 9600 baud…
+  Cổng        : /dev/cu.usbserial-143410
+  Thời gian   : 5.2s
+  Khung nhận  : 4 (4 đạt, 0 hỏng)
+
+
+Cần quan sát của người — DS-02
+──────────────────────────────
+  --answer nghieng_trai_gia_tri_am=<có|không>
+      Nghiêng robot sang TRÁI. Giá trị góc hiển thị có chuyển sang ÂM không?
+  --answer truc_dung_chieu=<có|không>
+      Trục dữ liệu có khớp trục vật lý (nghiêng trước/sau, không phải trái/phải)?
+
+Chẩn đoán là phép GIAO của hai kênh. Với nửa dữ liệu, kết luận nào cũng có thể sai mà vẫn nghe chắc chắn.

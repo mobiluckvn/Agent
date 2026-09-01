@@ -1759,3 +1759,20 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Vì sao chưa kết luận** | Bộ đọc Intel HEX dùng cho phép so tay là mã viết vội trong phiên, chưa được kiểm. Nghi ngờ nó trước, không nghi `eaa` trước |
 | **Nếu đúng là `eaa` sai thì đây là lỗi nặng nhất kho** | Nó khẳng định *"thứ trên bàn là thứ đã được duyệt"* trong khi không phải — hỏng đúng bất biến trung tâm, ở chặng cuối, và hỏng theo hướng **nói dối một cách thuyết phục** |
 | **Ba bước kiểm đã vạch, chưa chạy** | (1) đọc năng lực `verify` của pack xem nó so cái gì với cái gì; (2) kiểm lại bộ đọc HEX viết tay; (3) nạp một ảnh khác hẳn rồi đọc ngược — nội dung chip không đổi theo thì lệnh nạp không có tác dụng thật |
+
+---
+
+## SL-121 · LỆCH THẬT · Biết rồi mà không nói, rồi sai người đi làm việc chân tay
+
+| | |
+|---|---|
+| **Tài liệu** | EAA-AIS-05 §7.3–7.4 (giao hai kênh); TC-27 |
+| **Cách tìm** | Bài 2 phiên kiểm bo thật. `eaa diagnose run DS-02` thu bốn khung, trong đó `{"who_am_i": "0x72"}`. Kịch bản khai đích danh `who_am_i op: equals expected: "0x68"` — phép kiểm ấy **đã trượt ngay lúc dữ liệu về**. Lệnh không nói một chữ, in thẳng hai câu hỏi cho người |
+| **Nguyên nhân** | `if kich_ban.human and not tra_loi:` in câu hỏi rồi `return` — kênh máy **chưa từng được chấm** |
+| **Hai chuyện khác nhau** | *Chưa kết luận khi thiếu nửa dữ liệu* — ĐÚNG, giữ nguyên; chẩn đoán là phép giao. *Giấu phần đã biết* — SAI |
+| **Cái giá** | Nó sai người đi nghiêng bo, quan sát, gõ trả lời, để rồi mới biết mã nhận dạng chưa bao giờ khớp. Việc chân tay ấy **không đổi được kết cục** |
+| **Và phần bị giấu là phần quyết định nhất** | Mã nhận dạng sai nghĩa là có thể **đây không phải con cảm biến dự án đang khai**. Mọi câu hỏi về dấu và trục đều đứng sau câu hỏi ấy |
+| **Đã sửa** | Chấm kênh máy TRƯỚC, in kết quả, rồi mới hỏi. Vẫn từ chối kết luận. Thêm một dòng nói thẳng: quan sát của bạn vẫn cần để chốt vùng lỗi, nhưng nó sẽ không lật được kết cục — **biết trước thì bạn chọn được có bỏ công ra bây giờ hay không** |
+| **Hai lỗi tự tôi gây khi sửa** | (1) Một chuỗi xuống dòng thật lọt vào giữa literal, làm `eaa/cli.py` không import nổi. (2) Biến tên `telemetry` giữ CHUỖI khung thô chứ không phải dict, nên `evaluate_machine` lấy chỉ số trên chuỗi và sập |
+| **Và bài kiểm của tôi suýt che mất lỗi (1)** | Fixture dùng `pytest.skip` khi `eaa init` hỏng. Lỗi cú pháp biến thành **bốn dòng "skipped"**, bảng test xanh, CLI không chạy được. Đã đổi thành `assert` kèm nguyên văn đầu ra. **Một điều kiện bỏ qua rộng hơn cần thiết là một chỗ cho lỗi thật trốn vào** |
+| **Bài canh** | `tests/test_tc95_kenh_may_truoc_khi_hoi_nguoi.py` — 4 bài |
