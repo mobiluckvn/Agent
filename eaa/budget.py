@@ -61,6 +61,7 @@ __all__ = [
     "TokenBudgetCheck",
     "propose_split",
     "spent_tokens",
+    "SU_KIEN_TINH_TIEN",
     "TRONG_PHAN",
     "SAP_CHAM",
     "VUOT_PHAN",
@@ -668,6 +669,15 @@ class TokenBudget:
         )
 
 
+#: Sự kiện KPI ứng với một LƯỢT GỌI MÔ HÌNH thật — chỗ duy nhất token được
+#: tiêu ra. Mọi sự kiện khác chỉ CHÉP LẠI con số của một lượt gọi đã có.
+#:
+#: Danh sách phải khớp với những chỗ `orchestrator` gọi `llm.generate`:
+#: `generate` cho lượt sinh đầu, `repair` cho mỗi vòng vá, `preview` cho nhánh
+#: xem trước. Thiếu `repair` là đếm sót đúng chỗ tiền chảy nhanh nhất.
+SU_KIEN_TINH_TIEN: frozenset[str] = frozenset({"generate", "repair", "preview"})
+
+
 def spent_tokens(kpi: Any, module: str) -> TokenUsage:
     """Cộng token đã tiêu cho một module từ ``kpi_log.csv``.
 
@@ -675,9 +685,29 @@ def spent_tokens(kpi: Any, module: str) -> TokenUsage:
     lặp chuẩn dừng ở G3 và có thể chạy tiếp hôm sau trong một tiến trình khác,
     nên bộ đếm nào không sống sót qua ranh giới tiến trình thì không đếm được
     thứ cần đếm.
+
+    Chỉ cộng những dòng ứng với một lượt gọi THẬT (SL-155). Bản trước cộng mọi
+    dòng có cột token khác 0, và nhật ký có ba loại dòng CHÉP LẠI con số đã
+    đếm:
+
+    * ``gate_request`` mang lại token của artifact cuối, để hồ sơ gate truy vết
+      được — đó là cùng một lượt gọi, không phải một lượt mới;
+    * ``module_start`` khi sắp chạm trần, và ``handoff`` khi vượt trần, mang
+      TỔNG TÍCH LŨY mà chính phép kiểm này vừa tính ra.
+
+    Hai dòng sau biến bộ đếm thành một cái bơm tự thổi: mỗi lần chạm trần lại
+    cộng thêm cả tổng vào chính tổng ấy. Đo được trên `drv_imu` ngày 02/09 —
+    105.385 token thật của 13 lượt gọi bị báo thành 430.030, gấp bốn lần, và
+    con số ấy TĂNG GẤP ĐÔI ở mỗi lần chạy bị chặn. Module bị khoá ở mức chưa
+    tới 90% phần của nó, và không có đường quay lại: càng thử càng vượt xa.
+
+    Một cái trần đúng chặn đúng lúc. Một cái trần đo sai chặn công việc đang
+    lành, và nó chặn theo kiểu không sửa được bằng cách làm việc cẩn thận hơn.
     """
     vao = ra = luot = 0
     for dong in (kpi.rows_for(module) if kpi is not None else []):
+        if (dong.get("event") or "") not in SU_KIEN_TINH_TIEN:
+            continue
         co_token = False
         for cot, cong in (("tokens_in", "vao"), ("tokens_out", "ra")):
             try:

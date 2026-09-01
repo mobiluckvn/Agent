@@ -852,6 +852,26 @@ class Orchestrator:
         )
         ban_va = self.llm.generate(prompt)
 
+        # Ghi token của LƯỢT VÁ. Không có dòng này thì trần token theo module
+        # chỉ đếm lượt sinh đầu, và một module đi trọn ba vòng tự sửa báo về
+        # đúng một phần tư số lượt gọi thật (SL-155). Đo được trên `drv_imu`:
+        # 26 lượt trong `llm_calls.jsonl`, 13 dòng trong `kpi_log.csv`.
+        #
+        # Một cái trần chỉ đếm được nửa số tiền tiêu ra là một cái trần không
+        # bảo vệ được gì — và chính vòng tự sửa mới là chỗ tiền chảy nhanh nhất.
+        self._kpi(
+            "repair",
+            module_id,
+            llm_model=ban_va.model,
+            tokens_in=ban_va.tokens_in,
+            tokens_out=ban_va.tokens_out,
+            prompt_hash=ban_va.prompt_hash,
+            constraints_version=ban_va.constraints_version,
+            gate=bao_cao_hong.gate,
+            result="pass",
+            note="lượt gọi mô hình của vòng vá",
+        )
+
         # Khoá phạm vi TRƯỚC khi gộp. Gộp xong mới lọc thì tệp của module khác
         # đã nằm lẫn trong tập và không còn phân biệt được nó đến từ bản vá hay
         # từ chính lượt sinh (SL-154).

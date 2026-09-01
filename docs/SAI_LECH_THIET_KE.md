@@ -2226,3 +2226,17 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Đã sửa** | `Orchestrator.khoa_pham_vi_tep` chạy ngay sau MỖI lượt gọi mô hình — cả lượt sinh đầu lẫn từng vòng vá — và lọc TRƯỚC bước gộp bản vá. Danh sách cho phép sinh từ chính `tep_can_sinh`, cùng hàm viết câu trong prompt. Tệp bị bỏ được NÊU TÊN vào nhật ký từng vòng |
 | **Còn nợ** | Nguyên nhân gốc chưa đụng tới: cổng `unittests` của module M báo lỗi bài kiểm của module N như thể là lỗi của M. Bộ lọc chặn được hậu quả, không chặn được việc vòng tự sửa đốt lượt gọi cho một cổng nó không sửa được |
 | **Bài canh** | `tests/test_tc118_khong_ghi_de_module_da_merge.py` — 12 bài |
+
+## SL-155 · LỆCH THẬT (×2) · Bộ đếm token sai cả hai chiều, và chính nó khoá công việc lại
+
+| | |
+|---|---|
+| **Cách tìm** | `eaa gen drv_imu` bị chặn: *"215.015 / 120.000 (179,2%)"*. Chạy `eaa budget tokens` ngay sau đó đọc ra **430.030** cho cùng một module — đúng gấp đôi, sau đúng một lượt chạy KHÔNG gọi mô hình lần nào |
+| **Chiều thổi phồng** | `spent_tokens` cộng mọi dòng KPI có cột token khác 0. Nhật ký có ba loại dòng CHÉP LẠI con số đã đếm: `gate_request` mang token của artifact cuối (truy vết, cùng một lượt gọi); `module_start` khi sắp chạm trần và `handoff` khi vượt trần mang TỔNG TÍCH LŨY mà chính phép kiểm ấy vừa tính. Hai dòng sau biến bộ đếm thành cái bơm tự thổi |
+| **Ratchet** | Mỗi lần chạy bị chặn lại ghi một dòng `handoff` mang cả tổng, nên lần sau đọc ra gấp đôi. Bị chặn một lần là vĩnh viễn không quay lại được: càng thử càng vượt xa |
+| **Chiều đếm sót** | Chỉ lượt sinh ĐẦU ghi token vào KPI. Mỗi vòng vá gọi mô hình rồi không ghi gì. `drv_imu` có **26** lượt gọi trong `llm_calls.jsonl` và **13** dòng trong `kpi_log.csv` |
+| **Số thật** | 193.292 token / 26 lượt (đọc từ `llm_calls.jsonl`). Bộ đếm báo 430.030, rồi sau khi bịt chiều thổi phồng báo 105.385. Không con số nào của nó từng đúng |
+| **Vì sao đây là lỗi tệ nhất trong bốn lỗi cùng buổi** | Ba lỗi kia làm hỏng một lượt chạy. Lỗi này khoá cả module lại, và lối thoát duy nhất hệ thống chỉ ra — nới trần tại G1 — là đi sửa một ràng buộc đang đúng vì một con số đo sai |
+| **Đã sửa** | `spent_tokens` chỉ cộng những sự kiện ứng với một lượt gọi THẬT (`SU_KIEN_TINH_TIEN`), và `_va_loi` ghi token của lượt vá. Số đo giờ dựng lại được từ chính các lượt gọi |
+| **Còn nợ** | Token của những vòng vá ĐÃ CHẠY không có trong `kpi_log.csv` và sẽ không được thêm vào: nhật ký KPI là bằng chứng append-only cho Chương 3, bịa dòng vào đó để số đẹp lên là đúng thứ nó sinh ra để chặn. `drv_imu` vì thế vẫn hiện 105.385 thay vì 193.292 — chênh lệch ghi ở đây |
+| **Bài canh** | `tests/test_tc119_dong_tom_tat_khong_duoc_dem_lai.py` — 7 bài, trong đó một bài chạy trọn vòng lặp chuẩn với MockLLM rồi đối chiếu số bộ đếm đọc ra với tổng token mô hình thật sự trả về |
