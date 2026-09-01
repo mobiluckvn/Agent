@@ -49,8 +49,19 @@ class _HoSoGia:
 
 
 class _RangBuocGia:
+    """Ràng buộc giả — phải mang ĐỦ ba trường như vật thật.
+
+    Bản trước thiếu `style`, và nó lọt vì bối cảnh phân rã hồi ấy cũng bỏ qua
+    `style`. Khi bối cảnh chuyển sang dùng CHUNG bảng K1 với đường sinh mã
+    (SL-131), cái giả thiếu trường lập tức lộ ra.
+
+    Bài học: một vật giả mô phỏng thiếu thì nó không kiểm được đường mã đi qua
+    phần còn thiếu ấy — và nó xanh, nên không ai biết.
+    """
+
     limits = {"control_loop_ms": 10}
     forbidden = ["delay()"]
+    style = {"arithmetic": "integer"}
 
 
 # --------------------------------------------------------------------------

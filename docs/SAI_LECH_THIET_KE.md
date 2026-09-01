@@ -1920,3 +1920,33 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Khai báo phải KHỚP khuôn thật** | Có bài kiểm đọc thẳng `main.c.tmpl`: khuôn có `int main` thì pack phải khai `provides: [main]`; khuôn có `ISR(TIMER0_…)` thì pack phải khai `reserves: [timer0]`. Khai một đằng khuôn làm một nẻo còn tệ hơn không khai |
 | **Đo được sau khi sửa** | Cùng một mục tiêu: **8 module → 6**, hai module dựng lại nền tảng biến mất, và tải CPU ước lượng **60% → 34%** — đúng phần công thừa |
 | **Bài canh** | `tests/test_tc100_phan_ra_biet_nen_tang.py` — 8 bài |
+
+---
+
+## SL-131 · LỆCH THẬT (×2) · Bối cảnh phân rã thiếu PHONG CÁCH và thiếu THỨ ĐÃ CÓ
+
+| | |
+|---|---|
+| **Cách tìm** | Soi bản phân rã bài robot cân bằng TRƯỚC khi nhận — nhận một bản phân rã là một quyết định kiến trúc, nên nó phải được đọc như một bản vẽ |
+| **Lỗi 1 — `style` không bao giờ tới nơi** | `constraints.yaml` có `style.arithmetic: integer`. `_boi_canh()` chỉ đưa `limits` và `forbidden`. Nên bộ phân rã giải thích module lọc góc bằng `float_in_isr` — một luật HẸP hơn — và không hề biết có luật cấm số thực ở cả vòng điều khiển |
+| **Lần thứ hai cùng một hình dạng** | Đường sinh mã lấy ràng buộc qua bảng K1 (`composer._bang_rang_buoc`); đường phân rã tự dựng một tập con. **Hai chỗ dựng cùng một thứ bằng hai đoạn mã thì sớm muộn chúng lệch nhau** — SL-112 đã là đúng chuyện ấy giữa sinh mã và hội thoại |
+| **Lỗi 2 — không biết dự án đã có gì** | Backlog có `drv_uart` với mã đã sinh, đã qua ba cổng. Bản phân rã đề xuất thêm `telemetry` chiếm `usart0` mà không nhắc tới nó. Prompt không có backlog, nên mô hình không thể biết |
+| **Đã sửa** | `_boi_canh` dùng CHUNG bảng K1. Thêm `_boi_canh_da_co()` đưa backlog vào prompt, và `_kiem_trung_da_co()` cảnh báo trùng tên hoặc trùng ngoại vi |
+| **Bài canh không so từng chữ** | Nó đòi bối cảnh phân rã chứa MỌI mục mà bảng K1 chứa. Thêm một luật vào `constraints.yaml` mà chỉ một trong hai đường thấy nó là đúng cái đã xảy ra một lần |
+| **Một vật giả mô phỏng thiếu thì che mất cả một nhánh** | Bài kiểm cũ TC-50 dùng ràng buộc giả **không có trường `style`**. Nó lọt vì bối cảnh phân rã hồi ấy cũng bỏ qua `style` — cái giả và cái thật cùng thiếu một chỗ, nên không ai thấy. Chuyển sang bảng chung là nó lộ ra ngay |
+| **Bài canh** | `tests/test_tc101_boi_canh_phan_ra.py` — 7 bài |
+
+---
+
+## SL-132 · LỆCH THẬT · Ảnh firmware CHÍNH không có thẻ an toàn, và nó là ảnh nguy hiểm nhất
+
+| | |
+|---|---|
+| **Cách tìm** | Chuẩn bị bài robot cân bằng: kiểm xem cổng nạp sẽ nói gì khi duyệt firmware điều khiển |
+| **Lỗi** | `_ghi_the_kem` chỉ chạy ở đường CHẨN ĐOÁN. Ảnh do `eaa build` ráp — firmware THẬT của sản phẩm — không có `.meta.json` nào. `eaa flash approve` đọc thẻ không thấy gì và duyệt nó **y như một ảnh đo tĩnh** |
+| **Cùng hình dạng SL-124, ở chỗ nguy hơn hẳn** | SL-124 là ảnh chẩn đoán quay bánh 22° **trên giá**. Ảnh ở đây điều khiển một robot **đứng trên hai bánh**: nó không quay một nhịp rồi dừng, nó chạy vô hạn, và khi ngã thì không ai biết trước ngã về phía nào |
+| **Checklist cũ KHÔNG dùng lại được** | Mọi kịch bản chẩn đoán mở đầu bằng *"robot đã kê lên giá, bánh KHÔNG chạm đất"*. Cân bằng thì bắt buộc bánh CHẠM đất. **Tình huống an toàn đảo chiều**, nên chép checklist sang là dán một câu vô nghĩa vào đúng chỗ người ta cần đọc kỹ nhất |
+| **Đã sửa** | `firmware.yaml` khai mục `safety` (motion + checklist) — đó là tệp mô tả chính ảnh ấy. `eaa build` ghi thẻ; chưa khai thì in cảnh báo rằng cổng nạp sẽ coi đây là ảnh đo tĩnh |
+| **Không khai gì thì KHÔNG ghi thẻ rỗng** | Thẻ rỗng đọc thành *"đã xét và thấy không nguy hiểm"*; không có thẻ thì đọc đúng nghĩa *"chưa ai xét"* |
+| **Checklist cho robot cân bằng, do dự án khai** | Sàn trống bán kính 1 m · có người đứng cạnh biết tắt nguồn ở đâu · công tắc ngắt trong tầm với chứ không phải rút giắc · đặt trên sàn chứ không trên mặt bàn cao · dây đủ dài để robot ngã mà không giật đứt |
+| **Bài canh** | `tests/test_tc102_the_an_toan_firmware_chinh.py` — 6 bài, trong đó một bài đòi checklist cân bằng KHÁC checklist chẩn đoán |

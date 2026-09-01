@@ -2206,6 +2206,20 @@ def cmd_build(args: argparse.Namespace) -> int:
     print(f"  Ảnh liên kết  : {bao_cao.metrics['binary']}")
     if bao_cao.metrics.get("image"):
         print(f"  Ảnh nạp được  : {bao_cao.metrics['image']}")
+
+        # Thẻ an toàn cho ảnh CHÍNH. Trước SL-132 chỉ ảnh chẩn đoán mới có thẻ,
+        # nên firmware thật của sản phẩm được cổng nạp duyệt y như một ảnh đo
+        # tĩnh — kể cả khi nó điều khiển một robot đứng trên hai bánh.
+        from eaa.firmware import ghi_the_an_toan
+
+        an_toan = AssemblyPlan.load(project / ASSEMBLY_FILE).safety
+        if ghi_the_an_toan(bao_cao.metrics["image"], an_toan):
+            print("  Thẻ an toàn   : đã ghi (cổng nạp sẽ đọc trước khi bạn duyệt)")
+        else:
+            print(
+                "  ⚠ firmware.yaml chưa khai mục 'safety' — cổng nạp sẽ coi ảnh\n"
+                "    này là ảnh đo tĩnh. Khai đi nếu nó làm thiết bị chuyển động."
+            )
     for khoa in sorted(bao_cao.metrics):
         if khoa.endswith(("_bytes", "_pct")):
             print(f"  {khoa:<14}: {bao_cao.metrics[khoa]}")
@@ -2846,7 +2860,10 @@ def _plan_propose(project: Path, args: argparse.Namespace) -> int:
 
     try:
         ban = LlmDecomposer(llm=ctx.llm, pack_manifest=_nap_pack(project)).propose(
-            muc_tieu, hardware=ctx.kb.hardware, constraints=ctx.kb.constraints
+            muc_tieu,
+            hardware=ctx.kb.hardware,
+            constraints=ctx.kb.constraints,
+            existing=[(m.id, tuple(m.uses or ())) for m in ctx.store.load().backlog],
         )
     except DecomposeError as exc:
         raise CliError(str(exc)) from exc

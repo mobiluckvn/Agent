@@ -37,4 +37,25 @@ image_name: firmware
 #     init: null
 #     step: null
 #     note: chỉ cung cấp hàm cho module khác gọi
+# An toàn của ẢNH CHÍNH — thứ chỉ dự án trả lời được.
+#
+# Engine không đoán được một firmware có làm robot chạy hay không. Không khai
+# thì cổng nạp đọc thẻ không thấy gì và duyệt ảnh này y như một ảnh đo tĩnh
+# (SL-132).
+#
+# Checklist ở đây ĐẢO CHIỀU so với mọi kịch bản chẩn đoán. Chúng đòi "bánh
+# KHÔNG chạm đất"; robot cân bằng thì bắt buộc bánh CHẠM đất, và nó không quay
+# một nhịp rồi dừng — nó chạy vô hạn, và khi ngã thì không ai biết trước ngã về
+# phía nào. Chép checklist cũ sang đây là dán một câu vô nghĩa vào đúng chỗ
+# người ta cần đọc kỹ nhất.
+safety:
+  motion: true
+  title: Firmware điều khiển cân bằng
+  checklist:
+    - Sàn quanh robot trống trong bán kính 1 m, không có vật cứng hay cạnh bàn
+    - Có người đứng cạnh, tay sẵn sàng đỡ, và biết tắt nguồn động lực ở đâu
+    - Nguồn động lực có công tắc ngắt trong tầm với, KHÔNG phải rút giắc
+    - Robot đặt trên sàn phẳng, không phải mặt bàn cao
+    - Dây nối máy tính đủ dài để robot ngã mà không giật đứt hoặc kéo đổ đồ
+
 modules: []

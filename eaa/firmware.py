@@ -54,6 +54,41 @@ __all__ = [
 ASSEMBLY_FILE = "firmware.yaml"
 
 
+
+def ghi_the_an_toan(image, safety) -> "Path | None":
+    """Ghi thẻ an toàn cạnh ảnh firmware CHÍNH, nếu dự án có khai.
+
+    `_ghi_the_kem` chỉ chạy ở đường chẩn đoán, nên ảnh do `eaa build` ráp —
+    firmware THẬT của sản phẩm — không có thẻ nào. Cổng nạp đọc thẻ không thấy
+    gì và duyệt nó y như một ảnh đo tĩnh (SL-132).
+
+    Không khai gì thì KHÔNG ghi thẻ, chứ không ghi một thẻ rỗng: thẻ rỗng đọc
+    thành "đã xét và thấy không nguy hiểm", còn không có thẻ thì đọc đúng nghĩa
+    "chưa ai xét".
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    at = dict(safety or {})
+    if not at:
+        return None
+    the = _Path(str(image) + ".meta.json")
+    the.write_text(
+        _json.dumps(
+            {
+                "scenario": at.get("scenario", "firmware"),
+                "title": at.get("title", "Firmware chính của dự án"),
+                "motion": bool(at.get("motion")),
+                "safety_checklist": [str(m) for m in (at.get("checklist") or [])],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return the
+
+
 class FirmwareError(Exception):
     """Bản thiết kế ráp sai, hoặc lệch với những gì đã merge."""
 
@@ -87,6 +122,9 @@ class AssemblyPlan:
     image_name: str = "firmware"
     version: int = 1
     path: Path | None = None
+    #: Mục `safety` của firmware.yaml — ảnh chính có làm thiết bị chuyển động
+    #: không, và checklist đi kèm. Chỉ dự án trả lời được (SL-132).
+    safety: dict = field(default_factory=dict)
 
     @property
     def scheduled(self) -> tuple[ScheduledModule, ...]:
@@ -175,6 +213,7 @@ class AssemblyPlan:
             image_name=str(du_lieu.get("image_name", "firmware")),
             version=int(du_lieu.get("version", 1)),
             path=path,
+            safety=dict(du_lieu.get("safety") or {}),
         )
 
     def check_against_merged(self, merged: Iterable[str]) -> None:

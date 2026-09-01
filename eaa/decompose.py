@@ -350,6 +350,9 @@ class LlmDecomposer:
         *,
         hardware: Any = None,
         constraints: Any = None,
+        #: Module đã có trong backlog: ``[(id, (tài nguyên nó chiếm, …)), …]``.
+        #: Thiếu nó thì bản phân rã đề xuất lại thứ dự án đã làm (SL-131).
+        existing: Any = (),
     ) -> DecompositionPlan:
         from eaa.llm.base import LLMError, Prompt, PromptLayer
 
@@ -361,6 +364,7 @@ class LlmDecomposer:
 
         boi_canh = self._boi_canh(hardware, constraints)
         nen_tang = _boi_canh_nen_tang(getattr(self, "pack_manifest", None))
+        da_co_txt = _boi_canh_da_co(existing)
         prompt = Prompt(
             system_instruction=(
                 "Bạn phân rã một bài toán nhúng thành module. Mỗi module đúng MỘT "
@@ -372,7 +376,7 @@ class LlmDecomposer:
             layers=[
                 PromptLayer(
                     "task",
-                    f"Mục tiêu: {goal}\n\n{boi_canh}\n{nen_tang}\n"
+                    f"Mục tiêu: {goal}\n\n{boi_canh}\n{nen_tang}\n{da_co_txt}\n"
                     "Phân rã thành module. Trả về ĐÚNG một khối JSON theo lược "
                     f"đồ sau, không kèm giải thích ngoài khối:\n\n"
                     f"```json\n{_LUOC_DO}\n```",
@@ -401,6 +405,7 @@ class LlmDecomposer:
             _kiem_tai_nguyen(module, hardware)
             + _kiem_chu_ky(module, constraints)
             + _kiem_trung_nen_tang(module, getattr(self, "pack_manifest", None))
+            + _kiem_trung_da_co(module, existing)
         )
 
         return DecompositionPlan(
@@ -412,6 +417,18 @@ class LlmDecomposer:
 
     @staticmethod
     def _boi_canh(hardware: Any, constraints: Any) -> str:
+        """Bối cảnh phân rã: tài nguyên có thật, và TOÀN BỘ ràng buộc.
+
+        Phần ràng buộc lấy từ ĐÚNG bảng K1 mà đường sinh mã dùng, không dựng
+        lại một tập con. Bản trước chỉ lấy ``limits`` và ``forbidden``, bỏ hẳn
+        ``style`` — nên ``arithmetic: integer`` chưa bao giờ tới được bộ phân
+        rã, và nó giải thích module lọc góc bằng ``float_in_isr``, một luật hẹp
+        hơn nhiều (SL-131).
+
+        Hai chỗ dựng cùng một thứ bằng hai đoạn mã khác nhau thì sớm muộn chúng
+        lệch nhau. SL-112 đã là đúng chuyện ấy giữa đường sinh mã và đường hội
+        thoại; đây là lần thứ hai.
+        """
         phan: list[str] = []
         if hardware is not None:
             ngoai_vi = [str(p.get("id", "")) for p in getattr(hardware, "peripherals", [])]
@@ -420,16 +437,60 @@ class LlmDecomposer:
             if co:
                 phan.append("Tài nguyên phần cứng CÓ THẬT: " + ", ".join(co))
         if constraints is not None:
-            gioi_han = getattr(constraints, "limits", {}) or {}
-            if gioi_han:
-                phan.append(
-                    "Ràng buộc: "
-                    + ", ".join(f"{k}={v}" for k, v in sorted(gioi_han.items()))
-                )
-            cam = getattr(constraints, "forbidden", []) or []
-            if cam:
-                phan.append("Điều cấm: " + ", ".join(cam))
+            from eaa.composer import _bang_rang_buoc
+
+            bang = _bang_rang_buoc(constraints)
+            if bang.strip():
+                phan.append(bang)
         return "\n".join(phan) + ("\n" if phan else "")
+
+
+def _boi_canh_da_co(da_co) -> str:
+    """Nói cho bộ phân rã biết dự án ĐÃ CÓ module nào và chúng chiếm gì.
+
+    Không có phần này thì mô hình đề xuất thêm một module chiếm đúng ngoại vi
+    mà một module đã merge đang giữ — không phải vì nó kém, mà vì prompt không
+    có backlog. Người duyệt phải tự nhớ ra, và đó là chỗ dễ quên nhất khi bản
+    phân rã dài.
+    """
+    muc = [(str(i), tuple(str(x) for x in (u or ()))) for i, u in (da_co or [])]
+    muc = [(i, u) for i, u in muc if i]
+    if not muc:
+        return ""
+    dong = ["## DỰ ÁN ĐÃ CÓ SẴN — ĐỪNG ĐỀ XUẤT LẠI"]
+    for i, u in muc:
+        dong.append(f"  {i}" + (f" (chiếm: {', '.join(u)})" if u else ""))
+    dong.append(
+        "Cần thêm việc cho một module đã có thì nói RÕ là mở rộng module ấy, "
+        "đừng đề xuất một module mới chiếm cùng ngoại vi."
+    )
+    return "\n".join(dong) + "\n"
+
+
+def _kiem_trung_da_co(modules, da_co) -> list[str]:
+    """Module đề xuất giẫm lên module đã có — trùng tên, hoặc trùng ngoại vi."""
+    muc = [(str(i), {str(x).strip().lower() for x in (u or ())}) for i, u in (da_co or [])]
+    muc = [(i, u) for i, u in muc if i]
+    if not muc:
+        return []
+
+    ra: list[str] = []
+    for m in modules:
+        for ten, tn_cu in muc:
+            if m.id == ten:
+                ra.append(
+                    f"{m.id}: trùng TÊN module đã có trong backlog. Đề xuất lại "
+                    "một module đã làm là đè lên công đã bỏ ra."
+                )
+                continue
+            chung = {str(x).strip().lower() for x in (getattr(m, "uses", ()) or ())} & tn_cu
+            if chung:
+                ra.append(
+                    f"{m.id}: chiếm {', '.join(sorted(chung))} — module {ten!r} "
+                    "đã có trong backlog đang giữ tài nguyên này. Hai module "
+                    "cùng chiếm một ngoại vi là xung đột, không phải lựa chọn."
+                )
+    return ra
 
 
 def _phan_firmware(pack) -> dict:
