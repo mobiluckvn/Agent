@@ -1,0 +1,47 @@
+
+Phân rã module — ĐỀ XUẤT
+────────────────────────
+Bản phân rã đề xuất cho: Robot tự cân bằng tại chỗ: đọc góc nghiêng từ MPU6050, chạy vòng điều khiển PID, phát xung cho hai động cơ bước để giữ robot đứng thẳng
+
+  [drv_i2c] Cung cấp giao tiếp I2C không chặn (non-blocking) qua ngắt để đọc/ghi dữ liệu.
+      tầng driver · không chạy định kỳ
+      chiếm: twi
+      cung cấp: i2c_read_async, i2c_write_async, i2c_get_status
+      lý do: Tách biệt giao thức phần cứng TWI, đảm bảo không vi phạm quy tắc cấm blocking IO khi giao tiếp với cảm biến.
+
+  [drv_imu] Đọc gia tốc và góc quay từ MPU6050, tính toán góc nghiêng bằng bộ lọc bù (complementary filter) dùng toán số nguyên.
+      tầng driver · mỗi 5 ms
+      chiếm: imu
+      phụ thuộc: drv_i2c
+      cung cấp: imu_get_tilt_angle
+      ước lượng 2 ms/lượt → 40% CPU
+      lý do: Cần một module chạy máy trạng thái để lấy dữ liệu I2C không chặn và xử lý toán học thô từ cảm biến thành góc nghiêng thực tế.
+
+  [drv_stepper] Phát xung điều khiển hai động cơ bước thông qua ngắt Timer1 để đảm bảo thời gian đáp ứng dưới 50us.
+      tầng driver · không chạy định kỳ
+      chiếm: timer1, motor_driver_left, motor_driver_right
+      cung cấp: stepper_set_speed
+      lý do: Động cơ bước yêu cầu định thời gian thực rất khắt khe (micro giây), bắt buộc phải dùng ngắt phần cứng riêng biệt thay vì vòng lặp hợp tác.
+
+  [logic_pid] Tính toán giá trị vận tốc đầu ra dựa trên sai số góc nghiêng sử dụng thuật toán PID số nguyên (fixed-point).
+      tầng logic · không chạy định kỳ
+      cung cấp: pid_compute, pid_set_tunings
+      lý do: Tách rời logic điều khiển toán học khỏi phần cứng để dễ dàng kiểm thử và tránh sử dụng số thực (float) gây tốn tài nguyên.
+
+  [app_balance] Vòng lặp điều khiển chính: lấy góc nghiêng từ IMU, đưa vào PID và cập nhật tốc độ cho động cơ bước.
+      tầng dieu_phoi · mỗi 10 ms
+      phụ thuộc: drv_imu, logic_pid, drv_stepper
+      ước lượng 3 ms/lượt → 30% CPU
+      lý do: Đóng vai trò nhạc trưởng, đảm bảo chu kỳ điều khiển (control_loop_ms) đúng 10ms theo yêu cầu vật lý của bài toán con lắc ngược.
+
+Thứ tự làm (theo phụ thuộc):
+  1. drv_i2c, drv_stepper, logic_pid · làm song song được
+  2. drv_imu
+  3. app_balance
+
+Tải CPU ước lượng: 70% (trần 70%)
+  Đây là ƯỚC LƯỢNG, không phải số đo. Số thật chỉ có khi đo trên thiết bị.
+
+Agent KHÔNG tự thêm vào backlog: phân rã là quyết định kiến trúc, và
+kiến trúc sai thì mọi module sau đều đúng quy trình mà sai chỗ.
+  Nhận bản này: eaa plan accept
