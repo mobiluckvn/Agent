@@ -1,0 +1,80 @@
+{
+  "goal": "Đọc cảm biến nhiệt độ nội của chip, gửi số đo qua kênh telemetry mỗi 100 ms, và nháy một LED báo hệ thống còn sống",
+  "proposed_by": "gemini-3.1-pro-preview",
+  "proposed_at": "2026-08-29T15:26:21+00:00",
+  "warnings": [],
+  "modules": [
+    {
+      "id": "timebase",
+      "purpose": "Cung cấp mốc thời gian mili giây cho toàn hệ thống dựa trên bộ đếm của systick.",
+      "uses": [
+        "systick"
+      ],
+      "depends_on": [],
+      "provides": [
+        "timebase_get_ms"
+      ],
+      "period_ms": 0,
+      "est_exec_ms": 0.1,
+      "layer": "driver",
+      "rationale": "Cần một module duy nhất quản lý thời gian thực để các module khác có thể định thời không đồng bộ (non-blocking) mà không can thiệp trực tiếp vào phần cứng."
+    },
+    {
+      "id": "temp_sensor",
+      "purpose": "Thực hiện việc lấy mẫu và chuyển đổi giá trị từ cảm biến nhiệt độ nội của chip.",
+      "uses": [],
+      "depends_on": [],
+      "provides": [
+        "temp_sensor_read"
+      ],
+      "period_ms": 0,
+      "est_exec_ms": 1.5,
+      "layer": "driver",
+      "rationale": "Đóng gói riêng logic đọc cảm biến để đảm bảo nguyên tắc một trách nhiệm, tuân thủ nghiêm ngặt việc không khai báo ngoại vi giả định khi hồ sơ không cung cấp."
+    },
+    {
+      "id": "telemetry_tx",
+      "purpose": "Định dạng và đẩy dữ liệu nhiệt độ ra kênh truyền telemetry.",
+      "uses": [],
+      "depends_on": [],
+      "provides": [
+        "telemetry_tx_send"
+      ],
+      "period_ms": 0,
+      "est_exec_ms": 2.5,
+      "layer": "driver",
+      "rationale": "Tách biệt giao thức truyền tin khỏi logic thu thập dữ liệu, ước lượng thời gian chạy thô khá rộng để phòng hờ độ trễ đẩy dữ liệu vào buffer."
+    },
+    {
+      "id": "heartbeat_led",
+      "purpose": "Thay đổi trạng thái bật/tắt của LED báo hiệu hệ thống còn sống.",
+      "uses": [],
+      "depends_on": [],
+      "provides": [
+        "heartbeat_led_toggle"
+      ],
+      "period_ms": 0,
+      "est_exec_ms": 0.2,
+      "layer": "driver",
+      "rationale": "Module chuyên biệt để cô lập thao tác điều khiển trạng thái LED, tránh rò rỉ logic I/O vào bộ điều phối chính."
+    },
+    {
+      "id": "sys_coordinator",
+      "purpose": "Điều phối vòng lặp chính: kiểm tra mốc thời gian để kích hoạt đọc nhiệt độ, gửi telemetry mỗi 100ms và nháy LED định kỳ.",
+      "uses": [],
+      "depends_on": [
+        "timebase",
+        "temp_sensor",
+        "telemetry_tx",
+        "heartbeat_led"
+      ],
+      "provides": [
+        "sys_coordinator_run"
+      ],
+      "period_ms": 10,
+      "est_exec_ms": 5.0,
+      "layer": "dieu_phoi",
+      "rationale": "Gom toàn bộ logic nghiệp vụ vào một module chạy theo chu kỳ control_loop_ms=10ms, đếm tick để gọi các tác vụ 100ms mà không dùng hàm delay() gây blocking."
+    }
+  ]
+}

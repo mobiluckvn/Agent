@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "phase": "D",
+  "gates": {
+    "G1": "approved",
+    "G2": "approved",
+    "G3": "approved",
+    "G4": "pending",
+    "G5": "pending"
+  },
+  "backlog": [
+    {
+      "id": "drv_uart",
+      "status": "todo",
+      "retries": 1,
+      "purpose": "",
+      "provides": [],
+      "uses": [
+        "usart0"
+      ],
+      "depends_on": [],
+      "updated_at": ""
+    },
+    {
+      "id": "drv_i2c",
+      "status": "merged",
+      "retries": 0,
+      "purpose": "Cung cấp giao tiếp I2C không chặn (non-blocking) qua ngắt để đọc/ghi dữ liệu.",
+      "provides": [
+        "i2c_read_async",
+        "i2c_write_async",
+        "i2c_get_status"
+      ],
+      "uses": [
+        "twi"
+      ],
+      "depends_on": [],
+      "updated_at": ""
+    },
+    {
+      "id": "drv_stepper",
+      "status": "merged",
+      "retries": 0,
+      "purpose": "Phát xung điều khiển hai động cơ bước bằng ngắt Timer2 chu kỳ 20 µs, đếm số lần ngắt chứ không chia tần — theo đúng mã tham chiếu của bộ kit.",
+      "provides": [
+        "stepper_init",
+        "stepper_set_speed"
+      ],
+      "uses": [
+        "timer2",
+        "motor_driver_left",
+        "motor_driver_right"
+      ],
+      "depends_on": [],
+      "updated_at": ""
+    },
+    {
+      "id": "logic_pid",
+      "status": "merged",
+      "retries": 0,
+      "purpose": "Tính toán giá trị vận tốc đầu ra dựa trên sai số góc nghiêng sử dụng thuật toán PID số nguyên (fixed-point).",
+      "provides": [
+        "pid_compute",
+        "pid_set_tunings"
+      ],
+      "uses": [],
+      "depends_on": [],
+      "updated_at": ""
+    },
+    {
+      "id": "drv_imu",
+      "status": "merged",
+      "retries": 3,
+      "purpose": "Đọc gia tốc và góc quay từ MPU6050, tính toán góc nghiêng bằng bộ lọc bù (complementary filter) dùng toán số nguyên.",
+      "provides": [
+        "imu_get_tilt_angle"
+      ],
+      "uses": [
+        "imu"
+      ],
+      "depends_on": [
+        "drv_i2c"
+      ],
+      "updated_at": ""
+    },
+    {
+      "id": "app_balance",
+      "status": "merged",
+      "retries": 1,
+      "purpose": "Máy trạng thái khởi động bằng tiếng bíp (1 bíp chờ nút → nút → 5 bíp hiệu chỉnh khi người giữ robot thẳng đứng → 2 bíp thả tay → cân bằng), và vòng điều khiển 4 ms: đọc IMU, lọc bù, PID, ra lệnh động cơ.",
+      "provides": [
+        "app_init",
+        "app_tick"
+      ],
+      "uses": [],
+      "depends_on": [
+        "drv_imu",
+        "logic_pid",
+        "drv_stepper",
+        "drv_buzzer",
+        "drv_button"
+      ],
+      "updated_at": ""
+    },
+    {
+      "id": "app_telemetry",
+      "status": "todo",
+      "retries": 0,
+      "purpose": "Định dạng và gửi dữ liệu chẩn đoán (góc nghiêng, vận tốc) xuống máy tính qua UART.",
+      "provides": [],
+      "uses": [],
+      "depends_on": [
+        "drv_uart",
+        "drv_imu",
+        "logic_pid"
+      ],
+      "updated_at": ""
+    },
+    {
+      "id": "drv_button",
+      "status": "merged",
+      "retries": 0,
+      "purpose": "Đọc trạng thái nút bấm SET và xử lý chống dội (debounce) bằng phần mềm.",
+      "provides": [
+        "button_get_event"
+      ],
+      "uses": [
+        "button_set"
+      ],
+      "depends_on": [],
+      "updated_at": ""
+    },
+    {
+      "id": "drv_buzzer",
+      "status": "merged",
+      "retries": 0,
+      "purpose": "Điều khiển còi chip phát âm thanh cảnh báo không chặn (non-blocking) theo thời gian định trước.",
+      "provides": [
+        "buzzer_beep_async",
+        "buzzer_stop"
+      ],
+      "uses": [
+        "buzzer"
+      ],
+      "depends_on": [],
+      "updated_at": ""
+    }
+  ],
+  "constraints_version": "sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16",
+  "hardware_version": "sha256:007eec324b945c6f07121756618d2edc1fda2c7de1c7f3ad7306ddb2c26d430d",
+  "llm": {
+    "provider": "gemini",
+    "model": "gemini-3.1-pro-preview"
+  },
+  "env_hash": "sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a",
+  "current_module": null,
+  "created_at": "2026-08-29T08:32:29.238785+00:00",
+  "updated_at": "2026-09-02T10:37:44.094996+00:00"
+}

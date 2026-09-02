@@ -1,0 +1,7 @@
+ts,module,phase,event,tdev_min,retries,first_build_errors,flash_bytes,flash_pct,sram_bytes,sram_pct,llm_model,tokens_in,tokens_out,cost_est,env_hash,prompt_hash,constraints_version,commit,gate,result,note
+2026-08-30T23:57:06+00:00,drv_mpu6050,D,module_start,,,,,,,,,,,,,,,,,,mức phân quyền HUMAN
+2026-08-30T23:58:18+00:00,drv_mpu6050,D,generate,,,,,,,,gemini-3.1-pro-preview,1391,900,,,sha256:85c49d753357a3e7e8b06eda7507521b3dc80dbe36303fb01bbbb66d816c4d32,sha256:048a4d19b2ee84f938bdb0091d32e124215e4230737cd57ff1e4f4d8db9b9f62,,,pass,
+2026-08-30T23:58:18+00:00,drv_mpu6050,D,preview,,,,,,,,gemini-3.1-pro-preview,1391,900,,,sha256:85c49d753357a3e7e8b06eda7507521b3dc80dbe36303fb01bbbb66d816c4d32,,,,,"xem trước — không cổng, không nhánh, không commit"
+2026-08-31T00:00:57+00:00,drv_mpu6050,D,module_start,,,,,,,,,,,,,,,,,,mức phân quyền HUMAN
+2026-08-31T00:04:18+00:00,drv_mpu6050,D,generate,,,,,,,,gemini-3.1-pro-preview,1912,4097,,,sha256:5fb743260e558d2727806965fd1b3bd7ebe783f5d698372a043009e0595a7c9d,sha256:048a4d19b2ee84f938bdb0091d32e124215e4230737cd57ff1e4f4d8db9b9f62,,,pass,
+2026-08-31T00:04:18+00:00,drv_mpu6050,D,preview,,,,,,,,gemini-3.1-pro-preview,1912,4097,,,sha256:5fb743260e558d2727806965fd1b3bd7ebe783f5d698372a043009e0595a7c9d,,,,,"xem trước — không cổng, không nhánh, không commit"

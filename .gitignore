@@ -39,15 +39,25 @@ deliverables/**/*.docx
 *.o
 *.map
 
-# Sản phẩm sinh ra khi chạy dự án mẫu. Dữ liệu dự án THẬT thì nên theo dõi bằng
-# Git (ADR-06) — nhưng robot_balance ở đây là template đi kèm sản phẩm, nên
-# trạng thái từ một lần chạy thử của ai đó không thuộc về kho mã.
-projects/*/project_state.json
-projects/*/kpi_log.csv
-projects/*/error_ledger.jsonl
-projects/*/gates/
+# ĐỔI 02/09/2026, người quyết: Vũ Trí Công.
+#
+# Luật cũ loại toàn bộ trạng thái chạy của dự án mẫu, với lý do: "robot_balance
+# là template đi kèm sản phẩm, nên trạng thái từ một lần chạy thử của ai đó
+# không thuộc về kho mã". Lý do ấy đúng khi nó còn là template.
+#
+# Nó không còn là template. `robot_balance` nay là dự án tham chiếu mang TOÀN BỘ
+# bằng chứng của Chương 3: 190 lượt gọi mô hình có prompt và phản hồi, mọi quyết
+# định G1..G5 kèm lý do từ chối, số liệu KPI, nhật ký lỗi ảo giác. Những thứ ấy
+# KHÔNG sinh lại được — gọi lại cùng một prompt sẽ ra phản hồi khác — và chúng
+# chỉ tồn tại trên một cái máy. ADR-06 nói dữ liệu dự án thật thì theo dõi bằng
+# Git; đây đúng là trường hợp ấy.
+#
+# Đã quét trước khi mở: không tệp nào chứa khoá API hay chuỗi bí mật (NFR-06,
+# TC-14). Tổng ~3,5 MB.
+#
+# `firmware/` vẫn loại ở đây vì nó là kho Git RIÊNG, có lịch sử AIDD của chính
+# nó, và được đẩy lên nhánh `firmware/robot_balance` của cùng remote.
 projects/*/firmware/
-projects/*/.eaa/
 
 # Bộ đệm trang web. Bộ nhớ liên dự án (memory/facts.jsonl, memory/playbook.jsonl)
 # THÌ theo dõi bằng Git — đó là tri thức tích luỹ, và nó chỉ có giá trị khi
@@ -61,9 +71,11 @@ memory/web_cache/
 data/
 projects/*/sources/
 
-# Nhật ký hội thoại của một phiên làm việc.
-projects/*/chat_log.jsonl
-projects/*/llm_calls.jsonl
 
-# Chỗ làm nháp ở gốc kho — sinh ra khi chạy, không thuộc lịch sử kho mã.
-.eaa/
+# Chỗ làm nháp ở GỐC KHO — sinh ra khi chạy, không thuộc lịch sử kho mã.
+#
+# Neo vào gốc bằng dấu `/` đứng đầu. Không neo thì luật này bắt luôn
+# `projects/*/.eaa/`, và trong đó là hồ sơ kiểm chứng từng module
+# (`runs/verification_<module>.json`) — bằng chứng bốn cổng đã chạy và kết quả
+# ra sao. Chú thích vẫn nói "ở gốc kho" suốt thời gian ấy.
+/.eaa/

@@ -1,0 +1,86 @@
+{
+  "module": "drv_button",
+  "content_digest": "sha256:8461626cb2cc065543f86cb72934047c40388d33f5940237c8abac963bd2075d",
+  "reports": [
+    {
+      "gate": "compile",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "exit_code": 0,
+        "command": "avr-gcc -c -mmcu=atmega328p -DF_CPU=16000000UL -Os -std=gnu11 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc -o build/drv_button.o src/drv_button.c",
+        "objects": [
+          "/Users/v/Documents/KTDT/projects/robot_balance/firmware/build/drv_button.o"
+        ],
+        "binary": "/Users/v/Documents/KTDT/projects/robot_balance/firmware/build/drv_button.o",
+        "source_files": 1,
+        "size_scope": "module"
+      },
+      "duration_s": 0.05428514099912718
+    },
+    {
+      "gate": "size",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "exit_code": 0,
+        "command": "avr-size --mcu=atmega328p build/drv_button.o",
+        "size_scope": "module",
+        "measured_files": 1
+      },
+      "duration_s": 0.010074242003611289
+    },
+    {
+      "gate": "static",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "files_scanned": 3,
+        "rules_applied": 6,
+        "external_exit_code": 0,
+        "external_command": "cppcheck --enable=warning,performance,portability --error-exitcode=1 --inline-suppr --platform=avr8 --std=c11 -I/Users/v/Documents/KTDT/packs/avr/hostmock --suppress=missingIncludeSystem src/drv_button.c"
+      },
+      "duration_s": 0.0
+    },
+    {
+      "gate": "unittests",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        {
+          "message": "KHÔNG kiểm được trên máy chủ: Giá trị thật ghi vào RXC0, TXC0, UBRR0H, UBRR0L, UCSR0A, UCSR0B, UCSR0C, UDR0 … — lớp phần cứng giả nhận mọi giá trị, kể cả giá trị chip thật sẽ từ chối. Chỉ nghiệm thu trên thiết bị mới đóng được chỗ này.",
+          "severity": "info",
+          "file": null,
+          "line": null,
+          "rule_id": null
+        },
+        {
+          "message": "KHÔNG kiểm được trên máy chủ: Hành vi thật của usart0 — thời điểm cờ dựng, thứ tự sự kiện, và cách ngoại vi phản ứng khi bị dùng sai. Đóng ở chẩn đoán hai kênh (eaa diagnose).",
+          "severity": "info",
+          "file": null,
+          "line": null,
+          "rule_id": null
+        },
+        {
+          "message": "KHÔNG kiểm được trên máy chủ: Ràng buộc thời gian (control_loop_ms, motor_response_us) — máy chủ chạy nhanh hơn chip nhiều bậc, nên mọi số đo thời gian ở đây đều vô nghĩa. Đóng ở cổng mô phỏng rồi ở G4.",
+          "severity": "info",
+          "file": null,
+          "line": null,
+          "rule_id": null
+        }
+      ],
+      "metrics": {
+        "passed": 2,
+        "failed": 0,
+        "errors": 0,
+        "tests_found": 2,
+        "exit_code": 0,
+        "host_gaps": 3
+      },
+      "duration_s": 3.710289198003011
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "module": "logic_pid",
+  "content_digest": "sha256:224a9b81a885ab26a151aad37700702b466b8dc357b7c9fe26c8a7a2ae1f33af",
+  "reports": [
+    {
+      "gate": "compile",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "exit_code": 0,
+        "command": "avr-gcc -c -mmcu=atmega328p -DF_CPU=16000000UL -Os -std=gnu11 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc -o build/logic_pid.o src/logic_pid.c",
+        "objects": [
+          "/Users/v/Documents/KTDT/projects/robot_balance/firmware/build/logic_pid.o"
+        ],
+        "binary": "/Users/v/Documents/KTDT/projects/robot_balance/firmware/build/logic_pid.o",
+        "source_files": 1,
+        "size_scope": "module"
+      },
+      "duration_s": 0.06409205700038001
+    },
+    {
+      "gate": "size",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "exit_code": 0,
+        "command": "avr-size --mcu=atmega328p build/logic_pid.o",
+        "size_scope": "module",
+        "measured_files": 1
+      },
+      "duration_s": 0.010429582998767728
+    },
+    {
+      "gate": "static",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "files_scanned": 3,
+        "rules_applied": 6,
+        "external_exit_code": 0,
+        "external_command": "cppcheck --enable=warning,performance,portability --error-exitcode=1 --inline-suppr --platform=avr8 --std=c11 -I/Users/v/Documents/KTDT/packs/avr/hostmock --suppress=missingIncludeSystem src/logic_pid.c"
+      },
+      "duration_s": 0.0
+    },
+    {
+      "gate": "unittests",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        {
+          "message": "KHÔNG kiểm được trên máy chủ: Ràng buộc thời gian (control_loop_ms, motor_response_us) — máy chủ chạy nhanh hơn chip nhiều bậc, nên mọi số đo thời gian ở đây đều vô nghĩa. Đóng ở cổng mô phỏng rồi ở G4.",
+          "severity": "info",
+          "file": null,
+          "line": null,
+          "rule_id": null
+        }
+      ],
+      "metrics": {
+        "passed": 26,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "tests_found": 26,
+        "exit_code": 0,
+        "host_gaps": 1
+      },
+      "duration_s": 4.40622926099968
+    }
+  ]
+}

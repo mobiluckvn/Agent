@@ -1,0 +1,87 @@
+{
+  "module": "drv_imu",
+  "content_digest": "sha256:a9eb02c7abfd1b596d71917e12df40a8865574c3f2c2fc37b3b334269584c2ed",
+  "reports": [
+    {
+      "gate": "compile",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "exit_code": 0,
+        "command": "avr-gcc -c -mmcu=atmega328p -DF_CPU=16000000UL -Os -std=gnu11 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc -o build/drv_imu.o src/drv_imu.c",
+        "objects": [
+          "/Users/v/Documents/KTDT/projects/robot_balance/firmware/build/drv_imu.o"
+        ],
+        "binary": "/Users/v/Documents/KTDT/projects/robot_balance/firmware/build/drv_imu.o",
+        "source_files": 1,
+        "size_scope": "module"
+      },
+      "duration_s": 0.06903960599993297
+    },
+    {
+      "gate": "size",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "exit_code": 0,
+        "command": "avr-size --mcu=atmega328p build/drv_imu.o",
+        "size_scope": "module",
+        "measured_files": 1
+      },
+      "duration_s": 0.010021644999142154
+    },
+    {
+      "gate": "static",
+      "passed": true,
+      "errors": [],
+      "warnings": [],
+      "metrics": {
+        "files_scanned": 3,
+        "rules_applied": 6,
+        "external_exit_code": 0,
+        "external_command": "cppcheck --enable=warning,performance,portability --error-exitcode=1 --inline-suppr --platform=avr8 --std=c11 -I/Users/v/Documents/KTDT/packs/avr/hostmock --suppress=missingIncludeSystem src/drv_imu.c"
+      },
+      "duration_s": 0.0
+    },
+    {
+      "gate": "unittests",
+      "passed": true,
+      "errors": [],
+      "warnings": [
+        {
+          "message": "KHÔNG kiểm được trên máy chủ: Giá trị thật ghi vào ACCEL_CONFIG, ACCEL_XOUT_H, CONFIG, GYRO_CONFIG, GYRO_XOUT_H, PWR_MGMT_1, SMPLRT_DIV, TWBR … — lớp phần cứng giả nhận mọi giá trị, kể cả giá trị chip thật sẽ từ chối. Chỉ nghiệm thu trên thiết bị mới đóng được chỗ này.",
+          "severity": "info",
+          "file": null,
+          "line": null,
+          "rule_id": null
+        },
+        {
+          "message": "KHÔNG kiểm được trên máy chủ: Hành vi thật của imu — thời điểm cờ dựng, thứ tự sự kiện, và cách ngoại vi phản ứng khi bị dùng sai. Đóng ở chẩn đoán hai kênh (eaa diagnose).",
+          "severity": "info",
+          "file": null,
+          "line": null,
+          "rule_id": null
+        },
+        {
+          "message": "KHÔNG kiểm được trên máy chủ: Ràng buộc thời gian (control_loop_ms, motor_response_us) — máy chủ chạy nhanh hơn chip nhiều bậc, nên mọi số đo thời gian ở đây đều vô nghĩa. Đóng ở cổng mô phỏng rồi ở G4.",
+          "severity": "info",
+          "file": null,
+          "line": null,
+          "rule_id": null
+        }
+      ],
+      "metrics": {
+        "passed": 20,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "tests_found": 20,
+        "exit_code": 0,
+        "host_gaps": 3
+      },
+      "duration_s": 3.5349623990005057
+    }
+  ]
+}

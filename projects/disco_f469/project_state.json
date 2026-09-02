@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "phase": "A",
+  "gates": {
+    "G1": "pending",
+    "G2": "approved",
+    "G3": "pending",
+    "G4": "pending",
+    "G5": "pending"
+  },
+  "backlog": [],
+  "constraints_version": "sha256:03160a8cdb886c2de89db4cdab162b85ed8808ded9be61e8c282598303a462a8",
+  "llm": {
+    "provider": "gemini",
+    "model": "gemini-3.1-pro-preview"
+  },
+  "env_hash": "",
+  "current_module": null,
+  "created_at": "2026-08-29T13:54:51.263212+00:00",
+  "updated_at": "2026-08-29T13:54:52.020824+00:00"
+}
