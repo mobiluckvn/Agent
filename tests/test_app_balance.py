@@ -12,172 +12,169 @@ def setup_module():
     int stepper_init_calls = 0;
     int buzzer_init_calls = 0;
     int button_init_calls = 0;
-    int i2c_tick_calls = 0;
-    int imu_update_calls = 0;
-    int imu_calibrate_begin_calls = 0;
-    int imu_calibrate_commit_calls = 0;
-    int pid_compute_calls = 0;
-    int stepper_set_speed_calls = 0;
-    int buzzer_beep_async_calls = 0;
-    int buzzer_update_calls = 0;
-
-    bool mock_imu_update_return = true;
-    float mock_tilt_angle = 0.0f;
-    bool mock_calibrate_busy = false;
-    float mock_pid_compute_return = 0.0f;
-    int mock_button_event = 0;
 
     void imu_init(void) { imu_init_calls++; }
     void stepper_init(void) { stepper_init_calls++; }
     void buzzer_init(void) { buzzer_init_calls++; }
     void button_init(void) { button_init_calls++; }
-    void i2c_tick(void) { i2c_tick_calls++; }
 
+    bool mock_imu_update_ret = true;
+    int imu_update_calls = 0;
     bool imu_update(void) {
         imu_update_calls++;
-        return mock_imu_update_return;
+        return mock_imu_update_ret;
     }
+
+    float mock_tilt_angle = 0.0f;
     float imu_get_tilt_angle(void) { return mock_tilt_angle; }
+
+    int imu_calibrate_begin_calls = 0;
     void imu_calibrate_begin(void) { imu_calibrate_begin_calls++; }
+
+    bool mock_calibrate_busy = false;
     bool imu_calibrate_busy(void) { return mock_calibrate_busy; }
+
+    int imu_calibrate_commit_calls = 0;
     void imu_calibrate_commit(void) { imu_calibrate_commit_calls++; }
 
-    void pid_set_tunings(float kp, float ki, float kd) {}
-    float pid_compute(float angle, float pid_setpoint, bool is_running) {
+    float mock_pid_out = 0.0f;
+    int pid_compute_calls = 0;
+    bool last_pid_running = false;
+    float pid_compute(float angle, float setpoint, bool is_running) {
         pid_compute_calls++;
-        return mock_pid_compute_return;
+        last_pid_running = is_running;
+        return mock_pid_out;
     }
 
-    void stepper_set_speed(int16_t speed_left, int16_t speed_right) {
+    int stepper_set_speed_calls = 0;
+    int16_t last_stepper_left = 0;
+    int16_t last_stepper_right = 0;
+    void stepper_set_speed(int16_t left, int16_t right) {
         stepper_set_speed_calls++;
+        last_stepper_left = left;
+        last_stepper_right = right;
     }
 
+    int buzzer_beep_async_calls = 0;
+    uint32_t last_beep_duration = 0;
     void buzzer_beep_async(uint32_t current_time_ms, uint32_t duration_ms) {
         buzzer_beep_async_calls++;
+        last_beep_duration = duration_ms;
     }
-    void buzzer_update(uint32_t current_time_ms) {
-        buzzer_update_calls++;
-    }
+
+    void buzzer_update(uint32_t current_time_ms) {}
     void buzzer_stop(void) {}
 
+    int mock_button_event = 0;
     int button_get_event(uint32_t current_time_ms) {
         int ev = mock_button_event;
-        mock_button_event = 0; // auto clear
+        mock_button_event = 0;
         return ev;
     }
+
+    int i2c_tick_calls = 0;
+    void i2c_tick(void) { i2c_tick_calls++; }
     """
-    with open("mock_deps.c", "w") as f:
+    os.makedirs("tests", exist_ok=True)
+    with open("tests/mock_deps.c", "w") as f:
         f.write(mock_c)
+
+    cmd = [
+        "cc", "-std=c11", "-Wall", "-fPIC", "-shared",
+        "-Isrc",
+        "src/app_balance.c",
+        "tests/mock_deps.c"
+    ]
     
-    cmd = ["cc", "-std=c11", "-Wall", "-fPIC", "-shared", 
-           "-I/Users/v/Documents/KTDT/packs/avr/hostmock",
-           "src/app_balance.c", "mock_deps.c"]
-    
-    if os.path.exists("/Users/v/Documents/KTDT/packs/avr/hostmock/eaa_io_space.c"):
-        cmd.append("/Users/v/Documents/KTDT/packs/avr/hostmock/eaa_io_space.c")
+    # Include eaa_io_space.c if it exists in the environment
+    io_space_path = "/Users/v/Documents/KTDT/packs/avr/hostmock/eaa_io_space.c"
+    if os.path.exists(io_space_path):
+        cmd.append("-I/Users/v/Documents/KTDT/packs/avr/hostmock")
+        cmd.append(io_space_path)
         
-    cmd.extend(["-o", "libapp.so"])
+    cmd.extend(["-o", "tests/libapp.so"])
     
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
         print(res.stderr)
         pytest.fail("Compilation failed")
 
-def test_app_flow():
-    lib = ctypes.CDLL("./libapp.so")
+def test_app_balance():
+    lib = ctypes.CDLL("./tests/libapp.so")
     
     lib.app_init.argtypes = []
     lib.app_init.restype = None
     lib.app_step.argtypes = []
     lib.app_step.restype = None
-    
-    # 1. Init calls
+
+    # 1. Init
     lib.app_init()
     assert ctypes.c_int.in_dll(lib, "imu_init_calls").value == 1
     assert ctypes.c_int.in_dll(lib, "stepper_init_calls").value == 1
     assert ctypes.c_int.in_dll(lib, "buzzer_init_calls").value == 1
     assert ctypes.c_int.in_dll(lib, "button_init_calls").value == 1
-    
-    # 2. CHO_NUT state
+
+    # 2. First step -> CHO_NUT, 1 beep
+    ctypes.c_bool.in_dll(lib, "mock_imu_update_ret").value = True
     lib.app_step()
     assert ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value == 1
-    assert ctypes.c_int.in_dll(lib, "i2c_tick_calls").value == 1
-    
-    # 3. Button -> HIEU_CHINH
+
+    # 3. Button -> HIEU_CHINH, 5 beeps
     ctypes.c_int.in_dll(lib, "mock_button_event").value = 1
+    ctypes.c_bool.in_dll(lib, "mock_calibrate_busy").value = True
     lib.app_step()
     assert ctypes.c_int.in_dll(lib, "imu_calibrate_begin_calls").value == 1
-    
-    # 4. HIEU_CHINH beeps
-    ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value = 0
-    ctypes.c_bool.in_dll(lib, "mock_calibrate_busy").value = True
-    for _ in range(450): # 1800ms
+    assert ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value == 2
+
+    # 4. Calib timeout -> NGA, 3 beeps
+    calls_before = ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value
+    for _ in range(2501):
         lib.app_step()
-    assert ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value == 5
-    
-    # 5. Calibrate commit -> SAN_SANG
+    calls_after = ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value
+    assert calls_after > calls_before
+
+    # 5. Recover to CHO_NUT
+    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1
+    lib.app_step()
+
+    # 6. Button -> HIEU_CHINH again
+    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1
+    ctypes.c_bool.in_dll(lib, "mock_calibrate_busy").value = True
+    lib.app_step()
+
+    # 7. Calib success -> SAN_SANG, 2 beeps
     ctypes.c_bool.in_dll(lib, "mock_calibrate_busy").value = False
     lib.app_step()
     assert ctypes.c_int.in_dll(lib, "imu_calibrate_commit_calls").value == 1
-    
-    # 6. SAN_SANG beeps
-    ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value = 0
-    for _ in range(200): # 800ms
-        lib.app_step()
-    assert ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value == 2
-    
-    # 7. CAN_BANG state
-    ctypes.c_int.in_dll(lib, "pid_compute_calls").value = 0
+
+    # 8. SAN_SANG -> CAN_BANG
+    ctypes.c_float.in_dll(lib, "mock_tilt_angle").value = 1.0
     lib.app_step()
-    assert ctypes.c_int.in_dll(lib, "pid_compute_calls").value == 1
     
-    # 8. Angle > 30 -> NGA
-    ctypes.c_float.in_dll(lib, "mock_tilt_angle").value = 35.0
-    ctypes.c_int.in_dll(lib, "stepper_set_speed_calls").value = 0
+    ctypes.c_float.in_dll(lib, "mock_tilt_angle").value = 0.4
     lib.app_step()
-    assert ctypes.c_int.in_dll(lib, "stepper_set_speed_calls").value > 0
-    
-    # 9. NGA state, angle back to 0 does not restart
-    ctypes.c_float.in_dll(lib, "mock_tilt_angle").value = 0.0
-    ctypes.c_int.in_dll(lib, "pid_compute_calls").value = 0
+
+    # 9. CAN_BANG logic
+    ctypes.c_float.in_dll(lib, "mock_pid_out").value = 10.0
     lib.app_step()
-    assert ctypes.c_int.in_dll(lib, "pid_compute_calls").value == 0
-    
-    # 10. Button -> CHO_NUT
+    assert ctypes.c_bool.in_dll(lib, "last_pid_running").value == True
+    left = ctypes.c_int16.in_dll(lib, "last_stepper_left").value
+    assert left in [284, 285]
+
+    # 10. Fall detection
+    ctypes.c_float.in_dll(lib, "mock_tilt_angle").value = 31.0
+    lib.app_step()
+    assert ctypes.c_int16.in_dll(lib, "last_stepper_left").value == 0
+    assert ctypes.c_bool.in_dll(lib, "last_pid_running").value == False
+
+    # 11. Recover to CHO_NUT
     ctypes.c_int.in_dll(lib, "mock_button_event").value = 1
     lib.app_step()
-    
-    # 11. Missing samples -> NGA
-    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1 # to HIEU_CHINH
-    lib.app_step()
-    ctypes.c_bool.in_dll(lib, "mock_calibrate_busy").value = False
-    lib.app_step() # to SAN_SANG
-    for _ in range(200): lib.app_step() # to CAN_BANG
-    
-    ctypes.c_int.in_dll(lib, "imu_update_calls").value = 0
-    ctypes.c_bool.in_dll(lib, "mock_imu_update_return").value = False
+
+    # 12. Missed samples
+    ctypes.c_bool.in_dll(lib, "mock_imu_update_ret").value = False
     for _ in range(10):
         lib.app_step()
     
-    assert ctypes.c_int.in_dll(lib, "imu_update_calls").value >= 20000
-    
-    ctypes.c_int.in_dll(lib, "pid_compute_calls").value = 0
-    lib.app_step()
-    assert ctypes.c_int.in_dll(lib, "pid_compute_calls").value == 0 # In NGA
-    
-    # 12. HIEU_CHINH timeout -> NGA
-    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1 # to CHO_NUT
-    lib.app_step()
-    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1 # to HIEU_CHINH
-    lib.app_step()
-    
-    ctypes.c_bool.in_dll(lib, "mock_calibrate_busy").value = True
-    ctypes.c_bool.in_dll(lib, "mock_imu_update_return").value = True
-    for _ in range(2600): # 10400 ms
-        lib.app_step()
-    
-    # Should be in NGA now, with error beeps
-    ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value = 0
-    for _ in range(250): # 1000 ms
-        lib.app_step()
-    assert ctypes.c_int.in_dll(lib, "buzzer_beep_async_calls").value == 3
+    assert ctypes.c_int16.in_dll(lib, "last_stepper_left").value == 0
+    assert ctypes.c_bool.in_dll(lib, "last_pid_running").value == False

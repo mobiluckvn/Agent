@@ -1,3 +1,5 @@
+#include <stdint.h>
+#include <stdbool.h>
 #include "app_balance.h"
 #include "drv_imu.h"
 #include "logic_pid.h"
@@ -8,6 +10,8 @@
 #define CALIB_TIMEOUT_MS 10000
 #define IMU_PUMP_LIMIT 20000
 
+extern void i2c_tick(void);
+
 typedef enum {
     STATE_CHO_NUT,
     STATE_HIEU_CHINH,
@@ -16,14 +20,49 @@ typedef enum {
     STATE_NGA
 } app_state_t;
 
+static app_state_t current_state = STATE_CHO_NUT;
+static bool is_first_step = true;
 static uint32_t now_ms = 0;
-static app_state_t state = STATE_CHO_NUT;
-static uint32_t state_timer = 0;
-static uint8_t beep_step = 0;
-static uint32_t beep_timer = 0;
-static uint8_t missing_samples = 0;
+static uint32_t calib_start_ms = 0;
+static uint8_t missed_samples = 0;
 
-extern void i2c_tick(void);
+static uint8_t beep_rem = 0;
+static uint8_t beep_orig_count = 0;
+static uint32_t next_beep_ms = 0;
+static uint32_t beep_interval = 0;
+static uint32_t beep_duration = 0;
+static uint32_t beep_repeat_ms = 0;
+static bool beep_seq_active = false;
+
+static void start_beep_seq(uint32_t now, uint8_t count, uint32_t duration, uint32_t interval, uint32_t repeat_ms) {
+    beep_orig_count = count;
+    beep_rem = count;
+    beep_duration = duration;
+    beep_interval = interval;
+    beep_repeat_ms = repeat_ms;
+    beep_seq_active = true;
+    next_beep_ms = now;
+}
+
+static void process_beep_seq(uint32_t now) {
+    if (!beep_seq_active) return;
+    if (now >= next_beep_ms) {
+        if (beep_rem > 0) {
+            buzzer_beep_async(now, beep_duration);
+            beep_rem--;
+            if (beep_rem > 0) {
+                next_beep_ms = now + beep_duration + beep_interval;
+            } else {
+                if (beep_repeat_ms > 0) {
+                    beep_rem = beep_orig_count;
+                    next_beep_ms = now + beep_repeat_ms;
+                } else {
+                    beep_seq_active = false;
+                }
+            }
+        }
+    }
+}
 
 void app_init(void) {
     imu_init();
@@ -33,11 +72,17 @@ void app_init(void) {
 }
 
 void app_step(void) {
-    now_ms += 4;
+    if (is_first_step) {
+        start_beep_seq(now_ms, 1, 100, 0, 0);
+        is_first_step = false;
+    } else {
+        now_ms += 4;
+    }
+
     i2c_tick();
 
     bool got_sample = false;
-    for (uint16_t i = 0; i < IMU_PUMP_LIMIT; i++) {
+    for (uint32_t i = 0; i < IMU_PUMP_LIMIT; i++) {
         if (imu_update()) {
             got_sample = true;
             break;
@@ -45,119 +90,98 @@ void app_step(void) {
     }
 
     if (!got_sample) {
-        missing_samples++;
-        if (missing_samples >= 10) {
-            if (state != STATE_NGA) {
-                stepper_set_speed(0, 0);
-                pid_compute(0.0f, 0.0f, false);
-                state = STATE_NGA;
-                beep_step = 0;
-            }
+        if (missed_samples < 10) {
+            missed_samples++;
+        }
+        if (missed_samples >= 10 && current_state != STATE_NGA) {
+            stepper_set_speed(0, 0);
+            pid_compute(0.0f, 0.0f, false);
+            current_state = STATE_NGA;
+            beep_seq_active = false;
         }
     } else {
-        missing_samples = 0;
+        missed_samples = 0;
     }
 
     buzzer_update(now_ms);
+
     button_event_t btn = button_get_event(now_ms);
 
-    switch (state) {
+    switch (current_state) {
         case STATE_CHO_NUT:
-            if (beep_step == 0) {
-                buzzer_beep_async(now_ms, 100);
-                beep_step = 1;
-            }
             if (btn == BUTTON_EVENT_PRESSED) {
-                state = STATE_HIEU_CHINH;
-                state_timer = now_ms;
-                beep_step = 0;
-                beep_timer = now_ms - 400; // Kích hoạt bíp đầu tiên ngay lập tức
+                current_state = STATE_HIEU_CHINH;
+                start_beep_seq(now_ms, 5, 100, 100, 0);
                 imu_calibrate_begin();
+                calib_start_ms = now_ms;
             }
             break;
 
         case STATE_HIEU_CHINH:
-            if (beep_step < 5) {
-                if (now_ms - beep_timer >= 400) {
-                    buzzer_beep_async(now_ms, 100);
-                    beep_timer = now_ms;
-                    beep_step++;
-                }
-            }
-            
             if (btn == BUTTON_EVENT_PRESSED) {
-                state = STATE_CHO_NUT;
-                beep_step = 0;
-                missing_samples = 0;
-                break;
-            }
-
-            if (!imu_calibrate_busy()) {
-                imu_calibrate_commit();
-                state = STATE_SAN_SANG;
-                beep_step = 0;
-                beep_timer = now_ms;
-            } else if (now_ms - state_timer > CALIB_TIMEOUT_MS) {
-                state = STATE_NGA;
-                beep_step = 10; // Mã bíp lỗi
-                beep_timer = now_ms;
+                current_state = STATE_CHO_NUT;
+                start_beep_seq(now_ms, 1, 100, 0, 0);
+            } else {
+                if (!imu_calibrate_busy()) {
+                    imu_calibrate_commit();
+                    current_state = STATE_SAN_SANG;
+                    start_beep_seq(now_ms, 2, 100, 100, 0);
+                } else if (now_ms - calib_start_ms > CALIB_TIMEOUT_MS) {
+                    current_state = STATE_NGA;
+                    start_beep_seq(now_ms, 3, 50, 50, 1000);
+                }
             }
             break;
 
         case STATE_SAN_SANG:
-            if (beep_step == 0) {
-                buzzer_beep_async(now_ms, 100);
-                beep_timer = now_ms;
-                beep_step = 1;
-            } else if (beep_step == 1 && now_ms - beep_timer >= 200) {
-                buzzer_beep_async(now_ms, 100);
-                beep_timer = now_ms;
-                beep_step = 2;
-            } else if (beep_step == 2 && now_ms - beep_timer >= 500) {
-                state = STATE_CAN_BANG;
+            if (btn == BUTTON_EVENT_PRESSED) {
+                current_state = STATE_CHO_NUT;
+                start_beep_seq(now_ms, 1, 100, 0, 0);
+            } else {
+                float angle = imu_get_tilt_angle();
+                if (angle > -0.5f && angle < 0.5f) {
+                    current_state = STATE_CAN_BANG;
+                }
             }
             break;
 
         case STATE_CAN_BANG:
-            if (got_sample) {
+            if (btn == BUTTON_EVENT_PRESSED) {
+                stepper_set_speed(0, 0);
+                pid_compute(0.0f, 0.0f, false);
+                current_state = STATE_CHO_NUT;
+                start_beep_seq(now_ms, 1, 100, 0, 0);
+            } else {
                 float angle = imu_get_tilt_angle();
                 if (angle > 30.0f || angle < -30.0f) {
                     stepper_set_speed(0, 0);
-                    pid_compute(angle, 0.0f, false);
-                    state = STATE_NGA;
-                    beep_step = 0;
-                } else {
+                    pid_compute(0.0f, 0.0f, false);
+                    current_state = STATE_NGA;
+                    beep_seq_active = false;
+                } else if (got_sample) {
                     float out = pid_compute(angle, 0.0f, true);
-                    float comp = 0.0f;
-                    int16_t motor = 0;
                     if (out > 0.0f) {
-                        comp = 405.0f - (5500.0f / (out + 9.0f));
-                        motor = 400 - (int16_t)comp;
+                        out = 405.0f - (5500.0f / (out + 9.0f));
+                        int16_t motor = 400 - (int16_t)out;
+                        stepper_set_speed(motor, motor);
                     } else if (out < 0.0f) {
-                        comp = -(405.0f - (5500.0f / (-out + 9.0f)));
-                        motor = -400 - (int16_t)comp;
+                        out = -405.0f - (5500.0f / (out - 9.0f));
+                        int16_t motor = -400 - (int16_t)out;
+                        stepper_set_speed(motor, motor);
+                    } else {
+                        stepper_set_speed(0, 0);
                     }
-                    stepper_set_speed(motor, motor);
                 }
             }
             break;
 
         case STATE_NGA:
-            if (beep_step == 10) {
-                uint32_t seq_time = (now_ms - beep_timer) % 1000;
-                if (seq_time == 0) buzzer_beep_async(now_ms, 50);
-                else if (seq_time == 100) buzzer_beep_async(now_ms, 50);
-                else if (seq_time == 200) buzzer_beep_async(now_ms, 50);
-            }
             if (btn == BUTTON_EVENT_PRESSED) {
-                state = STATE_CHO_NUT;
-                beep_step = 0;
-                missing_samples = 0;
+                current_state = STATE_CHO_NUT;
+                start_beep_seq(now_ms, 1, 100, 0, 0);
             }
             break;
     }
-}
 
-void app_tick(void) {
-    app_step();
+    process_beep_seq(now_ms);
 }
