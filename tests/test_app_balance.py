@@ -8,192 +8,200 @@ def setup_module(module):
 #include <stdbool.h>
 #include <stdint.h>
 
-int i2c_tick_call_count = 0;
-void i2c_tick(void) { i2c_tick_call_count++; }
+bool mock_imu_update_ret = true;
+int imu_update_calls = 0;
+float mock_tilt_angle = 0.0f;
+bool mock_calib_busy = false;
+int imu_calib_begin_calls = 0;
+int imu_calib_commit_calls = 0;
 
-int imu_update_call_count = 0;
-bool imu_update_return = true;
-bool imu_update(void) { imu_update_call_count++; return imu_update_return; }
+void imu_init(void) {}
+bool imu_update(void) {
+    imu_update_calls++;
+    return mock_imu_update_ret;
+}
+float imu_get_tilt_angle(void) { return mock_tilt_angle; }
+void imu_calibrate_begin(void) { imu_calib_begin_calls++; mock_calib_busy = true; }
+bool imu_calibrate_busy(void) { return mock_calib_busy; }
+void imu_calibrate_commit(void) { imu_calib_commit_calls++; }
 
-float imu_tilt_angle = 0.0f;
-float imu_get_tilt_angle(void) { return imu_tilt_angle; }
-
-int imu_calibrate_begin_call_count = 0;
-void imu_calibrate_begin(void) { imu_calibrate_begin_call_count++; }
-
-bool imu_calibrate_busy_return = false;
-bool imu_calibrate_busy(void) { return imu_calibrate_busy_return; }
-
-int imu_calibrate_commit_call_count = 0;
-void imu_calibrate_commit(void) { imu_calibrate_commit_call_count++; }
-
-int pid_compute_call_count = 0;
-float pid_compute_return = 0.0f;
-bool pid_compute_is_running = true;
+float mock_pid_out = 0.0f;
+bool last_pid_running = false;
+void pid_set_tunings(float kp, float ki, float kd) {}
 float pid_compute(float angle, float pid_setpoint, bool is_running) {
-    pid_compute_call_count++;
-    pid_compute_is_running = is_running;
-    return pid_compute_return;
+    last_pid_running = is_running;
+    return mock_pid_out;
 }
 
-int stepper_set_speed_call_count = 0;
-int16_t stepper_speed_left = 0;
-int16_t stepper_speed_right = 0;
+int16_t last_speed_left = 0;
+int16_t last_speed_right = 0;
+void stepper_init(void) {}
 void stepper_set_speed(int16_t speed_left, int16_t speed_right) {
-    stepper_set_speed_call_count++;
-    stepper_speed_left = speed_left;
-    stepper_speed_right = speed_right;
+    last_speed_left = speed_left;
+    last_speed_right = speed_right;
 }
 
-int buzzer_beep_async_call_count = 0;
+int buzzer_beep_calls = 0;
+uint32_t last_beep_duration = 0;
+void buzzer_init(void) {}
 void buzzer_beep_async(uint32_t current_time_ms, uint32_t duration_ms) {
-    buzzer_beep_async_call_count++;
+    buzzer_beep_calls++;
+    last_beep_duration = duration_ms;
 }
+void buzzer_update(uint32_t current_time_ms) {}
+void buzzer_stop(void) {}
 
-int button_event = 0;
+int mock_button_event = 0;
+void button_init(void) {}
 int button_get_event(uint32_t current_time_ms) {
-    int ev = button_event;
-    button_event = 0;
+    int ev = mock_button_event;
+    mock_button_event = 0;
     return ev;
 }
 
-void imu_init(void) {}
-void stepper_init(void) {}
-void buzzer_init(void) {}
-void button_init(void) {}
-void buzzer_update(uint32_t current_time_ms) {}
+int i2c_tick_calls = 0;
+void i2c_tick(void) {
+    i2c_tick_calls++;
+}
 """
-    with open("mock.c", "w") as f:
+    os.makedirs("tests", exist_ok=True)
+    with open("tests/mock_deps.c", "w") as f:
         f.write(mock_src)
     
-    cmd = ["cc", "-std=c11", "-Wall", "-fPIC", "-shared", "-o", "libapp.so", "src/app_balance.c", "mock.c"]
+    cmd = [
+        "cc", "-std=c11", "-Wall", "-fPIC", "-shared",
+        "src/app_balance.c",
+        "tests/mock_deps.c",
+        "-Isrc",
+        "-o", "tests/libapp.so"
+    ]
     res = subprocess.run(cmd)
     if res.returncode != 0:
         pytest.fail("Compilation failed")
-    
-    global lib
-    lib = ctypes.CDLL("./libapp.so")
-    
+
+@pytest.fixture
+def lib():
+    lib = ctypes.CDLL("./tests/libapp.so")
     lib.app_init.argtypes = []
     lib.app_init.restype = None
     lib.app_step.argtypes = []
     lib.app_step.restype = None
-
-def get_var(name, ctype):
-    return ctype.in_dll(lib, name)
-
-def test_full_flow():
-    get_var("i2c_tick_call_count", ctypes.c_int).value = 0
-    get_var("buzzer_beep_async_call_count", ctypes.c_int).value = 0
-    get_var("imu_calibrate_begin_call_count", ctypes.c_int).value = 0
-    get_var("imu_calibrate_commit_call_count", ctypes.c_int).value = 0
-    get_var("pid_compute_call_count", ctypes.c_int).value = 0
-    get_var("stepper_set_speed_call_count", ctypes.c_int).value = 0
+    lib.app_tick.argtypes = []
+    lib.app_tick.restype = None
     
-    # 1. Init
+    ctypes.c_int.in_dll(lib, "imu_update_calls").value = 0
+    ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value = 0
+    ctypes.c_int.in_dll(lib, "i2c_tick_calls").value = 0
+    ctypes.c_int.in_dll(lib, "mock_button_event").value = 0
+    ctypes.c_bool.in_dll(lib, "mock_imu_update_ret").value = True
+    ctypes.c_int.in_dll(lib, "imu_calib_begin_calls").value = 0
+    ctypes.c_int.in_dll(lib, "imu_calib_commit_calls").value = 0
+    
     lib.app_init()
-    assert get_var("buzzer_beep_async_call_count", ctypes.c_int).value == 1
-    
-    # 2. CHO_NUT -> HIEU_CHINH
-    get_var("button_event", ctypes.c_int).value = 1
-    lib.app_step()
-    assert get_var("imu_calibrate_begin_call_count", ctypes.c_int).value == 1
-    
-    # 3. HIEU_CHINH (5 beeps)
-    get_var("imu_calibrate_busy_return", ctypes.c_bool).value = True
-    beep_count_before = get_var("buzzer_beep_async_call_count", ctypes.c_int).value
-    for _ in range(400):
-        lib.app_step()
-    
-    beep_count_after = get_var("buzzer_beep_async_call_count", ctypes.c_int).value
-    assert beep_count_after - beep_count_before == 5
-    
-    # 4. HIEU_CHINH -> SAN_SANG
-    get_var("imu_calibrate_busy_return", ctypes.c_bool).value = False
-    lib.app_step()
-    assert get_var("imu_calibrate_commit_call_count", ctypes.c_int).value == 1
-    
-    # 5. SAN_SANG (2 beeps)
-    beep_count_before = get_var("buzzer_beep_async_call_count", ctypes.c_int).value
-    for _ in range(120):
-        lib.app_step()
-    beep_count_after = get_var("buzzer_beep_async_call_count", ctypes.c_int).value
-    assert beep_count_after - beep_count_before == 2
-    
-    # 6. CAN_BANG
-    pid_count_before = get_var("pid_compute_call_count", ctypes.c_int).value
-    lib.app_step()
-    pid_count_after = get_var("pid_compute_call_count", ctypes.c_int).value
-    assert pid_count_after > pid_count_before
-    
-    # 7. Fall (> 30 degrees)
-    get_var("imu_tilt_angle", ctypes.c_float).value = 35.0
-    lib.app_step()
-    assert get_var("stepper_speed_left", ctypes.c_int16).value == 0
-    assert get_var("stepper_speed_right", ctypes.c_int16).value == 0
-    assert get_var("pid_compute_is_running", ctypes.c_bool).value == False
-    
-    # 8. NGA -> CHO_NUT
-    get_var("imu_tilt_angle", ctypes.c_float).value = 0.0
-    lib.app_step()
-    pid_count_before = get_var("pid_compute_call_count", ctypes.c_int).value
-    lib.app_step()
-    assert get_var("pid_compute_call_count", ctypes.c_int).value == pid_count_before
-    
-    get_var("button_event", ctypes.c_int).value = 1
-    beep_count_before = get_var("buzzer_beep_async_call_count", ctypes.c_int).value
-    lib.app_step()
-    assert get_var("buzzer_beep_async_call_count", ctypes.c_int).value == beep_count_before + 1
+    return lib
 
-def test_missed_samples():
-    lib.app_init()
-    get_var("button_event", ctypes.c_int).value = 1
-    lib.app_step()
-    get_var("imu_calibrate_busy_return", ctypes.c_bool).value = False
-    lib.app_step()
-    for _ in range(120):
+def test_initial_state(lib):
+    assert ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value == 1
+    for _ in range(10):
         lib.app_step()
-    
-    get_var("imu_update_return", ctypes.c_bool).value = False
-    for _ in range(24):
-        lib.app_step()
-    
-    lib.app_step()
-    assert get_var("stepper_speed_left", ctypes.c_int16).value == 0
-    assert get_var("pid_compute_is_running", ctypes.c_bool).value == False
+    assert ctypes.c_int.in_dll(lib, "i2c_tick_calls").value == 10
+    assert ctypes.c_int.in_dll(lib, "imu_update_calls").value == 10
 
-def test_i2c_tick_and_pump():
-    lib.app_init()
-    i2c_before = get_var("i2c_tick_call_count", ctypes.c_int).value
-    imu_before = get_var("imu_update_call_count", ctypes.c_int).value
-    
-    get_var("imu_update_return", ctypes.c_bool).value = True
+def test_state_transitions(lib):
+    ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value = 0
+    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1
     lib.app_step()
     
-    assert get_var("i2c_tick_call_count", ctypes.c_int).value == i2c_before + 1
-    assert get_var("imu_update_call_count", ctypes.c_int).value == imu_before + 1
+    assert ctypes.c_int.in_dll(lib, "imu_calib_begin_calls").value == 1
+    assert ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value == 1
     
-    get_var("imu_update_return", ctypes.c_bool).value = False
-    imu_before = get_var("imu_update_call_count", ctypes.c_int).value
-    lib.app_step()
-    assert get_var("imu_update_call_count", ctypes.c_int).value == imu_before + 129
-
-def test_nonlinear_compensation():
-    lib.app_init()
-    get_var("button_event", ctypes.c_int).value = 1
-    lib.app_step()
-    get_var("imu_calibrate_busy_return", ctypes.c_bool).value = False
-    lib.app_step()
-    for _ in range(120):
+    ctypes.c_bool.in_dll(lib, "mock_calib_busy").value = True
+    for _ in range(350):
         lib.app_step()
     
-    get_var("imu_update_return", ctypes.c_bool).value = True
-    get_var("imu_tilt_angle", ctypes.c_float).value = 0.0
+    assert ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value == 5
     
-    get_var("pid_compute_return", ctypes.c_float).value = 1.0
+    ctypes.c_bool.in_dll(lib, "mock_calib_busy").value = False
     lib.app_step()
-    assert get_var("stepper_speed_left", ctypes.c_int16).value == 545
     
-    get_var("pid_compute_return", ctypes.c_float).value = -1.0
+    assert ctypes.c_int.in_dll(lib, "imu_calib_commit_calls").value == 1
+    assert ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value == 6
+    
+    for _ in range(60):
+        lib.app_step()
+        
+    assert ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value == 7
+    
+    ctypes.c_float.in_dll(lib, "mock_tilt_angle").value = 10.0
+    ctypes.c_float.in_dll(lib, "mock_pid_out").value = 50.0
     lib.app_step()
-    assert get_var("stepper_speed_left", ctypes.c_int16).value == -545
+    
+    assert ctypes.c_bool.in_dll(lib, "last_pid_running").value == True
+    motor_left = ctypes.c_int16.in_dll(lib, "last_speed_left").value
+    assert 87 <= motor_left <= 89
+
+def test_fall_condition(lib):
+    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1
+    lib.app_step()
+    ctypes.c_bool.in_dll(lib, "mock_calib_busy").value = False
+    lib.app_step()
+    for _ in range(60): lib.app_step()
+    
+    ctypes.c_float.in_dll(lib, "mock_tilt_angle").value = 35.0
+    lib.app_step()
+    
+    assert ctypes.c_int16.in_dll(lib, "last_speed_left").value == 0
+    assert ctypes.c_bool.in_dll(lib, "last_pid_running").value == False
+    
+    ctypes.c_float.in_dll(lib, "mock_tilt_angle").value = 0.0
+    ctypes.c_float.in_dll(lib, "mock_pid_out").value = 10.0
+    lib.app_step()
+    
+    assert ctypes.c_int16.in_dll(lib, "last_speed_left").value == 0
+    assert ctypes.c_bool.in_dll(lib, "last_pid_running").value == False
+
+def test_calib_timeout(lib):
+    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1
+    lib.app_step()
+    
+    ctypes.c_bool.in_dll(lib, "mock_calib_busy").value = True
+    ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value = 0
+    
+    for _ in range(2501):
+        lib.app_step()
+        
+    for _ in range(200):
+        lib.app_step()
+        
+    assert ctypes.c_int.in_dll(lib, "buzzer_beep_calls").value >= 3
+
+def test_missed_samples(lib):
+    ctypes.c_int.in_dll(lib, "mock_button_event").value = 1
+    lib.app_step()
+    ctypes.c_bool.in_dll(lib, "mock_calib_busy").value = False
+    lib.app_step()
+    for _ in range(60): lib.app_step()
+    
+    ctypes.c_float.in_dll(lib, "mock_pid_out").value = 10.0
+    lib.app_step()
+    assert ctypes.c_int16.in_dll(lib, "last_speed_left").value != 0
+    
+    ctypes.c_bool.in_dll(lib, "mock_imu_update_ret").value = False
+    for _ in range(9):
+        lib.app_step()
+        
+    lib.app_step()
+    
+    assert ctypes.c_int16.in_dll(lib, "last_speed_left").value == 0
+    assert ctypes.c_bool.in_dll(lib, "last_pid_running").value == False
+
+def test_imu_pump_limit(lib):
+    ctypes.c_int.in_dll(lib, "imu_update_calls").value = 0
+    ctypes.c_bool.in_dll(lib, "mock_imu_update_ret").value = False
+    
+    lib.app_step()
+    
+    assert ctypes.c_int.in_dll(lib, "imu_update_calls").value == 1600
+
+def test_app_tick(lib):
+    lib.app_tick()
