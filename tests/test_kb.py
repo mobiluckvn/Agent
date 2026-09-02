@@ -54,7 +54,14 @@ def _viet_chunk(thu_muc: Path, ten: str, frontmatter: str, than: str = "Nội du
 def test_nap_rang_buoc_du_an_mau() -> None:
     rb = Constraints.load(DU_AN / "constraints.yaml")
     assert rb.platform == "avr"
-    assert rb.version == 2
+    # KHÔNG ghim số phiên bản. Bài này mượn tệp của dự án làm đạo cụ, và mỗi lần
+    # dự án chốt một ràng buộc mới tại G1 thì số ấy tăng — bài kiểm đỏ vì một
+    # quyết định ĐÚNG của người dùng, trên một engine không đổi một dòng. Đã xảy
+    # ra ở v2 (nới `arithmetic`) và v3 (nới trần token, SL-155).
+    #
+    # Thứ đáng canh là bộ đọc có lấy ra được phiên bản hay không, và những ràng
+    # buộc DƯỚI ĐÂY có còn nguyên hay không.
+    assert isinstance(rb.version, int) and rb.version >= 1
     assert rb.limits["flash_pct_max"] == 50
     assert rb.limits["sram_pct_max"] == 40
     assert "delay()" in rb.forbidden

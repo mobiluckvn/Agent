@@ -8,7 +8,7 @@
 # Ràng buộc do KỸ SƯ chốt từ hệ quả vật lý, không phải do máy đề xuất: chỉ
 # người mới biết trượt bước và trễ pha dẫn tới robot ngã (Ma trận, A1).
 
-version: 2
+version: 3
 changelog:
   - version: 1
     date: 2026-08-29
@@ -21,6 +21,14 @@ changelog:
       Nới `style.arithmetic` từ `integer` sang `float_outside_isr`, theo quyết
       định "tham khảo code của nhà sản xuất". Xem khối `style` bên dưới để biết
       lý do và cái giá phải trả. Cấm số thực TRONG ngắt giữ nguyên.
+  - version: 3
+    date: 2026-09-02
+    author: Vũ Trí Công
+    note: >-
+      Nới `budget.tokens.per_module` từ 120.000 lên 300.000. Không phải vì trần
+      chật mà vì THƯỚC ĐO đổi: bộ đếm cũ bỏ qua mọi vòng tự sửa (SL-155) nên đo
+      khoảng một nửa số thật, và 120.000 được chọn theo cái thước ngắn ấy. Xem
+      khối `budget.tokens` bên dưới. Không đổi gì khác.
 
 platform: avr          # tên Platform Pack — packs/avr/
 mcu: atmega328p
@@ -72,8 +80,21 @@ budget:
 
   # Trần token tích lũy theo module (N-904). Đơn giá thuộc về dự án: nó phụ
   # thuộc mô hình đang dùng và hợp đồng, hai thứ engine không được ghim.
+  #
+  # ĐỔI 02/09/2026 (120.000 → 300.000), người chốt: Vũ Trí Công.
+  #
+  # Không phải vì trần chật, mà vì THƯỚC ĐO đổi. Đến hết 01/09, bộ đếm chỉ
+  # tính lượt sinh ĐẦU của mỗi module và bỏ qua mọi vòng vá (SL-155) — nó đo
+  # khoảng một nửa số token thật. Con số 120.000 được chọn khi nó đang đo bằng
+  # cái thước ngắn ấy. Sửa bộ đếm xong, 120.000 hôm nay chặt gấp đôi 120.000
+  # hôm qua dù chữ số không đổi; giữ nguyên là siết trần một cách lặng lẽ.
+  #
+  # 240.000 khôi phục đúng ý định cũ. Phần dôi lên 300.000 là biên cho vòng tự
+  # sửa, và nó có giá của nó: một module ăn hết 300.000 mà chưa xong thì gần
+  # như chắc chắn đang thiếu tri thức chứ không phải thiếu chỗ — lúc ấy câu trả
+  # lời vẫn là 'eaa resolve <module>', không phải nới tiếp.
   tokens:
-    per_module: 120000
+    per_module: 300000
     warn_at_pct: 80
     price_in_per_mtok: 1.25
     price_out_per_mtok: 10.0

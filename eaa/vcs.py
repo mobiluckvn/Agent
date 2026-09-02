@@ -344,8 +344,34 @@ class GitRepo:
             # hại. Thử trước, chỉ dọn khi buộc phải.
             da_don = self._don_rac_luot_truoc()
             self.checkout(self.main_branch)
-        self.checkout(branch, create=True)
+        self._mo_nhanh_tu_main(branch)
         return da_don
+
+    def _mo_nhanh_tu_main(self, branch: str) -> None:
+        """Mở nhánh làm việc, LUÔN đặt gốc ở nhánh chính hiện tại (SL-158).
+
+        Bản trước gọi ``checkout(branch, create=True)``: nhánh chưa có thì tạo
+        mới từ `main` — đúng; nhánh ĐÃ CÓ thì chỉ nhảy sang, và nhánh ấy đứng
+        yên từ lần sinh trước trong khi `main` đã nhận thêm module.
+
+        Đo được: `eaa plan reopen drv_i2c` rồi sinh lại chạy trên nhánh
+        `feature/drv_i2c` mở từ trước khi `drv_stepper` merge. Cây làm việc
+        thiếu `tests/test_drv_stepper.py`, nên cổng `unittests` báo ĐẠT trên
+        một bộ kiểm THIẾU một module — đúng loại "xanh vì không chạy" mà
+        SL-152 và SL-153 vừa bịt ở hai chỗ khác.
+
+        Chỉ cắn khi sinh LẠI một module đã có nhánh, tức đúng luồng
+        `plan reopen` vừa mở ra. Lần sinh đầu của mỗi module không dính.
+
+        Dùng ``checkout -B``: nhánh cũ bị đặt lại về `main`. Mất con trỏ nhánh
+        của lần thử trước, KHÔNG mất bằng chứng — mỗi lượt chạy đã có hồ sơ
+        riêng trong `.eaa/runs/`, `llm_calls.jsonl`, `kpi_log.csv` và nhật ký
+        quyết định gate. Nhánh chỉ là chỗ làm việc.
+        """
+        if branch in self.branches():
+            self._git("checkout", "-q", "-B", branch, self.main_branch)
+        else:
+            self._git("checkout", "-q", "-b", branch)
 
     def _don_rac_luot_truoc(self) -> list[str]:
         """Hoàn tác mã sinh còn sót. Trả về danh sách tệp đã đụng tới."""

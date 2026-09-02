@@ -2240,3 +2240,47 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Đã sửa** | `spent_tokens` chỉ cộng những sự kiện ứng với một lượt gọi THẬT (`SU_KIEN_TINH_TIEN`), và `_va_loi` ghi token của lượt vá. Số đo giờ dựng lại được từ chính các lượt gọi |
 | **Còn nợ** | Token của những vòng vá ĐÃ CHẠY không có trong `kpi_log.csv` và sẽ không được thêm vào: nhật ký KPI là bằng chứng append-only cho Chương 3, bịa dòng vào đó để số đẹp lên là đúng thứ nó sinh ra để chặn. `drv_imu` vì thế vẫn hiện 105.385 thay vì 193.292 — chênh lệch ghi ở đây |
 | **Bài canh** | `tests/test_tc119_dong_tom_tat_khong_duoc_dem_lai.py` — 7 bài, trong đó một bài chạy trọn vòng lặp chuẩn với MockLLM rồi đối chiếu số bộ đếm đọc ra với tổng token mô hình thật sự trả về |
+
+## SL-156 · LỆCH THẬT · Vòng thử lại bỏ trống đúng cái hay đứt nhất
+
+| | |
+|---|---|
+| **Cách tìm** | Một lượt `eaa gen drv_imu` chết bằng đúng một dòng: `Không lắp ráp hoặc không sinh được mã: IncompleteRead(0 bytes read)` |
+| **Cơ chế** | Vòng thử lại của adapter phủ ba nhánh: `HTTPError` (máy chủ bảo thử lại), `URLError` (không nối được), `TimeoutError` (chờ quá lâu). `IncompleteRead`, `RemoteDisconnected`, `ConnectionReset` không thuộc nhánh nào — chúng là `http.client.HTTPException`, không phải lỗi của `urllib` |
+| **Vì sao đúng chỗ này đau** | Ba nhánh có sẵn phủ *không nối được* và *máy chủ từ chối*. Cái còn trống là **nối được, gửi được, rồi đường truyền chết khi câu trả lời đang về** — dạng hỏng hay gặp nhất với lượt gọi dài, và lượt sinh mã là lượt gọi dài nhất trong hệ |
+| **Thử lại có đúng không khi mỗi lượt gọi đều tính tiền** | Có. Phản hồi đã đứt thì không còn gì dùng được — lượt gọi ấy đã mất tiền rồi. Không thử lại chỉ đổi "mất một lượt" thành "mất một lượt VÀ hỏng cả lượt chạy" |
+| **Đã sửa** | Bắt `http.client.HTTPException` và `ConnectionError` vào cùng nhánh backoff với `URLError`. Đặt SAU `URLError` vì `URLError` cũng là `OSError` và có thông điệp riêng đã đúng |
+| **Bài canh** | `tests/test_tc120_dut_giua_chung_van_thu_lai.py` — 7 bài, ba dạng đứt × (thử lại được / hết lượt) + một bài canh khoá API không lọt ra trong thông báo mới |
+
+## SL-157 · LỆCH THẬT · Quy trình đòi đưa module về `todo` mà không có lệnh nào làm được
+
+| | |
+|---|---|
+| **Cách tìm** | `eaa gen drv_i2c` → *"Module 'drv_i2c' đã merge. Sinh lại thì đưa nó về trạng thái todo trước."* `eaa plan` có propose/accept/add/list/order — không có lệnh nào đặt lại trạng thái |
+| **Vì sao đây là ngõ cụt** | Lối duy nhất còn lại là sửa tay `project_state.json`: đúng cái tệp có khoá, có ghi nguyên tử, và có TC-03 canh nó không bị sửa ngoài luồng. Câu thông báo đúng, chỉ thiếu mất chỗ làm việc ấy |
+| **Cùng họ với** | SL-13x (commit 624537f, "Quy trình đòi một thứ chính nó không sinh ra"). Lần này ở máy trạng thái backlog thay vì ở cổng |
+| **Đã sửa** | `eaa plan reopen <module> --reason ...`. Bắt buộc kèm lý do vì mở lại mã đã merge là gỡ một quyết định G3 đã có người bấm; lý do vào Error Ledger nên lịch sử trả lời được câu "vì sao mã đã duyệt bị viết lại" |
+| **Không nới lỏng gì** | Module quay về `todo` rồi phải đi lại TRỌN vòng lặp chuẩn, qua đủ cổng, rồi qua G3 một lần nữa. Mã trên nhánh chính giữ nguyên cho tới lúc đó |
+| **Bẫy gặp ngay lần chạy đầu** | Bản đầu đổi trạng thái TRƯỚC rồi ghi ledger sau. Ledger từ chối phân loại `reopen` (không có trong danh mục), và để lại một module đã mở lại mà không dòng nào nói vì sao. Nay: kiểm (chỉ đọc) → ghi lý do → mới đổi trạng thái. Việc cuối cùng phải là việc KHÔNG hỏng được |
+
+## SL-158 · LỆCH THẬT · Nhánh làm việc không mọc từ `main` khi sinh LẠI
+
+| | |
+|---|---|
+| **Cách tìm** | Ngay lần đầu dùng `plan reopen`: sinh lại `drv_i2c` chạy trên `feature/drv_i2c` mở từ trước khi `drv_stepper` merge. `main` có bốn tệp kiểm, cây làm việc có ba — thiếu `tests/test_drv_stepper.py` |
+| **Cơ chế** | `start_module` gọi `checkout(branch, create=True)`. Nhánh chưa có thì tạo mới từ `main` — đúng. Nhánh ĐÃ CÓ thì chỉ nhảy sang, và nó đứng yên từ lần sinh trước |
+| **Hậu quả** | Cổng `unittests` báo ĐẠT trên một bộ kiểm thiếu hẳn một module đã merge. Cùng họ với SL-152 (chấm bằng nhị phân cũ) và SL-153 (bỏ qua đọc thành đạt): **cổng xanh vì nó không chạy thứ cần chạy**. Diff trong hồ sơ G3 cũng tính trên nền cũ |
+| **Vì sao chưa lộ ra trước đó** | Chỉ cắn khi sinh LẠI một module ĐÃ có nhánh. Lần sinh đầu của mỗi module luôn mọc từ `main`, và `drv_imu` sinh lại nhiều lần trong lúc `main` đứng yên. Nó ra đời cùng lúc với `plan reopen` — luồng đầu tiên làm cho việc ấy thành thường xuyên |
+| **Đã sửa** | `checkout -B <branch> main`: nhánh làm việc LUÔN đặt gốc ở nhánh chính hiện tại. Mất con trỏ nhánh của lần thử trước, KHÔNG mất bằng chứng — mỗi lượt chạy đã có hồ sơ riêng trong `.eaa/runs/`, `llm_calls.jsonl`, `kpi_log.csv` và nhật ký quyết định gate |
+| **Bài canh** | `tests/test_tc121_nhanh_lam_viec_luon_moc_tu_main.py` — 4 bài, gồm một bài canh `main` không bị chạm |
+
+## SL-159 · LỆCH THẬT (×2) · Ráp firmware dịch với đường tiêu đề không chứa tiêu đề
+
+| | |
+|---|---|
+| **Cách tìm** | `eaa build` đầu tiên có module thật: `build/main.c:20:10: fatal error: app_balance.h: No such file or directory` |
+| **Cơ chế** | `FirmwareAssembler` truyền `include_dir = source_dir` — thư mục `firmware/`. Bộ sinh mã ghi vào `firmware/src/`, và `_nguon_module` tìm tệp `.c` bằng `rglob` nên vẫn tìm ra. Kết quả: từng tệp module dịch được (chúng include theo đường tương đối cạnh nhau), còn `build/main.c` thì không — nó `#include "app_balance.h"` và `-I` trỏ vào thư mục KHÔNG chứa tệp ấy |
+| **Vì sao im lặng bốn sprint** | `firmware.yaml` còn `modules: []` cho tới hôm nay. Chưa lượt ráp nào có module thật để lộ ra. Cùng loại với SL-134: hai chỗ mỗi chỗ đúng theo cách của nó, và chưa lần nào được đối chiếu |
+| **Đã sửa** | `include_dir` lấy từ thư mục cha CHUNG của các nguồn ĐÃ TÌM ĐƯỢC, không ghim tên `src`: quy ước đặt tên là của bộ sinh mã, engine đọc được vị trí thật thì không cần đoán lại |
+| **Lỗi thứ hai, lộ ra cùng lúc** | `parse.error_regex` của pack không khớp `fatal error:`. avr-gcc thoát 1 mà bộ parse không bắt được dòng nào, nên cổng báo *"lỗi CẤU HÌNH của Platform Pack — sửa parse.error_regex"*. Câu ấy chỉ đúng một nửa: regex đúng là thiếu, nhưng nguyên nhân thật là đường `-I`. Một cổng đoán sai nguyên nhân còn tệ hơn một cổng im lặng, vì nó gửi người đọc đi sai hướng |
+| **Đã sửa** | `error_regex` nhận cả `(?:fatal\s+)?error:` |

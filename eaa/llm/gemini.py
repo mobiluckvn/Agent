@@ -30,6 +30,7 @@ sang lệnh liệt kê model, thay vì báo một lỗi mạng chung chung.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import time
@@ -237,6 +238,28 @@ class GeminiClient:
                 raise GeminiError(f"HTTP {exc.code}: {chi_tiet}") from None
             except urllib.error.URLError as exc:
                 loi_cuoi = GeminiError(f"Lỗi mạng: {mask_secrets(str(exc.reason))}")
+                if lan < self.max_retries:
+                    time.sleep(self.backoff_s * (2**lan))
+                    continue
+                raise loi_cuoi from None
+            except (http.client.HTTPException, ConnectionError) as exc:
+                # Nối được, gửi được, rồi ĐỨT GIỮA CHỪNG lúc đang đọc trả lời:
+                # `IncompleteRead`, `RemoteDisconnected`, `ConnectionReset`.
+                #
+                # `URLError` không bắt được nhóm này — chúng là `HTTPException`
+                # của `http.client`, không phải lỗi của `urllib`. Nên nhánh thử
+                # lại trước đây phủ "không nối được" và "máy chủ bảo thử lại"
+                # mà bỏ trống đúng cái hay xảy ra nhất với một lượt gọi dài:
+                # đường truyền chết khi câu trả lời đang về (SL-156).
+                #
+                # Đo được ngày 02/09: `IncompleteRead(0 bytes read)` giết cả
+                # lượt sinh `drv_imu` và bắt người dùng gõ lại lệnh.
+                #
+                # Thử lại là ĐÚNG ở đây dù mỗi lượt gọi đều tính tiền: phản hồi
+                # đã đứt thì không còn gì dùng được, nên lượt gọi ấy đã mất rồi.
+                loi_cuoi = GeminiError(
+                    f"Kết nối đứt giữa chừng: {mask_secrets(str(exc))}"
+                )
                 if lan < self.max_retries:
                     time.sleep(self.backoff_s * (2**lan))
                     continue

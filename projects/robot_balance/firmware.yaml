@@ -23,20 +23,6 @@ tick_ms: 1
 # Tên ảnh sinh ra: build/firmware.elf, build/firmware.hex
 image_name: firmware
 
-# Chưa module nào được merge, nên danh sách này còn trống. Mỗi lần `eaa gate
-# approve G3` đưa thêm một module vào firmware/, thêm một mục tương ứng ở đây.
-#
-# Mẫu một mục:
-#
-#   - id: drv_bus_sensor        # trùng id trong backlog
-#     init: drv_bus_sensor_init # gọi một lần lúc khởi động
-#     step: drv_bus_sensor_step # chạy định kỳ; chữ ký phải là void f(void)
-#     period_ms: 10             # lấy từ limits.control_loop_ms
-#
-#   - id: lib_fixed_point       # không chạy định kỳ
-#     init: null
-#     step: null
-#     note: chỉ cung cấp hàm cho module khác gọi
 # An toàn của ẢNH CHÍNH — thứ chỉ dự án trả lời được.
 #
 # Engine không đoán được một firmware có làm robot chạy hay không. Không khai
@@ -58,4 +44,50 @@ safety:
     - Robot đặt trên sàn phẳng, không phải mặt bàn cao
     - Dây nối máy tính đủ dài để robot ngã mà không giật đứt hoặc kéo đổ đồ
 
-modules: []
+modules:
+  # Chỉ app_balance chạy định kỳ. Mọi driver còn lại là thứ NÓ gọi, nên chúng
+  # khai `step: null` — nói ra thì được, im lặng thì không.
+  #
+  # Và chỉ app_balance khai `init`: chính nó đã gọi imu_init/stepper_init/
+  # buzzer_init/button_init trong app_init(). Khai thêm ở đây là khởi tạo hai
+  # lần cùng một ngoại vi, và thứ tự giữa hai lần ấy không ai kiểm được.
+
+  - id: app_balance
+    init: app_init
+    step: app_step
+    # 4 ms, KHÔNG phải 10 ms của limits.control_loop_ms. Con số 4 đến từ mã
+    # tham chiếu đã chạy trên chính bo này, và nó gắn cứng với hai hằng số
+    # trong drv_imu: 0.000031 = 1/(131 x 250 Hz) và lọc bù 0.9996/0.0004. Đổi
+    # chu kỳ ở đây mà quên hai hằng số kia là góc trôi sai hệ số, im lặng.
+    # limits.control_loop_ms là TRẦN (chậm nhất được phép), không phải mục tiêu.
+    period_ms: 4
+
+  - id: drv_imu
+    init: null
+    step: null
+    note: app_step() bơm imu_update() tới khi có mẫu; imu_init() do app_init() gọi
+
+  - id: logic_pid
+    init: null
+    step: null
+    note: hàm thuần, app gọi pid_compute mỗi nhịp
+
+  - id: drv_i2c
+    init: null
+    step: null
+    note: i2c_init() do imu_init() gọi; i2c_tick() do app_step() gọi mỗi nhịp
+
+  - id: drv_stepper
+    init: null
+    step: null
+    note: chạy bằng ngắt Timer2; app chỉ đặt tốc độ qua stepper_set_speed
+
+  - id: drv_buzzer
+    init: null
+    step: null
+    note: buzzer_update(now_ms) do app gọi — nó cần now_ms mà lịch không cấp
+
+  - id: drv_button
+    init: null
+    step: null
+    note: button_get_event(now_ms) do app gọi, cùng lý do như còi

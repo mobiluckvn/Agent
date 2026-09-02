@@ -971,6 +971,8 @@ def cmd_plan(args: argparse.Namespace) -> int:
         return _plan_add(project, store, args)
     if args.plan_action == "order":
         return _plan_order(store, args)
+    if args.plan_action == "reopen":
+        return _plan_reopen(project, store, args)
     raise CliError(f"Hành động không hợp lệ: {args.plan_action!r}")
 
 
@@ -1078,6 +1080,94 @@ def _plan_order(store: StateStore, args: argparse.Namespace) -> int:
         ]
         store.save(state)
     return _plan_list(store)
+
+
+#: Trạng thái mở lại được. `merged` là trường hợp chính; `in_review` và
+#: `handoff` cho vào cùng vì chúng cũng đang ĐỨNG, và cách thoát cũng là sinh
+#: lại. `todo` thì đã ở đó rồi.
+TRANG_THAI_MO_LAI = ("merged", "in_review", "handoff", "stale", "blocked")
+
+
+def _plan_reopen(project: Path, store: StateStore, args: argparse.Namespace) -> int:
+    """Đưa một module đã merge về `todo` để sinh lại (SL-157).
+
+    Vì sao phải có lệnh này: `eaa gen` trên module đã merge dừng lại và nói
+    *"Sinh lại thì đưa nó về trạng thái todo trước"* — một câu đúng, chỉ tass
+    thiếu mất chỗ làm việc ấy. Không lệnh nào trong `eaa plan` đặt lại được
+    trạng thái, nên lối duy nhất đi tiếp là sửa tay `project_state.json`: đúng
+    cái tệp có khoá, có ghi nguyên tử, và có một test canh nó không bị sửa
+    ngoài luồng.
+
+    Vì sao KHÔNG để `eaa gen` tự làm: mở lại mã đã merge là gỡ một quyết định
+    G3 mà một người đã bấm. Việc ấy phải có người gõ ra và phải nêu lý do — lý
+    do đi vào Error Ledger, nên lịch sử trả lời được câu "vì sao mã đã duyệt bị
+    viết lại".
+
+    Lệnh này KHÔNG nới lỏng bất biến nào: module quay về `todo` và phải đi lại
+    trọn vòng lặp chuẩn, qua đủ cổng, rồi qua G3 một lần nữa. Nó chỉ mở đường
+    vào vòng ấy.
+    """
+    ly_do = (getattr(args, "reason", "") or "").strip()
+    if not ly_do:
+        raise CliError(
+            "Mở lại một module đã merge là gỡ một quyết định G3 đã có người "
+            "bấm — bắt buộc kèm --reason. Lý do đi vào Error Ledger và vào "
+            "prompt của lượt sinh lại."
+        )
+
+    # Kiểm TRƯỚC, chỉ đọc. Rồi ghi lý do. Rồi mới đổi trạng thái.
+    #
+    # Thứ tự này không phải chuyện gọn gàng: bản đầu tiên đổi trạng thái trước
+    # rồi ghi ledger sau, và lần chạy thật đầu tiên ledger từ chối phân loại —
+    # để lại một module đã mở lại mà không dòng nào nói vì sao. Việc cuối cùng
+    # phải là việc KHÔNG hỏng được.
+    state = store.load()
+    muc = state.module(args.module_id)
+    if muc is None:
+        co = ", ".join(m.id for m in state.backlog) or "(backlog trống)"
+        raise CliError(
+            f"Module {args.module_id!r} không có trong backlog. Đang có: {co}."
+        )
+    truoc = muc.status
+    if truoc == "todo":
+        print(f"{args.module_id} đã ở trạng thái todo — không đổi gì.")
+        return EXIT_OK
+    if truoc not in TRANG_THAI_MO_LAI:
+        raise CliError(
+            f"{args.module_id} đang ở trạng thái {truoc!r}, không phải trạng "
+            f"thái mở lại được ({', '.join(TRANG_THAI_MO_LAI)}). Một module "
+            "đang chạy dở thì chờ nó dừng, đừng cắt ngang."
+        )
+
+    from eaa.ledger import ErrorLedger
+
+    ErrorLedger(project / "error_ledger.jsonl").add(
+        module=args.module_id,
+        category="other",
+        description=f"Mở lại từ trạng thái {truoc!r} để sinh lại: {ly_do}",
+        evidence="eaa plan reopen",
+    )
+
+    with store.with_lock():
+        state = store.load()
+        muc = state.module(args.module_id)
+        if muc is None or muc.status != truoc:
+            raise CliError(
+                f"{args.module_id} vừa đổi trạng thái giữa chừng — chạy lại lệnh."
+            )
+        muc.status = "todo"
+        # Đếm vòng tự sửa thuộc về LƯỢT CHẠY, không thuộc về module. Giữ lại số
+        # cũ là bắt lượt sinh mới trả nợ của lượt trước.
+        muc.retries = 0
+        store.save(state)
+
+    print(f"{args.module_id}: {truoc} → todo. Lý do đã vào Error Ledger.")
+    print(
+        "Mã trên nhánh chính GIỮ NGUYÊN cho tới khi bản mới qua đủ cổng và qua "
+        "G3 — mở lại không xoá gì cả."
+    )
+    print(f"Bước kế tiếp: eaa gen {args.module_id}")
+    return EXIT_OK
 
 
 # --------------------------------------------------------------------------
@@ -5483,6 +5573,21 @@ def build_parser() -> argparse.ArgumentParser:
     plan_sub.add_parser("list", help="Liệt kê backlog")
     po = plan_sub.add_parser("order", help="Đặt lại thứ tự ưu tiên")
     po.add_argument("order", help="Danh sách module theo thứ tự, phân cách bằng dấu phẩy")
+    pr = plan_sub.add_parser(
+        "reopen",
+        help="Đưa module đã merge về todo để sinh lại (bắt buộc kèm lý do)",
+        description=(
+            "Mở lại mã đã merge là gỡ một quyết định G3 đã có người bấm, nên "
+            "lệnh này đòi --reason và ghi vào Error Ledger. Nó KHÔNG nới lỏng "
+            "bất biến nào: module quay về todo và phải đi lại trọn vòng lặp "
+            "chuẩn rồi qua G3 một lần nữa. Mã trên nhánh chính giữ nguyên cho "
+            "tới khi bản mới được duyệt."
+        ),
+    )
+    pr.add_argument("module_id")
+    pr.add_argument(
+        "--reason", required=True, help="Vì sao mã đã duyệt cần viết lại — vào Error Ledger"
+    )
     p_plan.set_defaults(func=cmd_plan)
 
     # UC04 — vòng lặp sinh mã

@@ -32,9 +32,10 @@ không chạy định kỳ thì khai ``step: null`` — nói ra thì được, i
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 import yaml
 
@@ -307,7 +308,7 @@ class FirmwareAssembler:
                     "source": self._tuong_doi(tep, goc),
                     "sources": [self._tuong_doi(tep, goc)],
                     "output": self._tuong_doi(dich, goc),
-                    "include_dir": self._tuong_doi(self.source_dir, goc),
+                    "include_dir": self._thu_muc_tieu_de(nguon, goc),
                 },
                 gate_name=self.name,
             )
@@ -401,6 +402,30 @@ class FirmwareAssembler:
         return mau
 
     # -- tiện ích -----------------------------------------------------------
+
+    def _thu_muc_tieu_de(self, nguon: Sequence[Path], goc: Path) -> str:
+        """Thư mục để `-I` khi dịch — nơi tệp tiêu đề của module THẬT SỰ nằm.
+
+        Bản trước đưa thẳng ``source_dir`` (thư mục firmware). Nhưng bộ sinh mã
+        ghi vào ``<firmware>/src/``, còn `_nguon_module` tìm bằng ``rglob`` nên
+        nó vẫn tìm ra tệp `.c` ở tầng dưới. Kết quả: dịch được từng tệp, mà
+        ``build/main.c`` thì không, vì nó `#include "app_balance.h"` và `-I`
+        trỏ vào thư mục KHÔNG chứa tệp ấy::
+
+            build/main.c:20:10: fatal error: app_balance.h: No such file or directory
+
+        Chỗ hở này im lặng suốt bốn sprint vì `firmware.yaml` còn `modules: []`
+        — chưa lượt ráp nào có module thật để lộ ra (SL-159).
+
+        Lấy thư mục cha CHUNG của các nguồn đã tìm được, không ghim tên `src`:
+        quy ước đặt tên là của bộ sinh mã, và engine đọc được vị trí thật rồi
+        thì không cần đoán lại.
+        """
+        thu_muc = {p.parent.resolve() for p in nguon}
+        if len(thu_muc) == 1:
+            return self._tuong_doi(thu_muc.pop(), goc)
+        chung = Path(os.path.commonpath([str(d) for d in thu_muc]))
+        return self._tuong_doi(chung, goc)
 
     def _nguon_module(self, plan: AssemblyPlan) -> tuple[list[Path], list[str]]:
         """Tệp nguồn của từng module, và tên những module không tìm thấy nguồn.

@@ -105,13 +105,10 @@ host_test:
     KHÔNG kiểm bằng cách ĐỌC VĂN BẢN MÃ NGUỒN (`assert "delay(" not in code`):
     đó là việc của cổng phân tích tĩnh và không chứng minh gì về HÀNH VI.
 
-    Lệnh dịch hỏng PHẢI làm bộ kiểm chết ngay: không `try/except` bọc quanh nó,
-    không bỏ qua mã thoát khác 0. Nuốt lỗi dịch rồi nạp thư viện của lần chạy
-    trước là cách làm cổng báo ĐẠT trên nguồn không dịch nổi.
-
-    KHÔNG `pytest.skip` khi thiếu thư viện đã dịch. Bài kiểm phải TỰ DỊCH lấy
-    thư viện nó cần; thiếu thư viện nghĩa là mã không dịch được, và đó đúng là
-    thứ cổng phải bắt. Cổng đọc bỏ qua là CHƯA KIỂM và sẽ đỏ.
+    Bài kiểm TỰ DỊCH lấy thư viện nó cần, và lệnh dịch hỏng PHẢI làm nó chết
+    ngay: không `try/except`, không bỏ qua mã thoát khác 0, không `pytest.skip`
+    khi thiếu thư viện. Nuốt lỗi rồi nạp thư viện của lần trước là cách làm cổng
+    báo ĐẠT trên nguồn không dịch nổi; bỏ qua là CHƯA KIỂM, và cổng sẽ đỏ.
 
     Mỗi tệp trả về phải là mã Python hợp lệ, chạy được ngay.
 
@@ -169,7 +166,11 @@ capabilities:
     timeout_s: 120
     parse:
       success_exit_codes: [0]
-      error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+error:\\s+(?P<msg>.+)$"
+      # `fatal error:` cũng là lỗi dịch, và nó là dạng hay gặp nhất khi thiếu
+      # tệp tiêu đề. Bỏ sót nó thì avr-gcc thoát 1 mà bộ parse không bắt được
+      # dòng nào, và cổng báo "lỗi CẤU HÌNH của pack" — chỉ sang đúng chỗ sai
+      # nhưng nói sai nguyên nhân (SL-159).
+      error_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+(?:fatal\\s+)?error:\\s+(?P<msg>.+)$"
       warning_regex: "^(?P<file>[^:]+):(?P<line>\\d+):\\d+:\\s+warning:\\s+(?P<msg>.+)$"
 
   link:
