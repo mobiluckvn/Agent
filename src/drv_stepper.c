@@ -1,89 +1,126 @@
 #include "drv_stepper.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <stdbool.h>
 
-#ifndef cli
-#define cli() do {} while(0)
-#endif
-#ifndef sei
-#define sei() do {} while(0)
-#endif
-
-volatile int16_t target_speed_left = 0;
-volatile int16_t target_speed_right = 0;
+static volatile int16_t target_left = 0;
+static volatile int16_t target_right = 0;
 
 static uint16_t counter_left = 0;
-static uint16_t current_threshold_left = 0;
+static uint16_t current_thr_left = 0;
+static bool is_stopped_left = true;
 
 static uint16_t counter_right = 0;
-static uint16_t current_threshold_right = 0;
+static uint16_t current_thr_right = 0;
+static bool is_stopped_right = true;
 
 void stepper_init(void) {
-    // Cấu hình chân output: PD4, PD5, PD6, PD7
-    DDRD |= (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
-    PORTD &= ~((1 << 4) | (1 << 5) | (1 << 6) | (1 << 7));
+    // Cấu hình các chân điều khiển động cơ là output
+    DDRD |= (1 << PD4) | (1 << PD5) | (1 << PD6) | (1 << PD7);
+    PORTD &= ~((1 << PD4) | (1 << PD5) | (1 << PD6) | (1 << PD7));
 
     // ref: ds-atme-timer2-01, ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061B.pdf, tr.155,165-166
     TCCR2A = 0;
     TCCR2B = 0;
-    TCNT2 = 0;
-    OCR2A = 39;
-    TCCR2A |= (1 << WGM21);
-    TCCR2B |= (1 << CS21);
-    TIMSK2 |= (1 << OCIE2A);
+    TCCR2B |= (1 << CS21);      // chia trước 8 -> 16 MHz/8 = 2 MHz, mỗi nhịp 0,5 µs
+    OCR2A  = 39;                // (39+1) * 0.5 µs = 20 µs
+    TCCR2A |= (1 << WGM21);     // Chế độ CTC
+    TIMSK2 |= (1 << OCIE2A);    // Cho phép ngắt so khớp A
 }
 
-void stepper_set_speed(int16_t speed_left, int16_t speed_right) {
+void stepper_set_speed(int16_t left, int16_t right) {
     cli();
-    target_speed_left = speed_left;
-    target_speed_right = speed_right;
+    target_left = left;
+    target_right = right;
     sei();
 }
 
 ISR(TIMER2_COMPA_vect) {
-    // Left motor
-    counter_left++;
-    if (counter_left > current_threshold_left) {
-        counter_left = 0;
-        int16_t target_l = target_speed_left;
-        if (target_l == 0) {
-            current_threshold_left = 65535;
-        } else if (target_l < 0) {
-            current_threshold_left = (uint16_t)(-target_l);
-            PORTD &= ~(1 << 6); // DIR left = 0 (backward)
-        } else {
-            current_threshold_left = (uint16_t)(target_l);
-            PORTD |= (1 << 6); // DIR left = 1 (forward)
+    // Xử lý động cơ trái (STEP = PD7, DIR = PD6, Tiến DIR = 1)
+    if (is_stopped_left) {
+        PORTD &= ~(1 << PD7); // Đảm bảo STEP ở mức thấp khi dừng
+        int16_t t = target_left;
+        if (t != 0) {
+            is_stopped_left = false;
+            counter_left = 0;
+            if (t > 0) {
+                current_thr_left = (uint16_t)t;
+                PORTD |= (1 << PD6);
+            } else {
+                current_thr_left = (uint16_t)(-t);
+                PORTD &= ~(1 << PD6);
+            }
         }
-    }
-    if (current_threshold_left != 65535) {
-        if (counter_left == 1) {
-            PORTD |= (1 << 7); // STEP left = 1
-        } else if (counter_left == 2) {
-            PORTD &= ~(1 << 7); // STEP left = 0
+    } else {
+        counter_left++;
+        if (counter_left > current_thr_left) {
+            counter_left = 0;
+            int16_t t = target_left;
+            if (t == 0) {
+                is_stopped_left = true;
+            } else {
+                if (t > 0) {
+                    current_thr_left = (uint16_t)t;
+                    PORTD |= (1 << PD6);
+                } else {
+                    current_thr_left = (uint16_t)(-t);
+                    PORTD &= ~(1 << PD6);
+                }
+            }
+        }
+        
+        if (is_stopped_left) {
+            PORTD &= ~(1 << PD7);
+        } else {
+            if (counter_left == 1) {
+                PORTD |= (1 << PD7);
+            } else {
+                PORTD &= ~(1 << PD7);
+            }
         }
     }
 
-    // Right motor
-    counter_right++;
-    if (counter_right > current_threshold_right) {
-        counter_right = 0;
-        int16_t target_r = target_speed_right;
-        if (target_r == 0) {
-            current_threshold_right = 65535;
-        } else if (target_r < 0) {
-            current_threshold_right = (uint16_t)(-target_r);
-            PORTD |= (1 << 4); // DIR right = 1 (backward)
-        } else {
-            current_threshold_right = (uint16_t)(target_r);
-            PORTD &= ~(1 << 4); // DIR right = 0 (forward)
+    // Xử lý động cơ phải (STEP = PD5, DIR = PD4, Tiến DIR = 0)
+    if (is_stopped_right) {
+        PORTD &= ~(1 << PD5); // Đảm bảo STEP ở mức thấp khi dừng
+        int16_t t = target_right;
+        if (t != 0) {
+            is_stopped_right = false;
+            counter_right = 0;
+            if (t > 0) {
+                current_thr_right = (uint16_t)t;
+                PORTD &= ~(1 << PD4);
+            } else {
+                current_thr_right = (uint16_t)(-t);
+                PORTD |= (1 << PD4);
+            }
         }
-    }
-    if (current_threshold_right != 65535) {
-        if (counter_right == 1) {
-            PORTD |= (1 << 5); // STEP right = 1
-        } else if (counter_right == 2) {
-            PORTD &= ~(1 << 5); // STEP right = 0
+    } else {
+        counter_right++;
+        if (counter_right > current_thr_right) {
+            counter_right = 0;
+            int16_t t = target_right;
+            if (t == 0) {
+                is_stopped_right = true;
+            } else {
+                if (t > 0) {
+                    current_thr_right = (uint16_t)t;
+                    PORTD &= ~(1 << PD4);
+                } else {
+                    current_thr_right = (uint16_t)(-t);
+                    PORTD |= (1 << PD4);
+                }
+            }
+        }
+        
+        if (is_stopped_right) {
+            PORTD &= ~(1 << PD5);
+        } else {
+            if (counter_right == 1) {
+                PORTD |= (1 << PD5);
+            } else {
+                PORTD &= ~(1 << PD5);
+            }
         }
     }
 }
