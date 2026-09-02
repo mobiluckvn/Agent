@@ -4,13 +4,9 @@
 #include "drv_stepper.h"
 #include "drv_buzzer.h"
 #include "drv_button.h"
-#include <stdint.h>
-#include <stdbool.h>
 
-// 4ms per step / 0.000031s per sample = 129.03 -> 129 iterations
-#define IMU_MAX_ITERATIONS 129
 #define CALIB_TIMEOUT_MS 10000
-#define MISSING_SAMPLES_MAX 10
+#define IMU_PUMP_LIMIT 20000
 
 typedef enum {
     STATE_CHO_NUT,
@@ -20,138 +16,148 @@ typedef enum {
     STATE_NGA
 } app_state_t;
 
-static app_state_t state = STATE_CHO_NUT;
 static uint32_t now_ms = 0;
-static uint32_t state_start_ms = 0;
-static bool is_error_nga = false;
-static int missing_samples_count = 0;
+static app_state_t state = STATE_CHO_NUT;
+static uint32_t state_timer = 0;
+static uint8_t beep_step = 0;
+static uint32_t beep_timer = 0;
+static uint8_t missing_samples = 0;
 
-void i2c_tick(void);
+extern void i2c_tick(void);
 
 void app_init(void) {
     imu_init();
     stepper_init();
     buzzer_init();
     button_init();
-    
-    state = STATE_CHO_NUT;
-    now_ms = 0;
-    buzzer_beep_async(now_ms, 100);
 }
 
 void app_step(void) {
     now_ms += 4;
-    
     i2c_tick();
-    
+
     bool got_sample = false;
-    for (int i = 0; i < IMU_MAX_ITERATIONS; i++) {
+    for (uint16_t i = 0; i < IMU_PUMP_LIMIT; i++) {
         if (imu_update()) {
             got_sample = true;
             break;
         }
     }
-    
+
+    if (!got_sample) {
+        missing_samples++;
+        if (missing_samples >= 10) {
+            if (state != STATE_NGA) {
+                stepper_set_speed(0, 0);
+                pid_compute(0.0f, 0.0f, false);
+                state = STATE_NGA;
+                beep_step = 0;
+            }
+        }
+    } else {
+        missing_samples = 0;
+    }
+
     buzzer_update(now_ms);
     button_event_t btn = button_get_event(now_ms);
-    
-    if (state == STATE_HIEU_CHINH) {
-        uint32_t elapsed = now_ms - state_start_ms;
-        if (elapsed == 400 || elapsed == 800 || elapsed == 1200 || elapsed == 1600) {
-            buzzer_beep_async(now_ms, 100);
-        }
-    } else if (state == STATE_SAN_SANG) {
-        uint32_t elapsed = now_ms - state_start_ms;
-        if (elapsed == 200) {
-            buzzer_beep_async(now_ms, 100);
-        }
-    } else if (state == STATE_NGA && is_error_nga) {
-        uint32_t elapsed = now_ms - state_start_ms;
-        if (elapsed > 0) {
-            uint32_t cycle = elapsed % 2000;
-            if (cycle == 0 || cycle == 200 || cycle == 400) {
-                buzzer_beep_async(now_ms, 100);
-            }
-        }
-    }
-    
+
     switch (state) {
         case STATE_CHO_NUT:
+            if (beep_step == 0) {
+                buzzer_beep_async(now_ms, 100);
+                beep_step = 1;
+            }
             if (btn == BUTTON_EVENT_PRESSED) {
                 state = STATE_HIEU_CHINH;
-                state_start_ms = now_ms;
+                state_timer = now_ms;
+                beep_step = 0;
+                beep_timer = now_ms - 400; // Kích hoạt bíp đầu tiên ngay lập tức
                 imu_calibrate_begin();
-                buzzer_beep_async(now_ms, 100);
             }
             break;
-            
+
         case STATE_HIEU_CHINH:
+            if (beep_step < 5) {
+                if (now_ms - beep_timer >= 400) {
+                    buzzer_beep_async(now_ms, 100);
+                    beep_timer = now_ms;
+                    beep_step++;
+                }
+            }
+            
             if (btn == BUTTON_EVENT_PRESSED) {
                 state = STATE_CHO_NUT;
-                state_start_ms = now_ms;
-                buzzer_beep_async(now_ms, 100);
-            } else if (!imu_calibrate_busy()) {
+                beep_step = 0;
+                missing_samples = 0;
+                break;
+            }
+
+            if (!imu_calibrate_busy()) {
                 imu_calibrate_commit();
                 state = STATE_SAN_SANG;
-                state_start_ms = now_ms;
-                buzzer_beep_async(now_ms, 100);
-            } else if (now_ms - state_start_ms > CALIB_TIMEOUT_MS) {
+                beep_step = 0;
+                beep_timer = now_ms;
+            } else if (now_ms - state_timer > CALIB_TIMEOUT_MS) {
                 state = STATE_NGA;
-                state_start_ms = now_ms;
-                is_error_nga = true;
-                buzzer_beep_async(now_ms, 100);
+                beep_step = 10; // Mã bíp lỗi
+                beep_timer = now_ms;
             }
             break;
-            
+
         case STATE_SAN_SANG:
-            if (now_ms - state_start_ms >= 1000) {
+            if (beep_step == 0) {
+                buzzer_beep_async(now_ms, 100);
+                beep_timer = now_ms;
+                beep_step = 1;
+            } else if (beep_step == 1 && now_ms - beep_timer >= 200) {
+                buzzer_beep_async(now_ms, 100);
+                beep_timer = now_ms;
+                beep_step = 2;
+            } else if (beep_step == 2 && now_ms - beep_timer >= 500) {
                 state = STATE_CAN_BANG;
-                missing_samples_count = 0;
             }
             break;
-            
+
         case STATE_CAN_BANG:
-            if (!got_sample) {
-                missing_samples_count++;
-                if (missing_samples_count >= MISSING_SAMPLES_MAX) {
-                    stepper_set_speed(0, 0);
-                    pid_compute(imu_get_tilt_angle(), 0.0f, false);
-                    state = STATE_NGA;
-                    is_error_nga = false;
-                }
-            } else {
-                missing_samples_count = 0;
+            if (got_sample) {
                 float angle = imu_get_tilt_angle();
                 if (angle > 30.0f || angle < -30.0f) {
                     stepper_set_speed(0, 0);
                     pid_compute(angle, 0.0f, false);
                     state = STATE_NGA;
-                    is_error_nga = false;
+                    beep_step = 0;
                 } else {
                     float out = pid_compute(angle, 0.0f, true);
+                    float comp = 0.0f;
                     int16_t motor = 0;
                     if (out > 0.0f) {
-                        float comp = 405.0f - (5500.0f / (out + 9.0f));
+                        comp = 405.0f - (5500.0f / (out + 9.0f));
                         motor = 400 - (int16_t)comp;
                     } else if (out < 0.0f) {
-                        float comp = -405.0f + (5500.0f / (-out + 9.0f));
+                        comp = -(405.0f - (5500.0f / (-out + 9.0f)));
                         motor = -400 - (int16_t)comp;
                     }
                     stepper_set_speed(motor, motor);
                 }
             }
             break;
-            
+
         case STATE_NGA:
+            if (beep_step == 10) {
+                uint32_t seq_time = (now_ms - beep_timer) % 1000;
+                if (seq_time == 0) buzzer_beep_async(now_ms, 50);
+                else if (seq_time == 100) buzzer_beep_async(now_ms, 50);
+                else if (seq_time == 200) buzzer_beep_async(now_ms, 50);
+            }
             if (btn == BUTTON_EVENT_PRESSED) {
                 state = STATE_CHO_NUT;
-                state_start_ms = now_ms;
-                buzzer_beep_async(now_ms, 100);
+                beep_step = 0;
+                missing_samples = 0;
             }
             break;
     }
 }
 
 void app_tick(void) {
-    // Empty implementation to satisfy header
+    app_step();
 }
