@@ -2284,3 +2284,27 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Đã sửa** | `include_dir` lấy từ thư mục cha CHUNG của các nguồn ĐÃ TÌM ĐƯỢC, không ghim tên `src`: quy ước đặt tên là của bộ sinh mã, engine đọc được vị trí thật thì không cần đoán lại |
 | **Lỗi thứ hai, lộ ra cùng lúc** | `parse.error_regex` của pack không khớp `fatal error:`. avr-gcc thoát 1 mà bộ parse không bắt được dòng nào, nên cổng báo *"lỗi CẤU HÌNH của Platform Pack — sửa parse.error_regex"*. Câu ấy chỉ đúng một nửa: regex đúng là thiếu, nhưng nguyên nhân thật là đường `-I`. Một cổng đoán sai nguyên nhân còn tệ hơn một cổng im lặng, vì nó gửi người đọc đi sai hướng |
 | **Đã sửa** | `error_regex` nhận cả `(?:fatal\s+)?error:` |
+
+## SL-160 · LỆCH THẬT · Hiệu chỉnh gộp hai đại lượng khác bản chất vào một bước
+
+| | |
+|---|---|
+| **Cách tìm** | Robot lao thẳng đi ngay khi buông tay, dù mọi thứ khác đã đúng: trục, dấu, hằng số, chiều DIR, nhịp lấy mẫu |
+| **Nhà cung cấp làm gì** | V3 đo **trôi con quay** mỗi lần bật máy trong `setup()`, còn **mốc gia tốc** là hằng số `acc_calibration_value` đo MỘT LẦN bằng chương trình riêng V0, lúc robot **thật sự đứng cân bằng trên hai bánh** |
+| **Ta làm gì** | Đo cả hai cùng lúc, mỗi lần bật máy, ở tư thế TAY NGƯỜI đang giữ |
+| **Vì sao sai** | Hai đại lượng khác bản chất. Trôi con quay đổi theo nhiệt độ nên PHẢI đo lại. Mốc gia tốc là HÌNH HỌC của robot — trọng tâm ở đâu so với trục bánh — nó không đổi giữa hai lần bật, và tay người không đo được nó: giữ cho "trông thẳng đứng" không phải điểm cân bằng thật |
+| **Hậu quả kép** | (1) Ta tuyên bố một tư thế nghiêng là "không độ", nên robot đuổi theo một điểm cân bằng sai. (2) Cổng `\|góc\| < 0,5°` thêm vào để chặn việc bật PID quá sớm trở thành VÔ NGHĨA: `imu_calibrate_commit()` đặt góc về 0 nên điều kiện luôn đúng theo định nghĩa, cổng mở tức thì |
+| **`self_balance_setpoint` không cứu được** | Nó dò lại điểm cân bằng ở tốc độ 0,0015 mỗi vòng — sửa lệch 1° mất ~2,7 giây, trong khi robot đã lao mất |
+| **Cách sửa** | Tách hai bước: lúc bật máy chỉ đo trôi con quay; mốc gia tốc lấy từ `hardware_profile.yaml`, đo một lần bằng chẩn đoán kiểu V0. Lúc ấy cổng `±0,5°` mới đo được góc THẬT so với điểm cân bằng, và giai đoạn 5 bíp đổi nghĩa thành "giữ YÊN" thay vì "giữ THẲNG" |
+| **Trạng thái** | CHƯA SỬA — cần một lượt đo trên bo trước. Xem `docs/TIEP_TUC_TU_DAY.md`, ba bước |
+
+## SL-161 · LỆCH THẬT · Trần lớp `project_rules` chặn mười lần trong một buổi
+
+| | |
+|---|---|
+| **Cách tìm** | Mười lần liên tiếp: *"project_rules: 1248 token / ngân sách 1200"*, mỗi lần một vòng đi lại trong khi người dùng ngồi chờ ở bàn thí nghiệm |
+| **Số liệu** | Prompt tổng dùng ~3.200/8.000 — hơn nửa trần tổng bỏ trống |
+| **Vì sao đây là SL-147 lặp lại** | Kích thước lớp này do **số bài học rút từ phần cứng** quyết định. Mỗi lỗi bắt được trên bo lại thêm một dòng ràng buộc vào `prompts/<module>.md`. Đó là một đại lượng CHỈ TĂNG, và một trần cố định đặt lên nó là một trần sẽ bị chạm — bị chạm đúng lúc ta học được nhiều nhất |
+| **Khác SL-147 ở đâu** | Lớp vá THAY CHỖ lớp task nên không cạnh tranh với ai; `project_rules` thì có cạnh tranh. Nên cách sửa không phải "cho dùng chỗ trống" mà cần cân nhắc lại bảng chia |
+| **Không sửa vội** | Nới bừa một con số lúc đang gấp là đúng cái sai mà SL-147 đã dạy. Ghi lại để phiên sau xử lý tử tế |
+| **Trạng thái** | CHƯA SỬA |

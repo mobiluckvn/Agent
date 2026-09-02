@@ -54,8 +54,22 @@ chính, không ở phía ngắt.
 Ngắt này chạy 50 000 lần mỗi giây. Mọi thứ trong nó phải xong trong vài µs —
 không vòng lặp, không gọi hàm dài, không phép chia.
 
+### Trạng thái DỪNG phải ra được
+
+Tốc độ 0 nghĩa là không phát xung. Đừng biểu diễn nó bằng một ngưỡng bằng
+`UINT16_MAX` rồi so `counter > ngưỡng`: bộ đếm `uint16_t` không bao giờ vượt
+quá 65535, nên điều kiện ấy vĩnh viễn sai và driver kẹt ở trạng thái dừng —
+`stepper_set_speed()` sau đó ghi gì cũng không ai đọc. Đo trên bo 02/09: bánh
+khoá cứng từ giây đầu vì `stepper_init()` để target 0.
+
+Dùng một cờ `bool` riêng cho trạng thái dừng, hoặc kiểm `target == 0` mỗi lần
+ngắt. Điều kiện thoát khỏi mọi trạng thái phải ĐẠT ĐƯỢC với kiểu dữ liệu đang
+dùng.
+
 ### Bài kiểm phải chứng minh
 
+* **đặt tốc độ 0 rồi đặt lại khác 0 thì xung phát trở lại** — chạy ngắt vài
+  nghìn lần ở tốc độ 0 TRƯỚC, đúng như lúc khởi động;
 * ngưỡng nhỏ cho ra nhiều xung hơn ngưỡng lớn trong cùng số lần ngắt;
 * dấu âm và dấu dương cho ra hai mức DIR ngược nhau;
 * cùng một giá trị điều khiển thì DIR trái và DIR phải ở hai mức KHÁC nhau;
