@@ -43,9 +43,10 @@ from typing import Any, Sequence
 
 from eaa import EXIT_ENV_ERROR, EXIT_OK, EXIT_REPAIR_LIMIT, EXIT_WAITING_GATE
 from eaa.composer import Task
+from eaa.contract import pha_vo_hop_dong
 from eaa.gates import APPROVED, REJECTED, GatePayload
 from eaa.policy import PHASE_NAMES, GATE_PURPOSE, Level, check_transition, level
-from eaa.tools.base import CodeArtifact, Severity, ToolReport
+from eaa.tools.base import CodeArtifact, Severity, ToolError, ToolReport
 from eaa.vcs import MERGE_GATE, MergeNotAuthorized, authorize_merge
 
 __all__ = [
@@ -292,7 +293,17 @@ class Orchestrator:
             self._dat_trang_thai(module_id, "in_verify", retries=so_lan_va)
 
             # Bước 6: chuỗi cổng kiểm chứng.
-            bao_cao = self._chay_chuoi_cong(artifact, module_id)
+            #
+            # Hợp đồng gọi đi TRƯỚC (SL-163). Không phải để tiết kiệm: một
+            # header đã thu hẹp làm cổng dịch đỏ ở tệp của module KHÁC, và
+            # thông điệp lúc ấy nói về `app_balance.c:125` chứ không nói về
+            # cái vừa bị đổi. Cùng một lỗi, hai câu — câu này chỉ đúng chỗ.
+            vi_pham = self._pha_vo_hop_dong(artifact, module_id)
+            bao_cao = (
+                [self._bao_cao_hop_dong(vi_pham, module_id)]
+                if vi_pham
+                else self._chay_chuoi_cong(artifact, module_id)
+            )
             nhat_ky.append(self._tom_tat_luot(so_lan_va, bao_cao))
 
             hong = [r for r in bao_cao if not r.passed]
@@ -1096,6 +1107,49 @@ class Orchestrator:
             if muc.status in ("todo", "handoff"):
                 return muc.id
         return None
+
+    def _pha_vo_hop_dong(self, artifact: CodeArtifact, module_id: str) -> list[str]:
+        """Hàm công khai đã mất hoặc đổi chữ ký so với bản đang nằm trên `main`.
+
+        Rỗng khi chưa có gì để so — module sinh lần đầu, hoặc kho chưa có nhánh
+        chính. Rỗng cũng khi kho không cho đọc: một phép kiểm phụ trợ không
+        được quyền làm hỏng lượt sinh vì lý do của chính nó.
+        """
+        duong_dan = f"src/{module_id}.h"
+        moi = artifact.files.get(duong_dan)
+        if not moi:
+            return []
+        try:
+            cu = self.repo.read_on_main(duong_dan)
+        except Exception:  # noqa: BLE001
+            return []
+        if not cu:
+            return []
+        return pha_vo_hop_dong(cu, moi)
+
+    @staticmethod
+    def _bao_cao_hop_dong(vi_pham: list[str], module_id: str) -> ToolReport:
+        """Vi phạm hợp đồng đi vào ĐƯỜNG VÁ, không vào đường chặn.
+
+        Khác SL-162 ở chỗ ấy, và khác vì một lý do: lỗi ngoài phạm vi là thứ
+        vòng vá KHÔNG có quyền sửa, còn đây là mã của chính nó và nó sửa được —
+        thêm lại tham số đã bỏ là một lượt vá bình thường.
+        """
+        return ToolReport(
+            gate="contract",
+            passed=False,
+            errors=[
+                ToolError(
+                    f"Header `src/{module_id}.h` phá hợp đồng của bản ĐÃ MERGE. "
+                    "Mã đang gọi những hàm này không dịch được nữa.\n"
+                    + "\n".join(vi_pham)
+                    + "\n\nGiữ NGUYÊN chữ ký cũ. Cần thêm khả năng thì thêm hàm "
+                    "mới bên cạnh — mở rộng thì được, thu hẹp hay đổi thì không.",
+                    file=f"src/{module_id}.h",
+                )
+            ],
+            metrics={"contract_violations": len(vi_pham)},
+        )
 
     @staticmethod
     def _loi_ngoai_pham_vi(bao_cao: ToolReport, module_id: str) -> list[str]:

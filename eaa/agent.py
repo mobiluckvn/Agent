@@ -16,10 +16,28 @@ tầng hội thoại là đúng loại thứ có thể phá điều đó một c
 "hiểu" rằng người dùng muốn duyệt, rồi tự gọi ``gate approve``.
 
 Nên ranh giới ở đây được dựng bằng **cấu tạo, không bằng lời dặn**:
-:data:`TOOLBOX` — danh mục lệnh Agent được gọi — **không chứa** ``gate
-approve/reject``, ``flash``, ``doctor --fix``, ``tune``, ``rollback``,
+:data:`TOOLBOX` — danh mục lệnh Agent được gọi — **không chứa một lệnh DUYỆT
+nào**: ``gate approve/reject``, ``flash approve``, ``doctor approve``, ``tool
+approve``, ``skill approve``, và cũng không chứa ``tune``, ``rollback``,
 ``diagnose run``, ``endurance``. Mô hình có muốn gọi cũng không có gì để gọi;
 vòng lặp từ chối mọi lệnh ngoài danh mục và nói lại cho mô hình biết vì sao.
+
+Ranh giới nằm ở việc DUYỆT, không ở việc LÀM
+---------------------------------------------
+
+``flash``, ``doctor --fix`` và ``tool run`` thì CÓ trong danh mục, và đó là
+chủ ý chứ không phải sót. Cả ba đều tự dừng khi chưa có quyết định của người:
+``flash`` đòi một bản duyệt neo vào **băm nội dung ảnh**, ``doctor --fix`` chỉ
+chạy đúng những lệnh cài đã duyệt, ``tool run`` chỉ chạy công cụ đã ở trạng
+thái ``approved``. Người đã duyệt rồi thì việc bấm nút là việc máy làm được,
+và bắt người gõ lại lệnh ấy không thêm một lớp an toàn nào — nó chỉ thêm một
+bước gõ.
+
+Cách chia này còn giữ được một tính chất mà cách chia cũ không có: nó **không
+phụ thuộc vào việc liệt kê đủ**. Danh sách lệnh nguy hiểm sẽ dài thêm mỗi lần
+có tính năng mới, và một danh sách phải nhớ cập nhật là một danh sách sẽ sót.
+Danh sách lệnh DUYỆT thì đóng: mỗi cổng đúng một lệnh, và thêm cổng mới là
+thêm một mục người ta không quên được, vì không có nó thì cổng không dùng được.
 
 Prompt cũng dặn điều đó, nhưng lời dặn chỉ là hàng rào thứ hai. Hàng rào thứ
 nhất là danh mục, và nó là dữ liệu — đọc được, kiểm được bằng test, đổi được

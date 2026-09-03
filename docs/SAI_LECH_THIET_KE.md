@@ -2327,3 +2327,29 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Ngả về phía VÁ khi không chắc** | Chặn nhầm thì dừng cả dây chuyền và đòi người; vá nhầm thì tốn lượt gọi. Hai hạng sai không ngang giá. Nên chỉ dừng khi quy được MỌI thất bại về tệp VÀ mọi tệp đều ngoài phạm vi; quy được một phần, hoặc không quy được, thì vòng vá vẫn mở |
 | **Chưa sửa** | Việc đổi chữ ký vẫn chỉ bị bắt GIÁN TIẾP, qua một module khác tình cờ gọi tới. Module chưa ai gọi thì đổi chữ ký vẫn lọt. Chỗ sửa thẳng: so khai báo trong header cũ trên `main` với header mới ngay khi sinh xong. Hiện đang vá bằng cách ghi chữ ký vào `prompts/logic_pid.md` — đó là lời dặn, và lời dặn chỉ giữ được đúng một module |
 | **Bài canh** | `tests/test_tc123_loi_ngoai_pham_vi_khong_mo_vong_va.py` — 12 bài, trong đó 4 bài canh chiều ngả về phía vá và 1 bài canh việc không biến dòng `ERROR` do người viết test in ra thành tên tệp |
+
+## SL-163 · BỔ SUNG · Không có gì canh hợp đồng gọi của một module sinh lại
+
+| | |
+|---|---|
+| **Cách tìm** | Nửa còn lại của SL-162. SL-162 chặn được vòng vá đốt lượt cho lỗi module khác, nhưng việc ĐỔI CHỮ KÝ vẫn chỉ bị bắt **gián tiếp** — qua một module khác tình cờ gọi tới. Module chưa ai gọi thì đổi chữ ký lọt sạch, và nó sẽ lọt tới đúng lúc có người viết module gọi tới: muộn nhất có thể |
+| **Vì sao SL-154 không phủ chỗ này** | `khoa_pham_vi_tep` canh QUYỀN GHI — module này không viết được tệp của module kia. Nhưng module sinh lại vẫn chỉ viết tệp của CHÍNH NÓ, và đổi một chữ ký trong header của mình là đủ làm mọi module đã merge gọi tới nó không dịch được. Quyền ghi bị canh, hợp đồng gọi thì không |
+| **Đã thêm** | `eaa/contract.py` — đọc khai báo hàm từ header, so bản vừa sinh với bản đang nằm trên `main`. Hai hạng vi phạm: **mất** một hàm, và **đổi** chữ ký. Thêm hàm mới KHÔNG phải vi phạm: mở rộng là việc bình thường của một lượt sinh lại, chỉ thu hẹp hay đổi mới là phá |
+| **Vào đường VÁ, không vào đường CHẶN** | Khác SL-162 có chủ ý. Lỗi ngoài phạm vi là thứ vòng vá KHÔNG có quyền sửa nên phải chặn; còn đây là mã của chính nó và nó sửa được — thêm lại một tham số đã bỏ là một lượt vá bình thường. Chặn ở đây là đòi người làm hộ việc máy làm được |
+| **Đi TRƯỚC chuỗi cổng** | Không phải để tiết kiệm thời gian. Một header đã thu hẹp làm cổng dịch đỏ ở tệp của module KHÁC, và thông điệp lúc ấy nói về `app_balance.c:125` chứ không nói về cái vừa bị đổi. Cùng một lỗi, hai câu — và chỉ một câu chỉ đúng chỗ |
+| **Bỏ tên tham số trước khi so** | Đổi tên tham số không đổi cách gọi. So cả tên thì cổng này sẽ kêu ở mỗi lần đổi tên, và một cổng hay báo nhầm sớm muộn cũng bị tắt đi — lúc ấy nó không bảo vệ được gì nữa. Cùng lý lẽ với cổng an toàn của `eaa tool` |
+| **Ranh giới, nói thẳng** | Đây là bộ so KHAI BÁO, không phải bộ dịch C. Không hiểu macro, không mở `#include`. Với con trỏ hàm và mảng thì so **nguyên văn** thay vì tách tên — tức có thể kêu thừa ở đó. Ngả về phía kêu thừa là có chủ ý ở những chỗ hiếm; ở chỗ thường (đổi tên tham số) thì tuyệt đối không kêu |
+| **Bài canh** | `tests/test_tc124_hop_dong_goi_khong_duoc_doi.py` — 16 bài, trong đó 4 bài canh chiều "đừng kêu nhầm" và 1 bài canh việc `unsigned int` không bị cắt cụt thành `unsigned` |
+
+## SL-164 · DỜI CHỖ · Docstring `eaa/agent.py` mô tả một bản `TOOLBOX` không còn tồn tại
+
+| | |
+|---|---|
+| **Cách tìm** | Đọc lại danh mục để viết mục README về tầng hội thoại. Docstring khẳng định `TOOLBOX` **không chứa** `flash`, `doctor --fix`; danh mục thật thì có cả ba (`tool run` nữa) |
+| **Bất biến KHÔNG bị phá** | Kiểm ngay: `gate approve/reject`, `flash approve`, `doctor approve`, `tool approve`, `skill approve`, `tune`, `rollback`, `diagnose run`, `endurance` — **không cái nào** trong danh mục. Năm Human Gate vẫn không thể bị vượt |
+| **Thiết kế đã đổi, lời khai thì không** | Ranh giới dời từ *"cấm lệnh nguy hiểm"* sang *"cấm lệnh DUYỆT"*. `flash`, `doctor --fix`, `tool run` được vào danh mục vì cả ba tự dừng khi chưa có quyết định của người — `flash` đòi bản duyệt neo vào băm nội dung ảnh, `doctor --fix` chỉ chạy lệnh cài đã duyệt, `tool run` chỉ chạy công cụ `approved` |
+| **Vì sao cách chia mới TỐT HƠN** | Nó không phụ thuộc vào việc liệt kê đủ. Danh sách "lệnh nguy hiểm" dài thêm mỗi lần có tính năng mới, và một danh sách phải nhớ cập nhật là một danh sách sẽ sót. Danh sách lệnh DUYỆT thì đóng: mỗi cổng đúng một lệnh, và thêm cổng mà quên thêm lệnh duyệt thì cổng ấy không dùng được — không ai quên |
+| **Vì sao vẫn phải sửa** | Docstring là thứ kỹ sư tiếp theo tin. Một tệp khai sai về chính mình sẽ khiến người đọc hoặc tưởng có lỗ hổng và đi bịt cái không hở, hoặc tưởng đã có rào ở chỗ chưa có. Đây đúng dạng lỗi hay gặp nhất của kho này: **mã lệch với lời chính nó khai** |
+| **Đã sửa** | Viết lại docstring theo ranh giới thật, kèm mục *"Ranh giới nằm ở việc DUYỆT, không ở việc LÀM"* nói rõ vì sao ba lệnh kia được vào |
+| **Bài canh** | Thêm 2 bài vào `tests/test_tc61_chat.py`: một bài liệt kê thẳng tên sáu lệnh duyệt và đòi chúng vắng mặt; một bài canh **chiều ngược** — ba lệnh `flash`/`doctor --fix`/`tool run` phải CÒN đó và phải tự nói ra rằng chúng đòi duyệt trước, để người sau tưởng là lỗ hổng mà gỡ đi thì bài kiểm đỏ và dẫn về đúng lý lẽ |
+| **Vì sao hai đường độc lập** | Bài canh cũ (TC-61c) đọc danh sách từ PROMPT rồi đối chiếu danh mục. Bài mới viết thẳng tên. Một prompt bị sửa không làm cả hai cùng mù |

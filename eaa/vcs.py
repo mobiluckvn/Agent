@@ -299,6 +299,18 @@ class GitRepo:
             return frozenset()
         return frozenset(d for d in ra.splitlines() if d)
 
+    def read_on_main(self, duong_dan: str) -> str | None:
+        """Nội dung một tệp như nó đang nằm trên nhánh chính, hoặc None.
+
+        None nghĩa là "chưa có bản đã duyệt nào để mà so" — module sinh lần
+        đầu, hoặc kho chưa có nhánh chính. Gọi được từ nhánh làm việc: `git
+        show` đọc từ kho, không từ thư mục làm việc (SL-163).
+        """
+        try:
+            return self._git("show", f"{self.main_branch}:{duong_dan}")
+        except GitError:
+            return None
+
     # -- nhánh -------------------------------------------------------------
 
     def branch_for(self, module_id: str) -> str:

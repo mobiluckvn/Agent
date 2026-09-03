@@ -485,3 +485,50 @@ def test_runner_tiem_vao_thi_khong_bi_ghi_de(tmp_path):
 
     rieng = lambda argv: (0, "gia")
     assert AgentLoop(project=tmp_path, llm=None, runner=rieng).runner is rieng
+
+
+# --------------------------------------------------------------------------
+# TC-61j — mọi lệnh DUYỆT đều nằm ngoài danh mục (SL-164)
+# --------------------------------------------------------------------------
+
+
+def test_khong_mot_lenh_DUYET_nao_trong_danh_muc() -> None:
+    """Ranh giới nằm ở việc DUYỆT, không ở việc LÀM.
+
+    `flash`, `doctor --fix`, `tool run` CÓ trong danh mục, và đó là chủ ý: cả
+    ba tự dừng khi chưa có quyết định của người. Người đã duyệt rồi thì bấm nút
+    là việc máy làm được, và bắt người gõ lại lệnh ấy không thêm lớp an toàn
+    nào — chỉ thêm một bước gõ.
+
+    Điều PHẢI giữ là danh sách lệnh duyệt. Nó đóng, và đóng là tính chất quan
+    trọng: danh sách "lệnh nguy hiểm" phải dài thêm mỗi lần có tính năng mới,
+    còn danh sách lệnh duyệt thì mỗi cổng đúng một lệnh — thêm cổng mà quên
+    thêm lệnh duyệt thì cổng ấy không dùng được, nên không ai quên.
+
+    Bài này canh việc danh mục KHÔNG lặng lẽ mọc thêm một trong số chúng. Nó
+    khác bài TC-61c ở trên: bài kia đọc danh sách từ PROMPT, bài này viết thẳng
+    ra tên — hai đường độc lập tới cùng một bất biến, và một prompt bị sửa
+    không làm cả hai cùng mù.
+    """
+    ten = {t.name for t in TOOLBOX}
+    lenh_duyet = {
+        "gate approve", "gate reject",
+        "flash approve", "doctor approve",
+        "tool approve", "skill approve",
+    }
+    lot = lenh_duyet & ten
+    assert not lot, f"lệnh duyệt lọt vào danh mục Agent tự gọi: {sorted(lot)}"
+
+
+def test_lenh_LAM_co_trong_danh_muc_va_deu_tu_doi_duyet() -> None:
+    """Canh chiều ngược: ba lệnh này CÒN đó, kèm lời nói rõ chúng đòi duyệt.
+
+    Nếu ai đó gỡ chúng ra vì tưởng là lỗ hổng, bài này đỏ và dẫn về đúng lý lẽ
+    ở docstring `eaa/agent.py`.
+    """
+    muc = {t.name: t for t in TOOLBOX}
+    for ten_lenh in ("flash", "doctor --fix", "tool run"):
+        assert ten_lenh in muc, f"{ten_lenh} biến mất khỏi danh mục"
+        assert "DUYỆT" in muc[ten_lenh].purpose.upper(), (
+            f"{ten_lenh} không nói ra rằng nó đòi người duyệt trước"
+        )
