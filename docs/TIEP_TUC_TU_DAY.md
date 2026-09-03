@@ -65,9 +65,11 @@ Và nó ngả về phía **vá** khi không chắc: chặn nhầm thì dừng c�
 
 ## Chốt phiên 03/09 — mở máy tối nay thì đọc mục này trước
 
-Kho **sạch**, mọi thứ đã push lên `origin/main`. Chín commit trong ngày:
+Kho **sạch**, mọi thứ đã push lên `origin/main`. Mười một commit trong ngày:
 
 ```
+7cca74c  docs: dùng một Agent khác để huấn luyện Agent này; README chỉ mục đầy đủ
+2a88544  docs: chốt trạng thái phiên 03/09
 c353e57  docs: hướng dẫn huấn luyện Agent cho bo mới hoặc chip mới
 e8b6bd3  docs: bàn giao khớp với việc đã làm
 35303da  docs: hướng dẫn cài đặt và chạy trọn luồng cho máy mới
@@ -121,7 +123,12 @@ eaa gate approve G1 --actor "Vũ Trí Công" --expect <băm vừa xem>
 * **`docs/CAI_DAT_VA_CHAY.md`** — máy mới tải kho về: cài đặt và chạy trọn
   luồng, hai đường A/B, mười ba sự cố thường gặp.
 * **`docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md`** — huấn luyện thủ công cho bo mới
-  hoặc chip mới, gồm cả cách dựng một Platform Pack.
+  hoặc chip mới. Ba phần: dựng dự án mới (§1–7), dựng Platform Pack (§8), và
+  **dùng một Agent khác để làm việc ấy** (§9–12) — ranh giới, quy trình năm
+  bước, ba mẫu câu giao việc, bốn cách hỏng đã gặp thật.
+* **`README.md`** còn được thay mục đọc tài liệu bằng **chỉ mục đầy đủ**: bảng
+  ba câu hỏi đầu tiên của người vừa tải kho về, rồi bốn nhóm tài liệu, mọi
+  đường dẫn là link bấm được.
 * **`docs/DANH_GIA_NANG_LUC_AGENT.md`** — số liệu đếm lại từ dữ liệu, thêm §3.8
   về bài kiểm xanh vì lý do sai.
 
