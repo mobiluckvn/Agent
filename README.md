@@ -23,6 +23,211 @@ Robot 2 bánh tự cân bằng là **dự án mẫu**, không phải đích chuy
 chuyển giao nằm ở engine và phương pháp. Thêm một họ MCU mới = thêm một Platform
 Pack, không sửa một dòng engine (NFR-05).
 
+## Kiến trúc theo mô hình C4
+
+Bốn mức nhìn, mỗi mức trả lời một câu hỏi khác nhau, và **không mức nào thay
+được mức kia**: sơ đồ ngữ cảnh không nói được vì sao merge an toàn, còn sơ đồ
+lớp không nói được ai chịu trách nhiệm với ai.
+
+### C1 — Ngữ cảnh: hệ thống này ngồi giữa những ai
+
+```mermaid
+graph TB
+    KS["👤 Kỹ sư nhúng<br/>giao việc · duyệt 5 gate · cầm dụng cụ đo"]
+    EAA["⬛ Embedded AIDD Agent<br/>sinh mã nhúng có kiểm chứng,<br/>với 5 điểm dừng bắt buộc"]
+    LLM["☁ Google Gemini API<br/>gemini-3.1-pro-preview, ghim phiên bản"]
+    TC["🔧 Toolchain nền tảng<br/>avr-gcc · avr-libc · avrdude"]
+    BO["🔌 Bo mạch thật<br/>ATmega328P · MPU-6500 · A4988"]
+    GIT["🗃 Git<br/>kho mã và kho bằng chứng"]
+    WEB["🌐 Trang nhà sản xuất<br/>datasheet · errata"]
+
+    KS -->|"tiếng Việt: eaa chat, lý do từ chối"| EAA
+    EAA -->|"hồ sơ gate, câu hỏi đo đạc"| KS
+    EAA -->|"prompt stateless ≤ 8.000 token"| LLM
+    LLM -->|"mã C + bài kiểm"| EAA
+    EAA -->|"dịch, liên kết, đo kích thước"| TC
+    EAA -->|"nạp qua cổng nối tiếp, rồi ĐỌC NGƯỢC"| BO
+    BO -->|"telemetry JSON, tiếng bíp"| EAA
+    EAA -->|"nhánh, commit truy vết được"| GIT
+    EAA -->|"tải theo URL cuối sau chuyển hướng"| WEB
+```
+
+Hai điều đọc ra từ sơ đồ này. Thứ nhất, **kỹ sư đứng ở hai đầu chứ không ở
+giữa**: giao việc, và duyệt gate. Thứ hai, mũi tên tới bo mạch là **hai chiều**
+— nạp xong phải đọc ngược đối chiếu băm, và bo trả lời bằng telemetry. Một hệ
+chỉ có mũi tên đi ra là hệ không biết mình vừa làm gì.
+
+### C2 — Container: những khối chạy được và những khối là dữ liệu
+
+```mermaid
+graph TB
+    subgraph N["Người dùng"]
+        CLI["<b>CLI</b> · eaa/cli.py<br/>52 lệnh · 4 mã thoát<br/><i>Python, argparse</i>"]
+        CHAT["<b>Tầng hội thoại</b> · eaa/agent.py<br/>TOOLBOX 70 mục, không có lệnh DUYỆT<br/><i>vòng lặp JSON trên complete()</i>"]
+    end
+
+    subgraph E["ENGINE — eaa/ · không một hằng số phần cứng nào"]
+        ORC["<b>Orchestrator</b><br/>máy trạng thái, vòng lặp 13 bước"]
+        COMP["<b>Composer</b><br/>7 lớp K1–K7, nén, ngân sách token"]
+        GATE["<b>Gates</b><br/>G1–G5, quyết định append-only"]
+        TOOL["<b>Tool Layer</b><br/>compile · size · static · unittests · sim"]
+        VCS["<b>Tầng Git</b><br/>giữ BẤT BIẾN MERGE"]
+        LLMA["<b>LLM Adapter</b><br/>Gemini · Mock · Replay"]
+    end
+
+    subgraph P["PLATFORM PACK — packs/avr, packs/stm32"]
+        PACK["pack.yaml · tools.yaml<br/>rules/forbidden.yaml<br/>templates/*.tmpl · hostmock/"]
+    end
+
+    subgraph D["PROJECT — projects/robot_balance"]
+        KB["<b>Knowledge Base</b> · 5 kho<br/>constraints · hardware_profile<br/>datasheets · prompts · error_ledger"]
+        ST["<b>Project State</b><br/>project_state.json, ghi nguyên tử"]
+        EV["<b>Bằng chứng</b><br/>kpi_log.csv · llm_calls.jsonl<br/>gates/decisions.jsonl · flash_log.jsonl"]
+        FW["<b>Kho firmware</b> · kho Git lồng<br/>src/ · tests/ · build/"]
+    end
+
+    CLI --> ORC
+    CHAT --> CLI
+    ORC --> COMP --> KB
+    ORC --> TOOL --> PACK
+    ORC --> GATE --> ST
+    ORC --> VCS --> FW
+    ORC --> LLMA
+    ORC --> EV
+```
+
+Ranh giới quan trọng nhất trong sơ đồ này là **engine không nói chuyện thẳng
+với toolchain**. Mọi lời gọi đi qua interface `eaa/platform.py`, và Platform
+Pack khai báo lệnh dưới dạng **dữ liệu YAML** chứ không phải mã. Thêm một họ
+MCU là thêm một thư mục `packs/`, không sửa một dòng engine (NFR-05) — bằng
+chứng là `packs/stm32/` đã có mặt và dùng chung toàn bộ engine.
+
+Ranh giới thứ hai: **Project là dữ liệu, không phải mã.** Cả năm kho tri thức,
+trạng thái, và toàn bộ bằng chứng đều là tệp văn bản nằm trong Git — đọc được
+bằng mắt, diff được, và không cần chạy hệ thống mới xem được.
+
+### C3 — Component: bên trong Engine
+
+```mermaid
+graph LR
+    subgraph V["Vòng lặp chuẩn 13 bước"]
+        O["orchestrator.py<br/>run_module()"]
+        PO["policy.py<br/>phân quyền, luật chuyển pha"]
+        CO["composer.py<br/>lắp 7 lớp có ngân sách"]
+        CT["contract.py<br/>canh hợp đồng gọi"]
+        TL["tools/*.py<br/>chuỗi 4 cổng"]
+        VC["vcs.py<br/>authorize_merge()"]
+    end
+
+    subgraph K["Tri thức"]
+        KBM["kb.py · 5 kho"]
+        RAG["rag.py<br/>quan hệ trước, BM25 sau"]
+        GR["graph.py<br/>Knowledge Graph, networkx"]
+        LC["lifecycle.py<br/>append-only + supersede"]
+        IN["ingest.py<br/>PDF · ảnh · web · số đo"]
+    end
+
+    subgraph H["Phần cứng"]
+        FI["firmware.py · ráp ảnh"]
+        FL["flash.py · nạp + đọc ngược"]
+        DI["diagnostics.py · hai kênh"]
+        TE["telemetry.py · serialport.py"]
+        AC["acceptance.py · lên hạng hw-verified"]
+    end
+
+    subgraph G["Tự soi"]
+        KP["kpi.py"]
+        LE["ledger.py"]
+        DE["deviation.py<br/>mã và tài liệu kể hai chuyện"]
+        SU["suggest.py · focus.py"]
+    end
+
+    O --> PO & CO & CT & TL & VC
+    CO --> KBM & RAG
+    RAG --> GR
+    KBM --> LC & IN
+    VC --> FI --> FL --> DI --> TE --> AC
+    O --> KP & LE
+    KP --> DE --> SU
+```
+
+Ba nhóm và một nhóm quan sát. Chỗ đáng chú ý là `contract.py` nằm **trước**
+chuỗi cổng chứ không nằm trong nó: một header đã thu hẹp làm cổng dịch đỏ ở
+tệp của module *khác*, và thông điệp lúc ấy chỉ sai chỗ.
+
+`rag.py` **không dùng vector database và không dùng embedding** (ADR-07): truy
+xuất đi theo quan hệ trong Knowledge Graph trước, BM25 chỉ bổ trợ. Lý do là
+tính giải thích được — với một trích đoạn datasheet, câu hỏi *"vì sao đoạn này
+được chọn"* phải trả lời được bằng một đường đi trong đồ thị, không bằng một
+khoảng cách cosine.
+
+### C4 — Code: bốn cấu trúc dữ liệu giữ toàn bộ bất biến
+
+| Cấu trúc | Ở đâu | Giữ điều gì |
+|---|---|---|
+| `Prompt` / `PromptLayer` | `llm/base.py` | 7 lớp K1–K7, mỗi lớp một phần ngân sách; `check_budget()` chạy **trước** khi gọi mô hình (TC-16) |
+| `ToolReport` / `ToolError` | `tools/base.py` | `__post_init__` từ chối một báo cáo vừa `passed=True` vừa có lỗi mức ERROR — mâu thuẫn nội tại không đi tiếp được |
+| `CodeArtifact` | `tools/base.py` | Mã sinh ra kèm `prompt_hash`, model, `constraints_version`, chunk ids — commit truy vết được (NFR-07) |
+| `GatePayload` | `gates.py` | Quyết định neo vào **băm nội dung**, không vào đường dẫn; ráp lại là hồ sơ khác, phải duyệt lại |
+
+Bất biến trung tâm nằm ở đúng một hàm:
+
+```python
+# eaa/vcs.py — mọi phép kiểm nằm trong HÀM DỰNG, không trong hàm gọi
+@dataclass(frozen=True)
+class MergeAuthorization:
+    def __post_init__(self) -> None:
+        if not self.reports:
+            raise MergeNotAuthorized(...)
+        hong = [r.gate for r in self.reports if not r.passed]
+        if hong:
+            raise MergeNotAuthorized(
+                "Merge chỉ xảy ra khi TOÀN BỘ ToolReport.passed (SDD §4, NFR-01)."
+            )
+
+def authorize_merge(*, module_id, branch, reports, decision,
+                    content_digest, required_gates=()) -> MergeAuthorization:
+    if decision is None:
+        raise MergeNotAuthorized(f"Chưa có quyết định nào tại {MERGE_GATE} …")
+    return MergeAuthorization(...)      # cửa duy nhất
+```
+
+Việc `authorize_merge` chỉ gói lại lời gọi hàm dựng là **có chủ ý**: đặt phép
+kiểm trong `__post_init__` nghĩa là không ai dựng được giấy phép mà bỏ qua
+kiểm — kể cả mã tương lai gọi thẳng hàm dựng.
+
+Và một tính chất còn mạnh hơn: **chế độ nháp không merge được do cấu tạo.** Nó không ghi bằng chứng, nên tới bước merge đơn giản là không có gì
+để đọc — không có câu `if` nào phải nhớ đặt cho đúng.
+
+Bài kiểm firmware chạy trên **máy chủ** qua `ctypes`: mã C của module được dịch
+thành `.so` với lớp mock ngoại vi trong `packs/avr/hostmock/`, rồi nạp vào
+pytest. Nhờ vậy `float pid_compute(float, float, bool)` kiểm được mà không cần
+bo — và đó là lý do lớp trừu tượng phần cứng tồn tại, chứ không phải vì đẹp mã.
+
+## Công nghệ sử dụng
+
+| Lớp | Công nghệ | Vì sao chọn |
+|---|---|---|
+| Ngôn ngữ engine | **Python ≥ 3.10** | Chuẩn thư viện đủ dùng; kiểu union `X \| None` và `match` cần 3.10 |
+| Phụ thuộc engine | **`pyyaml`, `networkx`, `pypdf`** — hết | NFR-04 giữ phụ thuộc ở mức tối thiểu. Ba gói, không hơn |
+| Knowledge Graph | **`networkx` trong tiến trình** | ADR-08: **không** dùng graph database. Đồ thị của một dự án nhúng có cỡ trăm nút — thêm một dịch vụ là thêm một thứ phải cài, phải chạy, phải sao lưu |
+| Truy xuất | **BM25 tự viết + đi theo quan hệ** | ADR-07: **không** embedding, **không** vector DB. Đổi lấy tính giải thích được của mỗi trích đoạn |
+| Lưu trữ | **Tệp phẳng**: YAML · JSON · JSONL · CSV | Không cơ sở dữ liệu nào. Mọi thứ diff được, review được trong Git, và đọc được khi hệ thống không chạy |
+| Ghi trạng thái | **Ghi nguyên tử + khóa tệp** | `project_state.json` phải sống sót qua crash giữa chừng (TC-03) |
+| Mô hình nền | **Gemini `gemini-3.1-pro-preview`**, ghim phiên bản, stateless | Sinh mã nhúng. `gemini-3.5-flash` cho hội thoại và tra cứu |
+| Giao thức công cụ | **JSON trên `complete()`**, không function-calling | ADR-03: chạy được với mọi adapter theo `LLMClient`, kể cả MockLLM và bộ phát lại trong test |
+| Toolchain AVR | **avr-gcc · avr-libc · avrdude** | Khai báo trong `packs/avr/tools.yaml` dưới dạng dữ liệu, engine không biết tên chúng |
+| Kiểm thử engine | **pytest** — 106 tệp TC, 2.374 bài | Đặt tên theo mã test case trong hồ sơ thiết kế |
+| Kiểm thử firmware | **pytest + `ctypes` + mock ngoại vi C** | Chạy mã nhúng trên máy chủ, không cần bo |
+| Phiên bản mã | **Git**, kho lồng cho firmware | Nhánh mỗi module; merge chỉ qua `authorize_merge()` |
+| Xuất tài liệu | **`.docx`/`.pptx`/`.xlsx` tự dựng** | `eaa/office.py` ghi thẳng định dạng Open XML — không thêm phụ thuộc nào |
+
+Không có trong danh sách này, và đó là chủ ý: **không cơ sở dữ liệu, không
+vector store, không hàng đợi, không dịch vụ nền, không container.** Toàn bộ hệ
+chạy bằng `python -m eaa.cli` trên một máy, và trạng thái của nó là những tệp
+văn bản người đọc được. Một hệ thống mà bằng chứng của nó cần một dịch vụ đang
+chạy mới xem được thì tới lúc bảo vệ đề án sẽ không xem được.
+
 ## Bất biến không thương lượng
 
 - Merge chỉ xảy ra khi **toàn bộ** `ToolReport.passed` **và** gate G3 đã duyệt —
@@ -98,7 +303,7 @@ eaa deviations --draft                    # chỗ mã và tài liệu kể hai c
 
 ## Tương tác bằng ngôn ngữ tự nhiên
 
-Mặt tiếp xúc đầu tiên của sản phẩm là **70 lệnh rời**. Muốn hỏi được câu đầu
+Mặt tiếp xúc đầu tiên của sản phẩm là **52 lệnh rời**. Muốn hỏi được câu đầu
 tiên, người dùng phải biết lệnh nào tồn tại và gõ đúng cờ — tức phải hiểu cấu
 trúc bên trong trước đã. Tầng hội thoại lấp chỗ đó: nói ra điều mình muốn bằng
 tiếng Việt, Agent tự tìm đường.
