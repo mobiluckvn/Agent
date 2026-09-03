@@ -1,6 +1,6 @@
 {
   "module": "drv_imu",
-  "content_digest": "sha256:a9eb02c7abfd1b596d71917e12df40a8865574c3f2c2fc37b3b334269584c2ed",
+  "content_digest": "sha256:a68f7fe9c24324200fb2dd397fe8cb1a3ebc8496f063f3caf8eedc402af0a12e",
   "reports": [
     {
       "gate": "compile",
@@ -17,7 +17,7 @@
         "source_files": 1,
         "size_scope": "module"
       },
-      "duration_s": 0.06903960599993297
+      "duration_s": 0.42638635900220834
     },
     {
       "gate": "size",
@@ -30,7 +30,7 @@
         "size_scope": "module",
         "measured_files": 1
       },
-      "duration_s": 0.010021644999142154
+      "duration_s": 0.009865468004136346
     },
     {
       "gate": "static",
@@ -73,15 +73,15 @@
         }
       ],
       "metrics": {
-        "passed": 20,
+        "passed": 30,
         "failed": 0,
         "errors": 0,
         "skipped": 0,
-        "tests_found": 20,
+        "tests_found": 30,
         "exit_code": 0,
         "host_gaps": 3
       },
-      "duration_s": 3.5349623990005057
+      "duration_s": 9.00934387199959
     }
   ]
 }

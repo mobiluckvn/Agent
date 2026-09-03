@@ -1,6 +1,6 @@
 {
   "module": "drv_stepper",
-  "content_digest": "sha256:d19dc88594ba8204f267ed0ab71f083c0327838f08885ac1f0578171e795cc67",
+  "content_digest": "sha256:c188d5ced13380d36e89d435ac777abe6c15cc2d1e1ed509a350fb37de3e64d7",
   "reports": [
     {
       "gate": "compile",
@@ -17,7 +17,7 @@
         "source_files": 1,
         "size_scope": "module"
       },
-      "duration_s": 0.06031640199944377
+      "duration_s": 0.06082206300197868
     },
     {
       "gate": "size",
@@ -30,7 +30,7 @@
         "size_scope": "module",
         "measured_files": 1
       },
-      "duration_s": 0.009314647999417502
+      "duration_s": 0.009799182000278961
     },
     {
       "gate": "static",
@@ -73,15 +73,15 @@
         }
       ],
       "metrics": {
-        "passed": 28,
+        "passed": 36,
         "failed": 0,
         "errors": 0,
         "skipped": 0,
-        "tests_found": 28,
+        "tests_found": 36,
         "exit_code": 0,
         "host_gaps": 3
       },
-      "duration_s": 6.0724091100018995
+      "duration_s": 8.924587674002396
     }
   ]
 }

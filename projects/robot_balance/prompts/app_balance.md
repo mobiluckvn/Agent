@@ -5,8 +5,13 @@ description: Máy trạng thái bíp và vòng cân bằng 4 ms, ghép năm driv
 ### Giao thức khởi động — YÊU CẦU, không phải gợi ý
 
 `CHO_NUT` **1 bíp** khi có điện, đợi nút → `HIEU_CHINH` **5 bíp** rải đều,
-người giữ robot thẳng đứng → `SAN_SANG` **2 bíp** liền, người thả tay →
-`CAN_BANG` im → `NGA` im, đợi nút.
+người giữ robot **YÊN** → `SAN_SANG` **2 bíp** liền, người giữ cho robot
+**THẲNG** → `CAN_BANG` im → `NGA` im, đợi nút.
+
+`HIEU_CHINH` chỉ đo **trôi con quay**, nên robot cần đứng YÊN chứ không cần
+thẳng. Mốc gia tốc là hằng số trong `drv_imu`, không đo lại lúc bật máy.
+`SAN_SANG` mới là lúc cần THẲNG: nó chờ `|góc| < 0.5` — góc thật so với điểm
+cân bằng — rồi mới bật PID. Người buông tay khi thấy bánh bắt đầu động.
 
 ### Chữ ký PHẢI khớp bộ định thời của firmware
 

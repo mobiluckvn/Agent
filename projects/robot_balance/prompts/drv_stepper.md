@@ -54,6 +54,27 @@ chính, không ở phía ngắt.
 Ngắt này chạy 50 000 lần mỗi giây. Mọi thứ trong nó phải xong trong vài µs —
 không vòng lặp, không gọi hàm dài, không phép chia.
 
+### Chiều DIR — chép NGUYÊN VĂN quy ước của V1
+
+Bảng này là quy ước DẤU của mã tham chiếu, không phải suy luận:
+
+| Giá trị điều khiển | DIR trái (PD6) | DIR phải (PD4) |
+|---|---|---|
+| **âm** | mức 1 | mức 0 |
+| **dương** | mức 0 | mức 1 |
+
+V1 (`ISR(TIMER2_COMPA_vect)`): `if (memory < 0) { PORTD |= 0b01000000; memory *= -1; } else PORTD &= 0b10111111;`
+cho bánh trái, và ngược mức cho bánh phải.
+
+**Đừng suy chiều này từ `dir_forward_level` trong hồ sơ phần cứng.** Số ấy đo
+bằng DS-07 và trả lời câu *"mức nào thì robot ĐI TỚI"* — đúng cho một robot
+đang chạy, nhưng V1 quy ước **giá trị điều khiển dương = đi LÙI**. Lấy công
+thức PID của V1 rồi ghép vào quy ước dấu của mình là robot lao đi thay vì
+gượng lại; đo được trên bo 03/09.
+
+Hai bánh luôn KHÁC mức với cùng một dấu — đó là phần bù cho việc lắp đối xứng
+gương, và phần ấy ta vốn đã đúng.
+
 ### Trạng thái DỪNG phải ra được
 
 Tốc độ 0 nghĩa là không phát xung. Đừng biểu diễn nó bằng một ngưỡng bằng
@@ -71,6 +92,7 @@ dùng.
 * **đặt tốc độ 0 rồi đặt lại khác 0 thì xung phát trở lại** — chạy ngắt vài
   nghìn lần ở tốc độ 0 TRƯỚC, đúng như lúc khởi động;
 * ngưỡng nhỏ cho ra nhiều xung hơn ngưỡng lớn trong cùng số lần ngắt;
-* dấu âm và dấu dương cho ra hai mức DIR ngược nhau;
+* giá trị ÂM cho DIR trái mức 1 và DIR phải mức 0; dương thì ngược lại —
+  đúng bảng trên, không phải chỉ "hai mức khác nhau";
 * cùng một giá trị điều khiển thì DIR trái và DIR phải ở hai mức KHÁC nhau;
 * xung STEP chỉ kéo dài đúng một khoảng ngắt rồi hạ.

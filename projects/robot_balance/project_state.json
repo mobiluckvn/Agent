@@ -57,7 +57,7 @@
     {
       "id": "logic_pid",
       "status": "merged",
-      "retries": 0,
+      "retries": 1,
       "purpose": "Tính toán giá trị vận tốc đầu ra dựa trên sai số góc nghiêng sử dụng thuật toán PID số nguyên (fixed-point).",
       "provides": [
         "pid_compute",
@@ -69,8 +69,8 @@
     },
     {
       "id": "drv_imu",
-      "status": "handoff",
-      "retries": 3,
+      "status": "merged",
+      "retries": 0,
       "purpose": "Đọc gia tốc và góc quay từ MPU6050, tính toán góc nghiêng bằng bộ lọc bù (complementary filter) dùng toán số nguyên.",
       "provides": [
         "imu_get_tilt_angle"
@@ -86,7 +86,7 @@
     {
       "id": "app_balance",
       "status": "merged",
-      "retries": 1,
+      "retries": 0,
       "purpose": "Máy trạng thái khởi động bằng tiếng bíp (1 bíp chờ nút → nút → 5 bíp hiệu chỉnh khi người giữ robot thẳng đứng → 2 bíp thả tay → cân bằng), và vòng điều khiển 4 ms: đọc IMU, lọc bù, PID, ra lệnh động cơ.",
       "provides": [
         "app_init",
@@ -153,7 +153,7 @@
     "model": "gemini-3.1-pro-preview"
   },
   "env_hash": "sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a",
-  "current_module": "drv_imu",
+  "current_module": null,
   "created_at": "2026-08-29T08:32:29.238785+00:00",
-  "updated_at": "2026-09-03T00:33:05.796155+00:00"
+  "updated_at": "2026-09-03T03:19:36.425240+00:00"
 }

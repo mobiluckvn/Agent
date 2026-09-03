@@ -6,6 +6,20 @@ Module này hiện thực **đúng** bộ điều khiển trong
 `sources/.../V3_Balancing_Robot_PID_App.ino` — mã đã chạy được trên chính cái
 bo đang nằm trên bàn. Không sáng tác lại, không "cải tiến".
 
+### Chữ ký — HỢP ĐỒNG, không được đổi
+
+```c
+void  pid_set_tunings(float kp, float ki, float kd);
+float pid_compute(float angle, float pid_setpoint, bool is_running);
+```
+
+`app_balance` đã merge và đang gọi `pid_compute` với BA tham số. Đổi chữ ký là
+phá hợp đồng của một module đã qua G3: nó không dịch nổi nữa, và ba vòng tự sửa
+bị đốt cho một lỗi nằm ngoài module đang sinh (đo được 03/09).
+
+`is_running == false` → xoá trạng thái và trả 0. Đây là đường mà `app_balance`
+dùng để dừng khi robot ngã hoặc mất mẫu.
+
 ### Công thức, nguyên văn
 
 ```c
@@ -69,16 +83,38 @@ if (pid_setpoint == 0) {
 Đây là thứ khử lệch tĩnh do gá cảm biến không hoàn toàn thẳng. Bỏ nó thì robot
 đứng được vài giây rồi trôi dần về một phía.
 
+**Khối này chạy SAU vùng chết, không phải trước.** V3 đặt vùng chết ở dòng 287
+và phép dò ở dòng 302 — phép dò đọc `pid_output` đã bị vùng chết dập về 0.
+
+Thứ tự ấy là toàn bộ ý nghĩa của vùng chết. Đặt phép dò lên trước thì nó đọc
+đầu ra thô: robot đã vào vùng chết mà điểm đặt vẫn đi 0,0015 mỗi vòng — 0,375°
+mỗi giây. Với `kp = 12` thì chưa tới một giây điểm đặt đã tự đẩy mình ra khỏi
+vùng chết, bị kéo vào, rồi lại đẩy ra. Một chu trình giới hạn do chính mã tạo
+ra, đúng thứ vùng chết sinh ra để dập.
+
 ### Điều kiện dừng
 
 `|angle| > 30°`, hoặc chưa được lệnh chạy, hoặc pin yếu → `pid_output = 0`,
-**xoá `pid_i_mem`**, và không tự chạy lại.
+**xoá `pid_i_mem`**, **xoá `self_balance_setpoint` về 0**, và không tự chạy lại.
+
+Nguyên văn V1/V3::
+
+    if(angle_gyro > 30 || angle_gyro < -30 || start == 0 || low_bat == 1){
+      pid_output = 0;  pid_i_mem = 0;  start = 0;  self_balance_pid_setpoint = 0;
+    }
+
+Xoá `self_balance_setpoint` là ĐÚNG, dù nghe như vứt đi công đã tích. Nó không
+phải phần bù gá lệch — phần ấy là `ACCEL_BALANCE_OFFSET`, hằng số trong
+`drv_imu`. `self_balance_setpoint` là phép DÒ LÚC CHẠY, và giá trị nó dò được
+trong lần chạy vừa ngã không còn nghĩa cho lần chạy sau.
 
 ### Bài kiểm phải chứng minh
 
 * kẹp tích phân ở ±400 và kẹp đầu ra ở ±400;
 * vùng chết: `|out| < 5` trả về đúng 0;
-* xoá trạng thái khi dừng: `pid_i_mem` về 0;
+* xoá trạng thái khi dừng: `pid_i_mem` VÀ `self_balance_setpoint` đều về 0;
 * đổi hệ số giữa chừng KHÔNG xoá `pid_i_mem` và `pid_last_d_error` — ở G4
   người chỉnh tham số trên robot đang cân bằng, mỗi lần chỉnh không được giật;
-* điểm cân bằng tự tìm dịch đúng chiều: đầu ra âm kéo dài thì nó tăng.
+* điểm cân bằng tự tìm dịch đúng chiều: đầu ra âm kéo dài thì nó tăng;
+* và nó ĐỨNG YÊN khi đầu ra rơi vào vùng chết — gọi nhiều vòng với góc cho
+  `|out| < 5` thì `self_balance_setpoint` không nhúc nhích.

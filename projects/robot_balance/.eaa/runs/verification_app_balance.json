@@ -1,6 +1,6 @@
 {
   "module": "app_balance",
-  "content_digest": "sha256:a5cd63bed7b65195453502725832aec2d931748136680ef30e527b0942a9e1b3",
+  "content_digest": "sha256:88cde00ce31b25e6c6d497b7c8bd391c95398ee9fe75968b94467d3c83e20f35",
   "reports": [
     {
       "gate": "compile",
@@ -17,7 +17,7 @@
         "source_files": 1,
         "size_scope": "module"
       },
-      "duration_s": 0.07005485599802341
+      "duration_s": 0.07206609800050501
     },
     {
       "gate": "size",
@@ -30,7 +30,7 @@
         "size_scope": "module",
         "measured_files": 1
       },
-      "duration_s": 0.009177964999253163
+      "duration_s": 0.00946787199791288
     },
     {
       "gate": "static",
@@ -59,15 +59,15 @@
         }
       ],
       "metrics": {
-        "passed": 28,
+        "passed": 37,
         "failed": 0,
         "errors": 0,
         "skipped": 0,
-        "tests_found": 28,
+        "tests_found": 37,
         "exit_code": 0,
         "host_gaps": 1
       },
-      "duration_s": 4.5305746589983755
+      "duration_s": 9.136298284000077
     }
   ]
 }

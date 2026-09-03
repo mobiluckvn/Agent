@@ -538,3 +538,104 @@ ts,module,phase,event,tdev_min,retries,first_build_errors,flash_bytes,flash_pct,
 2026-09-03T00:33:01+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
 2026-09-03T00:33:05+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
 2026-09-03T00:33:05+00:00,drv_imu,D,handoff,,3,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,fail,,quá 3 vòng tự sửa
+2026-09-03T01:48:35+00:00,drv_imu,D,module_start,,,,,,,,,169874,125440,1.466743,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,sắp chạm trần token của module
+2026-09-03T01:48:35+00:00,drv_imu,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T01:52:13+00:00,drv_imu,D,generate,,,,,,,,gemini-3.1-pro-preview,4298,5304,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:fc8aa8e818693149a06eeed9a88e736d13bd7ecc3e491d2f35a151bc445250b5,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,,pass,,
+2026-09-03T01:52:14+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T01:52:14+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T01:52:14+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T01:52:23+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,pass,,
+2026-09-03T01:52:23+00:00,drv_imu,D,gate_request,3.813,0,,,,,,gemini-3.1-pro-preview,4298,5304,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:fc8aa8e818693149a06eeed9a88e736d13bd7ecc3e491d2f35a151bc445250b5,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,58c310c19e8e44fd916e31a02c792c811ff07b56,G3,,,chờ người duyệt G3
+2026-09-03T01:57:45+00:00,drv_imu,D,gate_decision,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,G3,approve,,duyệt bởi Vũ Trí Công
+2026-09-03T01:57:45+00:00,drv_imu,D,merge,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,23e778bd18c90d41a2c2401c406308085fcb550d,,pass,,
+2026-09-03T01:58:03+00:00,app_balance,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T02:01:09+00:00,app_balance,D,generate,,,,,,,,gemini-3.1-pro-preview,3652,4706,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:3044c5b73b586bc09ca9fab70da26ffeb2a4a584de1a85fd8b3298db93bd558c,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,,pass,,
+2026-09-03T02:01:09+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:01:09+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:01:09+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:01:19+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T02:01:19+00:00,app_balance,D,repair,,1,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 1/3
+2026-09-03T02:03:48+00:00,app_balance,D,repair,,,,,,,,gemini-3.1-pro-preview,6490,1731,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:a2f471274d001f7c20982ce8f5c20aef8e18fb4c99fc3f43bd35eed7624d0606,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T02:03:48+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:03:48+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:03:48+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:03:56+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T02:03:56+00:00,app_balance,D,repair,,2,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 2/3
+2026-09-03T02:06:26+00:00,app_balance,D,repair,,,,,,,,gemini-3.1-pro-preview,6491,1624,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:82f0eb21f2111d3c54486b6ebf616f5193c665f7577ad4c5f79cec1372ed518f,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T02:06:26+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:06:26+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:06:26+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:06:36+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T02:06:36+00:00,app_balance,D,repair,,3,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 3/3
+2026-09-03T02:09:41+00:00,app_balance,D,repair,,,,,,,,gemini-3.1-pro-preview,6489,1768,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:54501c0ccad16b5431180564e4283201c580e195942c4daa780c54a57cb27ade,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T02:09:41+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:09:42+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:09:42+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:09:50+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T02:09:50+00:00,app_balance,D,handoff,,3,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,fail,,quá 3 vòng tự sửa
+2026-09-03T02:11:55+00:00,app_balance,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T02:15:46+00:00,app_balance,D,generate,,,,,,,,gemini-3.1-pro-preview,3661,5287,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:44df12e3f79d2aa16fe7983060b7c7415745a2191f63c95b6061b4c38d4cd690,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,,pass,,
+2026-09-03T02:15:46+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:15:46+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:15:46+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:15:55+00:00,app_balance,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,pass,,
+2026-09-03T02:15:56+00:00,app_balance,D,gate_request,4.005,0,,,,,,gemini-3.1-pro-preview,3661,5287,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:44df12e3f79d2aa16fe7983060b7c7415745a2191f63c95b6061b4c38d4cd690,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,42c286ffc8293e6c067da39cff26f02168a3b195,G3,,,chờ người duyệt G3
+2026-09-03T02:17:07+00:00,app_balance,D,gate_decision,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,G3,approve,,duyệt bởi Vũ Trí Công
+2026-09-03T02:17:07+00:00,app_balance,D,merge,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,979787543c1e4324967ff75948d5e11e09ada908,,pass,,
+2026-09-03T02:25:39+00:00,drv_stepper,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T02:27:40+00:00,drv_stepper,D,generate,,,,,,,,gemini-3.1-pro-preview,4123,2674,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:8605f4d2a92644e573ac7761497fe2db41923255296b3162ec53cbae4dd28925,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,,pass,,
+2026-09-03T02:27:40+00:00,drv_stepper,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:27:40+00:00,drv_stepper,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:27:40+00:00,drv_stepper,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:27:49+00:00,drv_stepper,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,pass,,
+2026-09-03T02:27:49+00:00,drv_stepper,D,gate_request,2.17,0,,,,,,gemini-3.1-pro-preview,4123,2674,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:8605f4d2a92644e573ac7761497fe2db41923255296b3162ec53cbae4dd28925,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,e1c72d1c70ad92f26b2f5a7988e4db9deb6984b8,G3,,,chờ người duyệt G3
+2026-09-03T02:30:53+00:00,drv_stepper,D,gate_decision,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,G3,approve,,duyệt bởi Vũ Trí Công
+2026-09-03T02:30:53+00:00,drv_stepper,D,merge,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,928286bc9795b90ed86108566057bf493af30372,,pass,,
+2026-09-03T02:31:46+00:00,logic_pid,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T02:34:05+00:00,logic_pid,D,generate,,,,,,,,gemini-3.1-pro-preview,2805,2909,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:1d0f20c0405856a539526d32cfd1d889ad5262fc5867b0331af47b11b3d82bbe,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,,pass,,
+2026-09-03T02:34:05+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:34:05+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:34:05+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:34:13+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T02:34:13+00:00,logic_pid,D,repair,,1,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 1/3
+2026-09-03T02:36:49+00:00,logic_pid,D,repair,,,,,,,,gemini-3.1-pro-preview,6508,1969,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:7423e91d9feaf4b3a3d23fadb21cb9b7fc63dbeee4bc95ec3217f7336e8c8293,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T02:36:49+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:36:49+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:36:49+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:36:57+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T02:36:57+00:00,logic_pid,D,repair,,2,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 2/3
+2026-09-03T02:51:32+00:00,logic_pid,D,repair,,,,,,,,gemini-3.1-pro-preview,6501,3432,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:06229edb47b31a81fa6c101348362fd033dbcc23029b76fb7c1f4b35c9433d49,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T02:51:32+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:51:32+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:51:32+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:51:40+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T02:51:40+00:00,logic_pid,D,repair,,3,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 3/3
+2026-09-03T02:56:14+00:00,logic_pid,D,repair,,,,,,,,gemini-3.1-pro-preview,6810,3151,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:d69a43035ce85524d14e23824eafff368456e62a96eb68a45c701340010dc887,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T02:56:14+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T02:56:14+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T02:56:14+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T02:56:22+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T02:56:22+00:00,logic_pid,D,handoff,,3,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,fail,,quá 3 vòng tự sửa
+2026-09-03T02:58:35+00:00,logic_pid,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T03:00:45+00:00,logic_pid,D,generate,,,,,,,,gemini-3.1-pro-preview,3009,1940,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:ee213a855a532b73c96e8ee6664b890527489274c8d74b2a2db0d91056e7b7cb,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,,pass,,
+2026-09-03T03:00:45+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T03:00:45+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T03:00:45+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T03:00:54+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,pass,,
+2026-09-03T03:00:55+00:00,logic_pid,D,gate_request,2.323,0,,,,,,gemini-3.1-pro-preview,3009,1940,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:ee213a855a532b73c96e8ee6664b890527489274c8d74b2a2db0d91056e7b7cb,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,aeb8730f4ba6be9fda8cc504caf20664e8ac24f4,G3,,,chờ người duyệt G3
+2026-09-03T03:04:26+00:00,logic_pid,D,gate_decision,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,G3,reject,,"Thu tu sai: phep do diem can bang chay TRUOC vung chet. V3 dat vung chet o dong 287, phep do o dong 302 — phep do phai doc pid_output DA bi vung chet dap ve 0. Dat truoc thi trong vung chet diem dat van di 0.0015/vong = 0.375 do/giay, tu tao chu trinh gioi han."
+2026-09-03T03:04:31+00:00,logic_pid,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T03:06:17+00:00,logic_pid,D,generate,,,,,,,,gemini-3.1-pro-preview,3294,2625,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:bdad7376ca67242a9601463d4f0534d1fb5891850d74b4c27083e58f3532365b,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,,pass,,
+2026-09-03T03:06:18+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T03:06:18+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T03:06:18+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T03:06:27+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T03:06:27+00:00,logic_pid,D,repair,,1,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 1/3
+2026-09-03T03:08:22+00:00,logic_pid,D,repair,,,,,,,,gemini-3.1-pro-preview,5902,806,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:99de718f85c48b850d17d4960d12d9eb1dba0b53d7f160f3894a28564064915e,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T03:08:23+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T03:08:23+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T03:08:23+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T03:08:31+00:00,logic_pid,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,pass,,
+2026-09-03T03:08:31+00:00,logic_pid,D,gate_request,3.996,1,,,,,,gemini-3.1-pro-preview,5902,806,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:99de718f85c48b850d17d4960d12d9eb1dba0b53d7f160f3894a28564064915e,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,8c2ee0e79032122dd6def6dc86229a51e6d9dee6,G3,,,chờ người duyệt G3
+2026-09-03T03:19:36+00:00,logic_pid,D,gate_decision,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,G3,approve,,duyệt bởi Vũ Trí Công
+2026-09-03T03:19:36+00:00,logic_pid,D,merge,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,80ec03d0d454ac721d257f059b94846c973ce088,,pass,,

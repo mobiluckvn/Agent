@@ -1,6 +1,6 @@
 {
   "module": "logic_pid",
-  "content_digest": "sha256:224a9b81a885ab26a151aad37700702b466b8dc357b7c9fe26c8a7a2ae1f33af",
+  "content_digest": "sha256:3a0d75601c01a5c1fa8224de997efcc2300712d1f1ba3950c1841f61e465339e",
   "reports": [
     {
       "gate": "compile",
@@ -17,7 +17,7 @@
         "source_files": 1,
         "size_scope": "module"
       },
-      "duration_s": 0.06409205700038001
+      "duration_s": 0.05475434099935228
     },
     {
       "gate": "size",
@@ -30,7 +30,7 @@
         "size_scope": "module",
         "measured_files": 1
       },
-      "duration_s": 0.010429582998767728
+      "duration_s": 0.009347329003503546
     },
     {
       "gate": "static",
@@ -59,15 +59,15 @@
         }
       ],
       "metrics": {
-        "passed": 26,
+        "passed": 38,
         "failed": 0,
         "errors": 0,
         "skipped": 0,
-        "tests_found": 26,
+        "tests_found": 38,
         "exit_code": 0,
         "host_gaps": 1
       },
-      "duration_s": 4.40622926099968
+      "duration_s": 8.30514222599595
     }
   ]
 }
