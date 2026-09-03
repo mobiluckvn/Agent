@@ -63,6 +63,68 @@ không quy được lỗi về tệp thì luật ấy không có dữ liệu đ�
 Và nó ngả về phía **vá** khi không chắc: chặn nhầm thì dừng cả dây chuyền và
 đòi người, vá nhầm thì tốn lượt gọi. Hai hạng sai không ngang giá.
 
+## Chốt phiên 03/09 — mở máy tối nay thì đọc mục này trước
+
+Kho **sạch**, mọi thứ đã push lên `origin/main`. Chín commit trong ngày:
+
+```
+c353e57  docs: hướng dẫn huấn luyện Agent cho bo mới hoặc chip mới
+e8b6bd3  docs: bàn giao khớp với việc đã làm
+35303da  docs: hướng dẫn cài đặt và chạy trọn luồng cho máy mới
+c3bc048  README: kiến trúc C4 và bảng công nghệ
+8680f11  Canh hợp đồng gọi (SL-163, TC-124)
+128b760  Lỗi ngoài phạm vi không mở vòng tự sửa (SL-162, TC-123)
+5b5f6be  Robot đứng được: PID khớp V3, chiều DIR khớp V1 (80ec03d0)
+6ab4035  Phần của lớp là cách chia, không phải cái chặn (SL-161, TC-122)
+5b9e197  Đánh giá năng lực Agent và phương pháp huấn luyện
+```
+
+Bộ test: **2.374 xanh, 10 đỏ** — đúng 10 bài E2E TC-15 nợ từ trước, không phát
+sinh thoái lui nào. Firmware trên bo: `80ec03d0d4`, robot đứng được.
+
+### Một cảnh báo đang bật, và nó đúng
+
+`eaa status` đang báo **TRÔI hồ sơ phần cứng**:
+
+```
+⚠ TRÔI: hồ sơ phần cứng trên đĩa băm sha256:5efc569bb1ed…
+  Bảng chân LÀ kiến trúc: đổi một chân là đổi mọi module chạm vào chân đó.
+  Chốt lại qua gate G1.
+```
+
+Nguyên nhân: `ACCEL_BALANCE_OFFSET = -535` được thêm vào `hardware_profile.yaml`
+sau khi G1 đã duyệt, và **chưa ai duyệt lại**. Hệ thống nói đúng — nó không
+biết thứ vừa thêm là một hằng số vô hại hay một chân bị đổi.
+
+Việc phải làm, một lệnh:
+
+```bash
+eaa gate show G1        # đọc diff hồ sơ
+eaa gate approve G1 --actor "Vũ Trí Công" --expect <băm vừa xem>
+```
+
+Đừng bỏ qua nó. Cảnh báo bị lờ đi hai lần là cảnh báo không còn ai đọc.
+
+### Ba việc engine đã làm trong phiên
+
+| | Chỗ sai | Chỗ sửa |
+|---|---|---|
+| **SL-162** | Vòng tự sửa đốt cả ba lượt vào lỗi của module khác | Cổng `unittests` quy lỗi về tệp (`metrics["failing_files"]`); `run_module` thêm hạng dừng thứ ba. **TC-123, 12 bài** |
+| **SL-163** | Không gì canh hợp đồng gọi của module sinh lại | `eaa/contract.py` so khai báo header với bản trên `main`. Vào đường VÁ, chạy TRƯỚC chuỗi cổng. **TC-124, 16 bài** |
+| **SL-164** | Docstring `eaa/agent.py` mô tả một bản `TOOLBOX` không còn tồn tại | Bất biến KHÔNG bị phá — không lệnh DUYỆT nào với tới được. Sửa lời cho khớp mã, thêm 2 bài canh cả hai chiều |
+
+### Bốn tài liệu mới hoặc viết lại
+
+* **`README.md`** — kiến trúc C4 (ba sơ đồ Mermaid), bảng công nghệ kèm cả thứ
+  KHÔNG dùng và vì sao, phần Tiến độ quanh mốc robot đứng được, và mục *Tương
+  tác bằng ngôn ngữ tự nhiên*.
+* **`docs/CAI_DAT_VA_CHAY.md`** — máy mới tải kho về: cài đặt và chạy trọn
+  luồng, hai đường A/B, mười ba sự cố thường gặp.
+* **`docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md`** — huấn luyện thủ công cho bo mới
+  hoặc chip mới, gồm cả cách dựng một Platform Pack.
+* **`docs/DANH_GIA_NANG_LUC_AGENT.md`** — số liệu đếm lại từ dữ liệu, thêm §3.8
+  về bài kiểm xanh vì lý do sai.
+
 ## Việc kế tiếp
 
 **~~1 — Canh hợp đồng gọi cho MỌI module~~ — ĐÃ LÀM** cùng phiên, SL-163 /
@@ -72,15 +134,19 @@ một hàm hoặc đổi chữ ký là cổng đỏ, kèm câu chỉ thẳng vi�
 module ấy và nó sửa được. Lời dặn trong `prompts/logic_pid.md` vẫn giữ, nhưng
 giờ nó là hàng rào thứ hai chứ không phải hàng rào duy nhất.
 
-**2 — Ghi lại 10 fixture E2E TC-15.** Nợ từ trước, chưa động tới. Prompt đổi thì
-băm đổi, bộ phát lại cố ý không bịa phản hồi. Chạy
-`scripts/record_e2e_fixture.py` với mô hình thật.
+**2 — Duyệt lại G1 cho hồ sơ phần cứng.** Một lệnh, xem mục cảnh báo ở trên.
+Làm trước khi sinh module tiếp theo, vì mọi lượt sinh sau đây đều đọc hồ sơ ấy.
 
-**3 — Đo giữ nhịp trên bo.** ISR bước chạy 50 kHz trên AVR 16 MHz — 320 chu kỳ
+**3 — Ghi lại 10 fixture E2E TC-15.** Nợ từ trước, chưa động tới. Prompt đổi thì
+băm đổi, bộ phát lại cố ý không bịa phản hồi. Chạy
+`scripts/record_e2e_fixture.py` với mô hình thật. Đây là việc **tốn token nhất**
+trong danh sách, nên cân nhắc làm khi có thời gian chạy dài.
+
+**4 — Đo giữ nhịp trên bo.** ISR bước chạy 50 kHz trên AVR 16 MHz — 320 chu kỳ
 mỗi lần. Chưa ai đo nó ăn bao nhiêu CPU. Robot đứng được không chứng minh nhịp
 4 ms được giữ, chỉ chứng minh nó đủ gần. Số này cần cho chương đánh giá.
 
-**4 — `app_init()` không đặt lại `missed_samples`.** Lỗi tiềm ẩn, chưa cắn trên
+**5 — `app_init()` không đặt lại `missed_samples`.** Lỗi tiềm ẩn, chưa cắn trên
 bo vì `app_init` chỉ chạy một lần. Sẽ cắn ngay khi có đường khởi động lại mềm.
 
 ## Trạng thái
