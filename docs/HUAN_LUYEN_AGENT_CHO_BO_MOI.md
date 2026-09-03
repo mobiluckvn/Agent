@@ -25,6 +25,11 @@ là cách phổ biến nhất để làm gấp mười lần việc cần làm.
 | Công sức | Nửa ngày tới hai ngày | Ba tới bảy ngày |
 | Sửa `eaa/` không? | **Không** | **Cũng không.** Nếu thấy cần thì xem §8.7 |
 
+**Làm một mình hay có Agent trợ lý?** Phần lớn việc dưới đây giao được cho
+một trợ lý lập trình (Claude Code, Codex…) — chính dự án mẫu này được dựng
+như vậy. **Phần III (§9–§12)** nói cách làm, ranh giới nào không được vượt, và
+bốn cách hỏng đã gặp thật.
+
 Kiểm nhanh xem chip của bạn đã có pack chưa:
 
 ```bash
@@ -523,7 +528,207 @@ là chỗ ranh giới bắt đầu mờ, và nó mờ dần chứ không sập m
 
 ---
 
-## 9. Bảng kiểm — dán lên tường
+# PHẦN III — Dùng một Agent khác để làm việc này
+
+## 9. Vì sao nên, và ranh giới ở đâu
+
+Toàn bộ phần I và II ở trên là việc đọc tài liệu, viết YAML, viết prompt, so mã
+với mã tham chiếu, và ghi sổ. Đó đúng là việc một trợ lý lập trình biết dùng
+công cụ dòng lệnh — Claude Code, Codex, Cursor — làm nhanh hơn người.
+
+**Toàn bộ dự án mẫu này được dựng theo cách ấy**, nên phần dưới không phải suy
+đoán: nó là những gì đã chạy, gồm cả những chỗ Agent ngoài làm sai.
+
+Nhưng phải tách bạch ngay từ đầu, vì đây là chỗ dễ hỏng nhất:
+
+> **Agent ngoài CHUẨN BỊ. Người DUYỆT. Không đảo hai vai ấy.**
+
+Cụ thể, Agent ngoài **không được** chạy: `eaa gate approve/reject`,
+`eaa flash approve`, `eaa doctor approve`, `eaa tool approve`. Không phải vì
+nó không gõ được — nó gõ được — mà vì lời duyệt của một máy không phải lời
+duyệt. Cả năm Human Gate mất nghĩa ngay lúc đó.
+
+Ngược lại, để nó chạy `eaa gen`, `eaa build`, `pytest`, `eaa status`,
+`eaa report *` thì hoàn toàn nên: chúng chỉ đọc hoặc chỉ tạo ra thứ chờ duyệt.
+
+### Ba việc Agent ngoài làm tốt hơn người rõ rệt
+
+**1. Đọc mã tham chiếu của nhà sản xuất và rút ra số.** Đây là việc trả lại
+nhiều nhất. Trong dự án mẫu, chính bước này gỡ được bế tắc: robot lao về một
+phía, tôi đoán sai nguyên nhân hai lần, và chỉ khi đọc thẳng ba bản mã tham
+chiếu V0/V1/V3 mới thấy chiều DIR phải chép nguyên bảng của V1 chứ không suy
+ra từ hồ sơ phần cứng.
+
+Câu lệnh đáng dùng, đại ý:
+
+```
+Đọc toàn bộ mã tham chiếu trong <thư mục>. Rút ra:
+(a) thứ tự các bước từ lúc bật máy tới lúc vào vòng điều khiển;
+(b) mọi hằng số, kèm chỗ nó được dùng và thứ nó gắn vào;
+(c) chỗ nào bản của chúng ta làm KHÁC, và khác ở điểm nào.
+Đừng sửa gì. Chỉ báo cáo, kèm số dòng.
+```
+
+**2. Dựng khung Platform Pack từ một pack đã có.** `pack.yaml` của AVR dài vài
+trăm dòng, phần lớn là `command`, `parse` và `contract`. Chép sang họ chip mới
+rồi sửa từng năng lực là việc cơ học, và Agent ngoài làm chính xác hơn người
+gõ tay — miễn là bạn bắt nó **giải thích từng chỗ nó đổi**.
+
+**3. Viết bài kiểm canh và mục sổ sai lệch.** Sau mỗi lần bắt được lỗi, việc
+"viết một bài kiểm để nó không quay lại" là việc người hay bỏ qua vì đã mệt.
+Đây đúng là lúc giao cho Agent ngoài.
+
+### Ba việc phải tự làm, không giao được
+
+**1. Đọc mã ở G3.** Bốn dạng lỗi ở §7 bước 1 — mã tự chỉnh đồ đo, sai thứ tự,
+phá hợp đồng, bài kiểm xanh vì lý do sai — không dạng nào bắt được bằng cách
+hỏi một mô hình *"mã này đúng không"*. Ba trong bốn dạng ấy do chính một mô
+hình sinh ra.
+
+**2. Quan sát phần cứng.** *"Bánh quay cùng chiều hay ngược chiều"*, *"nghe
+thấy hai bíp liền chưa"*, *"thả tay thì nó ngã về đâu"* — không Agent nào trả
+lời được, và đây là kênh duy nhất phân biệt mã đúng với mã trông đúng.
+
+**3. Quyết định đánh đổi.** Chọn chu kỳ vòng điều khiển, chọn dải đo cảm biến,
+chọn có bật watchdog hay không. Agent trình được phương án kèm hậu quả; chọn
+là việc của người chịu trách nhiệm.
+
+## 10. Quy trình làm việc với một Agent ngoài
+
+### Bước 1 — Cho nó đọc đúng thứ, theo đúng thứ tự
+
+Đừng thả nó vào kho rồi bảo "làm đi". Thứ tự đọc có ảnh hưởng thật:
+
+```
+1. README.md — kiến trúc ba tầng và bất biến
+2. docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md — chính tài liệu này
+3. packs/avr/pack.yaml — đọc CẢ chú thích, chúng là tài liệu
+4. docs/SAI_LECH_THIET_KE.md — ít nhất 20 mục gần nhất
+5. Mã tham chiếu của bo bạn, nếu có
+```
+
+Mục 4 đáng để ý: nó dạy Agent ngoài **những lỗi kho này đã mắc**, nên nó không
+mắc lại. Bỏ qua mục ấy thì bạn sẽ thấy nó đề xuất đúng những thứ đã bị bác bỏ.
+
+### Bước 2 — Nói rõ luật số một, ngay trong câu giao việc
+
+Câu này nên có mặt trong mọi phiên làm việc:
+
+> Sửa bằng **cấu trúc**, không bằng lời dặn. Trước khi thêm một câu vào prompt,
+> hãy hỏi: điều này mã hoá được thành một bài kiểm, một luật của cổng, hay một
+> bất biến engine không? Nếu được thì làm thế. Prompt là mức 1 và là mức yếu
+> nhất.
+
+Không nói câu này thì Agent ngoài sẽ mặc định thêm câu dặn vào prompt — đó là
+cách sửa rẻ nhất và trông giống như đã sửa. Đã đo được trong kho này: đó là
+dạng lỗi hay gặp nhất.
+
+### Bước 3 — Bắt nó kiểm trước khi khai
+
+Luật thứ hai, và nó cứu được nhiều giờ:
+
+> Đừng viết vào tài liệu điều bạn chưa chạy. Mỗi lệnh, mỗi khoá YAML, mỗi
+> đường dẫn tệp phải đối chiếu với mã thật trước khi đưa vào văn bản.
+
+Đã có ví dụ thật ngay trong phiên viết README: Agent ngoài (là tôi) ghi *"CLI
+có 70 lệnh"* — số thật là 52; 70 là số mục trong `TOOLBOX`, tính cả lệnh con.
+Và một đoạn mã `authorize_merge` trích trong README không khớp mã thật. Cả hai
+chỉ lộ ra khi chạy lệnh để kiểm.
+
+### Bước 4 — Vòng làm việc, và chỗ bạn xen vào
+
+```
+Agent ngoài:  eaa gen <module>            → sinh, chạy cổng, tự sửa
+Agent ngoài:  đọc mã sinh ra, đối chiếu prompt và mã tham chiếu
+Agent ngoài:  báo cáo — "đúng ở đây, nghi ngờ ở kia, vì sao"
+      BẠN:    eaa gate show G3, đọc mã, rồi approve hoặc reject
+Agent ngoài:  nếu reject — soạn lý do cho chính xác, rồi eaa gen lại
+```
+
+**Agent ngoài đọc trước, bạn đọc sau.** Nó bắt được phần lớn lỗi cơ học và nói
+cho bạn biết chỗ đáng ngờ, nên khi bạn đọc thì đọc có trọng tâm. Nhưng chữ ký
+cuối vẫn là của bạn — và trong dự án mẫu, có lần Agent ngoài **từ chối sai**:
+tôi bác một đoạn `logic_pid` xoá `self_balance_setpoint` khi dừng, trong khi
+mã tham chiếu V1/V3 làm đúng như thế. Phải tự đảo lại quyết định của chính
+mình ở lượt sau.
+
+### Bước 5 — Uỷ quyền việc bấm, không uỷ quyền việc soi
+
+Nếu bạn muốn đi nhanh và chấp nhận rủi ro có tính toán, cách uỷ quyền **đúng**
+là: *"đọc kỹ mã, nếu đúng thì duyệt thay tôi"* — tức bạn uỷ quyền **việc bấm**,
+với điều kiện Agent ngoài đã thật sự **soi**.
+
+Cách uỷ quyền **sai**: *"cứ duyệt hết đi cho nhanh"*. Khác biệt nằm ở chỗ ai
+chịu trách nhiệm đọc. Và dù uỷ quyền cách nào, hai gate này **không uỷ quyền
+được**: G4 (nghiệm thu trên thiết bị) và G5 (nạp firmware), vì cả hai đòi mắt
+người nhìn vào phần cứng.
+
+## 11. Mẫu câu giao việc
+
+Chép và sửa cho bo của bạn.
+
+**Dựng Platform Pack mới:**
+
+```
+Đọc packs/stm32/pack.yaml và eaa/platform.py. Dựng packs/<tên>/ cho họ chip
+<mã chip>, toolchain <tên toolchain>.
+
+Yêu cầu:
+- Ba năng lực bắt buộc compile/size/static, cộng link/hex/flash/flash_verify.
+- flash PHẢI khai requires_confirmation: true.
+- Mỗi parse.error_regex chạy thử với đầu ra lỗi THẬT của công cụ, đừng đoán.
+- flash và flash_verify phải có require_regex đòi số byte > 0.
+- Giải thích từng chỗ khác packs/stm32, và vì sao.
+- KHÔNG sửa bất cứ gì trong eaa/. Nếu thấy cần, dừng lại và nói tôi biết
+  interface thiếu tham số nào.
+Chạy pytest tests/test_tc38_engine_purity.py khi xong.
+```
+
+**Rút hồ sơ phần cứng từ tài liệu bo:**
+
+```
+Đọc <datasheet, sơ đồ nguyên lý, mã tham chiếu>. Dựng đề xuất
+hardware_profile.yaml theo lược đồ trong projects/robot_balance/.
+
+- Mỗi ngoại vi phải có id, kind và configured_by đầy đủ.
+- clock_hz: nếu tài liệu không nói rõ thạch anh thật trên bo, ĐỪNG đoán —
+  đánh dấu là cần tôi đo.
+- Chỗ nào bạn không chắc thì ghi ra thành danh sách câu hỏi, đừng điền bừa.
+```
+
+**Sau một lần G3 từ chối:**
+
+```
+Tôi vừa từ chối <module> với lý do: "<lý do>".
+
+Trước khi sinh lại, phân loại lần trượt này theo §7 bước 3 của
+docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md: lỗi engine, hành vi mô hình, hay đặc tả
+thiếu? Nói rõ căn cứ.
+
+Rồi đề xuất chỗ sửa ở mức CAO NHẤT mà không báo nhầm. Nếu đề xuất là thêm câu
+vào prompt, hãy nói rõ vì sao mức 2, 3, 4 không mã hoá được điều này.
+```
+
+## 12. Bốn cách hỏng khi dùng Agent ngoài — đã gặp thật
+
+| Cách hỏng | Dấu hiệu | Cách tránh |
+|---|---|---|
+| **Nó sửa bằng lời dặn** | Lần thứ ba thêm câu vào cùng một tệp prompt cho cùng một lỗi | Bước 2 ở §10. Bắt nó trả lời "vì sao không mã hoá được" |
+| **Nó khai điều chưa kiểm** | Con số, tên cờ, đường dẫn trong báo cáo mà nó chưa chạy | Bước 3 ở §10. Đòi lệnh kiểm kèm kết quả |
+| **Nó đoán thay vì đọc** | Chẩn đoán nghe hợp lý, dựa trên triệu chứng chứ không dựa trên mã | Đưa mã tham chiếu vào. Trên giá đỡ không có phản hồi cơ học, nên đúng và sai trông giống hệt nhau |
+| **Bạn tin nó ở G3** | Duyệt nhanh vì "Agent bảo đúng rồi" | Nó đọc trước để bạn đọc có trọng tâm, không phải để bạn khỏi đọc |
+
+Dòng thứ ba đáng nhắc lại vì nó tốn nhất trong dự án mẫu: từ triệu chứng
+*"nghiêng hai chiều mà bánh chạy cùng phía"*, tôi kết luận **trục cảm biến
+sai**. Sai hoàn toàn. Đọc mã tham chiếu mới thấy hai hằng số hiệu chỉnh của
+nhà sản xuất đều rất xa giá trị mà giả thuyết ấy đòi hỏi — tức cảm biến vẫn
+đọc đúng trục, đúng dấu.
+
+**Bài học: khi triệu chứng mơ hồ, đọc mã tham chiếu rẻ hơn đoán.**
+
+---
+
+## 13. Bảng kiểm — dán lên tường
 
 **Bo mới, chip cũ:**
 
@@ -555,7 +760,7 @@ là chỗ ranh giới bắt đầu mờ, và nó mờ dần chứ không sập m
 
 ---
 
-## 10. Kỳ vọng cho đúng
+## 14. Kỳ vọng cho đúng
 
 Từ dự án mẫu, để bạn biết mình đang đi nhanh hay chậm:
 
@@ -580,7 +785,7 @@ bại của quy trình; đó là lý do G4 và G5 tồn tại.
 
 ---
 
-## 11. Đọc tiếp
+## 15. Đọc tiếp
 
 | Tài liệu | Nội dung |
 |---|---|

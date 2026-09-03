@@ -522,10 +522,73 @@ Chi tiết và phương pháp huấn luyện: [`docs/DANH_GIA_NANG_LUC_AGENT.md`
 * **Một dự án, một nền tảng, một mô hình.** Mọi kết luận rút từ `robot_balance`
   trên AVR với `gemini-3.1-pro-preview`. `disco_f469` mới chạy tới phân rã.
 
-## Đọc hồ sơ thiết kế
+## Tài liệu — đọc theo việc bạn định làm
 
-1. `docs/md/EAA-MDD-00` — tổng hợp: 15 quyết định đã chốt, kế hoạch sprint
-2. `docs/md/EAA-SDD-03` — bản vẽ thi công: cây thư mục, lược đồ dữ liệu, module
-3. `docs/md/EAA-AIS-05` — tầng AI: nén ngữ cảnh, RAG, graph, ingest, chẩn đoán
-4. `docs/md/EAA-STP-04` — thước chấm
-5. `docs/md/EAA-SAD-02`, `docs/md/EAA-SRS-01` — tra cứu kiến trúc và yêu cầu
+Ba câu hỏi đầu tiên của người vừa tải kho về, và tài liệu trả lời từng câu:
+
+| Bạn muốn | Đọc | Mất bao lâu |
+|---|---|---|
+| **Chạy thử xem nó làm được gì** | [`docs/CAI_DAT_VA_CHAY.md`](docs/CAI_DAT_VA_CHAY.md) §1–5 | ~30 phút, gồm cả nạp firmware lên bo |
+| **Đưa Agent sang bo hoặc chip của tôi** | [`docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md`](docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md) | Đọc 20 phút; làm nửa ngày tới bảy ngày tuỳ tình huống |
+| **Hiểu vì sao nó được dựng như vậy** | Mục [Kiến trúc C4](#kiến-trúc-theo-mô-hình-c4) ở trên, rồi `docs/md/` | Một buổi |
+
+### Làm việc CÙNG Agent — bắt đầu từ đây
+
+[**`docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md`**](docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md)
+là tài liệu quan trọng nhất với người dùng mới, vì nó trả lời câu hỏi thật:
+*"phần cứng của tôi khác, tôi phải dạy nó những gì?"*
+
+Nó phân biệt hai tình huống ngay từ đầu — nhận sai là cách phổ biến nhất để
+làm gấp mười lần việc cần làm:
+
+* **Bo mới, chip đã có Platform Pack** → chỉ dựng dự án mới. Nửa ngày tới hai
+  ngày. Không đụng tới `packs/`, không đụng tới `eaa/`.
+* **Họ chip mới** → dựng Platform Pack trước. Ba tới bảy ngày. Vẫn **không**
+  sửa một dòng `eaa/` nào.
+
+Nội dung gồm: cách để Agent tự đề xuất hồ sơ phần cứng thay vì bạn gõ tay, ba
+chỗ người mới hay sai trong `hardware_profile.yaml`, bốn luật viết prompt rút
+từ 164 lần sai thật, **thang leo bốn mức can thiệp** (và bằng chứng vì sao dừng
+ở mức "viết thêm câu dặn vào prompt" là không đủ), cách từ chối ở G3 sao cho
+lần sinh lại học được, cách phân loại một lần trượt trước khi sửa, tám năng lực
+của một Platform Pack, và bảng kiểm dán tường.
+
+Kèm bảng kỳ vọng lấy từ số đo thật của dự án mẫu — trong đó con số đáng chuẩn
+bị tinh thần nhất là **43% lượt tới G3 bị từ chối**. Ai kỳ vọng "sinh một lần
+là xong" sẽ bỏ cuộc ở module thứ hai.
+
+**Phần III của tài liệu ấy nói cách dùng MỘT AGENT KHÁC để làm việc này** —
+Claude Code, Codex, Cursor — vì phần lớn công đoạn ở trên là đọc tài liệu, viết
+YAML, so mã với mã tham chiếu và ghi sổ. Chính dự án mẫu được dựng theo cách
+đó, nên phần ấy không phải suy đoán: nó gồm cả những chỗ Agent ngoài đã làm
+sai. Ranh giới gói trong một câu — **Agent ngoài chuẩn bị, người duyệt** — và
+kèm theo là ba việc nó làm tốt hơn người, ba việc không giao được, mẫu câu giao
+việc chép dùng ngay, cùng bốn cách hỏng đã gặp thật.
+
+### Vận hành và bàn giao
+
+| Tài liệu | Nội dung |
+|---|---|
+| [`docs/CAI_DAT_VA_CHAY.md`](docs/CAI_DAT_VA_CHAY.md) | Cài đặt, công cụ, trọn luồng tới lúc firmware nằm trên bo; 13 sự cố thường gặp |
+| [`docs/TIEP_TUC_TU_DAY.md`](docs/TIEP_TUC_TU_DAY.md) | Bàn giao phiên gần nhất: kho sạch chưa, cảnh báo nào đang bật, việc kế tiếp |
+| [`docs/HUONG_DAN_KIEM_THU.md`](docs/HUONG_DAN_KIEM_THU.md) | Chạy và đọc bộ test |
+
+### Hiểu Agent làm được gì và chưa làm được gì
+
+| Tài liệu | Nội dung |
+|---|---|
+| [`docs/DANH_GIA_NANG_LUC_AGENT.md`](docs/DANH_GIA_NANG_LUC_AGENT.md) | Agent tự làm được gì, tám giới hạn còn lại kèm bằng chứng, và phương pháp huấn luyện |
+| [`docs/SAI_LECH_THIET_KE.md`](docs/SAI_LECH_THIET_KE.md) | 164 mục: mỗi lỗi đã gặp, chỗ sửa thật, và bài kiểm canh nó. Dữ liệu gốc của chương đánh giá |
+| [`docs/NHAT_KY_TEST_BLKLAB.md`](docs/NHAT_KY_TEST_BLKLAB.md) | Nhật ký từng lượt nạp trên bo thật |
+
+### Hồ sơ thiết kế
+
+1. [`docs/md/EAA-MDD-00`](docs/md/EAA-MDD-00_Tai_lieu_tong_hop.md) — tổng hợp: 15 quyết định đã chốt, kế hoạch sprint
+2. [`docs/md/EAA-SDD-03`](docs/md/EAA-SDD-03_Thiet_ke_chi_tiet.md) — bản vẽ thi công: cây thư mục, lược đồ dữ liệu, module
+3. [`docs/md/EAA-AIS-05`](docs/md/EAA-AIS-05_Dac_ta_ky_thuat_AI.md) — tầng AI: nén ngữ cảnh, RAG, graph, ingest, chẩn đoán
+4. [`docs/md/EAA-STP-04`](docs/md/EAA-STP-04_Ke_hoach_kiem_thu.md) — thước chấm
+5. [`docs/md/EAA-SAD-02`](docs/md/EAA-SAD-02_Thiet_ke_kien_truc.md), [`docs/md/EAA-SRS-01`](docs/md/EAA-SRS-01_Dac_ta_yeu_cau.md) — tra cứu kiến trúc và yêu cầu
+
+Ngoài ra `packs/avr/pack.yaml` đáng đọc thẳng: chú thích trong đó là tài liệu
+tốt nhất về cách một Platform Pack hoạt động, vì mỗi chú thích gắn với một lần
+đã vấp.
