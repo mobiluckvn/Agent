@@ -71,6 +71,7 @@ __all__ = [
     "Retrieved",
     "tokenize",
     "select_chunks",
+    "search_chunks",
     "QUAN_HE",
     "BM25",
     "DO_PHU_TOI_THIEU",
@@ -161,8 +162,22 @@ class Bm25Index:
 
         Không phụ thuộc cỡ kho — khác hẳn điểm BM25 — nên nó dùng làm ngưỡng
         nhận được, còn điểm chỉ dùng để XẾP HẠNG những cái đã qua ngưỡng.
+
+        Mẫu số chỉ tính từ CÓ MẶT ĐÂU ĐÓ TRONG KHO
+        -------------------------------------------
+
+        Một từ không xuất hiện ở bất kỳ trích đoạn nào thì không trích đoạn nào
+        phủ được nó, nên để nó trong mẫu số là đặt ra một điều kiện bất khả rồi
+        phạt mọi ứng viên vì không đạt.
+
+        Chỗ này chỉ lộ ra khi câu truy vấn là câu NGƯỜI HỎI chứ không phải danh
+        sách thanh ghi do máy dựng: *"<tên thanh ghi> đặt bao nhiêu"* có bốn từ,
+        ba trong đó là hư từ không nằm trong tài liệu kỹ thuật nào, nên trích
+        đoạn nói đúng về thanh ghi ấy chỉ đạt độ phủ 1/4 và bị loại. Ngưỡng một
+        phần ba vẫn giữ nguyên; thứ được sửa là **đếm cái gì**, không phải đếm
+        bao nhiêu.
         """
-        tu = set(tokenize(query))
+        tu = {t for t in set(tokenize(query)) if self._df.get(t, 0)}
         if not tu or doc_id not in self._tf:
             return 0.0
         tf = self._tf[doc_id]
@@ -255,12 +270,7 @@ def select_chunks(
     if con_thieu <= 0 or not enable_bm25 or datasheets is None:
         return ket_qua
 
-    hoat_dong = datasheets.active() if hasattr(datasheets, "active") else []
-    kho = {
-        c.id: f"{getattr(c, 'topic', '')} {' '.join(getattr(c, 'registers', ()) or ())} "
-        f"{getattr(c, 'peripheral', '')} {getattr(c, 'device', '')} {getattr(c, 'body', '')}"
-        for c in hoat_dong
-    }
+    kho = _kho_van_ban(datasheets)
     if not kho:
         return ket_qua
 
@@ -270,6 +280,97 @@ def select_chunks(
 
     for ma, diem in Bm25Index(kho).search(
         truy_van, top_k=con_thieu, min_coverage=min_coverage, exclude=quan_he
+    ):
+        ket_qua.append(Retrieved(chunk_id=ma, tier=BM25, score=diem))
+    return ket_qua
+
+
+def _kho_van_ban(datasheets: Any) -> dict[str, str]:
+    """Gộp mỗi chunk ĐÃ DUYỆT thành một chuỗi để BM25 chấm.
+
+    Chỉ ``active()``: chunk ``proposed`` chưa có ai đối chiếu với bản gốc, và
+    một câu trả lời dựng trên nó là câu trả lời không có ai chịu trách nhiệm.
+    Đây là cùng một luật mà ``select_chunks`` áp cho đường sinh mã — nó phải
+    được phát biểu ĐÚNG MỘT LẦN, nên hai đường dùng chung hàm này.
+    """
+    hoat_dong = datasheets.active() if hasattr(datasheets, "active") else []
+    return {
+        c.id: f"{getattr(c, 'topic', '')} {' '.join(getattr(c, 'registers', ()) or ())} "
+        f"{getattr(c, 'peripheral', '')} {getattr(c, 'device', '')} {getattr(c, 'body', '')}"
+        for c in hoat_dong
+    }
+
+
+def _module_duoc_nhac(graph: Any, query: str) -> list[str]:
+    """Module nào của dự án được gọi tên trong câu hỏi.
+
+    So theo TỪ đã tách chứ không theo chuỗi con: ``in`` sẽ khớp ``drv_i2c``
+    trong ``drv_i2c_mpu6050`` và kéo theo cả trích đoạn của một module khác —
+    một kết quả sai mà nhìn thì rất giống kết quả đúng.
+    """
+    if graph is None or not hasattr(graph, "nodes_of_kind"):
+        return []
+    tu = set(tokenize(query))
+    try:
+        ung_vien = list(graph.nodes_of_kind("module"))
+    except Exception:  # noqa: BLE001 - đồ thị rỗng hoặc chưa dựng thì thôi
+        return []
+    return [m for m in ung_vien if tu.issuperset(tokenize(m))]
+
+
+def search_chunks(
+    datasheets: Any,
+    query: str,
+    *,
+    graph: Any = None,
+    top_k: int = 5,
+    min_coverage: float = DO_PHU_TOI_THIEU,
+) -> list[Retrieved]:
+    """Truy xuất theo MỘT CÂU HỎI TỰ DO — cùng hai tầng của ``select_chunks``.
+
+    Vì sao cần hàm này bên cạnh ``select_chunks``
+    ----------------------------------------------
+
+    ``select_chunks`` nhận ``module_id`` và tự dựng câu truy vấn từ thanh ghi
+    và tài nguyên module ấy đụng tới. Đó là đúng cho đường SINH MÃ, nơi câu hỏi
+    luôn có hình dạng "module này cần đọc gì".
+
+    Nhưng người dùng hỏi bằng câu, không bằng mã module — *"chân nào nối vào
+    động cơ trái"*, *"tốc độ I2C cấu hình ở đâu"*. Trước hàm này, kho tri thức
+    của dự án **chỉ đọc được từ đường sinh mã**: mọi lệnh hỏi-đáp đều không có
+    đường tới nó, nên câu trả lời hoặc đến từ trí nhớ mô hình, hoặc phải ra
+    web — trong khi thứ đã được người đối chiếu và duyệt tại G2 đang nằm sẵn
+    trên đĩa. Một kho tri thức chỉ ghi vào mà không tra ra được thì phần lớn
+    công duyệt G2 bị bỏ phí.
+
+    Thứ tự hai tầng giữ nguyên, và giữ nguyên vì cùng một lý do
+    ------------------------------------------------------------
+
+    Tầng 1 chỉ chạy khi câu hỏi **gọi tên một module của dự án**: lúc ấy đồ thị
+    chỉ đích danh được, và chỉ đích danh thì đúng theo định nghĩa chứ không
+    theo xác suất. Câu hỏi không nhắc module nào thì không có quan hệ nào để
+    bắc cầu, và tầng 2 làm nốt phần còn lại — vẫn với ngưỡng ĐỘ PHỦ, không phải
+    điểm BM25.
+    """
+    ket_qua: list[Retrieved] = []
+    quan_he: list[str] = []
+
+    for module_id in _module_duoc_nhac(graph, query):
+        for ma in graph.chunks_for(module_id, top_k=top_k):
+            if ma not in quan_he:
+                quan_he.append(ma)
+    ket_qua += [Retrieved(chunk_id=c, tier=QUAN_HE) for c in quan_he[:top_k]]
+
+    con_thieu = top_k - len(ket_qua)
+    if con_thieu <= 0 or datasheets is None:
+        return ket_qua
+
+    kho = _kho_van_ban(datasheets)
+    if not kho or not (query or "").strip():
+        return ket_qua
+
+    for ma, diem in Bm25Index(kho).search(
+        query, top_k=con_thieu, min_coverage=min_coverage, exclude=quan_he
     ):
         ket_qua.append(Retrieved(chunk_id=ma, tier=BM25, score=diem))
     return ket_qua

@@ -116,8 +116,50 @@ def repo_root() -> Path:
     return Path(os.environ.get("EAA_HOME", Path(__file__).resolve().parent.parent))
 
 
+#: Dấu hiệu một thư mục LÀ thư mục dự án.
+#:
+#: Hai tệp chứ không một: ``eaa brief`` dựng ``constraints.yaml`` trước, còn
+#: ``eaa init`` mới ghi Project State — nên trong quãng giữa hai lệnh ấy dự án
+#: đã tồn tại mà chưa có state. Nhận theo một tệp thì đúng quãng người dùng cần
+#: nhất lại là quãng không nhận ra.
+DAU_HIEU_DU_AN = (STATE_FILE, CONSTRAINTS_FILE)
+
+
+def du_an_chua_thu_muc(thu_muc: Path | None = None) -> Path | None:
+    """Dự án chứa thư mục đang đứng — đi ngược lên như ``git`` tìm ``.git``.
+
+    Vì sao vị trí được tính là một cách chỉ định
+    ---------------------------------------------
+
+    Người dùng đã ở trong thư mục dự án khi gõ lệnh. Bắt họ nói lại điều ấy
+    bằng ``--project`` hoặc ``EAA_PROJECT`` là bắt khai một thứ hệ thống nhìn
+    thấy được — và mỗi lần khai lại là một lần khai nhầm được, đúng ở kho có
+    nhiều dự án, tức đúng lúc nhầm là tốn kém nhất.
+
+    Đi ngược lên chứ không chỉ xét đúng thư mục hiện tại: người ta làm việc
+    trong ``prompts/`` hay ``firmware/`` của dự án nhiều hơn là ở gốc của nó.
+
+    Vì sao KHÔNG đặt trên biến môi trường
+    --------------------------------------
+
+    Thứ tự là **tham số → biến môi trường → vị trí → duy nhất**: cái được gõ ra
+    thắng cái được suy ra. Một biến đã export là một câu người dùng đã nói
+    thành lời; vị trí thư mục thì không. Nhưng khi hai thứ ấy chỉ về hai dự án
+    khác nhau, hệ thống **nói ra** — im lặng ở đây là cách một lượt làm việc đi
+    nhầm dự án suốt buổi mà không ai biết.
+    """
+    try:
+        hien_tai = (thu_muc or Path.cwd()).resolve()
+    except OSError:  # thư mục hiện tại vừa bị xóa
+        return None
+    for muc in (hien_tai, *hien_tai.parents):
+        if any((muc / ten).is_file() for ten in DAU_HIEU_DU_AN):
+            return muc
+    return None
+
+
 def resolve_project(duong_dan: str | None, *, phai_ton_tai: bool = True) -> Path:
-    """Tìm thư mục dự án theo thứ tự: tham số → biến môi trường → duy nhất.
+    """Tìm dự án: tham số → biến môi trường → thư mục đang đứng → duy nhất.
 
     FR-PLT-03 dự trù nhiều dự án song song; ở đây chỉ chọn dự án, chưa quản lý
     vòng đời ``eaa new/switch`` (Should, chưa thuộc MVP).
@@ -131,9 +173,23 @@ def resolve_project(duong_dan: str | None, *, phai_ton_tai: bool = True) -> Path
             raise CliError(f"Không có thư mục dự án: {goc}")
         return goc
 
+    theo_vi_tri = du_an_chua_thu_muc()
+
     tu_moi_truong = os.environ.get("EAA_PROJECT")
     if tu_moi_truong:
-        return resolve_project(tu_moi_truong, phai_ton_tai=phai_ton_tai)
+        chon = resolve_project(tu_moi_truong, phai_ton_tai=phai_ton_tai)
+        if theo_vi_tri is not None and theo_vi_tri != chon:
+            print(
+                f"⚠ Bạn đang đứng trong {theo_vi_tri.name}, nhưng EAA_PROJECT trỏ "
+                f"tới {chon.name} — dùng {chon.name}.\n"
+                f"  Muốn dùng chỗ đang đứng: unset EAA_PROJECT, hoặc "
+                f"--project {theo_vi_tri}",
+                file=sys.stderr,
+            )
+        return chon
+
+    if theo_vi_tri is not None:
+        return theo_vi_tri
 
     thu_muc = repo_root() / "projects"
     ung_vien = (
@@ -149,7 +205,8 @@ def resolve_project(duong_dan: str | None, *, phai_ton_tai: bool = True) -> Path
     if len(ung_vien) > 1:
         ten = ", ".join(p.name for p in ung_vien)
         raise CliError(
-            f"Có nhiều dự án ({ten}) — chỉ rõ bằng --project hoặc EAA_PROJECT."
+            f"Có nhiều dự án ({ten}) — chỉ rõ bằng --project, đặt EAA_PROJECT, "
+            "hoặc cd vào thư mục dự án rồi gõ lại."
         )
     return ung_vien[0]
 
@@ -4317,6 +4374,66 @@ def cmd_read(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_recall(args: argparse.Namespace) -> int:
+    """Tra kho tri thức ĐÃ DUYỆT của dự án bằng một câu hỏi tự do.
+
+    Đây là chiều ĐỌC của kho mà trước đó chỉ có chiều GHI ở tầm hỏi-đáp: trước
+    lệnh này, ``eaa/rag.py`` chỉ được gọi từ ``composer`` (đường sinh mã) và
+    ``goldenset`` (đo chất lượng truy xuất). Người hỏi một câu thì không có
+    đường nào tới trích đoạn đã duyệt — nên hoặc trả lời bằng trí nhớ mô hình,
+    hoặc ra web hỏi lại thứ mình đã có.
+    """
+    from eaa.rag import search_chunks
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+
+    cau_hoi = " ".join(args.question).strip()
+    if not cau_hoi:
+        raise CliError("Cần một câu hỏi. Ví dụ: eaa recall \"tốc độ I2C đặt ở đâu\"")
+
+    ket = search_chunks(
+        ctx.kb.datasheets, cau_hoi, graph=ctx.graph, top_k=args.top_k
+    )
+
+    _in_tieu_de(f"Kho tri thức đã duyệt — {cau_hoi!r}")
+
+    for r in ket:
+        chunk = ctx.kb.datasheets.get(r.chunk_id)
+        print(f"\n  {r.render().strip()}   [{r.confidence_level}]")
+        print(f"      {chunk.device}/{chunk.peripheral}" + (
+            f" · thanh ghi: {', '.join(chunk.registers)}" if chunk.registers else ""))
+        if chunk.source:
+            print(f"      nguồn: {chunk.source}")
+        than = " ".join((chunk.body or "").split())
+        if than:
+            print(f"      {than[:args.chars]}" + ("…" if len(than) > args.chars else ""))
+        print(f"      trích dẫn khi sinh mã: {chunk.citation}")
+
+    # Chunk CHƯA duyệt không bao giờ nằm trong phần trả lời — nhưng im lặng về
+    # nó thì người dùng kết luận "kho không có", trong khi thứ họ cần đang nằm
+    # sau đúng một lần bấm G2. Nói ra, và nói rõ nó chưa dùng được.
+    cho_duyet = [c for c in ctx.kb.datasheets.all() if c.status == "proposed"]
+    if not ket:
+        print("\n  Kho không có trích đoạn nào đã duyệt khớp câu hỏi này.")
+    if cho_duyet:
+        print(
+            f"\n  {len(cho_duyet)} chunk đang CHỜ DUYỆT tại G2 — chúng không được "
+            "tính vào\n  kết quả trên vì chưa ai đối chiếu với bản gốc: "
+            + ", ".join(sorted(c.id for c in cho_duyet)[:8])
+        )
+        print("  Duyệt: eaa gate show G2 → eaa gate approve G2")
+    if not ket:
+        print(
+            "\n  Không có trong kho thì đi tìm, đừng đoán:\n"
+            f"    eaa research \"{cau_hoi}\" --official-only    # tìm và ĐỌC trang chính chủ\n"
+            "    eaa datasheet add <URL hoặc tệp> --device <chip> --peripheral <ngoại vi>\n"
+            "    eaa gate approve G2                          # mới thành tri thức"
+        )
+        return EXIT_WAITING_GATE
+    return EXIT_OK
+
+
 def cmd_memory_list(args: argparse.Namespace) -> int:
     """Bộ nhớ liên dự án (C8.2)."""
     from eaa.memory import MemoryStore
@@ -6112,6 +6229,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_env.add_argument("--remember", action="store_true",
                        help="Ghi kết quả vào bộ nhớ liên dự án")
     p_env.set_defaults(func=cmd_environ)
+
+    p_recall = sub.add_parser(
+        "recall",
+        help="Tra kho tri thức ĐÃ DUYỆT của dự án bằng một câu hỏi",
+        description=(
+            "Hai tầng như đường sinh mã: đồ thị chỉ đích danh trước, BM25 lấp "
+            "sau. Chỉ trả trích đoạn đã duyệt G2 — chunk còn chờ duyệt được "
+            "NÊU RA nhưng không tính vào kết quả. Tra đây TRƯỚC khi ra web."
+        ),
+    )
+    p_recall.add_argument("question", nargs="+", help="Câu hỏi bằng tiếng Việt")
+    p_recall.add_argument("--top-k", type=int, default=5, help="Số trích đoạn tối đa")
+    p_recall.add_argument("--chars", type=int, default=600,
+                          help="Số ký tự nội dung in ra cho mỗi trích đoạn")
+    p_recall.set_defaults(func=cmd_recall)
 
     p_res = sub.add_parser(
         "research",

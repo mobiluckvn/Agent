@@ -217,7 +217,15 @@ TOOLBOX: tuple[Tool, ...] = (
     Tool(("handover", "doc"), "Tài liệu vận hành, kèm mục điều hệ thống KHÔNG làm được"),
     Tool(("handover", "rollout"), "Kế hoạch cập nhật thiết bị đã triển khai"),
     Tool(("sim", "run"), "Chạy mô phỏng, gồm cả kịch bản tiêm lỗi", takes="--scenario <tên>"),
-    Tool(("resolve",), "Đi tìm tri thức còn thiếu của một module", takes="mã module"),
+    # Kho tri thức của dự án, đọc được bằng MỘT CÂU HỎI. Trước mục này, đường
+    # duy nhất tới trích đoạn đã duyệt là đường sinh mã — nên ở hội thoại, thứ
+    # đã qua G2 nằm trên đĩa mà không có lệnh nào lấy ra được.
+    Tool(
+        ("recall",),
+        "TRA KHO TRI THỨC ĐÃ DUYỆT của dự án bằng một câu hỏi. Gọi TRƯỚC "
+        "`research`. Nó nêu cả chunk đang chờ G2, nhưng không tính vào kết quả",
+        takes="câu hỏi [--top-k N]",
+    ),
     Tool(
         ("survey",),
         "Khảo sát một kho nén hồ sơ dự án: kiểm kê, phân loại, rút dữ kiện từ mã "
@@ -230,6 +238,13 @@ TOOLBOX: tuple[Tool, ...] = (
         takes="đường dẫn .zip [--extract] | --files <mẫu> | --read <tệp>",
     ),
     # -- có ghi ra tệp, nhưng KHÔNG quyết định thay người --------------------
+    # `resolve` nằm ở NHÓM CÓ GHI, không nhóm chỉ đọc: bậc 3 của nó dựng chunk
+    # ĐỀ XUẤT trên đĩa và bộ đếm vòng tìm sống qua phiên. Xếp nó vào nhóm chỉ
+    # đọc là khai với mô hình một điều không đúng về chính nó.
+    Tool(("resolve",), "Tri thức còn thiếu của một module, thang ba bậc: kho "
+                       "→ hỏi người → web. `--web` bật bậc 3: tìm, TẢI trang "
+                       "nhà sản xuất, trích thành chunk ĐỀ XUẤT chờ G2",
+         takes="mã module [--web]", writes=True),
     Tool(("plan", "add"), "Khai một module vào backlog", takes="mã module --uses a,b", writes=True),
     Tool(("budget", "propose"), "Đề xuất cách chia ngân sách theo backlog", writes=True),
     Tool(("propose", "scope"), "Đề xuất phạm vi và cái KHÔNG làm", writes=True),
@@ -723,12 +738,16 @@ def _mo_ta_danh_muc() -> str:
         "## THỨ TỰ NÊN THEO KHI THIẾU THÔNG TIN",
         "",
         "  1. `memory list` / `playbook lookup` — thứ đã biết từ lần trước, rẻ nhất",
-        "  2. lệnh đọc trong dự án (`status`, `sources need`, `datasheet list`…)",
-        "  3. `research` — đi tìm và ĐỌC thật ngoài web",
-        "  4. `hoi_lai` — hỏi người dùng",
+        "  2. `recall \"<câu hỏi>\"` — KHO TRI THỨC ĐÃ DUYỆT của dự án này",
+        "  3. lệnh đọc trong dự án (`status`, `sources need`, `datasheet list`…)",
+        "  4. `research` — đi tìm và ĐỌC thật ngoài web",
+        "  5. `hoi_lai` — hỏi người dùng",
         "",
         "Bỏ qua bậc 1 để nhảy thẳng ra web là đốt thời gian và tiền của người "
         "dùng cho thứ bạn đã biết.",
+        "Ra web trước khi tra kho là đổi một nguồn ĐÃ KIỂM lấy nguồn chưa "
+        "kiểm. `recall` không có gì thì NÓI RA, rồi mới `research` — và nêu "
+        "địa chỉ kèm hạng nguồn.",
     ]
     return "\n".join(dong)
 

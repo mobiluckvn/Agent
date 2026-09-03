@@ -2353,3 +2353,35 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Đã sửa** | Viết lại docstring theo ranh giới thật, kèm mục *"Ranh giới nằm ở việc DUYỆT, không ở việc LÀM"* nói rõ vì sao ba lệnh kia được vào |
 | **Bài canh** | Thêm 2 bài vào `tests/test_tc61_chat.py`: một bài liệt kê thẳng tên sáu lệnh duyệt và đòi chúng vắng mặt; một bài canh **chiều ngược** — ba lệnh `flash`/`doctor --fix`/`tool run` phải CÒN đó và phải tự nói ra rằng chúng đòi duyệt trước, để người sau tưởng là lỗ hổng mà gỡ đi thì bài kiểm đỏ và dẫn về đúng lý lẽ |
 | **Vì sao hai đường độc lập** | Bài canh cũ (TC-61c) đọc danh sách từ PROMPT rồi đối chiếu danh mục. Bài mới viết thẳng tên. Một prompt bị sửa không làm cả hai cùng mù |
+
+---
+
+## SL-165 · BỔ SUNG · Đứng trong thư mục dự án mà vẫn phải khai lại tên dự án
+
+| | |
+|---|---|
+| **Cách tìm** | Người dùng đối chiếu với Claude Code: mở công cụ trong thư mục dự án thì công cụ biết đó là dự án nào. Ở đây `eaa status` chạy ngay trong `projects/disco_f469` vẫn báo *"Có nhiều dự án — chỉ rõ bằng --project hoặc EAA_PROJECT"* |
+| **Lệch với cái gì** | FR-PLT-03 dự trù nhiều dự án song song, và `resolve_project` cài đúng ba đường: tham số → biến môi trường → dự án DUY NHẤT. Đường thứ ba tắt ngay khi kho có dự án thứ hai, tức là tắt đúng lúc FR-PLT-03 bắt đầu có nghĩa |
+| **Vì sao là lỗi chứ không phải bất tiện** | Nó bắt khai một thứ hệ thống **nhìn thấy được**. Mỗi lần khai lại là một lần khai nhầm được, và một lệnh sinh mã chạy nhầm dự án ghi mã theo sơ đồ chân của bo khác — hỏng im lặng, đúng hạng nguy hiểm nhất của kho này |
+| **Đã sửa** | Thêm bậc **vị trí** vào giữa: tham số → biến môi trường → **thư mục đang đứng** → duy nhất. `du_an_chua_thu_muc()` đi ngược lên như `git` tìm `.git`, nhận theo dấu hiệu `project_state.json` **hoặc** `constraints.yaml` |
+| **Vì sao hai dấu hiệu chứ không một** | `eaa brief` dựng `constraints.yaml` trước, `eaa init` mới ghi Project State. Nhận theo một tệp thì đúng quãng người dùng cần nhất — giữa hai lệnh ấy — lại là quãng không nhận ra |
+| **Vì sao vị trí KHÔNG đặt trên biến môi trường** | Cái được gõ ra thắng cái được suy ra. Một biến đã export là một câu người dùng đã nói thành lời; vị trí thư mục thì không |
+| **Chỗ dễ hỏng và cách chặn** | Hai thứ ấy chỉ về hai dự án khác nhau là chuyện sẽ xảy ra thật (export một lần trong `.zshrc`, rồi `cd` sang dự án khác). Chọn im lặng ở đây là cách một buổi làm việc đi nhầm dự án mà không ai biết — nên khi lệch, hệ **in cảnh báo ra stderr** kèm đúng hai cách sửa. Không lệch thì không in: một cảnh báo bắn cả lúc không có gì lệch là một cảnh báo sẽ bị bỏ qua |
+| **Bài canh** | `tests/test_tc125_du_an_theo_thu_muc.py`, 9 bài: nhận từ gốc dự án và từ thư mục con; chỉ có `constraints.yaml` cũng nhận; gốc kho **không** bị nhận nhầm; `--project` và `EAA_PROJECT` đều thắng vị trí; lệch thì phải cảnh báo, không lệch thì phải im |
+
+---
+
+## SL-166 · BỔ SUNG · Kho tri thức chỉ đọc ra được từ đường sinh mã
+
+| | |
+|---|---|
+| **Cách tìm** | Câu hỏi của người dùng: *"khi người dùng hỏi thì Agent có biết tìm trong RAG, Graph để trả lời không"*. Truy ngược chỗ gọi: `eaa/rag.py` chỉ được `composer.py` (ghép prompt sinh mã) và `goldenset.py` (đo chất lượng truy xuất) gọi tới. Không lệnh nào khác, và **không mục nào trong `TOOLBOX`** |
+| **Hệ quả** | Ở tầng hội thoại, trích đoạn đã qua G2 nằm trên đĩa mà không có đường lấy ra. `datasheet list` chỉ liệt kê mã và trạng thái, không trả nội dung. Nên một câu hỏi kỹ thuật chỉ còn hai lối: **trí nhớ mô hình**, hoặc **ra web** — cả hai đều đi vòng qua đúng thứ đã có người đối chiếu với bản gốc |
+| **Vì sao nặng hơn nó trông** | Toàn bộ giá trị của G2 nằm ở chỗ một người đã đọc bản gốc và chịu trách nhiệm. Nếu đường hỏi-đáp không chạm được vào kết quả ấy thì công duyệt G2 bị bỏ phí ở đúng chỗ người dùng tương tác nhiều nhất, và câu trả lời tụt xuống hạng chưa kiểm mà **không có gì nói ra điều đó** |
+| **Đã sửa** | `rag.search_chunks()` — truy xuất theo MỘT CÂU HỎI TỰ DO, giữ nguyên hai tầng: đồ thị chỉ đích danh trước (chỉ khi câu hỏi gọi tên một module của dự án), BM25 lấp sau với ngưỡng độ phủ. Lệnh `eaa recall "<câu hỏi>"` và một mục `recall` trong `TOOLBOX` |
+| **Chỉ chunk ĐÃ DUYỆT** | Dùng chung `_kho_van_ban()` với `select_chunks` để luật *"chỉ `active()`"* được phát biểu đúng một lần. Chunk `proposed` **được nêu ra** trong đầu ra — kèm câu nói rõ nó chưa tính vào kết quả — vì im lặng về nó khiến người dùng kết luận "kho không có" trong khi thứ họ cần nằm sau đúng một lần bấm G2 |
+| **Sửa kèm: mẫu số của độ phủ** | Ngưỡng độ phủ được chỉnh cho câu truy vấn do MÁY dựng (toàn tên thanh ghi). Với câu NGƯỜI hỏi, hư từ nuốt mất mẫu số: *"TWBR đặt bao nhiêu"* có 4 từ, 3 từ không nằm trong tài liệu kỹ thuật nào, nên trích đoạn nói đúng về `TWBR` chỉ đạt 1/4 và bị loại. Nay mẫu số **chỉ tính từ có mặt đâu đó trong kho** — một từ không trích đoạn nào chứa thì không trích đoạn nào phủ được, để nó trong mẫu số là đặt điều kiện bất khả rồi phạt mọi ứng viên. Ngưỡng 1/3 giữ nguyên; thứ đổi là *đếm cái gì* |
+| **Thứ tự dạy lại cho mô hình** | Bảng *"khi thiếu thông tin"* trong prompt chèn `recall` thành bậc 2, trước `research`: một trích đoạn đã qua G2 là thứ đã có người đối chiếu với bản gốc, còn một trang web mới tải thì chưa. Ra web trước khi tra kho là đổi nguồn đã kiểm lấy nguồn chưa kiểm |
+| **Không mở thêm quyền** | `recall` là lệnh chỉ đọc. `datasheet add` vẫn **không** có trong danh mục — nạp tri thức và chọn trang vẫn là việc của người (G2, AIS §4.1) |
+| **Sửa kèm: `resolve` khai sai về chính nó** | `resolve` nằm ở nhóm "chỉ đọc" của `TOOLBOX` trong khi bậc 3 của nó dựng chunk đề xuất trên đĩa và ghi sổ đếm vòng tìm. Đã chuyển sang nhóm **có ghi** và nêu rõ `--web` trong mô tả — trước đó mô hình không có cách nào biết bậc 3 tồn tại, nên năng lực tự ra web nạp tài liệu **có trong mã mà không bao giờ được gọi** |
+| **Bài canh** | `tests/test_tc126_recall_kho_tri_thuc.py`, 10 bài: hai tầng đúng thứ tự; tên module khớp theo TỪ chứ không chuỗi con (`drv_i2c` không kéo theo `drv_i2c_mpu6050`); chunk `proposed` không lọt; ngưỡng độ phủ vẫn chặn câu hỏi không liên quan; `recall` đứng trước `research` trong bảng thứ tự; và bài canh chiều ngược — thêm lệnh **không** được thành thêm quyền |

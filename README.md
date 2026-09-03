@@ -62,7 +62,7 @@ chỉ có mũi tên đi ra là hệ không biết mình vừa làm gì.
 ```mermaid
 graph TB
     subgraph N["Người dùng"]
-        CLI["<b>CLI</b> · eaa/cli.py<br/>52 lệnh · 4 mã thoát<br/><i>Python, argparse</i>"]
+        CLI["<b>CLI</b> · eaa/cli.py<br/>53 lệnh · 4 mã thoát<br/><i>Python, argparse</i>"]
         CHAT["<b>Tầng hội thoại</b> · eaa/agent.py<br/>TOOLBOX 70 mục, không có lệnh DUYỆT<br/><i>vòng lặp JSON trên complete()</i>"]
     end
 
@@ -310,7 +310,25 @@ eaa deviations --draft                    # chỗ mã và tài liệu kể hai c
 
 ## Tương tác bằng ngôn ngữ tự nhiên
 
-Mặt tiếp xúc đầu tiên của sản phẩm là **52 lệnh rời**. Muốn hỏi được câu đầu
+### Chọn dự án: đứng ở đâu thì làm việc ở đó
+
+Kho chạy nhiều dự án song song (FR-PLT-03), nên phải có cách nói đang làm dự án
+nào. Thứ tự là **tham số → biến môi trường → thư mục đang đứng → dự án duy
+nhất** — cái được gõ ra thắng cái được suy ra:
+
+```bash
+cd projects/robot_balance && eaa status    # nhận ra từ vị trí, kể cả ở thư mục con
+export EAA_PROJECT=projects/blklab_robot   # đặt cho cả phiên terminal
+eaa --project projects/disco_f469 status   # cờ TOÀN CỤC, đặt TRƯỚC lệnh con
+```
+
+Khi biến môi trường và vị trí chỉ về hai dự án khác nhau, hệ **nói ra** rồi mới
+chạy. Chọn im lặng ở đây là cách một buổi làm việc đi nhầm dự án mà không ai
+biết (SL-165).
+
+### Hỏi bằng câu
+
+Mặt tiếp xúc đầu tiên của sản phẩm là **53 lệnh rời**. Muốn hỏi được câu đầu
 tiên, người dùng phải biết lệnh nào tồn tại và gõ đúng cờ — tức phải hiểu cấu
 trúc bên trong trước đã. Tầng hội thoại lấp chỗ đó: nói ra điều mình muốn bằng
 tiếng Việt, Agent tự tìm đường.
@@ -357,6 +375,33 @@ danh mục, **nói lại cho mô hình biết vì sao**, và nói cho người d
 nào họ phải tự gõ. Prompt cũng dặn điều đó, nhưng lời dặn chỉ là hàng rào thứ
 hai. Canh bằng TC-61 — hai bài độc lập, một bài đọc danh sách từ prompt, một
 bài viết thẳng tên lệnh, để một prompt bị sửa không làm cả hai cùng mù.
+
+### Tra kho trước, ra web sau
+
+Câu hỏi kỹ thuật đi qua bốn bậc, và bậc nào cũng trả lời được thì dừng ở đó:
+
+```bash
+eaa playbook lookup "<nguyên văn lỗi>"     # 1. lỗi này lần trước sửa sao
+eaa recall "tốc độ I2C đặt ở đâu"          # 2. KHO TRI THỨC ĐÃ DUYỆT của dự án
+eaa research "ATmega328P TWBR" --official-only   # 3. tìm rồi ĐỌC trang chính chủ
+eaa resolve drv_imu --web                  # 4. tự tìm, tải, trích thành chunk chờ G2
+```
+
+`recall` chạy đúng hai tầng của đường sinh mã — **đồ thị chỉ đích danh trước,
+BM25 lấp sau** — và chỉ trả trích đoạn đã duyệt G2. Chunk còn chờ duyệt được
+nêu tên nhưng không tính vào kết quả: im lặng về nó khiến người dùng kết luận
+"kho không có" trong khi thứ họ cần nằm sau đúng một lần bấm gate.
+
+Thứ tự này nằm trong prompt vì một lý do đo được: một trích đoạn qua G2 là thứ
+đã có **người** đối chiếu với bản gốc, còn một trang web mới tải thì chưa. Ra
+web trước khi tra kho là đổi một nguồn đã kiểm lấy một nguồn chưa kiểm.
+
+Bậc 4 là đường tự động duy nhất đi từ Internet vào kho tri thức, và nó vẫn
+dừng trước gate: `resolve --web` tìm, tải trang **trong miền nhà sản xuất**,
+trích ra chunk ở trạng thái `proposed`, rồi dừng. Nạp một tài liệu người tự
+chọn cũng cùng đường ấy — `eaa datasheet add <URL>` từ chối mọi địa chỉ không
+phải hạng *chính chủ*, tính theo URL **cuối** sau chuyển hướng. Bước cuối luôn
+là `eaa gate approve G2`, và nó không có trong danh mục Agent gọi được.
 
 ### "Stateless mỗi lần gọi" vẫn còn đúng
 
@@ -578,7 +623,9 @@ việc chép dùng ngay, cùng bốn cách hỏng đã gặp thật.
 | Tài liệu | Nội dung |
 |---|---|
 | [`docs/DANH_GIA_NANG_LUC_AGENT.md`](docs/DANH_GIA_NANG_LUC_AGENT.md) | Agent tự làm được gì, tám giới hạn còn lại kèm bằng chứng, và phương pháp huấn luyện |
-| [`docs/SAI_LECH_THIET_KE.md`](docs/SAI_LECH_THIET_KE.md) | 164 mục: mỗi lỗi đã gặp, chỗ sửa thật, và bài kiểm canh nó. Dữ liệu gốc của chương đánh giá |
+| [`docs/RA_SOAT_NANG_LUC_04_09.md`](docs/RA_SOAT_NANG_LUC_04_09.md) | Rà soát 142 dòng bảng năng lực với mã: 125 đủ, 15 còn thiếu, và việc phải làm theo thứ tự |
+| [`docs/EAA_Bang_nang_luc.xlsx`](docs/EAA_Bang_nang_luc.xlsx) | Bảng gốc — sheet **Khoảng trống** là danh sách việc. Sinh lại: `python scripts/lam_bang_nang_luc.py`; kiểm: `python scripts/kiem_bang_nang_luc.py` |
+| [`docs/SAI_LECH_THIET_KE.md`](docs/SAI_LECH_THIET_KE.md) | 166 mục: mỗi lỗi đã gặp, chỗ sửa thật, và bài kiểm canh nó. Dữ liệu gốc của chương đánh giá |
 | [`docs/NHAT_KY_TEST_BLKLAB.md`](docs/NHAT_KY_TEST_BLKLAB.md) | Nhật ký từng lượt nạp trên bo thật |
 
 ### Hồ sơ thiết kế
