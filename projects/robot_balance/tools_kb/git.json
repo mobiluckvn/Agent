@@ -12,7 +12,7 @@
   ],
   "version_regex": "(\\d+\\.\\d+(?:\\.\\d+)?)",
   "error_regex": "",
-  "verified_at": "2026-08-31T13:27:22+00:00",
+  "verified_at": "2026-09-03T04:16:47+00:00",
   "os": "macos",
   "smoke_output": "git version 2.50.1 (Apple Git-155)\n",
   "known_issues": []

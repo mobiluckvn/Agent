@@ -242,8 +242,11 @@ chạy mới xem được thì tới lúc bảo vệ đề án sẽ không xem �
 
 ## Bắt đầu
 
+> **Máy mới tải kho về:** đọc [`docs/CAI_DAT_VA_CHAY.md`](docs/CAI_DAT_VA_CHAY.md)
+> — cài đặt và chạy trọn luồng, từ `git clone` tới lúc firmware nằm trên bo.
+
 ```bash
-python3.12 -m venv .venv
+python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 ```
 

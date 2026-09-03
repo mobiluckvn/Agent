@@ -12,7 +12,7 @@
   ],
   "version_regex": "(\\d+\\.\\d+(?:\\.\\d+)?)",
   "error_regex": "",
-  "verified_at": "2026-08-31T13:27:22+00:00",
+  "verified_at": "2026-09-03T04:16:47+00:00",
   "os": "macos",
   "smoke_output": "eaa-smoke-ok\n",
   "known_issues": []

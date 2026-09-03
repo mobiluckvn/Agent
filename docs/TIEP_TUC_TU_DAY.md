@@ -98,6 +98,9 @@ có nghĩa.
 
 ## Ba tài liệu nên đọc cùng bản này
 
+* [`docs/CAI_DAT_VA_CHAY.md`](CAI_DAT_VA_CHAY.md) — máy mới tải kho về thì bắt đầu
+  từ đây: cài đặt, công cụ, và trọn luồng tới lúc firmware nằm trên bo.
+
 * `docs/SAI_LECH_THIET_KE.md` — 162 mục, mỗi mục một lỗi và bài kiểm canh nó.
   Đây là dữ liệu gốc của chương đánh giá, không phải phụ lục.
 * `docs/DANH_GIA_NANG_LUC_AGENT.md` — Agent tự làm được gì, bảy giới hạn còn
