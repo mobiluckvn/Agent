@@ -765,14 +765,24 @@ class Orchestrator:
         sửa chạm N vì mã khó; phân biệt được hai thứ ấy chỉ khi việc lược bỏ
         không im lặng (AIS §12).
         """
+        dong: list[str] = []
         da_luoc = list(getattr(prompt, "trimmed", ()) or ())
-        if not da_luoc:
-            return ""
-        return (
-            "  ⚠ đã lược khỏi prompt để vừa ngân sách: "
-            + ", ".join(da_luoc)
-            + "\n    (mã sinh ra thiếu đúng phần này — xem lại nếu kết quả sai lệch)"
-        )
+        if da_luoc:
+            dong.append(
+                "  ⚠ đã lược khỏi prompt để vừa ngân sách: "
+                + ", ".join(da_luoc)
+                + "\n    (mã sinh ra thiếu đúng phần này — xem lại nếu kết quả sai lệch)"
+            )
+        # Lớp dùng quá phần của nó mà trần TỔNG vẫn còn chỗ: không chặn, nhưng
+        # cũng không im. Im lặng ở đây là cách một lớp phình dần tới lúc nó
+        # thật sự lấn chỗ của lớp khác mà không ai thấy quá trình ấy (SL-161).
+        qua_phan = list(getattr(prompt, "over_share", ()) or ())
+        if qua_phan:
+            dong.append(
+                "  ⚠ lớp dùng quá phần nominal (trần tổng vẫn còn chỗ):\n"
+                + "\n".join(qua_phan)
+            )
+        return "\n".join(dong)
 
     def _ten_cong(self) -> list[str]:
         return [getattr(g, "name", type(g).__name__) for g in self.gate_chain]

@@ -2,13 +2,11 @@
 id: drv_imu
 description: Đọc MPU6050 và tính góc nghiêng theo đúng công thức mã tham chiếu — trục Z, dải ±4g/±250dps, chu kỳ 4 ms
 ---
-Theo ĐÚNG phần đọc cảm biến và tính góc của
-`sources/.../V3_Balancing_Robot_PID_App.ino` — mã đã chạy trên chính bo này.
+Theo ĐÚNG phần đọc cảm biến và tính góc của V3 — mã đã chạy trên bo này.
 
-### Trục — chuyện GÁ, không suy từ tài liệu chip
+### Trục — chuyện GÁ, đã ĐO trên bo
 
-* Góc nghiêng: **ACCEL_Z** (`0x3F`), KHÔNG phải ACCEL_X.
-* Tốc độ góc: **GYRO_Y** (`0x45`).
+* Góc nghiêng: **ACCEL_Z** (`0x3F`). Tốc độ góc: **GYRO_Y** (`0x45`).
 
 ### Dải đo và công thức, nguyên văn
 
@@ -37,28 +35,36 @@ mọi lượt khác. Vòng điều khiển bơm tới khi thấy true rồi dừ
 định ĐÚNG MỘT lần tích phân mỗi 4 ms, mà một lượt đọc cần vài lượt gọi và số ấy
 đổi theo lúc ngắt nổ.
 
-Bus lỗi thì GIỮ NGUYÊN góc cũ, thử lại vòng sau. Đừng nhét 0 vào: 0 nghĩa là
-"robot thẳng đứng hoàn hảo". `imu_init()` gọi `i2c_init()`.
+Bus lỗi thì GIỮ NGUYÊN góc cũ (0 nghĩa là "thẳng đứng hoàn hảo").
+`imu_init()` gọi `i2c_init()`.
 
-### Hiệu chỉnh — BẮT BUỘC
+### Hai đại lượng hiệu chỉnh, KHÁC BẢN CHẤT — theo đúng V3
 
-`app_balance` chốt hai số mỗi lần bật máy, lúc người giữ robot thẳng đứng:
+**Mốc gia tốc là HẰNG SỐ, khai ở đầu tệp:**
 
 ```c
-void imu_calibrate_begin(void);   // xoá tích luỹ, bắt đầu gom mẫu
-bool imu_calibrate_busy(void);    // còn đang gom thì true
-void imu_calibrate_commit(void);  // chốt trung bình các mẫu đã gom
+#define ACCEL_BALANCE_OFFSET  (-535)   /* hồ sơ phần cứng, đo ở ±4 g */
 ```
 
-* **Trôi con quay** — trung bình `gyro_y` thô, TRỪ khỏi mọi số đọc sau đó,
-  TRƯỚC khi nhân `0.000031`.
-* **Mốc gia tốc đứng** — trung bình `accel_z` thô; sau đó dùng `accel_z - mốc`
-  trước khi vào `asin`.
-* `commit` đặt góc về **0**: tư thế lúc gom mẫu LÀ mốc không, nên `accel_z-mốc`
-  bằng 0. Đừng suy góc từ số THÔ của mốc — gá lệch bao nhiêu thì robot tin mình
-  nghiêng bấy nhiêu, và lọc bù cần ~10 s mới gột.
+Hình học của robot, không đổi giữa hai lần bật. Mọi số đọc dùng
+`accel_z - ACCEL_BALANCE_OFFSET` trước khi vào `asin`. **KHÔNG đo lại lúc bật
+máy** — đo ở tư thế tay người giữ là tuyên bố một tư thế nghiêng bất kỳ là
+"không độ", và cổng ±0,5° của `app_balance` mất hết ý nghĩa.
 
-Gom 500 mẫu (theo mã tham chiếu, ~1,9 s), hằng số khai ở đầu tệp.
+**Trôi con quay thì PHẢI đo mỗi lần bật** — nó đổi theo nhiệt độ:
+
+```c
+void imu_calibrate_begin(void);   // bắt đầu gom mẫu gyro
+bool imu_calibrate_busy(void);    // còn đang gom thì true
+void imu_calibrate_commit(void);  // chốt trung bình
+```
+
+Gom **500 mẫu** `gyro_y` thô (V3: 500 vòng cách nhau 3700 µs), lấy trung bình,
+TRỪ khỏi mọi số đọc sau đó TRƯỚC khi nhân `0.000031`. Robot chỉ cần đứng YÊN,
+không cần thẳng.
+
+`commit` đặt góc bằng `angle_acc` — góc THẬT tính từ mốc cố định, như V3.
+Đặt về 0 là nói dối bộ lọc.
 
 ### Bài kiểm phải chứng minh
 
@@ -67,7 +73,6 @@ Gom 500 mẫu (theo mã tham chiếu, ~1,9 s), hằng số khai ở đầu tệp
 * trong một lượt đọc trọn vẹn, `imu_update()` trả `true` ĐÚNG MỘT lần;
 * bus lỗi thì góc KHÔNG nhảy về 0 và lượt gọi ấy trả `false`;
 * gom mẫu với `gyro_y` lệch một hằng số rồi `commit` thì góc NGỪNG trôi;
-* ngay sau `commit`, vẫn ở tư thế gom mẫu, góc bằng **0** — kể cả khi số thô
-  lúc gom lệch xa 0 (gá nghiêng);
-* rồi cho `accel_z` lệch khỏi mốc một lượng ứng với góc đã biết thì lượt đọc kế
-  trả về đúng góc ấy.
+* `accel_z` bằng đúng `ACCEL_BALANCE_OFFSET` cho góc **0**; lệch khỏi nó một
+  lượng ứng với góc đã biết thì trả về đúng góc ấy — kể cả TRƯỚC khi hiệu chỉnh,
+  vì mốc là hằng số chứ không phải thứ đo lúc chạy.

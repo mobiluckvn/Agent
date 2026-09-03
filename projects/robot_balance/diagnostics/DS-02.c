@@ -35,8 +35,30 @@ void eaa_emit(const char *json);
  * lệch hội tụ, đủ ngắn để người cầm robot đứng yên được. */
 #define DIAG_SAMPLES      100u
 
-/* Hệ số thang đo mặc định sau khi reset: ±2 g và ±250 °/s. */
-#define ACCEL_LSB_PER_G   16384L
+/* Thang đo phép đo này TỰ ĐẶT, không trông vào mặc định sau reset.
+ *
+ * Reset con AVR KHÔNG reset con MPU: chip giữ nguyên cấu hình của firmware
+ * chạy trước đó. Bản trước khai 16384 (±2 g) kèm chú thích "mặc định sau
+ * reset" mà không hề ghi `ACCEL_CONFIG` — nên khi nạp DS-02 đè lên firmware
+ * cân bằng, chip vẫn ở ±4 g do `drv_imu` đặt, và mọi số quy ra mg sai đúng hai
+ * lần. Đo được 03/09: nhiễu nền báo 0,18 mg trong khi số thật là 0,36.
+ *
+ * Đặt ±4 g cho KHỚP với `drv_imu`, để mốc cân bằng đo ở đây dùng thẳng được
+ * cho module ấy mà không phải quy đổi. */
+/* Còi và nút — hồ sơ phần cứng: còi PB2 (D10), nút PB4 (D12, kéo lên nội).
+ *
+ * Phép đo này do NGƯỜI nhịp, không do đồng hồ: người phải cầm robot vào đúng
+ * tư thế rồi mới bắt đầu, và phải biết lúc nào chuyển sang bước sau. Bản trước
+ * chạy ngay khi có điện và im lặng suốt — người đoán theo đồng hồ, và lượt đo
+ * 03/09 hỏng vì thế: 100 khung `az` phẳng lì, robot không hề nhúc nhích.
+ *
+ * Bíp ở đây không phải tiện ích. Nó là thứ biến một quy trình hai người
+ * (một người thao tác, một người bấm giờ) thành quy trình một người. */
+#define BUZZER_BIT        2u
+#define BUTTON_BIT        4u
+#define REG_ACCEL_CONFIG  0x1Cu
+#define REG_GYRO_CONFIG   0x1Bu
+#define ACCEL_LSB_PER_G   8192L
 
 /* Pha ĐO MỐC CÂN BẰNG — thứ V0 của nhà cung cấp làm bằng cách in số cho người
  * chép tay. Mốc gia tốc là HÌNH HỌC của robot (trọng tâm ở đâu so với trục
@@ -173,6 +195,40 @@ static uint32_t do_lech_tb(const int16_t *mau, uint8_t n)
     return lech / (uint32_t)n;
 }
 
+static void coi_nut_init(void)
+{
+    DDRB |= (1u << BUZZER_BIT);          /* còi: ngõ ra, tắt */
+    PORTB &= (uint8_t)~(1u << BUZZER_BIT);
+    DDRB &= (uint8_t)~(1u << BUTTON_BIT); /* nút: ngõ vào, kéo lên nội */
+    PORTB |= (1u << BUTTON_BIT);
+}
+
+/* Bíp `lan` tiếng ngắn. Chặn — và ở đây chặn là ĐÚNG: phép đo do người nhịp,
+ * không có việc gì khác phải chạy song song. */
+static void bip(uint8_t lan)
+{
+    for (uint8_t i = 0u; i < lan; i++) {
+        PORTB |= (1u << BUZZER_BIT);
+        _delay_ms(80);
+        PORTB &= (uint8_t)~(1u << BUZZER_BIT);
+        _delay_ms(120);
+    }
+}
+
+/* Chờ NGƯỜI bấm nút. Bắt sườn nhấn kèm chống dội 20 ms — giữ nút không được
+ * tính thành nhiều lần bấm. */
+static void cho_nut(void)
+{
+    /* Kéo lên nội: NHẢ = mức cao, NHẤN = mức thấp. */
+    while ((PINB & (1u << BUTTON_BIT)) == 0u) {   /* chờ nhả hẳn */
+        _delay_ms(5);
+    }
+    while ((PINB & (1u << BUTTON_BIT)) != 0u) {   /* chờ SƯỜN nhấn */
+        _delay_ms(5);
+    }
+    _delay_ms(20);                                /* chống dội */
+}
+
 void diag_run(void)
 {
     uint8_t dem[14];
@@ -183,6 +239,7 @@ void diag_run(void)
     uint16_t thu = 0u;
     int32_t tong_ax = 0, tong_ay = 0, tong_az = 0, tong_gy = 0;
 
+    coi_nut_init();
     twi_init();
 
     if (!mpu_doc(REG_WHO_AM_I, dem, 1u)) {
@@ -210,6 +267,13 @@ void diag_run(void)
     /* Đánh thức chip: sau reset nó ở chế độ ngủ và mọi số đọc về đều là 0 —
      * một loạt số 0 trông y hệt một cảm biến đứng rất yên. */
     (void)mpu_ghi(REG_PWR_MGMT_1, 0x00u);
+    /* Đặt thang đo TRƯỚC khi lấy mẫu — xem chú thích ở ACCEL_LSB_PER_G. */
+    (void)mpu_ghi(REG_ACCEL_CONFIG, 0x08u);   /* ±4 g,     8192 LSB/g */
+    (void)mpu_ghi(REG_GYRO_CONFIG, 0x00u);    /* ±250 °/s,  131 LSB/(°/s) */
+
+    /* MỘT tiếng: sẵn sàng. Cầm robot vào tư thế thẳng đứng rồi bấm nút. */
+    bip(1u);
+    cho_nut();
 
     for (i = 0u; i < DIAG_SAMPLES; i++) {
         if (!mpu_doc(REG_ACCEL_XOUT_H, dem, 14u)) {
@@ -300,6 +364,10 @@ void diag_run(void)
      * Kèm `n` để bên thu biết khung nào trước khung nào sau, và biết có khung
      * nào rơi không — một chuỗi số không có thứ tự thì không nói được robot
      * đang tiến gần hay rời xa điểm cân bằng. */
+    /* HAI tiếng: xong 100 mẫu. Từ đây dò tới điểm robot tự chông chênh và giữ
+     * yên ở đó. Còn 20 giây. */
+    bip(2u);
+
     for (uint16_t k = 0u; k < DIAG_BAL_FRAMES; k++) {
         if (!mpu_doc(REG_ACCEL_XOUT_H, dem, 6u)) {
             eaa_emit("{\"balance_probe\": null, \"error\": \"khong doc duoc\"}");
@@ -317,5 +385,7 @@ void diag_run(void)
         eaa_emit(khung);
         _delay_ms(DIAG_BAL_MS);
     }
+    /* BA tiếng: hết giờ, buông tay được. */
+    bip(3u);
     eaa_emit("{\"done\": true}");
 }

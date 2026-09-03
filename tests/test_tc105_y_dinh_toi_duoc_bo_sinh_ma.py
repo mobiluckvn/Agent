@@ -176,10 +176,17 @@ def test_lop_vuot_ngan_sach_phai_noi_RUT_GON_O_DAU() -> None:
     """
     from eaa.llm.base import BudgetExceeded, Prompt, PromptLayer
 
+    # Trần TỔNG chật, không chỉ phần của lớp.
+    #
+    # Bản trước để trần tổng 8.000 và chỉ bóp phần của lớp xuống 10 — tức nó
+    # canh phép chặn theo LỚP, mà phép ấy nay chỉ ghi lại chứ không chặn khi
+    # tổng còn chỗ (SL-161). Ý định của bài KHÔNG đổi: khi đã chặn thật thì
+    # thông báo phải chỉ ĐÚNG chỗ cần rút gọn.
     prompt = Prompt(
         system_instruction="",
         layers=[PromptLayer("project_rules", "chữ " * 500, budget=10)],
         module="mod_x",
+        budget=10,
     )
     try:
         prompt.check_budget()

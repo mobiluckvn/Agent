@@ -72,20 +72,28 @@ def test_tc16_vuot_tran_tong_bi_chan_truoc_khi_goi_api() -> None:
 
 
 def test_tc16_bao_dich_danh_lop_nao_vuot_phan_cua_no() -> None:
-    """Trong trần tổng nhưng một lớp phình — vẫn phải chặn và chỉ đúng thủ phạm."""
+    """Trong trần tổng nhưng một lớp phình — GHI LẠI, không chặn (SL-161).
+
+    Bản trước đòi chặn. Đo được trong hai ngày làm việc với phần cứng: mười hai
+    lần bị chặn với tổng dao động 3.100–4.300 trên 8.000 — không lần nào là
+    thiếu chỗ thật, mỗi lần một vòng đi lại.
+
+    Phần của mỗi lớp là cách chia công bằng KHI CÓ TRANH CHẤP; tổng còn trống
+    nghĩa là chưa có tranh chấp. Việc chỉ đích danh thủ phạm vẫn còn nguyên ở
+    chỗ nó có nghĩa — xem `test_tc16_vuot_tran_tong_bi_chan_truoc_khi_goi_api`.
+    """
     prompt = _prompt(
         layers=[
             PromptLayer("error_rules", "quy tắc " * 400, budget=300),
             PromptLayer("task", "ngắn", budget=500),
         ]
     )
-    with pytest.raises(BudgetExceeded) as loi:
-        prompt.check_budget()
+    prompt.check_budget()  # không ném
 
-    thong_diep = str(loi.value)
-    assert loi.value.total <= TOTAL_BUDGET
-    assert "error_rules" in thong_diep
-    assert "task" not in thong_diep.split("Lớp vượt ngân sách:")[1]
+    assert sum(prompt.token_report().values()) <= TOTAL_BUDGET
+    assert prompt.over_share, "vượt phần mà không ghi lại là phình trong im lặng"
+    gop = "\n".join(prompt.over_share)
+    assert "error_rules" in gop and "task" not in gop
 
 
 def test_thong_diep_vuot_ngan_sach_noi_ro_khong_goi_api() -> None:

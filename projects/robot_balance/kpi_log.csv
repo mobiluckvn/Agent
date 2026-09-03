@@ -508,3 +508,33 @@ ts,module,phase,event,tdev_min,retries,first_build_errors,flash_bytes,flash_pct,
 2026-09-02T10:36:13+00:00,app_balance,D,gate_request,5.949,1,,,,,,gemini-3.1-pro-preview,7831,1918,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:6d08c9ad053b28daf88b04877d2abb10f3d946bf6f988e1411a17ef66f3ba0fd,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,34cb267a9c3fd4a199b691f8f25fabe47acc63e8,G3,,,chờ người duyệt G3
 2026-09-02T10:37:44+00:00,app_balance,D,gate_decision,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,G3,approve,,duyệt bởi Vũ Trí Công
 2026-09-02T10:37:44+00:00,app_balance,D,merge,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,dca28d82b5d29f6f881ef8313bfc07b3c440b2db,,pass,,
+2026-09-03T00:19:31+00:00,drv_imu,D,module_start,,,,,,,,,146094,114703,1.329648,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,sắp chạm trần token của module
+2026-09-03T00:19:31+00:00,drv_imu,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T00:20:07+00:00,drv_imu,D,module_start,,,,,,,,,146094,114703,1.329648,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,sắp chạm trần token của module
+2026-09-03T00:20:07+00:00,drv_imu,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T00:20:41+00:00,drv_imu,D,module_start,,,,,,,,,146094,114703,1.329648,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,sắp chạm trần token của module
+2026-09-03T00:20:41+00:00,drv_imu,D,module_start,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,,,mức phân quyền AUTO
+2026-09-03T00:24:28+00:00,drv_imu,D,generate,,,,,,,,gemini-3.1-pro-preview,4319,4802,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:ef402b17ec7eb47ae1d58541c406f06479ef98da35ee857d0c5ca5dc4d6014c5,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,,pass,,
+2026-09-03T00:24:28+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T00:24:28+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T00:24:28+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T00:24:34+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T00:24:34+00:00,drv_imu,D,repair,,1,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 1/3
+2026-09-03T00:26:54+00:00,drv_imu,D,repair,,,,,,,,gemini-3.1-pro-preview,6382,1979,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:f876eb6cb5d56b99ad31352baa8d1954041631c9771ff766d3a64be593d53ecb,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T00:26:55+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T00:26:55+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T00:26:55+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T00:26:59+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T00:26:59+00:00,drv_imu,D,repair,,2,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 2/3
+2026-09-03T00:29:56+00:00,drv_imu,D,repair,,,,,,,,gemini-3.1-pro-preview,6544,1836,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:07f500137c8dbd3d2c11f4f9582c20c38746224c0201b8101932fcc0510ef4cc,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T00:29:56+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T00:29:56+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T00:29:56+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T00:30:02+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T00:30:02+00:00,drv_imu,D,repair,,3,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,vòng tự sửa 3/3
+2026-09-03T00:33:00+00:00,drv_imu,D,repair,,,,,,,,gemini-3.1-pro-preview,6535,2120,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,sha256:46932ad8616534dbe3031b0285141e8cdfceeab8ea9fc85a2b501678b731cb3a,sha256:a3aef55c34e89780f29f3d4a3503e90ea3407e8505027221d19566f813932b16,,unittests,pass,,lượt gọi mô hình của vòng vá
+2026-09-03T00:33:01+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,compile,pass,,
+2026-09-03T00:33:01+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,size,pass,,
+2026-09-03T00:33:01+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,static,pass,,
+2026-09-03T00:33:05+00:00,drv_imu,D,verify,,,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,unittests,fail,,
+2026-09-03T00:33:05+00:00,drv_imu,D,handoff,,3,,,,,,,,,,sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a,,,,,fail,,quá 3 vòng tự sửa

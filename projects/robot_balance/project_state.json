@@ -69,7 +69,7 @@
     },
     {
       "id": "drv_imu",
-      "status": "merged",
+      "status": "handoff",
       "retries": 3,
       "purpose": "Đọc gia tốc và góc quay từ MPU6050, tính toán góc nghiêng bằng bộ lọc bù (complementary filter) dùng toán số nguyên.",
       "provides": [
@@ -153,7 +153,7 @@
     "model": "gemini-3.1-pro-preview"
   },
   "env_hash": "sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a",
-  "current_module": null,
+  "current_module": "drv_imu",
   "created_at": "2026-08-29T08:32:29.238785+00:00",
-  "updated_at": "2026-09-02T10:37:44.094996+00:00"
+  "updated_at": "2026-09-03T00:33:05.796155+00:00"
 }

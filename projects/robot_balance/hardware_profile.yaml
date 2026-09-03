@@ -112,6 +112,30 @@ components:
     # Hệ số thang đo ứng với dải đo mã tham chiếu đặt.
     accel_range: "4g"        # ACCEL_CONFIG = 0x08 → 8192 LSB/g
     gyro_range: "250dps"     # GYRO_CONFIG  = 0x00 → 131 LSB/(°/s)
+
+    # MỐC GIA TỐC — số thô của ACCEL_Z khi robot ở tư thế cân bằng.
+    #
+    # ĐO ĐƯỢC 03/09/2026 bằng DS-02 trên chính bo này, ở thang ±4 g:
+    #   accel_x_mean = 8257   accel_y_mean = -123   accel_z_mean = -535
+    # Độ lớn vector = 8275 = 1,010 g → X dọc trọng lực, Z NẰM NGANG. Đây là
+    # số đo đóng lại câu hỏi trục, sau khi tôi suy từ triệu chứng và suy sai.
+    #
+    # Đây là HÌNH HỌC của robot (trọng tâm ở đâu so với trục bánh), KHÔNG phải
+    # thuộc tính con chip. Nó không đổi giữa hai lần bật máy, nên đo một lần và
+    # ghi ở đây — đúng cách V0 của nhà sản xuất làm (`acc_calibration_value`
+    # = 376 ở V3, −2576 ở V1, đều là số của bo họ).
+    #
+    # KHÔNG đo lại lúc bật máy. Đo lại ở tư thế tay người đang giữ là tuyên bố
+    # một tư thế nghiêng bất kỳ là "không độ", và khi ấy cổng khởi động ±0,5°
+    # của mã tham chiếu mất hết ý nghĩa (SL-160).
+    #
+    # Không cần chính xác: `self_balance_setpoint` trong logic_pid dịch ±0,0015
+    # mỗi vòng để tự tìm nốt điểm cân bằng thật. V0 cũng chỉ đọc MỘT lần.
+    #
+    # Dấu và thang: số này TRỪ khỏi số đọc thô, ở CÙNG thang ±4 g. Mã tham
+    # chiếu CỘNG một số đã đảo dấu, và tệ hơn, V0 đo ở ±2 g (16384 LSB/g) trong
+    # khi V3 dùng ở ±4 g — lệch đúng hai lần. Ta không chép lỗi ấy.
+    accel_balance_offset: -535
     # Thanh ghi của CHÍNH linh kiện này, không phải của bus nó nằm trên.
     #
     # Thiếu khai báo này, đồ thị không có đường nào nối module tới trích đoạn

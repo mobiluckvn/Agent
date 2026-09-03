@@ -272,7 +272,15 @@ def test_prompt_binh_thuong_nam_trong_ngan_sach(composer: PromptComposer) -> Non
 def test_tc16_ep_nhieu_chunk_lam_vuot_ngan_sach_thi_bi_chan(
     composer: PromptComposer,
 ) -> None:
-    composer.config = ComposerConfig(top_k_chunks=3, layer_budgets={"datasheet_chunks": 20})
+    # Dựng cảnh chật bằng TRẦN TỔNG, không bằng phần của lớp.
+    #
+    # Bản trước đặt `layer_budgets={"datasheet_chunks": 20}` với trần tổng để
+    # nguyên 8.000 — tức nó canh phép chặn theo LỚP, mà phép ấy nay chỉ ghi lại
+    # chứ không chặn khi tổng còn chỗ (SL-161). Đề của TC-16 là trần TỔNG, và
+    # bài ngay dưới đây đã học đúng điều này từ SL-136.
+    composer.config = ComposerConfig(
+        top_k_chunks=3, budget=20, layer_budgets={"datasheet_chunks": 20}
+    )
     with pytest.raises(BudgetExceeded, match="datasheet_chunks"):
         composer.build(NHIEM_VU_BUS)
 
@@ -282,7 +290,8 @@ def test_tc16_vuot_ngan_sach_thi_khong_co_loi_goi_mo_hinh_nao(
 ) -> None:
     """Điểm cốt lõi của TC-16: chặn TRƯỚC khi gọi API, không phải sau."""
     llm = MockLLM()
-    composer.config = ComposerConfig(layer_budgets={"task": 5})
+    # Trần TỔNG chật, không phải phần của lớp — xem chú thích bài trên (SL-161).
+    composer.config = ComposerConfig(budget=5)
     with pytest.raises(BudgetExceeded):
         prompt = composer.build(NHIEM_VU_BUS, counter=llm.count_tokens)
         llm.generate(prompt)

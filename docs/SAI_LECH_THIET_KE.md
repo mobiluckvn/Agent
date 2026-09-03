@@ -2306,5 +2306,9 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Số liệu** | Prompt tổng dùng ~3.200/8.000 — hơn nửa trần tổng bỏ trống |
 | **Vì sao đây là SL-147 lặp lại** | Kích thước lớp này do **số bài học rút từ phần cứng** quyết định. Mỗi lỗi bắt được trên bo lại thêm một dòng ràng buộc vào `prompts/<module>.md`. Đó là một đại lượng CHỈ TĂNG, và một trần cố định đặt lên nó là một trần sẽ bị chạm — bị chạm đúng lúc ta học được nhiều nhất |
 | **Khác SL-147 ở đâu** | Lớp vá THAY CHỖ lớp task nên không cạnh tranh với ai; `project_rules` thì có cạnh tranh. Nên cách sửa không phải "cho dùng chỗ trống" mà cần cân nhắc lại bảng chia |
-| **Không sửa vội** | Nới bừa một con số lúc đang gấp là đúng cái sai mà SL-147 đã dạy. Ghi lại để phiên sau xử lý tử tế |
-| **Trạng thái** | CHƯA SỬA |
+| **Không nới số** | Nới bừa một con số lúc đang gấp là đúng cái sai mà SL-147 đã dạy — nên chỗ sửa KHÔNG phải bảng ngân sách |
+| **Chỗ sai thật** | Phần của một lớp là cách chia công bằng **khi có tranh chấp**. Trần TỔNG còn trống nghĩa là chưa có tranh chấp, nên chặn ở đó là chặn một tình huống giả định. Câu biện hộ của phép kiểm — *"một prompt quá dài luôn có thủ phạm cụ thể"* — chỉ đúng khi prompt QUÁ DÀI |
+| **Đã sửa** | Vượt phần lớp mà tổng còn chỗ: **ghi vào `Prompt.over_share` và đi tiếp**, không ném. Tổng thật sự vượt thì ném y như cũ, kèm nguyên danh sách lớp thủ phạm. Không đổi một con số nào trong `LAYER_BUDGETS` |
+| **Không im lặng** | `canh_bao_luoc` in ra lớp dùng quá phần, vào nhật ký từng vòng. Im lặng ở đây là cách một lớp phình dần tới lúc lấn chỗ thật mà không ai thấy quá trình ấy |
+| **Ba bài kiểm cũ phải đổi** | Chúng dựng cảnh "chật" bằng phần của LỚP trong khi trần tổng thoải mái — tức canh chính hành vi vừa bỏ. Nay dựng bằng trần TỔNG. Kho đã học đúng điều này một lần ở SL-136, và ba bài này còn sót |
+| **Bài canh** | `tests/test_tc122_phan_lop_khong_chan_khi_con_cho.py` — 7 bài, gồm bài canh việc chỉ đích danh thủ phạm KHÔNG mất đi khi tổng thật sự vượt |

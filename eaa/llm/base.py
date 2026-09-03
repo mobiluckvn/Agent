@@ -244,6 +244,12 @@ class Prompt:
     #: gì. Đưa vào KPI để hiệu chỉnh top-k khi vòng tự sửa chạm N vì thiếu ngữ
     #: cảnh ("context miss", AIS §12).
     trimmed: list[str] = field(default_factory=list)
+    #: Lớp dùng quá PHẦN NOMINAL của nó trong khi trần TỔNG vẫn còn chỗ.
+    #:
+    #: Ghi lại chứ KHÔNG chặn (SL-161). Phần của một lớp là cách chia công bằng
+    #: khi có tranh chấp; không có tranh chấp thì nó không nói lên điều gì, và
+    #: chặn ở đó là chặn một tình huống giả định.
+    over_share: list[str] = field(default_factory=list)
     #: Ảnh gửi kèm — năng lực đa phương thức của AIS §6.1 (FR-ING-01/03).
     #:
     #: Là ĐƯỜNG DẪN chứ không phải nội dung ảnh: adapter tự quyết mã hóa thế
@@ -300,7 +306,25 @@ class Prompt:
                 f"{_LOI_KHUYEN_LOP.get('role_constraints', '')}",
             )
 
-        if tong <= self.budget and not vuot_lop:
+        if tong <= self.budget:
+            # Trần TỔNG còn chỗ: lớp vượt phần của nó là chuyện GHI LẠI, không
+            # phải chuyện chặn (SL-161).
+            #
+            # Phần của mỗi lớp là cách chia công bằng KHI CÓ TRANH CHẤP. Tổng
+            # còn trống nghĩa là chưa có tranh chấp, nên chặn ở đó là chặn một
+            # tình huống giả định — và cái giá của nó đo được: 12 lần trong hai
+            # ngày, mỗi lần một vòng đi lại, tổng dao động 3.100–4.300 trên
+            # 8.000. Không lần nào là thiếu chỗ thật.
+            #
+            # Câu "một prompt quá dài luôn có thủ phạm cụ thể" vẫn đúng — và nó
+            # được nói ra ở đúng chỗ nó có nghĩa: khi tổng THẬT SỰ vượt, danh
+            # sách lớp vẫn đi kèm nguyên vẹn ở dưới.
+            #
+            # `project_rules` là lớp lớn dần theo SỐ BÀI HỌC RÚT TỪ PHẦN CỨNG —
+            # mỗi lỗi bắt được trên bo lại thêm một dòng ràng buộc. Một trần cố
+            # định đặt lên đại lượng chỉ tăng là một trần sẽ bị chạm, và bị chạm
+            # đúng lúc ta học được nhiều nhất.
+            self.over_share = vuot_lop
             return
 
         dong = [

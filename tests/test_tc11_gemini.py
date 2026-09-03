@@ -152,7 +152,10 @@ def test_ma_model_duoc_ghim_trong_duong_dan(client: GeminiClient) -> None:
 def test_ngan_sach_kiem_TRUOC_khi_goi(co_khoa) -> None:
     mang = GiaLapMang()
     client = GeminiClient(transport=mang)
-    qua_dai = _prompt(layers=[PromptLayer("task", "x " * 9000, budget=500)])
+    # Phải vượt TRẦN TỔNG theo bộ đếm CỦA MÔ HÌNH (giả lập: len//4), không chỉ
+    # vượt phần của lớp — phép chặn theo lớp nay chỉ ghi lại (SL-161).
+    # 40.000 ký tự → 10.000 token > trần 8.000.
+    qua_dai = _prompt(layers=[PromptLayer("task", "x " * 20000, budget=500)])
 
     with pytest.raises(BudgetExceeded):
         client.generate(qua_dai)
