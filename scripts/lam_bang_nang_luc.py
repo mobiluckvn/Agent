@@ -26,6 +26,7 @@ Học viên: Vũ Trí Công — GVHD: TS. Nguyễn Trung Hiếu (PTIT).
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -39,6 +40,16 @@ COY = "CỐ Ý KHÔNG"
 
 #: Mức ưu tiên bổ sung — do người rà soát chốt lại, đây chỉ là đề xuất.
 CAO, VUA, THAP, KHONG = "Cao", "Vừa", "Thấp", "—"
+
+#: Bảng nghiệp vụ không có cột ưu tiên (nó tả nghề, không tả kế hoạch), nên mức
+#: ưu tiên của dòng nhúng chốt ở đây. Mặc định là Vừa; chỉ nêu tên dòng lệch ra.
+#: N-908/N-909 để Cao vì cả hai đứng trước cùng một chỗ hở: bốn cổng tự động
+#: không phân biệt được "mã đúng" với "mã vừa được chỉnh cho vừa đồ đo".
+UU_TIEN_NHUNG: dict[str, str] = {
+    "N-908": CAO,
+    "N-909": CAO,
+    "N-910": CAO,
+}
 
 # (mã, nhóm, năng lực, trạng thái, bằng chứng trong mã, khoảng trống / ghi chú, ưu tiên)
 NEN: list[tuple[str, str, str, str, str, str, str]] = [
@@ -129,36 +140,49 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
      "Cố ý: cài phần mềm là thay đổi máy của người dùng (N-022 ở mức tự chủ T2). Đây KHÔNG phải khoảng trống cần lấp", KHONG),
 
     # ---------------------------------------------------------------- C5 ---
-    ("C5.1", "5. Xử lý lỗi", "Đọc và phân loại lỗi (mạng / quyền / phụ thuộc / build / runtime)", DU,
+    # Rà soát 04/09/2026 — bảy dòng dưới đây từng khai ĐỦ. Mã vẫn nguyên và test
+    # vẫn xanh, nhưng `scripts/kiem_bang_nang_luc.py` chỉ ra điều bảng không nhìn
+    # được: KHÔNG module nào trong eaa/ hay packs/ import `eaa/installerr.py`.
+    # `doctor._run_install` trượt một bước thì chỉ ghi một dòng nhật ký rồi trả về.
+    # Thang gỡ lỗi cài đặt tồn tại dưới dạng thư viện, không dưới dạng thứ chạy
+    # được — đúng hình dạng SL-113. Bằng chứng chỉ được ra module không đủ; nó
+    # còn phải chỉ được ra ĐƯỜNG GỌI.
+    ("C5.1", "5. Xử lý lỗi", "Đọc và phân loại lỗi (mạng / quyền / phụ thuộc / build / runtime)", PHAN,
      "eaa/installerr.py classify(): 6 loại (mạng/quyền/phụ thuộc/build/không tìm thấy/khác), thứ tự mẫu có chủ ý · TC-69",
-     "", KHONG),
-    ("C5.2", "5. Xử lý lỗi", "Thử lại có kiểm soát (retry + backoff) cho lỗi mạng", DU,
+     "Không có người gọi: `eaa/doctor.py _run_install` bắt ngoại lệ rồi ghi 'KHÔNG tải được — {exc}' và trả về, "
+     "không đưa đầu ra qua classify(). Cần nối vào doctor để một lần cài trượt sinh ra CHẨN ĐOÁN chứ không sinh ra một dòng log", CAO),
+    ("C5.2", "5. Xử lý lỗi", "Thử lại có kiểm soát (retry + backoff) cho lỗi mạng", PHAN,
      "installerr.retry_delays() 2s/4s/8s + WebFetcher.max_retries — và CHỈ lỗi mạng mới retryable, có test canh điều đó",
-     "", KHONG),
-    ("C5.3", "5. Xử lý lỗi", "Đổi tham số: ghim phiên bản cũ hơn, cờ khác, mirror khác", DU,
+     "Nửa có thật là nhánh WEB: WebFetcher.max_retries nằm trên đường `eaa read`/`eaa research` và có người gọi. "
+     "Nhánh CÀI ĐẶT thì không: retry_delays() không ai gọi, nên một lần cài đứt mạng là trượt hẳn", CAO),
+    ("C5.3", "5. Xử lý lỗi", "Đổi tham số: ghim phiên bản cũ hơn, cờ khác, mirror khác", PHAN,
      "installerr.remedies(): bậc đổi kho/mirror, bậc ghim phiên bản cũ hơn, bậc cài ngoại tuyến",
-     "", KHONG),
+     "Thang gỡ dựng đủ bậc và có TC-69 canh thứ tự, nhưng không lệnh nào in nó ra cho người đọc", CAO),
     ("C5.4", "5. Xử lý lỗi", "Tìm thông báo lỗi trên web (GitHub issues, StackOverflow)", DU,
-     "`eaa research` tra nguyên văn dòng lỗi; thang gỡ của loại KHÁC gọi thẳng lệnh ấy kèm dòng lỗi",
-     "", KHONG),
-    ("C5.5", "5. Xử lý lỗi", "Đổi sang công cụ thay thế tương đương", DU,
+     "`eaa research` tra nguyên văn dòng lỗi — lệnh có thật, Agent tự gọi được",
+     "Đủ ở mức người gõ lệnh. Chưa tự động: thang gỡ của loại KHÁC nêu lệnh ấy trong văn bản, không tự chạy nó", THAP),
+    ("C5.5", "5. Xử lý lỗi", "Đổi sang công cụ thay thế tương đương", PHAN,
      "installerr.remedies(alternatives=…) — bậc ấy KHÔNG cho Agent tự làm: đổi công cụ là đổi cả cổng kiểm chứng",
-     "", KHONG),
-    ("C5.6", "5. Xử lý lỗi", "Tự viết giải pháp tối thiểu thay thế", DU,
-     "Thang gỡ lỗi cài đặt có bậc áp chót 'tự viết một thứ tối thiểu thay thế', đặt SAU mọi bậc cài thật · TC-77",
-     "", KHONG),
+     "Cùng gốc với C5.3: bậc có trong thư viện, không có đường nào chạy tới", VUA),
+    ("C5.6", "5. Xử lý lỗi", "Tự viết giải pháp tối thiểu thay thế", PHAN,
+     "Bậc áp chót của installerr.remedies(): 'tự viết một thứ tối thiểu thay thế', đặt SAU mọi bậc cài thật · TC-77",
+     "Xưởng công cụ (eaa/toolforge.py) thì có đường chạy thật; riêng bậc DẪN tới nó trong thang gỡ lỗi cài đặt "
+     "thì không ai gọi, nên Agent không tự đi tới bậc ấy được", VUA),
     ("C5.7", "5. Xử lý lỗi", "Báo cáo người dùng: lỗi cụ thể + đã thử gì + gợi ý", DU,
      "ToolReport ghi kết quả từng cổng kèm đầu ra thật; `eaa report review`; vòng tự sửa ghi lại từng lần thử",
-     "Đủ cho vòng sinh mã. Với lỗi cài đặt thì mỏng hơn vì C5.1–C5.5 còn trống", KHONG),
+     "Đủ cho vòng sinh mã, và mạnh thêm từ SL-162: cổng unittests quy lỗi về TỆP (metrics['failing_files']). "
+     "Với lỗi cài đặt thì vẫn mỏng, vì C5.1–C5.3 chưa có đường gọi", VUA),
     ("C5.8", "5. Xử lý lỗi", "Giới hạn vòng lặp, đặt ngân sách số lần thử", DU,
      "N=3 lần tự sửa, dạng patch chứ không gửi lại cả tệp; quá N thì dừng và bàn giao người, thoát mã 3 (TC-06, TC-19)",
-     "Mạnh hơn khung: giới hạn là bất biến có test chặn, không phải một hằng số ai cũng sửa được", KHONG),
-    ("C5.9", "5. Xử lý lỗi", "Rollback về trạng thái trước", DU,
+     "Mạnh hơn khung: giới hạn là bất biến có test chặn, không phải một hằng số ai cũng sửa được. "
+     "Từ SL-162/TC-123 thêm hạng dừng thứ ba: lỗi ngoài phạm vi module thì KHÔNG mở vòng vá", KHONG),
+    ("C5.9", "5. Xử lý lỗi", "Rollback về trạng thái trước", PHAN,
      "installerr.rollback_command() suy lệnh gỡ từ chính lệnh cài; không suy được thì trả RỖNG chứ không đoán",
-     "", KHONG),
-    ("C5.10", "5. Xử lý lỗi", "Phân biệt lỗi của tool với lỗi do input", DU,
-     "Tầng cổng: env error vs code error. Tầng cài đặt: 6 loại của installerr",
-     "", KHONG),
+     "Không ai gọi. Một lần `eaa doctor --fix` cài dở dang hiện KHÔNG có đường lui nào ngoài tay người", CAO),
+    ("C5.10", "5. Xử lý lỗi", "Phân biệt lỗi của tool với lỗi do input", PHAN,
+     "Tầng cổng có thật và đang chạy: env_error / config_error / blocked trong eaa/orchestrator.py (SL-162, TC-123). "
+     "Tầng cài đặt là 6 loại của installerr.classify()",
+     "Chỉ tầng cổng đang chạy. Tầng cài đặt chưa nối, nên câu 'công cụ hỏng hay tôi gõ sai' vẫn phải người trả lời", VUA),
 
     # ---------------------------------------------------------------- C6 ---
     ("C6.1", "6. Tự viết code tạo công cụ mới", "Nhận diện khi nào nên tự viết thay vì đi tìm", DU,
@@ -302,6 +326,11 @@ def main() -> int:
         ("Học viên", "Vũ Trí Công"),
         ("GVHD", "TS. Nguyễn Trung Hiếu"),
         ("Dựng ngày", "30/08/2026 — sinh lại bằng: python scripts/lam_bang_nang_luc.py"),
+        ("Rà soát gần nhất",
+         "04/09/2026 — kiểm bằng máy: python scripts/kiem_bang_nang_luc.py. "
+         "Bộ kiểm ấy đối chiếu từng dòng với mã và báo bốn kiểu lệch: tệp khai không có thật, "
+         "ký hiệu khai không có thật, mã TC khai không tệp test nào nhắc, và — đáng giá nhất — "
+         "MÃ CÓ MÀ KHÔNG AI GỌI."),
         ("", ""),
         ("BẢNG NÀY SO CÁI GÌ", ""),
         ("Sheet 'Năng lực nền'",
@@ -310,8 +339,10 @@ def main() -> int:
         ("Sheet 'Năng lực nhúng'",
          "74 nghiệp vụ riêng của lập trình nhúng, xếp theo 11 giai đoạn vòng đời + nhóm xuyên suốt. "
          "Đây là phần KHÔNG có trong khung chung — giá trị riêng của đề án nằm ở đây."),
-        ("Sheet 'Khoảng trống'", "Lọc mọi dòng CHƯA / MỘT PHẦN của cả hai sheet, xếp theo mức ưu tiên đề xuất."),
-        ("Sheet 'Bản đồ lệnh'", "38 lệnh CLI: lệnh nào Agent tự gọi được, lệnh nào đòi hồ sơ dự án."),
+        ("Sheet 'Khoảng trống'",
+         "Lọc mọi dòng CHƯA / MỘT PHẦN của cả hai sheet, xếp theo mức ưu tiên đề xuất. "
+         "ĐÂY LÀ SHEET ĐỂ LÀM VIỆC — hai sheet trước chỉ để tra."),
+        ("Sheet 'Bản đồ lệnh'", "Lệnh nào Agent tự gọi được, lệnh nào đòi hồ sơ dự án. Số lệnh đọc thẳng từ eaa/cli.py."),
         ("", ""),
         ("CÁCH ĐỌC CỘT TRẠNG THÁI", ""),
         (DU, "Có mã chạy được VÀ chỉ ra được module/lệnh cụ thể ở cột Bằng chứng. Dòng không chỉ được thì không phải ĐỦ."),
@@ -323,11 +354,22 @@ def main() -> int:
     ]
     for ma, nghia, _ in nv.THANG_TU_CHU:
         dong.append((ma, nghia))
+    # Đếm tại chỗ, không gõ tay: một con số gõ tay trong tài liệu là một con số
+    # sẽ cũ đi mà không ai biết. 1.428 ở bản 30/08 là ví dụ của chính điều đó.
+    so_ham_test = sum(
+        len(re.findall(r"^\s*def test_", p.read_text(encoding="utf-8", errors="ignore"), re.M))
+        for p in (GOC / "tests").glob("**/*.py")
+    )
+    so_tep_test = len(list((GOC / "tests").glob("**/test_*.py")))
+
     dong += [
         ("", ""),
         ("ĐIỀU BẢNG NÀY KHÔNG LÀM", ""),
         ("", "Nó không chạy thử năng lực nào — nó đối chiếu khung với mã. Câu 'nó chạy đúng không' "
-             "thuộc về bộ test (pytest -q, 1428 test) và scripts/kiem_on_dinh.py."),
+             f"thuộc về bộ test ({so_ham_test} hàm test trong {so_tep_test} tệp) và "
+             "scripts/kiem_on_dinh.py."),
+        ("", "Nó cũng không kiểm được một dòng ĐỦ có ĐƯỜNG GỌI hay không — việc ấy thuộc về "
+             "scripts/kiem_bang_nang_luc.py, và chính nó tìm ra bảy dòng khai ĐỦ ngày 04/09."),
         ("", "Nó cũng không nói năng lực nào ĐÁNG có. Cột 'Ưu tiên' chỉ là đề xuất để rà soát, "
              "người chốt lại là người đọc."),
     ]
@@ -414,7 +456,7 @@ def main() -> int:
             continue
         tt = NHAN_TT.get(d[1], d[1])
         if tt in (CHUA, PHAN):
-            thieu.append((VUA, muc[0], "nhúng", muc[2], tt, d[3] or "—"))
+            thieu.append((UU_TIEN_NHUNG.get(muc[0], VUA), muc[0], "nhúng", muc[2], tt, d[3] or "—"))
     thu_tu = {CAO: 0, VUA: 1, THAP: 2, KHONG: 3}
     thieu.sort(key=lambda x: (thu_tu.get(x[0], 9), x[1]))
     for r, hang in enumerate(thieu, start=2):

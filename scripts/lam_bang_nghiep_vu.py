@@ -591,6 +591,66 @@ NGHIEP_VU: list[tuple[str, str, str, str, str, str, str, str, str]] = [
      "Ghi trạng thái nguyên tử, sống sót qua treo máy; khi mở lại thì nói rõ đang ở đâu và bước kế tiếp là gì.",
      "T4", "—",
      "Mất trạng thái giữa chừng làm hỏng cả chuỗi dấu vết"),
+
+    # ---------------- Thêm 04/09/2026 ----------------
+    # Sáu mục dưới đây KHÔNG rút từ khung nghiệp vụ mà từ hành vi quan sát được
+    # trên bo thật, chép lại từ docs/DANH_GIA_NANG_LUC_AGENT.md §3. Chúng là chỗ
+    # bảng cũ mù: 74 mục kia hỏi "Agent có làm được việc này không", còn sáu mục
+    # này hỏi "khi nó làm sai thì có gì bắt được không". Cả sáu đều đi qua sạch
+    # bốn cổng tự động — đó là lý do chúng đáng có dòng riêng.
+
+    ("N-908", XS, "Phân biệt 'mã tôi sai' với 'bài kiểm tôi sai'",
+     "Khi cổng đỏ: một phán đoán có lý lẽ về việc nên sửa mã hay nên sửa bài kiểm",
+     "Đầu ra cổng + mã + bài kiểm",
+     "Trước khi vá: đối chiếu con số bài kiểm đòi với con số suy ra từ vật lý/toán của bài toán. "
+     "Lệch thì bài kiểm là nghi phạm, không phải mã. Mọi lần vá chạm vào HẰNG SỐ của bài kiểm "
+     "phải nêu lý do bằng đại lượng vật lý, không bằng 'để bài kiểm xanh'.",
+     "T1", "Phân xử khi hai bên không khớp",
+     "Ba trong 12 lần từ chối G3 là mã tự chỉnh cho vừa đồ đo của chính nó, và cả ba qua sạch bốn cổng"),
+
+    ("N-909", XS, "Phát hiện bài kiểm KHÔNG chứng minh điều nó nhận là mình chứng minh",
+     "Danh sách bài kiểm 'rỗng': xanh cả với mã sai",
+     "Bài kiểm mới sinh + mã nó canh",
+     "Với mỗi bài kiểm mới: tính xem đầu vào của nó có đủ ĐẨY hệ tới chỗ lỗi sẽ hiện ra không "
+     "(đủ số vòng, đủ biên độ, đúng trạng thái khởi động). Đưa phép tính ấy vào hồ sơ G3 chứ không "
+     "chỉ đưa màu của bài kiểm.",
+     "T2", "Đọc lại phép tính ở G3",
+     "Bài kiểm đỏ đúng lúc rồi xanh đúng lúc — vì một lý do khác — nguy hiểm hơn bài kiểm đỏ, "
+     "vì lần sau không ai đọc lại nó nữa (§3.8)"),
+
+    ("N-910", XS, "Canh thoái lui giữa các lượt sinh của cùng một module",
+     "Cảnh báo khi lượt sinh mới đánh mất thứ lượt trước đã có",
+     "Mã trên main + mã vừa sinh",
+     "So khai báo hàm (đã có: eaa/contract.py, SL-163) VÀ so tập lời gọi khởi tạo trong hàm vào "
+     "(app_init, main) — mất một lời gọi là mất im lặng, không cổng nào đỏ.",
+     "T4", "—",
+     "app_init() mất bốn lời gọi khởi tạo driver sau một vòng vá → firmware câm, 33 bài kiểm vẫn xanh"),
+
+    ("N-911", XS, "Kiểm chú thích số học có đúng thứ nguyên không",
+     "Cảnh báo khi một phép chia trong chú thích ghép hai đại lượng khác thứ nguyên",
+     "Mã sinh ra + bảng đại lượng của dự án",
+     "Rút các biểu thức số trong chú thích `// a / b = c`, tra đơn vị của a và b trong hồ sơ phần "
+     "cứng, báo khi phép chia không ra đơn vị nó nhận.",
+     "T4", "—",
+     "'4ms per step / 0.000031s per sample = 129' chia chu kỳ cho một hệ số ĐỘ TRÊN LSB. "
+     "Con số vô nghĩa, chú thích nghe hợp lý, và nó là nguyên nhân robot không lấy đủ mẫu"),
+
+    ("N-912", XS, "Thiết kế khả quan sát — làm cho lỗi kêu lên được",
+     "Mỗi module có ít nhất một đường báo lỗi ra ngoài mà người quan sát được",
+     "Bản phân rã module + phương tiện báo có trên bo (LED, còi, UART)",
+     "Khi phân rã: mỗi module khai một 'dấu hiệu sống' và một 'dấu hiệu hỏng' quan sát được mà "
+     "không cần máy đo. Đưa vào tiêu chí nghiệm thu của module, không để thành việc thêm sau.",
+     "T1", "Chốt dấu hiệu nào đủ rõ trên bo cụ thể",
+     "Ba lượt nạp đầu robot chỉ 'im' hoặc 'ngã', không phân biệt được với chip chết. "
+     "Mọi cải tiến quan sát — nhịp bíp, nút thoát, watchdog mất mẫu — đều do người thêm"),
+
+    ("N-913", XS, "Đưa số đo từ phần cứng ngược vào prompt",
+     "Lớp ngữ cảnh chứa số đo thật của bo, không chỉ số trong tài liệu",
+     "measurements.jsonl + kết quả chẩn đoán DS-xx",
+     "Thêm một lớp vào bộ ghép prompt: số đo đã duyệt của chính bo này (trôi con quay, mốc gia "
+     "tốc, tốc độ bootloader, nhịp đo được). Số đo phải qua gate mới vào, cùng đường với tri thức.",
+     "T3", "Duyệt số đo nào được coi là đã chốt",
+     "Bài học từ bo hiện chỉ tới mô hình qua LÝ DO TỪ CHỐI kỹ sư gõ tay — mất là mất hẳn"),
 ]
 
 
@@ -632,7 +692,9 @@ DOI_CHIEU = [
  ("N-033", DU, "eaa/readiness.py conflict + chuẩn hóa số · TC-26", "", "T1"),
  ("N-034", DU, "eaa/readiness.py · TC-24", "", "T3"),
  ("N-035", DU, "eaa/gapsearch.py + eaa resolve · TC-48 (26 test)", "", "T2"),
- ("N-036", DU, "eaa/lifecycle.py (3 đường truy ngược) · TC-29", "", "T3"),
+ ("N-036", PHAN, "eaa/lifecycle.py KnowledgeLifecycle (3 đường truy ngược) · TC-29",
+  "Rà soát 04/09: KHÔNG module nào trong eaa/ import lifecycle, và không lệnh CLI nào gọi tới. "
+  "`eaa docs regen` đi qua registry, không qua vòng đời tri thức. Cơ chế đúng, đường chạy chưa có", "T3"),
  ("N-037", DU, "eaa/docplan.py ErrataAnalysis · TC-55f,g,h", "", "T1"),
  ("N-040", DU, "eaa/decompose.py + eaa plan propose · TC-50 (32 test)", "", "T1"),
  ("N-041", DU, "eaa/interfaces.py + khuôn interfaces của pack · TC-56a..e", "", "T2"),
@@ -674,7 +736,9 @@ DOI_CHIEU = [
  ("N-092", DU, "eaa/versions.py + eaa rollback · TC-30", "", "T3"),
  ("N-093", DU, "eaa/kpi.py + llm/calllog.py + registry.py · TC-09, TC-15", "", "T3"),
  ("N-094", DU, "eaa/handover.py OperationsHandbook · TC-59a,b", "", "T1"),
- ("N-100", DU, "eaa/lifecycle.py · TC-29", "", "T1"),
+ ("N-100", PHAN, "eaa/lifecycle.py StaleSet · TC-29",
+  "Cùng gốc với N-036: sửa một datasheet hiện KHÔNG có lệnh nào trả lời 'mã nào bị ảnh hưởng'. "
+  "Cần một lệnh (vd `eaa knowledge stale`) nối StaleSet vào đường người dùng", "T1"),
  ("N-101", DU, "eaa/handover.py SwapAnalysis · TC-59c,d", "", "T1"),
  ("N-102", DU, "eaa/diagnostics.py FieldCase · TC-59e,f", "", "T1"),
  ("N-103", DU, "eaa/handover.py RolloutPlan · TC-59g,h", "", "T2"),
@@ -686,6 +750,28 @@ DOI_CHIEU = [
  ("N-905", DU, "eaa/deviation.py + eaa deviations · TC-60d,e,f", "", "T3"),
  ("N-906", DU, "kpi.weak_points + eaa report review · TC-60g,h,i", "", "T1"),
  ("N-907", DU, "eaa/state.py ghi nguyên tử + eaa resume · TC-03", "", "T4"),
+
+ # Sáu mục thêm 04/09 — không mục nào có mã. Đây là phần "chưa đáp ứng" thật
+ # của bảng: chúng không lộ ra khi đối chiếu khung với mã, chỉ lộ ra khi mã
+ # sinh ra được đem chạy trên bo.
+ ("N-908", CHUA, "—",
+  "Chưa có gì. Bốn cổng đo mã CÓ CHẠY KHÔNG, không đo mã có ĐANG ĐO ĐÚNG THỨ nó nhận không. "
+  "Bằng chứng: 3/12 lần từ chối G3 (drv_imu, logic_pid, app_balance) · §3.1", "—"),
+ ("N-909", CHUA, "—",
+  "Chưa có gì. Cần một phép kiểm ĐỘ NHẠY: chạy lại bài kiểm mới trên bản mã SAI đã biết, "
+  "xanh thì bài kiểm ấy rỗng. Bằng chứng: test_deadband_keeps_setpoint_steady · §3.3, §3.8", "—"),
+ ("N-910", PHAN, "eaa/contract.py so khai báo header với bản trên main · TC-124 (16 bài)",
+  "Nửa đã có là CHỮ KÝ HÀM (SL-163). Nửa còn thiếu là TẬP LỜI GỌI trong hàm vào — "
+  "mất một lời gọi khởi tạo không cổng nào đỏ. Bằng chứng: app_init() · §3.2", "T4"),
+ ("N-911", CHUA, "—",
+  "Chưa có gì. Hồ sơ phần cứng đã khai đơn vị của từng đại lượng, nên dữ liệu để làm thì có sẵn. "
+  "Bằng chứng: chú thích '4ms / 0.000031s = 129' · §3.4", "—"),
+ ("N-912", CHUA, "—",
+  "Chưa có gì. eaa/decompose.py chưa đòi module khai dấu hiệu sống/hỏng; "
+  "eaa/propose.py AcceptanceProposal chưa sinh tiêu chí quan sát được bằng mắt/tai · §3.6", "—"),
+ ("N-913", CHUA, "—",
+  "Chưa có gì. measurements.jsonl và kết quả DS-xx nằm NGOÀI eaa/composer.py. "
+  "Đây là mục đắt nhất trong sáu mục, vì nó đụng vào bộ ghép prompt và vào gate tri thức · §3.7", "—"),
 ]
 
 
@@ -888,7 +974,10 @@ def dung_bang(dich: Path) -> Path:
          "Tự chủ\nĐẠT", "Khoảng\ncách", "Bằng chứng trong mã", "Còn thiếu gì"],
         [8, 26, 34, 14, 10, 9, 9, 52, 66],
     )
-    bac = {"T0": 0, "T1": 1, "T2": 2, "T3": 3, "T4": 4}
+    # "—" là mức ĐẠT của một nghiệp vụ chưa có mã nào. Nó không phải T0: T0 vẫn
+    # là việc Agent làm (ghi vết cho người), còn "—" là Agent chưa dự phần.
+    # Tính khoảng cách thì coi như 0 để cột ấy nói đúng độ xa còn phải đi.
+    bac = {"—": 0, "T0": 0, "T1": 1, "T2": 2, "T3": 3, "T4": 4}
     for nv in NGHIEP_VU:
         d = tra[nv[0]]
         khoang = bac[nv[6]] - bac[d[4]]
