@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <avr/io.h>
 #include <util/twi.h>
+#include <util/delay.h>
 
 void eaa_emit(const char *json);
 
@@ -36,6 +37,16 @@ void eaa_emit(const char *json);
 
 /* Hệ số thang đo mặc định sau khi reset: ±2 g và ±250 °/s. */
 #define ACCEL_LSB_PER_G   16384L
+
+/* Pha ĐO MỐC CÂN BẰNG — thứ V0 của nhà cung cấp làm bằng cách in số cho người
+ * chép tay. Mốc gia tốc là HÌNH HỌC của robot (trọng tâm ở đâu so với trục
+ * bánh), không phải thuộc tính của con chip: nó không đo được bằng cách giữ
+ * robot cho "trông thẳng đứng", mà phải dò tới điểm nó thật sự chông chênh.
+ *
+ * Vì thế phải PHÁT LIÊN TỤC chứ không chụp một lần: người cần thấy số đổi theo
+ * tay mình mới dò được. 5 mẫu/giây trong 20 giây. */
+#define DIAG_BAL_FRAMES   100u
+#define DIAG_BAL_MS       200u
 #define GYRO_LSB_PER_DPS  131L
 
 static void twi_init(void)
@@ -170,6 +181,7 @@ void diag_run(void)
     int16_t ax[DIAG_SAMPLES];
     int16_t gx[DIAG_SAMPLES];
     uint16_t thu = 0u;
+    int32_t tong_ax = 0, tong_ay = 0, tong_az = 0, tong_gy = 0;
 
     twi_init();
 
@@ -205,6 +217,13 @@ void diag_run(void)
         }
         ax[i] = (int16_t)(((uint16_t)dem[0] << 8) | dem[1]);
         gx[i] = (int16_t)(((uint16_t)dem[8] << 8) | dem[9]);
+        /* Trung bình CẢ BA trục gia tốc. Trục nào nằm ngang khi robot đứng
+         * thẳng thì đọc gần 0; trục nào dọc theo trọng lực thì đọc gần ±16384
+         * ở thang ±2 g. Một phép so sánh, không phải một cuộc tranh luận. */
+        tong_ax += ax[i];
+        tong_ay += (int16_t)(((uint16_t)dem[2] << 8) | dem[3]);
+        tong_az += (int16_t)(((uint16_t)dem[4] << 8) | dem[5]);
+        tong_gy += (int16_t)(((uint16_t)dem[10] << 8) | dem[11]);
         thu++;
     }
 
@@ -248,4 +267,55 @@ void diag_run(void)
         khung[i] = '\0';
     }
     eaa_emit(khung);
+
+    /* Trung bình DC ba trục gia tốc + trôi con quay trục pitch.
+     *
+     * Trục nào nằm ngang khi robot đứng thẳng thì đọc gần 0; trục nào dọc theo
+     * trọng lực thì đọc gần ±16384 ở thang ±2 g. Suốt phiên 02/09 tôi tranh
+     * luận trục nào đúng dựa trên triệu chứng và kết luận SAI một lần. Bốn con
+     * số này trả lời câu ấy bằng số đo. */
+    if (thu != 0u) {
+        i = 0u;
+        const char *m1 = "{\"accel_x_mean\": ";
+        while (*m1 != '\0') { khung[i++] = *m1++; }
+        i += so_ra_chu(tong_ax / (int32_t)thu, &khung[i]);
+        const char *m2 = ", \"accel_y_mean\": ";
+        while (*m2 != '\0') { khung[i++] = *m2++; }
+        i += so_ra_chu(tong_ay / (int32_t)thu, &khung[i]);
+        const char *m3 = ", \"accel_z_mean\": ";
+        while (*m3 != '\0') { khung[i++] = *m3++; }
+        i += so_ra_chu(tong_az / (int32_t)thu, &khung[i]);
+        const char *m4 = ", \"gyro_y_mean\": ";
+        while (*m4 != '\0') { khung[i++] = *m4++; }
+        i += so_ra_chu(tong_gy / (int32_t)thu, &khung[i]);
+        khung[i++] = '}';
+        khung[i] = '\0';
+        eaa_emit(khung);
+    }
+
+    /* Pha DÒ MỐC CÂN BẰNG — phát `accel_z` liên tục để người dò tới điểm robot
+     * thật sự chông chênh. Số nào ổn định ở điểm ấy chính là mốc cần ghi vào
+     * hồ sơ phần cứng.
+     *
+     * Kèm `n` để bên thu biết khung nào trước khung nào sau, và biết có khung
+     * nào rơi không — một chuỗi số không có thứ tự thì không nói được robot
+     * đang tiến gần hay rời xa điểm cân bằng. */
+    for (uint16_t k = 0u; k < DIAG_BAL_FRAMES; k++) {
+        if (!mpu_doc(REG_ACCEL_XOUT_H, dem, 6u)) {
+            eaa_emit("{\"balance_probe\": null, \"error\": \"khong doc duoc\"}");
+            break;
+        }
+        i = 0u;
+        const char *b1 = "{\"n\": ";
+        while (*b1 != '\0') { khung[i++] = *b1++; }
+        i += so_ra_chu((int32_t)k, &khung[i]);
+        const char *b2 = ", \"az\": ";
+        while (*b2 != '\0') { khung[i++] = *b2++; }
+        i += so_ra_chu((int32_t)(int16_t)(((uint16_t)dem[4] << 8) | dem[5]), &khung[i]);
+        khung[i++] = '}';
+        khung[i] = '\0';
+        eaa_emit(khung);
+        _delay_ms(DIAG_BAL_MS);
+    }
+    eaa_emit("{\"done\": true}");
 }

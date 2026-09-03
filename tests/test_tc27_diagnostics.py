@@ -309,19 +309,49 @@ def test_kich_ban_tu_dong_hoan_toan_ket_luan_duoc_ngay(phien: DiagnosticSession)
     assert hong.opens_repair_loop
 
 
-def test_to_hop_chua_co_trong_ma_tran_thi_de_nghi_bo_sung(
-    phien: DiagnosticSession,
-) -> None:
-    """Phiên chẩn đoán cũng là phiên nạp tri thức."""
+def test_to_hop_chua_co_trong_ma_tran_thi_de_nghi_bo_sung(tmp_path: Path) -> None:
+    """Phiên chẩn đoán cũng là phiên nạp tri thức.
+
+    Kịch bản dựng NGAY TRONG BÀI, không mượn DS-02 của dự án. Bản trước ghim
+    cứng hai khoá câu hỏi của DS-02, nên hôm dự án sửa kịch bản ấy vì nhu cầu
+    thật — câu hỏi cũ đòi người đọc "giá trị góc hiển thị" mà firmware chưa bao
+    giờ in ra góc nào — bài kiểm đỏ, dù engine không đổi một dòng.
+
+    Đây là lần thứ tư cùng một kiểu trong kho: bài kiểm engine mượn dữ liệu dự
+    án làm đạo cụ rồi bị buộc vào số phận của nó. Thứ bài này canh là HÀNH VI
+    của bộ chẩn đoán khi gặp tổ hợp chưa có trong ma trận, và hành vi ấy không
+    phụ thuộc kịch bản nào cả.
+    """
+    thu_vien_rieng = tmp_path / "diagnostics.yaml"
+    thu_vien_rieng.write_text(
+        "scenarios:\n"
+        "  - id: TN-01\n"
+        "    title: Kịch bản dựng riêng cho bài kiểm này\n"
+        "    motion: false\n"
+        "    machine:\n"
+        "      - key: so_do\n"
+        "        description: Một số đo bất kỳ\n"
+        "        op: min\n"
+        "        low: 1\n"
+        "    human:\n"
+        "      - key: nguoi_thay_gi\n"
+        "        question: Người quan sát thấy gì?\n"
+        "matrix: []\n",
+        encoding="utf-8",
+    )
+    phien = DiagnosticSession(
+        library=ScenarioLibrary.load(thu_vien_rieng),
+        records_path=tmp_path / "measurements.jsonl",
+        ledger=ErrorLedger(tmp_path / "error_ledger.jsonl"),
+    )
+
     ket_luan = phien.diagnose(
-        "DS-02",
-        telemetry={
-            "who_am_i": "0x68",
-            "accel_noise_mg": 10,
-            "gyro_noise_dps": 0.5,
-            "samples": 100,
-        },
-        human_answers={"nghieng_trai_gia_tri_am": False, "truc_dung_chieu": True},
+        "TN-01",
+        telemetry={"so_do": 5},
+        # Kênh máy nói ĐẠT, kênh người nói KHÔNG — tổ hợp mà ma trận rỗng
+        # không có dòng nào mô tả. Đó chính là chỗ bộ chẩn đoán phải nhận là
+        # mình chưa biết, thay vì chọn bừa một kết luận.
+        human_answers={"nguoi_thay_gi": False},
     )
     assert ket_luan.verdict == Verdict.INCONCLUSIVE
     assert "Bổ sung một dòng vào ma trận" in ket_luan.action

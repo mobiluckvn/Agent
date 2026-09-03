@@ -97,12 +97,31 @@ scenarios:
         description: Số mẫu thu được
         op: min
         low: 100
+      # TRỤC NÀO NẰM NGANG — trả lời bằng số đo thay vì bằng suy luận.
+      #
+      # Ở thang ±2 g (mặc định sau reset), trục dọc theo trọng lực đọc ~16384,
+      # trục nằm ngang đọc gần 0 cộng sai lệch gá. `drv_imu` tính góc bằng
+      # `asin(accel_z / 8200)`, công thức chỉ đúng khi Z NẰM NGANG.
+      #
+      # Ngày 02/09 tôi suy từ triệu chứng rằng trục sai, và suy sai. Bốn con số
+      # DC dưới đây đóng câu hỏi ấy lại: nếu |accel_z_mean| vượt 8000 thì Z đang
+      # dọc theo trọng lực và MỌI kết luận về góc đều vô nghĩa.
+      - key: accel_z_mean
+        description: Trung bình DC trục Z — phải NẰM NGANG, không dọc trọng lực
+        op: in_range
+        low: -8000
+        high: 8000
     human:
-      - key: nghieng_trai_gia_tri_am
+      # Câu hỏi cũ đòi người đọc "giá trị góc hiển thị" mà firmware chưa bao giờ
+      # in ra góc nào — kênh người không trả lời được (SL ghi 02/09). Nay hỏi về
+      # thứ DS-02 thật sự phát: chuỗi `az` trong pha dò mốc cân bằng.
+      - key: az_doi_dau_theo_chieu_nga
         question: >-
-          Nghiêng robot sang TRÁI. Giá trị góc hiển thị có chuyển sang ÂM không?
-      - key: truc_dung_chieu
-        question: Trục dữ liệu có khớp trục vật lý (nghiêng trước/sau, không phải trái/phải)?
+          Trong pha dò mốc, ngả robot về TRƯỚC rồi về SAU. Giá trị `az` có đổi
+          DẤU giữa hai chiều không? (Nếu cùng dấu thì trục đang dọc trọng lực.)
+      - key: da_do_duoc_diem_chong_chenh
+        question: >-
+          Đã dò tới điểm robot tự chông chênh và giữ yên được vài giây ở đó chưa?
 
   - id: DS-03
     title: Kiểm động cơ bước (từng động cơ)
