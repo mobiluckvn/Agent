@@ -65,12 +65,12 @@ Và nó ngả về phía **vá** khi không chắc: chặn nhầm thì dừng c�
 
 ## Việc kế tiếp
 
-**1 — Canh hợp đồng gọi cho MỌI module, không riêng `logic_pid`.**
-SL-162 mới bắt được việc đổi chữ ký **gián tiếp**, qua một module khác tình cờ
-gọi tới. Module chưa ai gọi thì đổi chữ ký vẫn lọt. Chỗ sửa thẳng: sinh xong thì
-so khai báo trong header cũ trên `main` với header mới; đổi là cổng đỏ ngay.
-Hiện đang vá bằng cách ghi chữ ký vào `prompts/logic_pid.md` — đó là **lời dặn**,
-và lời dặn chỉ giữ được đúng một module.
+**~~1 — Canh hợp đồng gọi cho MỌI module~~ — ĐÃ LÀM** cùng phiên, SL-163 /
+TC-124. `eaa/contract.py` so khai báo header vừa sinh với bản trên `main`; mất
+một hàm hoặc đổi chữ ký là cổng đỏ, kèm câu chỉ thẳng việc phải làm. Nó đi vào
+đường VÁ chứ không đường CHẶN — khác SL-162 có chủ ý, vì đây là mã của chính
+module ấy và nó sửa được. Lời dặn trong `prompts/logic_pid.md` vẫn giữ, nhưng
+giờ nó là hàng rào thứ hai chứ không phải hàng rào duy nhất.
 
 **2 — Ghi lại 10 fixture E2E TC-15.** Nợ từ trước, chưa động tới. Prompt đổi thì
 băm đổi, bộ phát lại cố ý không bịa phản hồi. Chạy
@@ -101,7 +101,7 @@ có nghĩa.
 * [`docs/CAI_DAT_VA_CHAY.md`](CAI_DAT_VA_CHAY.md) — máy mới tải kho về thì bắt đầu
   từ đây: cài đặt, công cụ, và trọn luồng tới lúc firmware nằm trên bo.
 
-* `docs/SAI_LECH_THIET_KE.md` — 162 mục, mỗi mục một lỗi và bài kiểm canh nó.
+* `docs/SAI_LECH_THIET_KE.md` — 164 mục, mỗi mục một lỗi và bài kiểm canh nó.
   Đây là dữ liệu gốc của chương đánh giá, không phải phụ lục.
 * `docs/DANH_GIA_NANG_LUC_AGENT.md` — Agent tự làm được gì, bảy giới hạn còn
   lại, và phương pháp huấn luyện rút ra.
