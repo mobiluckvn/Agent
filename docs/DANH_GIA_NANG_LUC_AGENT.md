@@ -1,6 +1,7 @@
 # Đánh giá năng lực Agent và phương pháp huấn luyện
 
-Chốt số liệu ngày 03/09/2026, sau khi firmware chạy thật trên bo lần đầu.
+Chốt số liệu ngày 03/09/2026, **sau khi robot đứng cân bằng được trên bo thật**
+(firmware `80ec03d0d4`, thả tay trên sàn không đổ).
 
 Tài liệu này trả lời hai câu: **Agent tự làm được gì tới thời điểm này**, và
 **huấn luyện nó bằng cách nào**. Phần thứ hai mới là đóng góp nghiên cứu — phần
@@ -16,22 +17,20 @@ Mọi con số dưới đây rút từ `kpi_log.csv`, `llm_calls.jsonl`,
 
 | Đại lượng | Giá trị |
 |---|---|
-| Module đã merge | **8/9** (chỉ `drv_uart` chưa cần cho mục tiêu đứng) |
-| Lượt gọi mô hình | **196** — 700.768 token vào, 273.112 ra, **≈ 3,61 USD** |
-| Lượt chạy cổng kiểm chứng | **262** |
-| Vòng tự sửa đã dùng | **61** |
-| Quyết định Human Gate | **46** — G1: 13 duyệt · G2: 8 duyệt · G3: **13 duyệt / 12 từ chối** |
-| Mục trong sổ lỗi ảo giác | **51** (31 `tool_failure`, 12 `gate_rejection`, 8 khác) |
-| Lệnh CLI | **52**, trong đó **70 điểm gọi** Agent tự dùng được |
-| Bài kiểm engine | **103 tệp TC** |
-| Trích đoạn datasheet đã duyệt | **12** |
-| Lần nạp firmware | **22**, đều có đọc ngược xác minh |
-| Nghiệm thu trên bo thật | **5** lượt chẩn đoán hai kênh |
-| Firmware ráp được | **6.572 byte flash (20,0%)**, 131 byte SRAM (6,4%) |
-| Sổ sai lệch thiết kế | **161 mục** — 72 LỆCH THẬT, 84 BỔ SUNG, 3 DỜI CHỖ |
+| Module đã merge | **7/9** (`drv_uart`, `app_telemetry` chưa cần cho mục tiêu đứng) |
+| Lượt gọi mô hình | **214** — 794.581 token vào, 323.775 ra |
+| Lượt chạy cổng kiểm chứng | **334** |
+| Vòng tự sửa đã dùng | **81** |
+| Quyết định Human Gate | **51** — G1: 13 duyệt · G2: 8 duyệt · G3: **17 duyệt / 13 từ chối** |
+| Mục trong sổ lỗi ảo giác | **66** (41 `tool_failure`, 13 `gate_rejection`, 12 khác) |
+| Bài kiểm engine | **105 tệp TC** |
+| Lần nạp firmware | **26**, đều có đọc ngược xác minh |
+| Sổ sai lệch thiết kế | **162 mục** |
+| **Nghiệm thu chức năng** | **robot đứng cân bằng, thả tay không đổ** — 03/09 |
 
-Tỉ lệ G3 từ chối **12/25 = 48%** là con số đáng chú ý nhất bảng, và nó được bàn
-ở §4.
+Tỉ lệ G3 từ chối **13/30 = 43%** là con số đáng chú ý nhất bảng, và nó được bàn
+ở §4. Con số ấy gần như không đổi khi mẫu tăng từ 25 lên 30 quyết định — nó là
+một đặc tính ổn định của quy trình, không phải nhiễu của giai đoạn đầu.
 
 ---
 
@@ -122,6 +121,29 @@ watchdog mất mẫu — đều do người thêm. Ba lượt nạp đầu robot
 
 `measurements.jsonl` và kết quả chẩn đoán nằm ngoài vòng ghép prompt. Bài học
 từ bo chỉ tới mô hình qua **lý do từ chối kỹ sư gõ tay**.
+
+### 3.8 Viết bài kiểm XANH ĐÚNG LÚC, vì lý do sai
+
+Phát hiện ngày 03/09, và là giới hạn khó thấy nhất trong bảy mục trên.
+
+Tôi yêu cầu Agent thêm một bài canh: trong vùng chết, `self_balance_setpoint`
+phải đứng yên. Nó thêm `test_deadband_keeps_setpoint_steady`, và bài ấy **đỏ ở
+vòng đầu, xanh sau khi sửa** — nhìn từ ngoài thì đúng hệt một bài kiểm làm đúng
+việc của nó.
+
+Đọc kỹ thì nó chạy 10 vòng với góc 0,1°. Điểm đặt trôi 0,0015 mỗi vòng, sau 10
+vòng được 0,015 — với `kp = 12` thì đầu ra khoảng 1,4, còn cách xa ngưỡng 5 của
+vùng chết. Bài kiểm ấy **xanh cả với mã sai**; nó đỏ vì một lý do khác.
+
+Chỗ này khác §3.1 và §3.4: ở đó mô hình chỉnh đồ đo cho vừa mã, và cả hai đều
+để lại dấu vết đọc ra được — một hằng số bị đổi, một chú thích tự khai. Ở đây
+không có gì bị chỉnh. Bài kiểm trông đúng, tên đúng, và **kết quả đúng ở đúng
+hai thời điểm cần đúng**. Chỉ khi tự tính lại xem 10 vòng có đủ trôi hay không
+mới thấy nó rỗng.
+
+Hệ quả cho quy trình: **màu của bài kiểm không thay thế được việc đọc mã ở G3.**
+Bài này lọt qua cổng `unittests` và sẽ lọt mọi cổng tự động ta có, vì nó không
+vi phạm luật nào. Nó chỉ không chứng minh điều nó nhận là mình chứng minh.
 
 ---
 
@@ -264,10 +286,12 @@ Câu thứ ba là câu hay bị bỏ nhất và có giá trị nhất: nó chỉ
 | 1 | Khoá hằng số bất biến: đánh dấu khối hằng số trong `prompts/<module>.md`, cổng static đối chiếu mã sinh phải chứa **nguyên văn** | 3 | 2/3 ca ở §3.1 |
 | 2 | Bài kiểm phải chạy ngoại vi ở trạng thái **sau `init()`** trước khi đặt giá trị khác | 2 | §3.3 |
 | 3 | Hợp đồng chống thoái lui: chạy bài kiểm **cũ** với mã **mới** trước khi nhận bài kiểm mới | 3 | §3.2 |
-| 4 | Cổng quy lỗi về đúng module; lỗi module khác đánh `config_error`, **không mở** vòng vá | 3 | §3.5 |
+| 4 | ~~Cổng quy lỗi về đúng module; lỗi module khác **không mở** vòng vá~~ — **ĐÃ LÀM** 03/09, SL-162 / TC-123 | 3 | §3.5 |
+| 4b | Canh hợp đồng gọi TRỰC TIẾP: so khai báo header cũ trên `main` với header mới sau mỗi lượt sinh | 3 | SL-162, phần chưa xử lý |
 | 5 | `measurements.jsonl` và kết quả chẩn đoán thành **một lớp prompt** | 4 | §3.7 |
-| 6 | SL-160 — tách hiệu chỉnh: trôi con quay đo mỗi lần bật, mốc gia tốc từ hồ sơ | 4 | đang treo |
-| 7 | SL-161 — trần lớp `project_rules` chặn 10 lần/buổi trong khi prompt tổng dùng 3.200/8.000 | 4 | đang treo |
+| 6 | ~~SL-160 — tách hiệu chỉnh~~ — **ĐÃ LÀM**, và đã kiểm trên bo: đây là điều kiện để robot đứng được | 4 | xong |
+| 7 | ~~SL-161 — trần lớp `project_rules`~~ — **ĐÃ LÀM**, TC-122 | 4 | xong |
+| 8 | Bài kiểm **xanh vì lý do sai**: `test_deadband_keeps_setpoint_steady` chạy 10 vòng, chưa đủ trôi ra khỏi vùng chết nên xanh cả với mã sai | 3 | 03/09, §3.8 |
 
 Việc số 1 đáng làm trước vì nó đánh vào điểm yếu lớn nhất, và vì nó là ví dụ
 sạch của thang leo: một câu dặn ở mức 1 đã thất bại có kiểm chứng, và nó **mã
@@ -286,5 +310,10 @@ Cần nói ra kẻo bản đánh giá thành quảng cáo:
 * **Người đánh giá cũng là người sửa.** Tôi vừa viết prompt, vừa duyệt G3, vừa
   ghi sổ sai lệch. Ba ca ở §3.1 tôi bắt được, nhưng không biết mình đã bỏ lọt
   bao nhiêu ca cùng loại.
-* **Robot chưa đứng được.** Mọi kết luận về vòng điều khiển vẫn là suy ra từ
-  cổng và từ một lần chạy trên bo, chưa phải từ một hệ đã nghiệm thu ở G4.
+* **Robot đứng được, nhưng chưa đo được nó đứng TỐT tới đâu.** Ngày 03/09 nó
+  cân bằng thật, thả tay không đổ — mục này trước đây ghi "chưa đứng được" và
+  nay đã khác. Nhưng chưa có số: biên độ dao động quanh điểm cân bằng, thời
+  gian đứng được liên tục, và quan trọng nhất là **nhịp 4 ms có thật sự được
+  giữ hay không**. ISR bước chạy 50 kHz trên AVR 16 MHz — 320 chu kỳ mỗi lần —
+  và chưa ai đo nó ăn bao nhiêu CPU. Robot đứng được chỉ chứng minh nhịp đủ
+  gần, không chứng minh nó đúng.

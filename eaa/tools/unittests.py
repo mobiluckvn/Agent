@@ -283,13 +283,25 @@ class UnitTestGate:
         so_lieu = self._dem(dau_ra)
         so_lieu["exit_code"] = ket_qua.returncode
 
+        # Tệp nào đỏ — đây là thứ vòng tự sửa cần để biết lỗi có nằm trong tầm
+        # tay nó hay không (SL-162). Cổng gộp mọi thất bại vào MỘT ToolError
+        # không mang `file`, nên phía trên không phân biệt được "mã tôi vừa
+        # sinh hỏng" với "mã người khác hỏng"; và ba lượt vá đã bị đốt đúng vào
+        # chỗ ấy khi `logic_pid` đổi chữ ký làm `test_app_balance.py` chết.
+        tep_do = self._tep_that_bai(dau_ra)
+        if tep_do:
+            so_lieu["failing_files"] = tep_do
+
         loi: list[ToolError] = []
         if ket_qua.returncode != 0:
             loi.append(
                 ToolError(
                     f"{so_lieu.get('failed', 0)} test không đạt, "
                     f"{so_lieu.get('errors', 0)} lỗi. Trích đầu ra:\n"
-                    + "\n".join(self._dong_that_bai(dau_ra))
+                    + "\n".join(self._dong_that_bai(dau_ra)),
+                    # Chỉ neo vào một tệp khi CHỈ một tệp đỏ. Nhiều tệp thì
+                    # `file` sẽ nói dối, và `metrics` mới là chỗ đủ chỗ chứa.
+                    file=tep_do[0] if len(tep_do) == 1 else None,
                 )
             )
 
@@ -361,6 +373,32 @@ class UnitTestGate:
             if d.lstrip().startswith("SKIPPED") or " skipped " in d or "Skipped:" in d
         ]
         return dong[:gioi_han]
+
+    @staticmethod
+    def _tep_that_bai(dau_ra: str) -> list[str]:
+        """Đường dẫn các tệp kiểm thử đã đỏ, đọc từ dòng tóm tắt của pytest.
+
+        Đọc `FAILED path::test` và `ERROR path` — hai dạng mà `-rfEs` bảo đảm
+        có mặt. `ERROR` bắt cả lỗi lúc THU THẬP: một tệp kiểm không import nổi
+        vì mã C của module khác không dịch được cũng hiện ở đây, và đó chính
+        là trường hợp SL-162 sinh ra để bắt.
+
+        Chỉ nhận đường dẫn trông ra đường dẫn. Một dòng `ERROR` do người viết
+        test in ra không được phép biến thành tên tệp, vì hạ nguồn dùng danh
+        sách này để QUYẾT ĐỊNH dừng — đoán sai ở đây là chặn nhầm một lượt vá
+        lẽ ra chạy được.
+        """
+        tep: list[str] = []
+        for dong in dau_ra.splitlines():
+            phan = dong.split(maxsplit=1)
+            if len(phan) != 2 or phan[0] not in ("FAILED", "ERROR"):
+                continue
+            duong_dan = phan[1].split("::", 1)[0].split(" - ", 1)[0].strip()
+            if not duong_dan.endswith(".py") or " " in duong_dan:
+                continue
+            if duong_dan not in tep:
+                tep.append(duong_dan)
+        return tep
 
     @staticmethod
     def _dong_that_bai(dau_ra: str, gioi_han: int = 20) -> list[str]:

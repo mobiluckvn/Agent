@@ -2296,7 +2296,8 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Hậu quả kép** | (1) Ta tuyên bố một tư thế nghiêng là "không độ", nên robot đuổi theo một điểm cân bằng sai. (2) Cổng `\|góc\| < 0,5°` thêm vào để chặn việc bật PID quá sớm trở thành VÔ NGHĨA: `imu_calibrate_commit()` đặt góc về 0 nên điều kiện luôn đúng theo định nghĩa, cổng mở tức thì |
 | **`self_balance_setpoint` không cứu được** | Nó dò lại điểm cân bằng ở tốc độ 0,0015 mỗi vòng — sửa lệch 1° mất ~2,7 giây, trong khi robot đã lao mất |
 | **Cách sửa** | Tách hai bước: lúc bật máy chỉ đo trôi con quay; mốc gia tốc lấy từ `hardware_profile.yaml`, đo một lần bằng chẩn đoán kiểu V0. Lúc ấy cổng `±0,5°` mới đo được góc THẬT so với điểm cân bằng, và giai đoạn 5 bíp đổi nghĩa thành "giữ YÊN" thay vì "giữ THẲNG" |
-| **Trạng thái** | CHƯA SỬA — cần một lượt đo trên bo trước. Xem `docs/TIEP_TUC_TU_DAY.md`, ba bước |
+| **Đã sửa** | `ACCEL_BALANCE_OFFSET = -535` thành hằng số trong `drv_imu`, đo bằng DS-02 ngày 03/09 ở ±4 g (`accel_z_mean = -535`, độ lớn véc-tơ 8275 ≈ 1,010 g). Lúc bật máy chỉ còn đo trôi con quay: 500 mẫu `gyro_y`, robot đứng YÊN chứ không cần THẲNG |
+| **Đã kiểm trên bo** | 03/09, firmware `80ec03d0d4` — robot đứng cân bằng thật trên sàn, thả tay không đổ. Đây là lần đầu cổng `\|góc\| < 0,5°` đo được góc THẬT, vì mốc không còn do tay người định nghĩa |
 
 ## SL-161 · LỆCH THẬT · Trần lớp `project_rules` chặn mười lần trong một buổi
 
@@ -2312,3 +2313,17 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Không im lặng** | `canh_bao_luoc` in ra lớp dùng quá phần, vào nhật ký từng vòng. Im lặng ở đây là cách một lớp phình dần tới lúc lấn chỗ thật mà không ai thấy quá trình ấy |
 | **Ba bài kiểm cũ phải đổi** | Chúng dựng cảnh "chật" bằng phần của LỚP trong khi trần tổng thoải mái — tức canh chính hành vi vừa bỏ. Nay dựng bằng trần TỔNG. Kho đã học đúng điều này một lần ở SL-136, và ba bài này còn sót |
 | **Bài canh** | `tests/test_tc122_phan_lop_khong_chan_khi_con_cho.py` — 7 bài, gồm bài canh việc chỉ đích danh thủ phạm KHÔNG mất đi khi tổng thật sự vượt |
+
+## SL-162 · LỆCH THẬT · Vòng tự sửa đốt cả ba lượt vào lỗi của module khác
+
+| | |
+|---|---|
+| **Cách tìm** | Sinh lại `logic_pid` ngày 03/09. Bản sinh tự bỏ tham số `is_running` khỏi `pid_compute`, làm `test_app_balance.py` — bài kiểm của một module ĐÃ MERGE — không dịch nổi: `src/app_balance.c:125: too many arguments to function call, expected 2, have 3` |
+| **Chuyện gì xảy ra** | Cổng `unittests` đỏ. Vòng tự sửa mở, chạy đủ ba lượt, cả ba đều vá vào `logic_pid` — tệp DUY NHẤT nó được phép viết, và là tệp không có lỗi nào. Ba lượt gọi mô hình đổi lấy không gì cả, rồi module vẫn bàn giao cho người |
+| **Vì sao vòng vá không tự thoát được** | Vì nó không biết. Cổng gộp mọi thất bại vào MỘT `ToolError` không mang `file`, nên phía trên chỉ đọc được *"có lỗi"*, không đọc được *"lỗi ở đâu"*. Với chừng ấy thông tin thì vá mù ba lượt là hành vi hợp lý nhất nó làm được |
+| **Chỗ sửa thật nằm ở CỔNG** | Không phải ở vòng vá. Thêm luật cho vòng vá mà cổng vẫn không quy được lỗi về tệp thì luật ấy không có dữ liệu để chạy. `unittests` nay đọc dòng tóm tắt `FAILED <tệp>::<bài>` và `ERROR <tệp>` của pytest vào `metrics["failing_files"]` — `ERROR` là dạng lỗi THU THẬP, đúng dạng mà lỗi biên dịch chéo module hiện ra |
+| **Nửa còn thiếu của SL-154** | Khoá phạm vi tệp chặn module này ghi đè tệp module kia. Nhưng module sinh lại vẫn chỉ viết tệp của CHÍNH NÓ — mà đổi một chữ ký trong header của mình là đủ làm module đã merge không dịch được. Quyền ghi bị canh, hợp đồng gọi thì không |
+| **Đã sửa** | Hạng dừng thứ ba trong `run_module`, cạnh `env_error` và `config_error`: mọi tệp đỏ đều ngoài `tep_can_sinh(module_id)` → `blocked` ngay, không mở vòng vá, kèm câu chỉ thẳng vào nghi phạm thường gặp nhất là đổi chữ ký header |
+| **Ngả về phía VÁ khi không chắc** | Chặn nhầm thì dừng cả dây chuyền và đòi người; vá nhầm thì tốn lượt gọi. Hai hạng sai không ngang giá. Nên chỉ dừng khi quy được MỌI thất bại về tệp VÀ mọi tệp đều ngoài phạm vi; quy được một phần, hoặc không quy được, thì vòng vá vẫn mở |
+| **Chưa sửa** | Việc đổi chữ ký vẫn chỉ bị bắt GIÁN TIẾP, qua một module khác tình cờ gọi tới. Module chưa ai gọi thì đổi chữ ký vẫn lọt. Chỗ sửa thẳng: so khai báo trong header cũ trên `main` với header mới ngay khi sinh xong. Hiện đang vá bằng cách ghi chữ ký vào `prompts/logic_pid.md` — đó là lời dặn, và lời dặn chỉ giữ được đúng một module |
+| **Bài canh** | `tests/test_tc123_loi_ngoai_pham_vi_khong_mo_vong_va.py` — 12 bài, trong đó 4 bài canh chiều ngả về phía vá và 1 bài canh việc không biến dòng `ERROR` do người viết test in ra thành tên tệp |

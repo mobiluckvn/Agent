@@ -45,7 +45,7 @@ from eaa import EXIT_ENV_ERROR, EXIT_OK, EXIT_REPAIR_LIMIT, EXIT_WAITING_GATE
 from eaa.composer import Task
 from eaa.gates import APPROVED, REJECTED, GatePayload
 from eaa.policy import PHASE_NAMES, GATE_PURPOSE, Level, check_transition, level
-from eaa.tools.base import CodeArtifact, ToolReport
+from eaa.tools.base import CodeArtifact, Severity, ToolReport
 from eaa.vcs import MERGE_GATE, MergeNotAuthorized, authorize_merge
 
 __all__ = [
@@ -321,6 +321,29 @@ class Orchestrator:
                     EXIT_ENV_ERROR,
                     "Lỗi CẤU HÌNH, không phải lỗi mã — vòng tự sửa không mở.\n"
                     + "\n".join(str(e) for r in hong for e in r.errors),
+                    bao_cao=bao_cao,
+                    repairs=so_lan_va,
+                    nhat_ky=nhat_ky,
+                )
+
+            # Cổng đỏ vì mã của MODULE KHÁC cũng dừng ngay (SL-162). Lượt sinh
+            # chỉ được viết `tep_can_sinh(module_id)`; một thất bại nằm hoàn
+            # toàn ngoài tập ấy là thứ vòng vá không có quyền chạm tới, nên ba
+            # lượt gọi bỏ ra chỉ để nó sửa mù vào mã đang đúng.
+            ngoai = self._loi_ngoai_pham_vi(hong[0], module_id)
+            if ngoai:
+                return self._that_bai(
+                    module_id,
+                    "blocked",
+                    EXIT_ENV_ERROR,
+                    "Cổng đỏ vì mã NGOÀI phạm vi module này — vòng tự sửa không mở.\n"
+                    f"Tệp đỏ: {', '.join(ngoai)}\n"
+                    f"Lượt sinh {module_id} chỉ được viết: "
+                    f"{', '.join(self.tep_can_sinh(module_id))}\n"
+                    "Thường gặp nhất: module này đổi chữ ký trong header của nó "
+                    "và làm một module ĐÃ MERGE không dịch được nữa. Xem lại "
+                    "diff của header trước khi sinh lại.\n"
+                    + "\n".join(str(e) for e in hong[0].errors),
                     bao_cao=bao_cao,
                     repairs=so_lan_va,
                     nhat_ky=nhat_ky,
@@ -1073,6 +1096,30 @@ class Orchestrator:
             if muc.status in ("todo", "handoff"):
                 return muc.id
         return None
+
+    @staticmethod
+    def _loi_ngoai_pham_vi(bao_cao: ToolReport, module_id: str) -> list[str]:
+        """Tệp đỏ nằm ngoài tập tệp mà lượt sinh này được phép viết (SL-162).
+
+        Trả danh sách RỖNG trừ khi chắc chắn: phải quy được MỌI thất bại về
+        một tệp, và mọi tệp ấy đều ngoài phạm vi. Một thất bại không quy được
+        về tệp nào — hoặc quy được về đúng tệp của module — thì vòng vá vẫn mở.
+
+        Ngả về phía vá là có chủ ý. Chặn nhầm thì dừng cả dây chuyền và đòi
+        người; vá nhầm thì tốn lượt gọi. Chỉ hạng sai thứ hai là thứ tự nó
+        khỏi được.
+        """
+        trong_pham_vi = set(Orchestrator.tep_can_sinh(module_id))
+
+        tep = list(bao_cao.metrics.get("failing_files") or [])
+        if not tep:
+            neo = [e.file for e in bao_cao.errors if e.severity == Severity.ERROR]
+            if not neo or not all(neo):
+                return []
+            tep = list(dict.fromkeys(neo))  # type: ignore[arg-type]
+
+        ngoai = [t for t in tep if t.replace("\\", "/").lstrip("./") not in trong_pham_vi]
+        return ngoai if len(ngoai) == len(tep) else []
 
     @staticmethod
     def tep_can_sinh(module_id: str) -> tuple[str, ...]:
