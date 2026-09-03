@@ -244,6 +244,10 @@ chạy mới xem được thì tới lúc bảo vệ đề án sẽ không xem �
 
 > **Máy mới tải kho về:** đọc [`docs/CAI_DAT_VA_CHAY.md`](docs/CAI_DAT_VA_CHAY.md)
 > — cài đặt và chạy trọn luồng, từ `git clone` tới lúc firmware nằm trên bo.
+>
+> **Đưa Agent sang bo hoặc chip khác:** đọc
+> [`docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md`](docs/HUAN_LUYEN_AGENT_CHO_BO_MOI.md)
+> — huấn luyện thủ công từng bước, gồm cả cách dựng một Platform Pack mới.
 
 ```bash
 python3 -m venv .venv

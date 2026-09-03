@@ -483,6 +483,7 @@ Nếu bạn đang tìm cờ để bỏ qua một trong những điều dưới �
 | Tài liệu | Khi nào cần |
 |---|---|
 | [`../README.md`](../README.md) | Kiến trúc C4, công nghệ, tiến độ |
+| [`HUAN_LUYEN_AGENT_CHO_BO_MOI.md`](HUAN_LUYEN_AGENT_CHO_BO_MOI.md) | Đưa Agent sang bo mới hoặc chip mới, từng bước |
 | [`TIEP_TUC_TU_DAY.md`](TIEP_TUC_TU_DAY.md) | Bàn giao phiên gần nhất, việc kế tiếp |
 | [`DANH_GIA_NANG_LUC_AGENT.md`](DANH_GIA_NANG_LUC_AGENT.md) | Agent tự làm được gì, và phương pháp huấn luyện |
 | [`SAI_LECH_THIET_KE.md`](SAI_LECH_THIET_KE.md) | 164 mục lỗi đã gặp, mỗi mục có bài kiểm canh |
