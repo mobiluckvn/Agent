@@ -112,8 +112,16 @@ MAX_OUTPUT_CHARS = 3200
 #: lại phải nới một con số thuộc về bản thiết kế của việc khác — và đó là cách
 #: một bảng ngân sách có căn cứ biến dần thành một bảng số ai cũng sửa được.
 #: Trần TỔNG vẫn là 8.000 và vẫn kiểm trước khi gọi (TC-16).
-NGAN_SACH_VAI_TRO = 1_400
-NGAN_SACH_DANH_MUC = 2_800
+#: Dời 100 token từ lớp VAI TRÒ sang lớp DANH MỤC ngày 04/09/2026 (SL-172), khi
+#: `knowledge stale` làm danh mục chạm 2.810/2.800. Dời chứ không NỚI: tổng ba
+#: lớp giữ nguyên 7.600, nên trần 8.000 không bị đụng tới và không lớp nào của
+#: prompt sinh mã bị lấn.
+#:
+#: Căn cứ để dời là một phép đo, không phải một cảm giác: lớp vai trò dùng thật
+#: 1.018 token trên 1.400 — dư 382. Sau khi dời nó còn dư 282, vẫn rộng hơn
+#: khoảng lớp danh mục vừa cần.
+NGAN_SACH_VAI_TRO = 1_300
+NGAN_SACH_DANH_MUC = 2_900
 #: Ngân sách lớp ràng buộc cứng trong prompt hội thoại. Lớp này BẮT BUỘC —
 #: cắt nó là bỏ mất luật, và bỏ luật im lặng thì câu trả lời vẫn trông đúng.
 NGAN_SACH_RANG_BUOC = 900
@@ -198,6 +206,14 @@ TOOLBOX: tuple[Tool, ...] = (
     Tool(("sources", "pages"), "Phần tài liệu còn phải trích", takes="mã module"),
     Tool(("errata", "show"), "Lỗi chip đã công bố và module nào chạm vào"),
     Tool(("datasheet", "list"), "Trích đoạn tài liệu trong kho và trạng thái duyệt"),
+    # Chỉ nhánh `stale` — nó CHỈ ĐỌC và trả lời "mã nào dựa trên trích đoạn
+    # này". Hai nhánh `supersede`/`deprecate` KHÔNG có ở đây: chúng đổi kho tri
+    # thức và đòi quyết định G2, cùng hạng với `datasheet add`.
+    Tool(
+        ("knowledge", "stale"),
+        "Module nào dựa trên một trích đoạn tài liệu",
+        takes="mã trích đoạn",
+    ),
     Tool(("docs", "list"), "Phẩm xuất đã đăng ký"),
     Tool(("design", "list"), "Khuôn mẫu tài liệu thiết kế và định dạng xuất được"),
     # Dựng tài liệu chỉ đọc hồ sơ dự án rồi ghi ra artifacts/ — không đụng gate,

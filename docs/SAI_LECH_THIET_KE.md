@@ -2472,3 +2472,22 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Sửa kèm: `eaa/contract.py` có phép làm sạch GIỮ ĐỘ DÀI** | `than_ham` bỏ chú thích để đếm ngoặc cho đúng, nên nó không trả về được chú thích — mà dấu `// ref:` thì nằm trong chú thích. Thêm `vung_than_ham()` trả VỊ TRÍ trên chính chuỗi gốc, nhờ phép làm sạch thay ký tự bằng dấu cách đúng số lượng. Chỗ gọi tự quyết cắt bản có chú thích hay bản đã sạch |
 | **Hai lỗi tự tìm ra khi viết bài kiểm** | `0x1F` bị cắt hậu tố thành `0x1` — `F` vừa là hậu tố kiểu vừa là chữ số hệ 16, và bộ dò sẽ tin hằng số đã đổi trong khi nó không đổi. Và dấu vết 3 so CẢ DÒNG nên một chú thích cũ nằm trên dòng mã vừa sửa bị đọc thành chú thích mới; nay so RUỘT chú thích |
 | **Bài canh** | `tests/test_tc131_ma_tu_chinh_cho_vua_do_do.py`, 25 bài, dựng trên đúng hai ca thật. Chiều "đừng kêu nhầm" nặng hơn — bộ dò này DỪNG vòng vá, nên một lần báo nhầm là một lần bắt người vào cuộc vô ích. Kiểm ĐỘT BIẾN 5 phép, cả 5 đều bị bắt: bỏ điều kiện `// ref:` → 3 bài đỏ; đếm cả số trong chú thích → 2; bỏ lọc số tầm thường → 1; không so chú thích với bản cũ → 1; không trừ hằng số đã có từ trước → 1 |
+
+---
+
+## SL-172 · LỆCH THẬT · Vòng đời tri thức không có cửa vào (N-036, N-100)
+
+| | |
+|---|---|
+| **Cách tìm** | `scripts/kiem_bang_nang_luc.py`, phép kiểm thứ tư: `eaa/lifecycle.py` không được module nào trong `eaa/` hay `packs/` import, và không lệnh CLI nào gọi tới. Cùng hình dạng với SL-113 và SL-169 — **có mã, có test, không có người gọi** |
+| **Module ấy đầy đủ tới mức nào** | Ba đường truy ngược (đồ thị · trích dẫn `// ref:` trong mã · trường `chunk-ids` của commit), `supersede`, `deprecate`, `apply`, cưỡng chế duyệt G2, và TC-29 canh từng đường. Thiếu đúng một thứ: cửa vào |
+| **Hệ quả đúng bằng cái nó sinh ra để chữa** | Docstring của chính nó viết: *"một trích đoạn tài liệu bị phát hiện sai, được sửa, nhưng ba module đã sinh dựa trên bản sai vẫn nằm trong `main` và vẫn được coi là đã kiểm chứng."* Không có lệnh gọi tới thì đó chính xác là tình trạng của kho |
+| **Đã sửa** | Lệnh `eaa knowledge` với ba nhánh: `stale <chunk>` (chỉ đọc — trả lời câu hỏi của N-100), `supersede <cũ> <mới> --reason`, `deprecate <chunk> --reason` (cả hai đòi quyết định G2) |
+| **`stale` là CHỈ ĐỌC, và nói ra điều đó** | Một lệnh vừa trả lời vừa đổi trạng thái là lệnh người ta ngại gõ — mà đây đúng là lệnh cần gõ thường. Đầu ra kết bằng câu *"Lệnh này KHÔNG đổi gì"* kèm lệnh phải gõ nếu muốn hạ cấp thật |
+| **Nhãn SUY RA, không phải ĐÃ KIỂM** | Ba đường bắt ba loại lệ khác nhau, nhưng đường đồ thị đọc khai báo `uses` — khai báo thiếu thì đường ấy mù (đúng rủi ro "đồ thị lệch thực tế" AIS §12 nêu). Tập trả về có thể THIẾU, nên nó là suy ra. Có bài kiểm canh đúng nhãn ấy |
+| **`apply` chạy trong CÙNG lệnh** | Hạ module xuống `stale` không tách thành bước rời phải nhớ gõ. Cả giá trị của việc này nằm ở chỗ không module nào lặng lẽ giữ nhãn "đã kiểm chứng" khi cơ sở của nhãn ấy vừa đổi — một bước rời là một bước sẽ quên, và quên ở đây thì im lặng |
+| **Không tự mở vòng sinh lại** | Hạ tin cậy là việc của máy; sinh lại hay sửa tay là quyết định của kỹ sư. Đầu ra nói thẳng câu ấy |
+| **Thêm lệnh KHÔNG phải thêm quyền** | Chỉ `knowledge stale` vào `TOOLBOX`, ở nhóm chỉ đọc. `supersede`/`deprecate` **không** có trong danh mục Agent — chúng đổi kho tri thức và đòi G2, cùng hạng với `datasheet add`. Có bài kiểm canh cả hai chiều |
+| **Đo trên dự án thật** | `eaa knowledge stale ds-021` trong `robot_balance` trả về 2 module: `drv_i2c` bị **cả ba** đường bắt, `drv_imu` chỉ bị hai — nó không trích dẫn `// ref:` trong mã, đúng ca mà đường thứ ba (chunk-ids của commit) sinh ra để bắt |
+| **Sửa kèm: ngân sách lớp danh mục** | Thêm một mục vào `TOOLBOX` làm lớp danh mục chạm 2.810/2.800, và TC-78 đỏ đúng lúc phải đỏ — bài ấy sinh ra để *"bắt được ngay lần thêm công cụ làm tràn lớp"*. Xử lý theo hai bước: rút mô tả của mục mới cho gọn, rồi **DỜI** 100 token từ lớp vai trò sang lớp danh mục — dời chứ không NỚI, nên tổng ba lớp giữ nguyên 7.600 và trần 8.000 không bị đụng. Căn cứ là một phép đo: lớp vai trò dùng thật 1.018/1.400 |
+| **Bài canh** | `tests/test_tc132_vong_doi_tri_thuc_co_cua_vao.py`, 13 bài chạy qua CLI thật. Kiểm ĐỘT BIẾN 4 phép, cả 4 đều bị bắt: tự cấp quyết định G2 → 6 bài đỏ; bỏ `apply` → 3; khai `stale` là ĐÃ KIỂM → 1; cho Agent gọi `supersede` → 1 |

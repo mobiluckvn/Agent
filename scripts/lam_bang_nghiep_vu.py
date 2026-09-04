@@ -731,9 +731,10 @@ DOI_CHIEU = [
  ("N-033", DU, "eaa/readiness.py conflict + chuẩn hóa số · TC-26", "", "T1"),
  ("N-034", DU, "eaa/readiness.py · TC-24", "", "T3"),
  ("N-035", DU, "eaa/gapsearch.py + eaa resolve · TC-48 (26 test)", "", "T2"),
- ("N-036", PHAN, "eaa/lifecycle.py KnowledgeLifecycle (3 đường truy ngược) · TC-29",
-  "Rà soát 04/09: KHÔNG module nào trong eaa/ import lifecycle, và không lệnh CLI nào gọi tới. "
-  "`eaa docs regen` đi qua registry, không qua vòng đời tri thức. Cơ chế đúng, đường chạy chưa có", "T3"),
+ ("N-036", DU,
+  "eaa/lifecycle.py KnowledgeLifecycle (3 đường truy ngược) + lệnh eaa knowledge supersede/deprecate "
+  "— đòi quyết định G2, hạ module xuống 'stale' trong cùng lệnh, KHÔNG tự mở vòng sinh lại "
+  "· TC-29, SL-172, TC-132", "", "T3"),
  ("N-037", DU, "eaa/docplan.py ErrataAnalysis · TC-55f,g,h", "", "T1"),
  ("N-038", DU, "eaa/rag.py search_chunks (đồ thị trước, BM25 sau) + lệnh eaa recall + mục recall "
   "trong TOOLBOX; chất lượng truy xuất đo bằng eaa/goldenset.py — precision@k trên bộ chuẩn, "
@@ -781,9 +782,10 @@ DOI_CHIEU = [
  ("N-095", DU, "eaa/docmodel.py (một bản vẽ, nhiều định dạng) + eaa/designdoc.py (URD/SRS/SDD, "
   "chức năng, luồng, rút TỪ HỒ SƠ chứ không hỏi mô hình) + eaa/office.py (docx/pptx/xlsx/md/pdf, "
   "không thêm phụ thuộc) + lệnh eaa design list/gen · SL-105, TC-82", "", "T2"),
- ("N-100", PHAN, "eaa/lifecycle.py StaleSet · TC-29",
-  "Cùng gốc với N-036: sửa một datasheet hiện KHÔNG có lệnh nào trả lời 'mã nào bị ảnh hưởng'. "
-  "Cần một lệnh (vd `eaa knowledge stale`) nối StaleSet vào đường người dùng", "T1"),
+ ("N-100", DU,
+  "eaa knowledge stale <chunk> — CHỈ ĐỌC, hợp ba đường (đồ thị · trích dẫn // ref: trong mã · "
+  "chunk-ids của commit), gắn nhãn SUY RA vì đường đồ thị mù khi khai báo uses thiếu. Có trong "
+  "TOOLBOX ở nhóm chỉ đọc · SL-172, TC-132", "", "T1"),
  ("N-101", DU, "eaa/handover.py SwapAnalysis · TC-59c,d", "", "T1"),
  ("N-102", DU, "eaa/diagnostics.py FieldCase · TC-59e,f", "", "T1"),
  ("N-103", DU, "eaa/handover.py RolloutPlan · TC-59g,h", "", "T2"),

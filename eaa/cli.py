@@ -2275,6 +2275,81 @@ def _ghi_env_hash_vao_state(project: Path, env_hash: str) -> None:
 # --------------------------------------------------------------------------
 
 
+def cmd_knowledge(args: argparse.Namespace) -> int:
+    """Vòng đời tri thức — N-036, và câu hỏi của N-100.
+
+    `eaa/lifecycle.py` có đủ ba đường truy ngược và có TC-29 canh, nhưng cho
+    tới SL-172 thì **không lệnh nào gọi tới nó**. Hệ quả đúng bằng cái nó sinh
+    ra để chữa: sửa một trích đoạn tài liệu xong, không có cách nào hỏi *"mã
+    nào bị ảnh hưởng"* — và ba module sinh trên bản sai vẫn nằm trong `main`,
+    vẫn mang nhãn đã kiểm chứng.
+    """
+    from eaa.confidence import SUY_RA, header
+    from eaa.lifecycle import KNOWLEDGE_GATE, KnowledgeLifecycle, LifecycleError
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    vong_doi = KnowledgeLifecycle(
+        datasheets=ctx.kb.datasheets,
+        graph=ctx.graph,
+        state_store=ctx.store,
+        firmware_dir=project / "firmware",
+        repo=ctx.repo,
+        ledger=ctx.ledger,
+    )
+
+    try:
+        if args.knowledge_action == "stale":
+            _in_tieu_de(f"Mã nào dựa trên {args.chunk_id}")
+            tap = vong_doi.stale_set(args.chunk_id)
+            print(header(SUY_RA))
+            print()
+            print(
+                "  Hợp của BA đường: quan hệ trong đồ thị, trích dẫn `// ref:` trong\n"
+                "  mã, và trường chunk-ids của commit. Ba đường bắt ba loại lệ khác\n"
+                "  nhau — nhưng đường đồ thị đọc khai báo `uses`, và một khai báo\n"
+                "  thiếu thì đường ấy mù. Nên đây là SUY RA, không phải ĐÃ KIỂM."
+            )
+            print()
+            print(tap.render())
+            print()
+            print("Lệnh này KHÔNG đổi gì. Muốn hạ cấp thật thì:")
+            print(f"  eaa knowledge deprecate {args.chunk_id} --reason '<vì sao>'")
+            return EXIT_OK
+
+        quyet_dinh = ctx.gates.latest(KNOWLEDGE_GATE)
+        if args.knowledge_action == "supersede":
+            tap = vong_doi.supersede(
+                args.old_id, args.new_id, reason=args.reason, decision=quyet_dinh
+            )
+            _in_tieu_de(f"Đã thay {args.old_id} bằng {args.new_id}")
+        else:
+            tap = vong_doi.deprecate(
+                args.chunk_id, reason=args.reason, decision=quyet_dinh
+            )
+            _in_tieu_de(f"Đã hạ cấp {args.chunk_id}")
+    except LifecycleError as exc:
+        raise CliError(str(exc)) from exc
+
+    print(tap.render())
+    print()
+
+    # Hạ tin cậy NGAY trong cùng lệnh, không để thành một bước rời phải nhớ gõ.
+    # Cả giá trị của việc này nằm ở chỗ không module nào lặng lẽ giữ nhãn "đã
+    # kiểm chứng" khi cơ sở của nhãn ấy vừa đổi; một bước rời là một bước sẽ
+    # quên, và quên ở đây thì im lặng.
+    da_ha = vong_doi.apply(tap)
+    if da_ha:
+        print(f"Đã hạ {len(da_ha)} module xuống 'stale': {', '.join(da_ha)}")
+        print(
+            "Chúng phải chạy lại chuỗi kiểm chứng. Hệ KHÔNG tự mở vòng sinh lại — "
+            "sinh lại hay sửa tay là quyết định của bạn."
+        )
+    else:
+        print("Không module nào trong backlog phải hạ cấp.")
+    return EXIT_OK
+
+
 def cmd_docs(args: argparse.Namespace) -> int:
     from eaa.registry import (
         ArtifactNotFound,
@@ -5875,6 +5950,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor.set_defaults(func=cmd_doctor)
 
     # AIS §8.5 — kho phẩm xuất
+    # Vòng đời tri thức — AIS §8.1–8.3, quy trình P9 (SL-172)
+    p_kn = sub.add_parser(
+        "knowledge",
+        help="Vòng đời tri thức: stale/supersede/deprecate (AIS §8.1-8.3)",
+    )
+    kn_sub = p_kn.add_subparsers(
+        dest="knowledge_action", required=True, metavar="<hành động>"
+    )
+    kn_s = kn_sub.add_parser(
+        "stale", help="Mã nào dựa trên một trích đoạn — CHỈ ĐỌC, không đổi gì"
+    )
+    kn_s.add_argument("chunk_id", help="Mã trích đoạn, ví dụ ds-021")
+    kn_sup = kn_sub.add_parser(
+        "supersede", help="Thay trích đoạn cũ bằng bản mới — cần duyệt G2"
+    )
+    kn_sup.add_argument("old_id")
+    kn_sup.add_argument("new_id")
+    kn_sup.add_argument("--reason", required=True, help="Vì sao bản cũ không còn đúng")
+    kn_d = kn_sub.add_parser(
+        "deprecate", help="Hạ cấp một trích đoạn khi chưa có bản thay — cần duyệt G2"
+    )
+    kn_d.add_argument("chunk_id")
+    kn_d.add_argument("--reason", required=True, help="Vì sao trích đoạn này sai")
+    p_kn.set_defaults(func=cmd_knowledge)
+
     p_docs = sub.add_parser("docs", help="Kho phẩm xuất: list/get/regen (AIS §8.5)")
     docs_sub = p_docs.add_subparsers(dest="docs_action", required=True, metavar="<hành động>")
     dl = docs_sub.add_parser("list", help="Liệt kê phẩm xuất kèm trạng thái và dòng dõi")
