@@ -59,7 +59,11 @@ API_KEY_ENV = "EAA_LLM_KEY"
 _BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 #: Mã model mặc định theo EAA-AIS-05 §2. Ghi đè bằng ``eaa init --model``.
-DEFAULT_MODEL = "gemini-3.1-pro-preview"
+#:
+#: Đổi từ ``gemini-3.1-pro-preview`` sang bản Flash thế hệ 3.8 ngày 04/09/2026
+#: (SL-170). Đây là quyết định của người trả tiền chứ không phải của công cụ —
+#: xem `eaa/llm/catalog.py` để biết vì sao hệ không bao giờ tự chọn.
+DEFAULT_MODEL = "gemini-3.8-flash"
 
 
 def _urllib_get(url: str, api_key: str, timeout: float) -> dict[str, Any]:
@@ -466,7 +470,21 @@ class GeminiClient:
         tokens_in = int(su_dung.get("promptTokenCount", 0)) or self.count_tokens(
             prompt.full_text()
         )
-        tokens_out = int(su_dung.get("candidatesTokenCount", 0)) or estimate_tokens(van_ban)
+        # Token RA phải cộng cả phần SUY NGHĨ. `candidatesTokenCount` chỉ đếm
+        # chữ trả về; model có tầng suy nghĩ sinh thêm `thoughtsTokenCount`, và
+        # phần ấy vẫn được tính tiền, vẫn ăn vào trần `maxOutputTokens`.
+        #
+        # Đo được lúc đổi sang gemini-3.8-flash (SL-170): một lượt gọi trả về
+        # đúng chữ "OK" báo candidates = 1, thoughts = 92. Đếm thiếu 92/93 phần
+        # trăm ở chỗ đang làm dữ liệu gốc cho chương đánh giá.
+        #
+        # Cộng vào chứ không tách thành trường thứ hai: mọi nơi đọc `tokens_out`
+        # đều đang hỏi "lượt này sinh ra bao nhiêu token", và câu trả lời đúng
+        # cho câu hỏi ấy gồm cả phần suy nghĩ. Một trường mới thì mọi chỗ tính
+        # tiền phải nhớ cộng, và chỗ nào quên sẽ sai im lặng.
+        tokens_out = int(su_dung.get("candidatesTokenCount", 0)) + int(
+            su_dung.get("thoughtsTokenCount", 0)
+        ) or estimate_tokens(van_ban)
 
         if self.call_log is not None:
             self.call_log.record(

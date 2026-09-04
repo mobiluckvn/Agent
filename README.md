@@ -35,7 +35,7 @@ lớp không nói được ai chịu trách nhiệm với ai.
 graph TB
     KS["👤 Kỹ sư nhúng<br/>giao việc · duyệt 5 gate · cầm dụng cụ đo"]
     EAA["⬛ Embedded AIDD Agent<br/>sinh mã nhúng có kiểm chứng,<br/>với 5 điểm dừng bắt buộc"]
-    LLM["☁ Google Gemini API<br/>gemini-3.1-pro-preview, ghim phiên bản"]
+    LLM["☁ Google Gemini API<br/>gemini-3.8-flash, ghim phiên bản"]
     TC["🔧 Toolchain nền tảng<br/>avr-gcc · avr-libc · avrdude"]
     BO["🔌 Bo mạch thật<br/>ATmega328P · MPU-6500 · A4988"]
     GIT["🗃 Git<br/>kho mã và kho bằng chứng"]
@@ -214,7 +214,7 @@ bo — và đó là lý do lớp trừu tượng phần cứng tồn tại, ch�
 | Truy xuất | **BM25 tự viết + đi theo quan hệ** | ADR-07: **không** embedding, **không** vector DB. Đổi lấy tính giải thích được của mỗi trích đoạn |
 | Lưu trữ | **Tệp phẳng**: YAML · JSON · JSONL · CSV | Không cơ sở dữ liệu nào. Mọi thứ diff được, review được trong Git, và đọc được khi hệ thống không chạy |
 | Ghi trạng thái | **Ghi nguyên tử + khóa tệp** | `project_state.json` phải sống sót qua crash giữa chừng (TC-03) |
-| Mô hình nền | **Gemini `gemini-3.1-pro-preview`**, ghim phiên bản, stateless | Sinh mã nhúng. `gemini-3.5-flash` cho hội thoại và tra cứu |
+| Mô hình nền | **Gemini `gemini-3.8-flash`**, ghim phiên bản, stateless | Mặc định từ 04/09/2026 (SL-170). Số liệu Chương 3 đã có thuộc về `gemini-3.1-pro-preview` — chọn lại mã ấy bằng `eaa init --model` khi cần dựng lại |
 | Giao thức công cụ | **JSON trên `complete()`**, không function-calling | ADR-03: chạy được với mọi adapter theo `LLMClient`, kể cả MockLLM và bộ phát lại trong test |
 | Toolchain AVR | **avr-gcc · avr-libc · avrdude** | Khai báo trong `packs/avr/tools.yaml` dưới dạng dữ liệu, engine không biết tên chúng |
 | Kiểm thử engine | **pytest** — 106 tệp TC, 2.374 bài | Đặt tên theo mã test case trong hồ sơ thiết kế |

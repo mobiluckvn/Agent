@@ -2437,3 +2437,20 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Sửa kèm: ba chỗ cắt đầu ra đi hai chiều ngược nhau** | Nối đường gọi làm lộ ra một mâu thuẫn nằm im: `doctor._loi_cua_lenh` giữ 12 dòng **CUỐI** — và ghi đúng lý lẽ trong chú thích của nó — trong khi `InstallDiagnosis.render()` giữ 8 dòng **ĐẦU**, còn bậc "tra thông báo lỗi" đem **dòng đầu tiên** đi hỏi Internet. Đầu ra của trình quản lý gói mở màn bằng hàng chục dòng tải về rồi mới tới câu nói thật, nên cả hai chỗ sau đều đang lấy đúng phần vô nghĩa. Nay cả ba cùng giữ phần cuối |
 | **Bài canh** | `tests/test_tc129_chan_doan_loi_cai.py`, 16 bài. Kèm kiểm ĐỘT BIẾN, cả ba đều bị bắt: bỏ điều kiện `retryable` → 3 bài đỏ; bỏ lời gọi `sleep` → 2 bài đỏ; cho doctor tự chạy lệnh quay lui → 3 bài đỏ |
 | **Bài học rộng hơn** | Cột "bằng chứng" của bảng năng lực đòi chỉ ra được MODULE. Nó cần đòi thêm một thứ: chỉ ra được ĐƯỜNG GỌI. Phép kiểm ấy nay nằm trong `scripts/kiem_bang_nang_luc.py` và chạy được bất cứ lúc nào |
+
+---
+
+## SL-170 · QUYẾT ĐỊNH + LỆCH THẬT · Đổi mô hình nền sang `gemini-3.8-flash`, và bộ đếm token ra thiếu phần suy nghĩ
+
+| | |
+|---|---|
+| **Ai quyết** | Người dùng, ngày 04/09/2026. Đây là đánh đổi chi phí/chất lượng của **người trả tiền**, không phải của công cụ — `eaa/llm/catalog.py` đã viết sẵn lý lẽ ấy, và hệ vẫn không bao giờ tự chọn |
+| **Mã model xác minh thật, không đoán** | Chưa xác minh thì không được ghi vào `CATALOG`: mỗi mục ở đó khai *"đã kiểm bằng ListModels + một lượt generateContent thật"*. Đã gọi `ListModels` (54 model, 24 mã có chữ *flash*), rồi gọi thẳng `models/gemini-3.8-flash` và một lượt `generateContent` thật. Vào ≤ 1.048.576, ra ≤ 65.536, có `generateContent` và `countTokens` |
+| **Lỗi tìm ra nhờ chính lượt gọi thử** | Lượt gọi trả về đúng chữ `OK` báo `candidatesTokenCount = 1` — và `thoughtsTokenCount = 92`. `GeminiClient` đọc `tokens_out` từ **mình `candidatesTokenCount`**, nên nó đếm 1 trong khi 93 token đã được sinh ra và tính tiền |
+| **Vì sao lỗi này sống được tới hôm nay** | Với Pro 3.1 khoảng lệch không rõ như vậy. Nó là hạng lỗi mà kho này gọi tên nhiều lần: **đúng cho tới khi một giả định lặng lẽ đổi** — và lần đổi ấy chính là hôm nay |
+| **Nó làm hỏng cái gì** | `llm_calls.jsonl` là dữ liệu gốc của chương đánh giá, và `eaa/budget.py TokenBudget` (N-904) là thứ chặn chi phí. Cả hai đứng trên con số ấy |
+| **Đã sửa** | `tokens_out = candidatesTokenCount + thoughtsTokenCount`. **Cộng vào chứ không tách trường thứ hai**: mọi nơi đọc `tokens_out` đều đang hỏi *"lượt này sinh ra bao nhiêu token"*, và câu trả lời đúng gồm cả phần suy nghĩ. Một trường mới thì mọi chỗ tính tiền phải nhớ cộng, và chỗ nào quên sẽ sai im lặng |
+| **Ghi chú danh mục nói đúng cái đã biết** | Nêu tầng suy nghĩ ăn vào trần `maxOutputTokens`, và nói thẳng **dự án CHƯA đo A/B nó với Pro 3.1 trên việc sinh mã nhúng**. Chưa có số thì chưa nói được cái nào sinh mã tốt hơn — có bài kiểm canh đúng câu ấy |
+| **KHÔNG sửa lại quá khứ** | `projects/*/project_state.json`, `llm_calls.jsonl`, `kpi_log.csv`, và câu README *"robot đứng được trên AVR với `gemini-3.1-pro-preview`"* giữ nguyên. Đó là ghi chép việc đã xảy ra; sửa theo model mới là làm hỏng bằng chứng Chương 3. Pro 3.1 vẫn ở trong danh mục, và `KHUYEN_NGHI` có thêm mục *"dựng lại số liệu Chương 3"* trỏ về nó |
+| **Bài kiểm cũ ghim chuỗi được nới đúng chỗ** | Hai bài trong TC-11 so `model` với chuỗi `"gemini-3.1-pro-preview"` gõ tay. Chúng canh *"mã model có được ghi vào bằng chứng không"*, không canh *"mặc định đang là model nào"* — nay so với `DEFAULT_MODEL` |
+| **Bài canh** | `tests/test_tc130_token_ra_gom_phan_suy_nghi.py`, 12 bài. Cả hai chiều: có tầng suy nghĩ thì cộng, không có thì giữ nguyên số cũ không đổi một ly; usage rỗng hoặc toàn số không vẫn lùi về ước lượng chứ không trả 0 — trả 0 sẽ làm `TokenBudget` tin lượt gọi ấy miễn phí. Kiểm đột biến: bỏ phép cộng → 2 bài đỏ |

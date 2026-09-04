@@ -68,17 +68,32 @@ class ModelInfo:
     verified_on: str = ""
 
 
-#: Đã kiểm bằng ListModels + một lượt generateContent thật ngày 2026-08-31.
+#: Đã kiểm bằng ListModels + một lượt generateContent thật. Ngày kiểm ghi ở
+#: từng mục, vì chúng không được kiểm cùng một ngày.
 CATALOG: tuple[ModelInfo, ...] = (
+    ModelInfo(
+        id="gemini-3.8-flash",
+        provider="gemini",
+        display="Gemini 3.8 Flash",
+        input_limit=1_048_576,
+        output_limit=65_536,
+        note="MẶC ĐỊNH của sản phẩm từ 04/09/2026. Thế hệ mới hơn Pro 3.1 và "
+             "nhanh hơn hẳn. CÓ TẦNG SUY NGHĨ: một lượt trả về đúng chữ 'OK' "
+             "vẫn tiêu 92 token suy nghĩ, nên trần `maxOutputTokens` phải nới "
+             "rộng hơn độ dài câu trả lời mong đợi. Dự án CHƯA đo A/B nó với "
+             "Pro 3.1 trên việc sinh mã nhúng — chưa có số thì chưa nói được "
+             "cái nào sinh mã tốt hơn.",
+        verified_on="2026-09-04",
+    ),
     ModelInfo(
         id="gemini-3.1-pro-preview",
         provider="gemini",
         display="Gemini 3.1 Pro Preview",
         input_limit=1_048_576,
         output_limit=65_536,
-        note="Lớp suy luận. Mặc định của sản phẩm cho SINH MÃ: mã nhúng sai một "
-             "bit thanh ghi là hỏng phần cứng, nên chỗ này đáng trả giá. Chậm hơn "
-             "Flash rõ rệt ở những lượt gọi ngắn.",
+        note="Lớp suy luận. LÀ MẶC ĐỊNH CHO TỚI 04/09/2026, và là model đã sinh "
+             "toàn bộ firmware chạy được trên bo thật — mọi số liệu Chương 3 "
+             "đứng trên nó. Chậm hơn Flash rõ rệt ở những lượt gọi ngắn.",
         verified_on="2026-08-31",
     ),
     ModelInfo(
@@ -118,8 +133,9 @@ CATALOG: tuple[ModelInfo, ...] = (
 #: KHÔNG phải bảng tra để hệ tự chọn — không có mã nào đọc dict này để quyết
 #: định. Nếu một ngày có, thì mục đích của module này đã bị lật ngược.
 KHUYEN_NGHI: dict[str, str] = {
-    "sinh mã nhúng": "gemini-3.1-pro-preview",
-    "hội thoại, tra cứu, tóm tắt": "gemini-3.5-flash",
+    "sinh mã nhúng": "gemini-3.8-flash",
+    "hội thoại, tra cứu, tóm tắt": "gemini-3.8-flash",
+    "dựng lại số liệu Chương 3": "gemini-3.1-pro-preview",
     "kiểm thử / phát triển ngoại tuyến": "mock-deterministic-1",
 }
 

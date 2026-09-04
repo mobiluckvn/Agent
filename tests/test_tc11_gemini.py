@@ -26,6 +26,7 @@ from eaa.llm.base import BudgetExceeded, LLMError, Prompt, PromptLayer
 from eaa.llm.calllog import CallLog, ReplayClient, ReplayMiss
 from eaa.llm.gemini import (
     API_KEY_ENV,
+    DEFAULT_MODEL,
     GeminiClient,
     GeminiError,
     MissingApiKey,
@@ -356,7 +357,10 @@ def test_moi_loi_goi_duoc_ghi_lam_bang_chung(co_khoa, tmp_path: Path) -> None:
     ban_ghi = nhat_ky.all()
     assert len(ban_ghi) == 1
     assert ban_ghi[0].prompt_hash == _prompt().hash
-    assert ban_ghi[0].model == "gemini-3.1-pro-preview"
+    # So với DEFAULT_MODEL chứ không với một chuỗi gõ tay: bài này canh việc
+    # "mã model có được ghi vào bằng chứng không", không canh việc "mặc định
+    # đang là model nào". Đổi mặc định (SL-170) không được làm bài này đỏ.
+    assert ban_ghi[0].model == DEFAULT_MODEL
     assert ban_ghi[0].module == "drv_bus_sensor"
     assert ban_ghi[0].chunk_ids == ("ds-021",)
 
@@ -405,7 +409,7 @@ def test_tong_hop_nhat_ky_du_so_lieu_cho_chuong_3(co_khoa, tmp_path: Path) -> No
     tom_tat = nhat_ky.summary()
     assert tom_tat["calls"] == 2
     assert tom_tat["modules"] == ["drv_bus_sensor", "pid_controller"]
-    assert tom_tat["models"] == ["gemini-3.1-pro-preview"]
+    assert tom_tat["models"] == [DEFAULT_MODEL]
     assert tom_tat["tokens_in_total"] == 2 * 1234
 
 

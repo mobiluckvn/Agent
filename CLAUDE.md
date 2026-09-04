@@ -40,7 +40,9 @@ Bản gốc Word/PDF/hình trong `docs/docx/`, `docs/EAA_Full_Design.pdf`, `docs
 - Mọi kho tri thức: append-only + supersede, không ghi đè vật lý; mâu thuẫn → người phân xử. (TC-26, TC-29)
 - Mã cấu hình thanh ghi phải có trích dẫn `// ref: <chunk-id>`. (TC-17)
 - Project State ghi nguyên tử, sống sót qua crash. (TC-03)
-- LLM: Gemini Pro 3.1, ghim phiên bản, stateless mỗi lần gọi; Sprint 1–3 dùng MockLLM, chưa gọi API thật.
+- LLM: **Gemini 3.8 Flash** (`gemini-3.8-flash`), ghim phiên bản, stateless mỗi lần gọi; Sprint 1–3
+  dùng MockLLM, chưa gọi API thật. Đổi từ `gemini-3.1-pro-preview` ngày 04/09/2026 (SL-170) — mọi
+  số liệu Chương 3 đã có vẫn thuộc về Pro 3.1, và không được sửa lại theo model mới.
 
 ### Bất biến của lớp truy cập mạng (thêm 30/08/2026, SL-71..SL-80)
 

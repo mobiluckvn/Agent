@@ -593,7 +593,7 @@ def dung_bang(dich: Path) -> Path:
         ("Dòng mã engine (eaa/)", "14.792"),
         ("Lệnh CLI", "22"),
         ("Platform Pack", "1 (AVR 8-bit)"),
-        ("Mô hình nền", "gemini-3.1-pro-preview (ghim phiên bản)"),
+        ("Mô hình nền", "gemini-3.8-flash (ghim phiên bản, mặc định từ 04/09/2026)"),
         ("Sai lệch thiết kế đã ghi", "37 mục (SL-01..SL-37)"),
     ]:
         ws.append([nhan, gia_tri])
