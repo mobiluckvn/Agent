@@ -229,7 +229,7 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
 
     # ---------------------------------------------------------------- C8 ---
     ("C8.1", "8. Ghi nhớ & học liên phiên", "Bộ nhớ dài hạn TRONG một dự án", DU,
-     "state.json ghi nguyên tử sống sót qua crash (TC-03, N-907); KB append-only + supersede không ghi đè vật lý; tools.yaml; env.lock",
+     "state.json ghi nguyên tử sống sót qua crash (TC-03, N-907); eaa/kb.py nạp 5 kho của dự án — append-only + supersede, không ghi đè vật lý; tools.yaml; env.lock",
      "", KHONG),
     ("C8.2", "8. Ghi nhớ & học liên phiên", "Bộ nhớ LIÊN dự án", DU,
      "eaa/memory.py MemoryStore ở gốc kho: append-only + supersede, phạm vi toàn cục / mcu:<họ> / dự án:<tên> · TC-68",
@@ -337,8 +337,9 @@ def main() -> int:
          "Khung năng lực agent tổng quát do người dùng cung cấp (9 nhóm), đối chiếu với mã hiện có. "
          "Nhóm C10 là phần thêm, dựng từ ghi chú cuối của bản ấy: quy trình không nên đóng cứng."),
         ("Sheet 'Năng lực nhúng'",
-         "74 nghiệp vụ riêng của lập trình nhúng, xếp theo 11 giai đoạn vòng đời + nhóm xuyên suốt. "
-         "Đây là phần KHÔNG có trong khung chung — giá trị riêng của đề án nằm ở đây."),
+         f"{len(nv.NGHIEP_VU)} nghiệp vụ riêng của lập trình nhúng, xếp theo 11 giai đoạn vòng đời + "
+         "nhóm xuyên suốt. Đây là phần KHÔNG có trong khung chung — giá trị riêng của đề án nằm ở đây. "
+         "Số đếm tại chỗ: bảng dài thêm mỗi lần rà soát tìm ra việc chưa ai đặt tên."),
         ("Sheet 'Khoảng trống'",
          "Lọc mọi dòng CHƯA / MỘT PHẦN của cả hai sheet, xếp theo mức ưu tiên đề xuất. "
          "ĐÂY LÀ SHEET ĐỂ LÀM VIỆC — hai sheet trước chỉ để tra."),

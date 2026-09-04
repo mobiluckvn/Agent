@@ -255,6 +255,17 @@ NGHIEP_VU: list[tuple[str, str, str, str, str, str, str, str, str]] = [
      "T1", "Xác nhận rev; quyết cách né lỗi",
      "Mã đúng theo datasheet vẫn chạy sai nếu chip có lỗi đã công bố"),
 
+    ("N-038", G3, "Trả lời câu hỏi kỹ thuật từ kho tri thức ĐÃ DUYỆT",
+     "Trích đoạn đúng chỗ cho một câu hỏi tự do, kèm mã chunk để tra ngược",
+     "Câu hỏi bằng lời + kho trích đoạn đã qua G2",
+     "Hai tầng, đúng thứ tự của đường sinh mã: đồ thị chỉ đích danh trước (chỉ khi câu hỏi gọi "
+     "tên một module của dự án), BM25 lấp sau với ngưỡng độ phủ. CHỈ trả trích đoạn đã duyệt; "
+     "chunk còn chờ được NÊU TÊN nhưng không tính vào kết quả. Chất lượng truy xuất đo được bằng "
+     "bộ chuẩn, không bằng cảm giác.",
+     "T4", "—",
+     "Toàn bộ giá trị của G2 nằm ở chỗ một người đã đọc bản gốc. Đường hỏi-đáp không chạm được "
+     "vào kết quả ấy thì câu trả lời tụt xuống hạng chưa kiểm mà không có gì nói ra điều đó"),
+
     # ---------------- GĐ4 ----------------
     ("N-040", G4, "Phân rã bài toán thành module",
      "Danh sách module, mỗi module một trách nhiệm rõ",
@@ -506,6 +517,15 @@ NGHIEP_VU: list[tuple[str, str, str, str, str, str, str, str, str]] = [
      "T1", "Duyệt tài liệu bàn giao",
      "Bàn giao thiếu giới hạn đã biết là đẩy rủi ro sang người tiếp nhận"),
 
+    ("N-095", G9, "Sinh tài liệu thiết kế của chính dự án",
+     "URD, SRS, SDD, bảng chức năng, sơ đồ luồng — xuất ra định dạng nộp được",
+     "Hồ sơ dự án: ràng buộc, hồ sơ phần cứng, bản phân rã, sổ module",
+     "Dựng MỘT mô hình tài liệu rồi xuất nhiều định dạng (md, docx, pptx, xlsx, pdf), thay vì "
+     "viết mỗi định dạng một lần. Nội dung rút TỪ HỒ SƠ đang có, không hỏi mô hình — một tài "
+     "liệu lệch khỏi dự án nó mô tả thì tệ hơn không có tài liệu.",
+     "T2", "Đọc và chỉnh trước khi nộp",
+     "Tài liệu viết tay tách khỏi mã ngay từ ngày thứ hai, và không ai biết bản nào đúng"),
+
     # ---------------- GĐ10 ----------------
     ("N-100", G10, "Đánh giá ảnh hưởng khi tài liệu đổi",
      "Danh sách module cần xem lại",
@@ -592,6 +612,25 @@ NGHIEP_VU: list[tuple[str, str, str, str, str, str, str, str, str]] = [
      "T4", "—",
      "Mất trạng thái giữa chừng làm hỏng cả chuỗi dấu vết"),
 
+    ("N-914", XS, "Người chọn mô hình, hệ không tự chọn",
+     "Danh mục mã model đã kiểm, kèm chỗ mạnh chỗ yếu; mã đang dùng ghim trong Project State",
+     "Khóa API, danh mục",
+     "In ra những mã ĐÃ KIỂM với API nhà cung cấp, mỗi mã kèm ngày kiểm. Nhận cả mã ngoài danh "
+     "mục — nhà cung cấp ra model mới nhanh hơn tài liệu — nhưng lúc ấy nói rõ là CHƯA KIỂM. "
+     "Không có cơ chế nào tự đổi model giữa chừng.",
+     "T1", "Chọn model, và trả tiền cho lựa chọn ấy",
+     "Tự đổi model giữa chừng phá tính tái lập: hai lần chạy cùng một lệnh rơi vào hai model, và "
+     "lúc kết quả lệch thì không biết lệch vì model hay vì đầu vào"),
+
+    ("N-915", XS, "Hoán đổi nhà cung cấp mô hình mà hành vi không đổi",
+     "Cùng một vòng lặp chạy được trên mô hình thật, mô hình giả, và bản phát lại",
+     "Một adapter khai đúng giao diện",
+     "Vòng lặp chỉ gọi qua giao diện chung; đổi adapter chỉ đổi trường ghi trong chỉ số, không "
+     "đổi một nhánh xử lý nào. Bản phát lại đọc nhật ký lời gọi đã ghi và CỐ Ý không bịa phản "
+     "hồi khi trượt băm — một lượt phát lại tự sinh nội dung là bằng chứng giả.",
+     "T4", "—",
+     "Khóa vào một nhà cung cấp là đặt cả đề án vào tay một bảng giá và một lịch ngừng dịch vụ"),
+
     # ---------------- Thêm 04/09/2026 ----------------
     # Sáu mục dưới đây KHÔNG rút từ khung nghiệp vụ mà từ hành vi quan sát được
     # trên bo thật, chép lại từ docs/DANH_GIA_NANG_LUC_AGENT.md §3. Chúng là chỗ
@@ -668,9 +707,9 @@ DU, PHAN, CHUA, COY = "Đủ", "Một phần", "Chưa có", "Cố ý không làm
 
 DOI_CHIEU = [
  ("N-001", DU, "eaa/brief.py QUESTIONS + eaa brief · TC-49c", "", "T1"),
- ("N-002", DU, "eaa/brief.py probe_hardware · TC-49a", "", "T4"),
+ ("N-002", DU, "eaa/brief.py probe_hardware + eaa/usbdev.py (hỏi BO ĐÃ LÊN BUS CHƯA, khác hẳn câu có cổng nối tiếp không) + eaa/serialport.py · TC-49a, TC-85", "", "T4"),
  ("N-003", DU, "eaa/brief.py identify_board · TC-49b", "", "T1"),
- ("N-004", DU, "eaa/docplan.py plan_documents · TC-55a,b", "", "T1"),
+ ("N-004", DU, "eaa/docplan.py plan_documents + eaa/archive.py (nhận cả một kho nén hồ sơ: giải nén, phân loại, giữ nguyên bản gốc) · TC-55a,b", "", "T1"),
  ("N-005", DU, "eaa/brief.py ProjectDraft.gia_dinh · TC-49d", "", "T3"),
  ("N-006", DU, "eaa/propose.py ScopeProposal · TC-54a", "", "T1"),
  ("N-010", DU, "eaa/propose.py ConstraintProposal · TC-54b", "", "T1"),
@@ -687,7 +726,7 @@ DOI_CHIEU = [
  ("N-023", DU, "eaa/doctor.py EnvLock · TC-36", "", "T3"),
  ("N-024", DU, "eaa/vcs.py · TC-01", "", "T3"),
  ("N-030", DU, "eaa/docplan.py plan_pages · TC-55d,e", "", "T1"),
- ("N-031", DU, "eaa/ingest.py → G2 · TC-22", "", "T2"),
+ ("N-031", DU, "eaa/ingest.py → G2, đọc PDF qua eaa/pdftext.py — bọc pypdf và NÓI RA chỗ nó đọc không được thay vì trả về chuỗi rỗng · TC-22", "", "T2"),
  ("N-032", DU, "eaa/graph.py · TC-18", "", "T4"),
  ("N-033", DU, "eaa/readiness.py conflict + chuẩn hóa số · TC-26", "", "T1"),
  ("N-034", DU, "eaa/readiness.py · TC-24", "", "T3"),
@@ -696,6 +735,9 @@ DOI_CHIEU = [
   "Rà soát 04/09: KHÔNG module nào trong eaa/ import lifecycle, và không lệnh CLI nào gọi tới. "
   "`eaa docs regen` đi qua registry, không qua vòng đời tri thức. Cơ chế đúng, đường chạy chưa có", "T3"),
  ("N-037", DU, "eaa/docplan.py ErrataAnalysis · TC-55f,g,h", "", "T1"),
+ ("N-038", DU, "eaa/rag.py search_chunks (đồ thị trước, BM25 sau) + lệnh eaa recall + mục recall "
+  "trong TOOLBOX; chất lượng truy xuất đo bằng eaa/goldenset.py — precision@k trên bộ chuẩn, "
+  "eaa report retrieval · SL-166, TC-126, TC-20", "", "T4"),
  ("N-040", DU, "eaa/decompose.py + eaa plan propose · TC-50 (32 test)", "", "T1"),
  ("N-041", DU, "eaa/interfaces.py + khuôn interfaces của pack · TC-56a..e", "", "T2"),
  ("N-042", DU, "decompose.order()/parallel_groups() · TC-50b", "", "T3"),
@@ -736,13 +778,16 @@ DOI_CHIEU = [
  ("N-092", DU, "eaa/versions.py + eaa rollback · TC-30", "", "T3"),
  ("N-093", DU, "eaa/kpi.py + llm/calllog.py + registry.py · TC-09, TC-15", "", "T3"),
  ("N-094", DU, "eaa/handover.py OperationsHandbook · TC-59a,b", "", "T1"),
+ ("N-095", DU, "eaa/docmodel.py (một bản vẽ, nhiều định dạng) + eaa/designdoc.py (URD/SRS/SDD, "
+  "chức năng, luồng, rút TỪ HỒ SƠ chứ không hỏi mô hình) + eaa/office.py (docx/pptx/xlsx/md/pdf, "
+  "không thêm phụ thuộc) + lệnh eaa design list/gen · SL-105, TC-82", "", "T2"),
  ("N-100", PHAN, "eaa/lifecycle.py StaleSet · TC-29",
   "Cùng gốc với N-036: sửa một datasheet hiện KHÔNG có lệnh nào trả lời 'mã nào bị ảnh hưởng'. "
   "Cần một lệnh (vd `eaa knowledge stale`) nối StaleSet vào đường người dùng", "T1"),
  ("N-101", DU, "eaa/handover.py SwapAnalysis · TC-59c,d", "", "T1"),
  ("N-102", DU, "eaa/diagnostics.py FieldCase · TC-59e,f", "", "T1"),
  ("N-103", DU, "eaa/handover.py RolloutPlan · TC-59g,h", "", "T2"),
- ("N-900", DU, "TC-38 (quét mỗi commit) + TC-47a (không rẽ nhánh theo pack)", "", "T4"),
+ ("N-900", DU, "eaa/platform.py là interface DUY NHẤT engine gọi toolchain qua đó (FR-PLT-02, ADR-09) · TC-38 (quét mỗi commit) + TC-47a (không rẽ nhánh theo pack)", "", "T4"),
  ("N-901", DU, "eaa/llm/base.py mask_secrets · TC-14 + tests/conftest.py", "", "T4"),
  ("N-902", DU, "eaa/gates.py, doctor, flash — không cờ bỏ qua · TC-01, TC-42c", "", "T2"),
  ("N-903", DU, "eaa/confidence.py + Judged · TC-60a-c, TC-63a-e", "", "T3"),
@@ -754,6 +799,12 @@ DOI_CHIEU = [
  # Sáu mục thêm 04/09 — không mục nào có mã. Đây là phần "chưa đáp ứng" thật
  # của bảng: chúng không lộ ra khi đối chiếu khung với mã, chỉ lộ ra khi mã
  # sinh ra được đem chạy trên bo.
+ ("N-914", DU, "eaa/llm/catalog.py CATALOG + KHUYEN_NGHI (là LỜI KHUYÊN in ra, không có mã nào "
+  "đọc nó để quyết định) + lệnh eaa models; mặc định ghim trong Project State, cờ --model đổi "
+  "tại chỗ dùng · SL-103, SL-170, TC-80, TC-130", "", "T1"),
+ ("N-915", DU, "eaa/llm/base.py là giao diện chung; ba adapter eaa/llm/gemini.py, mock.py và "
+  "ReplayClient trong calllog.py — bản phát lại cố ý KHÔNG bịa phản hồi khi trượt băm · TC-11, "
+  "TC-15", "", "T4"),
  ("N-908", CHUA, "—",
   "Chưa có gì. Bốn cổng đo mã CÓ CHẠY KHÔNG, không đo mã có ĐANG ĐO ĐÚNG THỨ nó nhận không. "
   "Bằng chứng: 3/12 lần từ chối G3 (drv_imu, logic_pid, app_balance) · §3.1", "—"),

@@ -203,6 +203,59 @@ biết.
 
 ---
 
+## 7. Rà soát vòng hai — cái bảng CHƯA HỎI TỚI
+
+Vòng một hỏi: *"những dòng đang có trong bảng, có dòng nào khai quá lời không?"*
+Nó không hỏi được câu ngược lại: **có năng lực nào Agent đang có mà bảng chưa
+từng đặt tên?** Một bảng chỉ tự kiểm được phần nó đã viết ra.
+
+Phép đo cho câu ấy: **module nào trong `eaa/` không xuất hiện ở BẤT KỲ sheet
+nào.** Module là đơn vị nhỏ nhất mà một năng lực có thể trốn trong đó.
+
+Kết quả vòng hai: **13 module không có mặt ở đâu cả.**
+
+### 7.1 Bốn năng lực chưa có dòng — đã thêm
+
+| Mã | Nghiệp vụ | Vì sao nó là một năng lực riêng |
+|---|---|---|
+| **N-038** | Trả lời câu hỏi kỹ thuật từ kho tri thức ĐÃ DUYỆT | Toàn bộ giá trị của G2 nằm ở chỗ một người đã đọc bản gốc. Trước SL-166, `rag.py` chỉ được đường sinh mã gọi — nên ở tầng hội thoại, trích đoạn đã duyệt nằm trên đĩa mà không có đường lấy ra |
+| **N-095** | Sinh tài liệu thiết kế của chính dự án | URD/SRS/SDD rút TỪ HỒ SƠ chứ không hỏi mô hình. Một bản vẽ, nhiều định dạng xuất — không viết lại mỗi định dạng một lần |
+| **N-914** | Người chọn mô hình, hệ không tự chọn | Đây là một **quyết định thiết kế được cưỡng chế**, không phải một tiện ích: `KHUYEN_NGHI` là lời khuyên IN RA, không mã nào đọc nó để quyết định |
+| **N-915** | Hoán đổi nhà cung cấp mô hình mà hành vi không đổi | Ba adapter trên một giao diện. Bản phát lại cố ý **không bịa phản hồi** khi trượt băm — một lượt phát lại tự sinh nội dung là bằng chứng giả |
+
+### 7.2 Chín module còn lại: có dòng rồi, chỉ thiếu tên ở cột bằng chứng
+
+Không phải năng lực mới, nhưng cột bằng chứng thiếu tên chúng thì phép kiểm
+"mã này có ai gọi không" không với tới được, và dòng ấy mất một nửa neo:
+
+* `eaa/usbdev.py` → **N-002**. Nó hỏi *"bo đã lên bus chưa"*, khác hẳn câu *"có
+  cổng nối tiếp không"* — SL-108 sinh ra vì hai câu ấy bị lẫn.
+* `eaa/archive.py` → **N-004** (nhận cả một kho nén hồ sơ).
+* `eaa/pdftext.py` → **N-031** (bọc `pypdf`, và NÓI RA chỗ nó đọc không được
+  thay vì trả chuỗi rỗng).
+* `eaa/platform.py` → **N-900** (interface DUY NHẤT engine gọi toolchain qua đó).
+* `eaa/kb.py` → **C8.1** (nạp 5 kho của dự án).
+* `eaa/goldenset.py` → **N-038** (đo chất lượng truy xuất bằng bộ chuẩn).
+* `eaa/docmodel.py`, `office.py`, `llm/catalog.py`, `llm/gemini.py`,
+  `llm/mock.py` → nằm trong bốn dòng mới ở §7.1.
+
+### 7.3 Số sau vòng hai
+
+| Bảng | Dòng | ĐỦ | MỘT PHẦN | CHƯA | CỐ Ý KHÔNG |
+|---|---|---|---|---|---|
+| Năng lực nền (C1–C10) | 62 | 61 | 0 | 0 | 1 |
+| Nghiệp vụ nhúng (N-xxx) | **84** | 76 | 3 | 4 | 1 |
+| **Cộng** | **146** | **137** | **3** | **4** | 2 |
+
+`eaa/` còn **0 module** không xuất hiện ở sheet nào. Sheet Khoảng trống vẫn 7
+dòng — bốn năng lực vừa thêm đều đã ĐỦ, chúng chỉ chưa được đặt tên.
+
+Con số "74 nghiệp vụ" gõ tay trong sheet Đọc trước nay là **phép đếm tại chỗ** —
+cùng lý do đã đổi con số "1.428 test" ở §6: bảng dài thêm mỗi lần rà soát tìm ra
+việc chưa ai đặt tên, và một con số gõ tay sẽ đứng yên trong khi bảng đi tiếp.
+
+---
+
 ## Đọc cùng bản này
 
 * [`DANH_GIA_NANG_LUC_AGENT.md`](DANH_GIA_NANG_LUC_AGENT.md) — bảy giới hạn
