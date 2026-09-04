@@ -198,7 +198,11 @@ def test_buoc_chuan_bi_TRUOT_thi_dung_luon(tmp_path: Path, monkeypatch) -> None:
     )
     ca = "\n".join(d._run_install(spec, buoc))
 
-    assert da_chay == [tuple(buoc[0])] * 2, "chỉ thử bước chuẩn bị, không cài tiếp"
+    # Bất biến là "KHÔNG cài tiếp", không phải "thử đúng hai lần". Số lần thử
+    # nay do LOẠI lỗi quyết định (SL-169): chỉ lỗi mạng mới được thử lại, nên
+    # ghim một con số ở đây là ghim vào thứ có quyền đổi.
+    assert set(da_chay) == {tuple(buoc[0])}, "chỉ thử bước chuẩn bị, không cài tiếp"
+    assert tuple(buoc[1]) not in da_chay
     assert "kho không tồn tại" in ca
 
 

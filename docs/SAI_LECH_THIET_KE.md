@@ -2420,3 +2420,20 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Bản sao KHÔNG mang theo sản phẩm dịch** | `.so`, `.o`, `build/` bị lọc khỏi bản sao. Chép sang là dựng lại đúng cái bẫy SL-152: bộ kiểm dịch mã C thành thư viện rồi nạp bằng `ctypes`, còn thư viện của lần trước thì mã cũ không cần dịch nổi — phép đo sẽ đo nhị phân của bản MỚI trong khi tin rằng mình đang đo bản cũ |
 | **KHÔNG ĐO ĐƯỢC khác ĐO ĐƯỢC VÀ ĐẠT** | Hai trường riêng (`do_duoc`, `khong_phan_biet`). Gộp lại là biến im lặng thành lời khẳng định — đúng hạng lỗi mà `eaa/confidence.py` sinh ra để chặn |
 | **Bài canh** | `tests/test_tc128_do_nhay_bai_kiem.py`, 28 bài. Kèm kiểm ĐỘT BIẾN: bỏ luật lọc sản phẩm dịch → 1 bài đỏ; đảo thứ tự ghi mã cũ / bài kiểm mới → 1 bài đỏ. Và bài canh bản sao là BẢN SAO — thư mục làm việc thật không bị mã cũ ghi đè |
+
+---
+
+## SL-169 · LỆCH THẬT · Thang gỡ lỗi cài đặt là một thư viện không ai gọi (C5.1–C5.3, C5.5, C5.6, C5.9, C5.10)
+
+| | |
+|---|---|
+| **Cách tìm** | `scripts/kiem_bang_nang_luc.py` — phép kiểm thứ tư: mã khai trong bảng có ai gọi không. `eaa/installerr.py` không được module nào trong `eaa/` hay `packs/` import |
+| **Bảy dòng đứng trên một chỗ trống** | C5.1 phân loại lỗi, C5.2 thử lại có giãn, C5.3 đổi tham số, C5.5 đổi công cụ tương đương, C5.6 tự viết thay thế, C5.9 quay lui, C5.10 phân biệt lỗi công cụ với lỗi đầu vào — cả bảy khai ĐỦ, cả bảy chỉ được ra hàm cụ thể, và cả bảy đều đúng theo nghĩa "có mã, có test" |
+| **Bảng đã tự mâu thuẫn mà không ai thấy** | Dòng C5.7 viết *"với lỗi cài đặt thì mỏng hơn vì C5.1–C5.5 còn trống"* trong khi cả năm dòng ấy đang đánh ĐỦ. Hai ô cạnh nhau nói ngược nhau, và không có gì kiểm nên nó sống được bốn ngày |
+| **Chỗ hở thật** | `doctor._run_install` thử lại **mù hai lần** cho mọi thất bại rồi in đúng một câu: *"cài thất bại sau 2 lần — cài tay theo hướng dẫn của nhà phát hành"*. Một lỗi quyền được thử lại y hệt một lần rớt gói; một lỗi sai tên gói cũng vậy |
+| **Đã sửa** | `_run_install` gọi `classify()` trên mọi lần trượt (kể cả timeout và `OSError`), thử lại **chỉ khi** `diagnosis.retryable` — tức chỉ lỗi MẠNG — với giãn cách `retry_delays()` 2s/4s/8s. Trượt hẳn thì in `InstallDiagnosis.render()`: loại lỗi, dấu hiệu nhận ra, **mức tin cậy**, thang gỡ đủ bậc |
+| **Quay lui: NÊU chứ không CHẠY** | `rollback_command` suy lệnh gỡ cho **mọi bước đã chạy**, không chỉ bước trượt — bước 1 xong rồi thì máy đã đổi. Nhưng doctor không tự chạy: gỡ cũng là một lần đổi máy người dùng, và nó phải qua đúng cái cửa mà lệnh cài vừa đi qua (N-022 ở mức T2). Suy không ra thì im, không đoán — một lệnh gỡ đoán sai chạy với quyền quản trị tệ hơn hẳn việc không có lệnh gỡ nào |
+| **Hàm nghỉ tiêm được** | `Doctor.sleep` mặc định `time.sleep`, bộ kiểm thay bằng một hàm ghi lại. Một phép giãn không đo được là một phép giãn sẽ lặng lẽ biến mất trong lần sửa sau |
+| **Sửa kèm: ba chỗ cắt đầu ra đi hai chiều ngược nhau** | Nối đường gọi làm lộ ra một mâu thuẫn nằm im: `doctor._loi_cua_lenh` giữ 12 dòng **CUỐI** — và ghi đúng lý lẽ trong chú thích của nó — trong khi `InstallDiagnosis.render()` giữ 8 dòng **ĐẦU**, còn bậc "tra thông báo lỗi" đem **dòng đầu tiên** đi hỏi Internet. Đầu ra của trình quản lý gói mở màn bằng hàng chục dòng tải về rồi mới tới câu nói thật, nên cả hai chỗ sau đều đang lấy đúng phần vô nghĩa. Nay cả ba cùng giữ phần cuối |
+| **Bài canh** | `tests/test_tc129_chan_doan_loi_cai.py`, 16 bài. Kèm kiểm ĐỘT BIẾN, cả ba đều bị bắt: bỏ điều kiện `retryable` → 3 bài đỏ; bỏ lời gọi `sleep` → 2 bài đỏ; cho doctor tự chạy lệnh quay lui → 3 bài đỏ |
+| **Bài học rộng hơn** | Cột "bằng chứng" của bảng năng lực đòi chỉ ra được MODULE. Nó cần đòi thêm một thứ: chỉ ra được ĐƯỜNG GỌI. Phép kiểm ấy nay nằm trong `scripts/kiem_bang_nang_luc.py` và chạy được bất cứ lúc nào |

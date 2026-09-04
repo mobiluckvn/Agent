@@ -204,7 +204,15 @@ class InstallDiagnosis:
         if self.signal:
             dong += [f"  dấu hiệu nhận ra: {self.signal}", ""]
         if self.output:
-            dong += ["  máy nói:", *[f"      {d}" for d in self.output.strip().splitlines()[:8]], ""]
+            # Giữ phần CUỐI, không phải phần đầu. Đầu ra của trình quản lý gói
+            # mở màn bằng hàng chục dòng tải về rồi mới tới câu nói thật, nên
+            # tám dòng đầu thường là tám dòng vô nghĩa.
+            #
+            # `doctor._loi_cua_lenh` đã ghi đúng lý lẽ ấy trong chú thích của nó
+            # và giữ phần cuối. Hai chỗ cắt cùng một thứ theo hai chiều ngược
+            # nhau là một mâu thuẫn nằm im cho tới khi có ai đó nối chúng lại —
+            # và SL-169 là lần nối ấy.
+            dong += ["  máy nói:", *[f"      {d}" for d in self.output.strip().splitlines()[-8:]], ""]
         if self.ladder:
             dong.append("Thang gỡ — rẻ trước, đắt sau:")
             dong += [r.render() for r in self.ladder]
@@ -233,6 +241,18 @@ def classify(output: str, *, returncode: int = 1, tool: str = "") -> InstallDiag
         returncode=returncode,
         ladder=tuple(remedies(KHAC, tool=tool, output=van_ban)),
     )
+
+
+def _dong_loi(output: str) -> str:
+    """Dòng đáng đem đi tra — dòng CUỐI có nội dung, không phải dòng đầu.
+
+    Cùng lý lẽ với `doctor.SO_DONG_LOI` và với phần "máy nói" của
+    :meth:`InstallDiagnosis.render`: đầu ra của trình quản lý gói mở màn bằng
+    hàng chục dòng tải về rồi mới tới câu nói thật. Đem dòng đầu đi tra là đem
+    một dòng tiến trình đi hỏi Internet.
+    """
+    dong = [d.strip() for d in (output or "").strip().splitlines() if d.strip()]
+    return dong[-1][:80] if dong else ""
 
 
 def remedies(
@@ -303,7 +323,7 @@ def remedies(
              agent=True)
         them("Tra thông báo lỗi này",
              "Tìm nguyên văn dòng lỗi; ưu tiên trang phát hành và kho mã của chính công cụ.",
-             agent=True, command=("eaa", "research", "--", (output or "").strip().splitlines()[0][:80] if output.strip() else ten))
+             agent=True, command=("eaa", "research", "--", _dong_loi(output) or ten))
 
     if alternatives:
         them("Đổi sang công cụ tương đương",

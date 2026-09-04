@@ -36,12 +36,21 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 import yaml
+
+from eaa.installerr import (
+    SO_LAN_THU_LAI,
+    InstallDiagnosis,
+    classify,
+    retry_delays,
+    rollback_command,
+)
 
 __all__ = [
     "DoctorError",
@@ -594,9 +603,15 @@ class Doctor:
     #: đường "người duyệt ngoài luồng, Agent chạy" đóng lại, chỉ còn hỏi tại
     #: terminal. Cố ý mặc định như vậy: mở đường phải là một hành động rõ ràng.
     approvals: Any = None
+    #: Hàm nghỉ giữa hai lần thử lại. Tiêm được để bộ kiểm đo được GIÃN CÁCH
+    #: mà không phải chờ thật — một phép giãn không đo được là một phép giãn
+    #: sẽ lặng lẽ biến mất trong lần sửa sau.
+    sleep: Any = None
 
     def __post_init__(self) -> None:
         self.tools_kb = Path(self.tools_kb)
+        if self.sleep is None:
+            self.sleep = time.sleep
 
     # ----------------------------------------------------------------------
     # Chế độ 1 — quét (chỉ đọc, không đổi gì trên máy)
@@ -906,28 +921,50 @@ class Doctor:
         for chi_so, lenh in enumerate(day, start=1):
             nhan = f"{spec.name}" + (f" (bước {chi_so}/{len(day)})" if nhieu_buoc else "")
             xong = False
-            for lan in range(1, 3):
+            chan_doan: InstallDiagnosis | None = None
+            gian_cach = retry_delays()
+
+            # Thử lại là quyền của ĐÚNG MỘT loại lỗi. Bản trước thử mù hai lần
+            # cho mọi thất bại: một lỗi quyền được thử lại y hệt một lỗi rớt
+            # gói, và một lỗi sai tên gói cũng vậy. Thử lại thứ không thể khác
+            # đi là đốt thời gian và làm nhật ký dài gấp đôi mà không thêm tin.
+            for lan in range(1, SO_LAN_THU_LAI + 2):
                 try:
                     ket_qua = subprocess.run(
                         list(lenh), capture_output=True, text=True, timeout=900, shell=False
                     )
                 except (subprocess.TimeoutExpired, OSError) as exc:
                     nhat_ky.append(f"{nhan}: lần {lan} lỗi — {exc}")
-                    continue
+                    chan_doan = classify(str(exc), returncode=-1, tool=spec.name)
+                else:
+                    if ket_qua.returncode == 0:
+                        xong = True
+                        break
+                    nhat_ky.append(f"{nhan}: lần {lan} thất bại (mã {ket_qua.returncode})")
+                    nhat_ky.extend(_loi_cua_lenh(ket_qua))
+                    chan_doan = classify(
+                        (ket_qua.stdout or "") + (ket_qua.stderr or ""),
+                        returncode=ket_qua.returncode,
+                        tool=spec.name,
+                    )
 
-                if ket_qua.returncode == 0:
-                    xong = True
+                if not chan_doan.retryable:
+                    nhat_ky.append(
+                        f"{nhan}: loại lỗi {chan_doan.kind.upper()} — KHÔNG thử lại, "
+                        "thử lại cũng ra đúng kết quả ấy"
+                    )
                     break
-
-                nhat_ky.append(f"{nhan}: lần {lan} thất bại (mã {ket_qua.returncode})")
-                nhat_ky.extend(_loi_cua_lenh(ket_qua))
+                if lan > SO_LAN_THU_LAI:
+                    break
+                cho = gian_cach[lan - 1]
+                nhat_ky.append(f"{nhan}: lỗi MẠNG — chờ {cho:g}s rồi thử lại")
+                self.sleep(cho)
 
             if not xong:
                 if thu_muc_tam:
                     shutil.rmtree(thu_muc_tam, ignore_errors=True)
-                nhat_ky.append(
-                    f"{spec.name}: cài thất bại sau 2 lần — dừng, không lặp vô hạn. "
-                    "Cài tay theo hướng dẫn của nhà phát hành (§9.4)."
+                nhat_ky.extend(
+                    self._chan_doan_cai_hong(spec, chan_doan, day[:chi_so])
                 )
                 return nhat_ky
 
@@ -941,6 +978,43 @@ class Doctor:
             the = self.write_tool_card(bao_cao)
             nhat_ky.append(f"{spec.name}: đã ghi Thẻ công cụ — {the.compact()}")
         return nhat_ky
+
+    def _chan_doan_cai_hong(
+        self,
+        spec: ToolSpec,
+        chan_doan: InstallDiagnosis | None,
+        da_chay: Sequence[Sequence[str]],
+    ) -> list[str]:
+        """Cài trượt thì nói VÌ SAO và LÀM GÌ TIẾP, không nói "đọc hướng dẫn".
+
+        Trước SL-169 chỗ này in đúng một câu cho mọi kiểu hỏng: *"cài thất bại
+        sau 2 lần — cài tay theo hướng dẫn của nhà phát hành"*. Thang gỡ trong
+        ``eaa/installerr.py`` đã có đủ bậc và có bài kiểm canh thứ tự, nhưng
+        không module nào gọi tới nó — nên người dùng nhận một dòng, còn sáu
+        loại lỗi cần sáu cách xử lý khác nhau thì nằm nguyên trong thư viện.
+
+        Lệnh QUAY LUI nêu ra chứ KHÔNG chạy. Cài dở dang là trạng thái đã đổi
+        trên máy người dùng, và gỡ cũng là một lần đổi nữa — nó phải qua đúng
+        cái cửa mà lệnh cài vừa đi qua (N-022 ở mức T2).
+        """
+        if chan_doan is None:
+            return [
+                f"{spec.name}: cài thất bại và không đọc được đầu ra để phân loại. "
+                "Chạy tay đúng lệnh trên để xem máy nói gì."
+            ]
+
+        dong = [chan_doan.render()]
+
+        go = [rollback_command(lenh) for lenh in da_chay]
+        go = [g for g in go if g]
+        if go:
+            dong += [
+                "",
+                "Máy đã bị đổi dở dang. Lệnh quay lui suy từ chính lệnh cài — "
+                "đọc kỹ rồi tự chạy nếu muốn:",
+                *[f"  $ {' '.join(g)}" for g in go],
+            ]
+        return dong
 
     @staticmethod
     def verify_checksum(path: str | Path, expected: str) -> str:

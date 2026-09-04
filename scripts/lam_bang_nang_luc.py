@@ -140,49 +140,49 @@ NEN: list[tuple[str, str, str, str, str, str, str]] = [
      "Cố ý: cài phần mềm là thay đổi máy của người dùng (N-022 ở mức tự chủ T2). Đây KHÔNG phải khoảng trống cần lấp", KHONG),
 
     # ---------------------------------------------------------------- C5 ---
-    # Rà soát 04/09/2026 — bảy dòng dưới đây từng khai ĐỦ. Mã vẫn nguyên và test
-    # vẫn xanh, nhưng `scripts/kiem_bang_nang_luc.py` chỉ ra điều bảng không nhìn
-    # được: KHÔNG module nào trong eaa/ hay packs/ import `eaa/installerr.py`.
-    # `doctor._run_install` trượt một bước thì chỉ ghi một dòng nhật ký rồi trả về.
-    # Thang gỡ lỗi cài đặt tồn tại dưới dạng thư viện, không dưới dạng thứ chạy
-    # được — đúng hình dạng SL-113. Bằng chứng chỉ được ra module không đủ; nó
-    # còn phải chỉ được ra ĐƯỜNG GỌI.
-    ("C5.1", "5. Xử lý lỗi", "Đọc và phân loại lỗi (mạng / quyền / phụ thuộc / build / runtime)", PHAN,
-     "eaa/installerr.py classify(): 6 loại (mạng/quyền/phụ thuộc/build/không tìm thấy/khác), thứ tự mẫu có chủ ý · TC-69",
-     "Không có người gọi: `eaa/doctor.py _run_install` bắt ngoại lệ rồi ghi 'KHÔNG tải được — {exc}' và trả về, "
-     "không đưa đầu ra qua classify(). Cần nối vào doctor để một lần cài trượt sinh ra CHẨN ĐOÁN chứ không sinh ra một dòng log", CAO),
-    ("C5.2", "5. Xử lý lỗi", "Thử lại có kiểm soát (retry + backoff) cho lỗi mạng", PHAN,
-     "installerr.retry_delays() 2s/4s/8s + WebFetcher.max_retries — và CHỈ lỗi mạng mới retryable, có test canh điều đó",
-     "Nửa có thật là nhánh WEB: WebFetcher.max_retries nằm trên đường `eaa read`/`eaa research` và có người gọi. "
-     "Nhánh CÀI ĐẶT thì không: retry_delays() không ai gọi, nên một lần cài đứt mạng là trượt hẳn", CAO),
-    ("C5.3", "5. Xử lý lỗi", "Đổi tham số: ghim phiên bản cũ hơn, cờ khác, mirror khác", PHAN,
-     "installerr.remedies(): bậc đổi kho/mirror, bậc ghim phiên bản cũ hơn, bậc cài ngoại tuyến",
-     "Thang gỡ dựng đủ bậc và có TC-69 canh thứ tự, nhưng không lệnh nào in nó ra cho người đọc", CAO),
+    # Rà soát 04/09/2026 tìm ra bảy dòng khai ĐỦ cho một module KHÔNG AI GỌI:
+    # `eaa/installerr.py` có đủ sáu loại lỗi, thang gỡ đủ bậc, lệnh quay lui, và
+    # TC-69 canh thứ tự — nhưng `doctor._run_install` trượt thì thử lại mù hai
+    # lần rồi in đúng một câu cho mọi kiểu hỏng. SL-169 nối đường gọi ấy.
+    ("C5.1", "5. Xử lý lỗi", "Đọc và phân loại lỗi (mạng / quyền / phụ thuộc / build / runtime)", DU,
+     "eaa/installerr.py classify(): 6 loại (mạng/quyền/phụ thuộc/build/không tìm thấy/khác), thứ tự mẫu có chủ ý · TC-69. "
+     "Gọi từ eaa/doctor.py _run_install trên mọi lần cài trượt, kể cả timeout · SL-169, TC-129",
+     "", KHONG),
+    ("C5.2", "5. Xử lý lỗi", "Thử lại có kiểm soát (retry + backoff) cho lỗi mạng", DU,
+     "installerr.retry_delays() 2s/4s/8s + WebFetcher.max_retries. Doctor thử lại CHỈ khi diagnosis.retryable — "
+     "bản trước thử mù 2 lần cho mọi loại, kể cả lỗi quyền · TC-129",
+     "", KHONG),
+    ("C5.3", "5. Xử lý lỗi", "Đổi tham số: ghim phiên bản cũ hơn, cờ khác, mirror khác", DU,
+     "installerr.remedies(): bậc đổi kho/mirror, bậc ghim phiên bản cũ hơn, bậc cài ngoại tuyến. "
+     "In ra trong nhật ký doctor khi cài trượt (InstallDiagnosis.render) · TC-129",
+     "", KHONG),
     ("C5.4", "5. Xử lý lỗi", "Tìm thông báo lỗi trên web (GitHub issues, StackOverflow)", DU,
      "`eaa research` tra nguyên văn dòng lỗi — lệnh có thật, Agent tự gọi được",
      "Đủ ở mức người gõ lệnh. Chưa tự động: thang gỡ của loại KHÁC nêu lệnh ấy trong văn bản, không tự chạy nó", THAP),
-    ("C5.5", "5. Xử lý lỗi", "Đổi sang công cụ thay thế tương đương", PHAN,
-     "installerr.remedies(alternatives=…) — bậc ấy KHÔNG cho Agent tự làm: đổi công cụ là đổi cả cổng kiểm chứng",
-     "Cùng gốc với C5.3: bậc có trong thư viện, không có đường nào chạy tới", VUA),
-    ("C5.6", "5. Xử lý lỗi", "Tự viết giải pháp tối thiểu thay thế", PHAN,
-     "Bậc áp chót của installerr.remedies(): 'tự viết một thứ tối thiểu thay thế', đặt SAU mọi bậc cài thật · TC-77",
-     "Xưởng công cụ (eaa/toolforge.py) thì có đường chạy thật; riêng bậc DẪN tới nó trong thang gỡ lỗi cài đặt "
-     "thì không ai gọi, nên Agent không tự đi tới bậc ấy được", VUA),
+    ("C5.5", "5. Xử lý lỗi", "Đổi sang công cụ thay thế tương đương", DU,
+     "installerr.remedies(alternatives=…) — bậc ấy KHÔNG cho Agent tự làm: đổi công cụ là đổi cả cổng kiểm chứng. "
+     "Đi cùng thang gỡ vào nhật ký doctor · TC-129",
+     "", KHONG),
+    ("C5.6", "5. Xử lý lỗi", "Tự viết giải pháp tối thiểu thay thế", DU,
+     "Bậc áp chót của installerr.remedies(): 'tự viết một thứ tối thiểu thay thế', đặt SAU mọi bậc cài thật · TC-77. "
+     "Xưởng công cụ eaa/toolforge.py là chỗ thực thi bậc ấy",
+     "", KHONG),
     ("C5.7", "5. Xử lý lỗi", "Báo cáo người dùng: lỗi cụ thể + đã thử gì + gợi ý", DU,
-     "ToolReport ghi kết quả từng cổng kèm đầu ra thật; `eaa report review`; vòng tự sửa ghi lại từng lần thử",
-     "Đủ cho vòng sinh mã, và mạnh thêm từ SL-162: cổng unittests quy lỗi về TỆP (metrics['failing_files']). "
-     "Với lỗi cài đặt thì vẫn mỏng, vì C5.1–C5.3 chưa có đường gọi", VUA),
+     "ToolReport ghi kết quả từng cổng kèm đầu ra thật; `eaa report review`; vòng tự sửa ghi lại từng lần thử. "
+     "Với lỗi CÀI: InstallDiagnosis nêu loại, dấu hiệu nhận ra, mức tin cậy, thang gỡ và lệnh quay lui · TC-129",
+     "Mạnh thêm từ SL-162: cổng unittests quy lỗi về TỆP (metrics['failing_files'])", KHONG),
     ("C5.8", "5. Xử lý lỗi", "Giới hạn vòng lặp, đặt ngân sách số lần thử", DU,
      "N=3 lần tự sửa, dạng patch chứ không gửi lại cả tệp; quá N thì dừng và bàn giao người, thoát mã 3 (TC-06, TC-19)",
      "Mạnh hơn khung: giới hạn là bất biến có test chặn, không phải một hằng số ai cũng sửa được. "
      "Từ SL-162/TC-123 thêm hạng dừng thứ ba: lỗi ngoài phạm vi module thì KHÔNG mở vòng vá", KHONG),
-    ("C5.9", "5. Xử lý lỗi", "Rollback về trạng thái trước", PHAN,
-     "installerr.rollback_command() suy lệnh gỡ từ chính lệnh cài; không suy được thì trả RỖNG chứ không đoán",
-     "Không ai gọi. Một lần `eaa doctor --fix` cài dở dang hiện KHÔNG có đường lui nào ngoài tay người", CAO),
-    ("C5.10", "5. Xử lý lỗi", "Phân biệt lỗi của tool với lỗi do input", PHAN,
-     "Tầng cổng có thật và đang chạy: env_error / config_error / blocked trong eaa/orchestrator.py (SL-162, TC-123). "
-     "Tầng cài đặt là 6 loại của installerr.classify()",
-     "Chỉ tầng cổng đang chạy. Tầng cài đặt chưa nối, nên câu 'công cụ hỏng hay tôi gõ sai' vẫn phải người trả lời", VUA),
+    ("C5.9", "5. Xử lý lỗi", "Rollback về trạng thái trước", DU,
+     "installerr.rollback_command() suy lệnh gỡ từ chính lệnh cài; không suy được thì trả RỖNG chứ không đoán. "
+     "Doctor NÊU lệnh lui cho mọi bước đã chạy, và KHÔNG tự chạy — gỡ cũng là một lần đổi máy (N-022 mức T2) · TC-129",
+     "", KHONG),
+    ("C5.10", "5. Xử lý lỗi", "Phân biệt lỗi của tool với lỗi do input", DU,
+     "Tầng cổng: env_error / config_error / blocked trong eaa/orchestrator.py (SL-162, TC-123). "
+     "Tầng cài đặt: 6 loại của installerr.classify(), nay có đường gọi từ doctor · TC-129",
+     "", KHONG),
 
     # ---------------------------------------------------------------- C6 ---
     ("C6.1", "6. Tự viết code tạo công cụ mới", "Nhận diện khi nào nên tự viết thay vì đi tìm", DU,
