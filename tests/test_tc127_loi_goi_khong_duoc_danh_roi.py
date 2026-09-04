@@ -78,8 +78,13 @@ def test_ngoac_nhon_trong_chuoi_khong_lam_lech_phep_dem() -> None:
     void b(void) { drv_imu_init(); }
     """
     than = than_ham(nguon)
+    # Cả hai chiều hỏng đều phải bị bắt: `a` bị BỎ vì phép đếm không bao giờ
+    # về 0, và `b` bị NUỐT vào `a`. Chỉ kiểm một chiều thì đột biến bỏ lọc
+    # chuỗi vẫn đi qua được.
+    assert "a" in than, "hàm chứa chuỗi bị bỏ vì phép đếm ngoặc không đóng lại"
     assert "b" in than, "hàm sau bị nuốt vì dấu ngoặc trong chuỗi"
     assert "drv_imu_init();" in than["b"]
+    assert "drv_imu_init();" not in than["a"]
 
 
 def test_ngoac_nhon_trong_chu_thich_khong_lam_lech() -> None:
