@@ -47,6 +47,7 @@ from eaa import EXIT_ENV_ERROR, EXIT_OK, EXIT_REPAIR_LIMIT, EXIT_WAITING_GATE
 from eaa.composer import Task
 from eaa.contract import khai_bao_ham, mat_loi_goi, pha_vo_hop_dong
 from eaa.gates import APPROVED, REJECTED, GatePayload
+from eaa.instrument import NghiVan, nghi_van_chinh_do_do
 from eaa.policy import PHASE_NAMES, GATE_PURPOSE, Level, check_transition, level
 from eaa.sensitivity import KetQuaDoNhay, bai_kiem_doi, ket_luan
 from eaa.tools.base import CodeArtifact, Severity, ToolError, ToolReport
@@ -387,6 +388,14 @@ class Orchestrator:
                 artifact, canh_bao = self._va_loi(task, state, hong[0], artifact, module_id)
                 if canh_bao:
                     nhat_ky.append(canh_bao)
+                # Bản vá vừa nhận có đang chỉnh ĐỒ ĐO thay vì chỉnh cái bị đo
+                # không (N-908). Soi TRƯỚC khi chạy cổng: cổng sẽ báo ĐẠT cho
+                # một bản vá như thế — đó đúng là lý do nó lọt được ba lần.
+                nghi = self._nghi_van_do_do(truoc_khi_va, artifact, module_id)
+                if nghi.co:
+                    return self._dung_vi_chinh_do_do(
+                        module_id, nghi, bao_cao, so_lan_va, nhat_ky
+                    )
             except Exception as exc:  # noqa: BLE001
                 return self._that_bai(
                     module_id,
@@ -1097,6 +1106,80 @@ class Orchestrator:
     # ----------------------------------------------------------------------
     # Kết cục
     # ----------------------------------------------------------------------
+
+    def _nghi_van_do_do(
+        self, truoc: CodeArtifact, sau: CodeArtifact, module_id: str
+    ) -> NghiVan:
+        """Bản vá có chỉnh ĐỒ ĐO thay vì chỉnh cái bị đo không (N-908).
+
+        Chỉ soi tệp `.c` của chính module. Tệp bài kiểm lấy bản MỚI, vì dấu vết
+        thứ hai hỏi "mã có vừa mọc ra nhánh nhận đúng con số bài kiểm ĐANG đòi
+        không" — con số ấy là con số hiện hành, không phải con số cũ.
+        """
+        duong_dan = f"src/{module_id}.c"
+        moi = sau.files.get(duong_dan)
+        cu = truoc.files.get(duong_dan)
+        if not moi or not cu:
+            return NghiVan()
+        return nghi_van_chinh_do_do(
+            cu,
+            moi,
+            nguon_test=sau.files.get(f"tests/test_{module_id}.py", ""),
+            tep=duong_dan,
+        )
+
+    def _dung_vi_chinh_do_do(
+        self,
+        module_id: str,
+        nghi: NghiVan,
+        bao_cao: Sequence[ToolReport],
+        so_lan_va: int,
+        nhat_ky: Sequence[str],
+    ) -> ModuleOutcome:
+        """Dừng vòng vá và đưa câu hỏi về cho người (N-908 ở mức tự chủ T1).
+
+        Câu phải trả lời là *"bài kiểm sai hay mã sai"*, và nó không trả lời
+        được bằng máy: nó đòi biết bài toán. Cái máy làm được là nhận ra ba dấu
+        vết mà cả ba ca đã gặp đều để lại, rồi hỏi sớm — hỏi sớm thì không đốt
+        nốt ngân sách vá vào một hướng có thể đang sai.
+
+        KHÔNG tự sửa và KHÔNG tự bỏ bản vá: sửa một bài kiểm sai là quyết định
+        của người, y như sửa một trích đoạn datasheet phải đi qua G2.
+        """
+        self._dat_trang_thai(module_id, "handoff", retries=so_lan_va)
+        self._kpi(
+            "instrument_doubt",
+            module_id,
+            retries=so_lan_va,
+            result="fail",
+            note=f"{len(nghi.dau_vet)} dấu vết chỉnh đồ đo",
+        )
+        ghi = list(nhat_ky) + ["  ⚠ dừng: bản vá có dấu vết chỉnh đồ đo"]
+        return ModuleOutcome(
+            module_id=module_id,
+            status="handoff",
+            exit_code=EXIT_REPAIR_LIMIT,
+            message=(
+                f"DỪNG ở vòng vá {so_lan_va}: bản vá cho {module_id} có dấu vết "
+                "SỬA CÁI ĐANG ĐO thay vì sửa cái bị đo.\n\n"
+                + nghi.cau()
+                + "\n\nBốn cổng sẽ báo ĐẠT cho một bản vá như thế — đó đúng là lý "
+                "do dạng này lọt được ba lần trước.\n\n"
+                "Câu phải trả lời, và nó là câu của người:\n"
+                "  1. Con số bài kiểm đang đòi có đúng theo vật lý của bài toán không?\n"
+                "     Đúng  → mã sai, sửa mã và giữ nguyên bài kiểm.\n"
+                "     Sai   → bài kiểm sai, sửa bài kiểm và nói rõ vì sao bằng đại\n"
+                "             lượng vật lý, không bằng 'để bài kiểm xanh'.\n"
+                f"  2. Hằng số có `// ref:` mà đổi thì trích dẫn phải đổi theo — và\n"
+                f"     đổi trích đoạn tài liệu là việc đi qua G2.\n\n"
+                f"Bản vá vẫn nằm nguyên trong {nghi.tep or 'tệp module'} để đọc; "
+                "hệ không tự sửa và cũng không tự bỏ nó.\n\n"
+                "Nhật ký từng vòng:\n" + "\n".join(ghi)
+            ),
+            reports=list(bao_cao),
+            repairs=so_lan_va,
+            attempts_log=ghi,
+        )
 
     def _bàn_giao(
         self,

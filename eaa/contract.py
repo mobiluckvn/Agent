@@ -62,11 +62,13 @@ from __future__ import annotations
 import re
 
 __all__ = [
+    "bo_chu_thich",
     "khai_bao_ham",
     "loi_goi",
     "mat_loi_goi",
     "pha_vo_hop_dong",
     "than_ham",
+    "vung_than_ham",
 ]
 
 #: Từ khoá kiểu — một định danh cuối cùng thuộc tập này là KIỂU chứ không phải
@@ -177,6 +179,53 @@ def _lam_sach(nguon: str) -> str:
     van = _TIEN_XU_LY.sub(" ", van)
     # Giữ nguyên độ dài không cần thiết; chỉ cần bỏ nội dung.
     return _CHUOI.sub('""', van)
+
+
+def _lam_sach_giu_do_dai(nguon: str) -> str:
+    """Như :func:`_lam_sach` nhưng THAY BẰNG DẤU CÁCH đúng số ký tự đã bỏ.
+
+    Giữ độ dài để vị trí trong chuỗi đã làm sạch trỏ đúng vào chuỗi gốc. Nhờ
+    thế `vung_than_ham` cắt được thân hàm KÈM chú thích — thứ mà `than_ham`
+    không trả về, vì nó đã bỏ chú thích để đếm ngoặc cho đúng.
+
+    Ai cần chú thích: bộ dò "mã tự chỉnh cho vừa đồ đo" (N-908) phải biết hàm
+    nào mang ``// ref:``, mà dấu ấy nằm trong chú thích.
+    """
+
+    def thay(khop: re.Match[str]) -> str:
+        # Giữ nguyên ký tự xuống dòng: số dòng phải khớp để thông báo lỗi nêu
+        # đúng dòng, và để chú thích một dòng không nuốt dòng kế tiếp.
+        return "".join("\n" if c == "\n" else " " for c in khop.group(0))
+
+    van = _CHU_THICH_KHOI.sub(thay, nguon)
+    van = _CHU_THICH_DONG.sub(thay, van)
+    van = _TIEN_XU_LY.sub(thay, van)
+    return _CHUOI.sub(thay, van)
+
+
+def bo_chu_thich(nguon: str) -> str:
+    """Mã đã bỏ chú thích, tiền xử lý và ruột chuỗi — giữ nguyên độ dài."""
+    return _lam_sach_giu_do_dai(nguon)
+
+
+def vung_than_ham(nguon: str) -> dict[str, tuple[int, int]]:
+    """Tên hàm → (đầu, cuối) của thân hàm, tính trên CHÍNH chuỗi truyền vào.
+
+    Khác :func:`than_ham` ở chỗ nó trả VỊ TRÍ chứ không trả nội dung, nên chỗ
+    gọi tự quyết cắt bản có chú thích hay bản đã làm sạch.
+    """
+    van = _lam_sach_giu_do_dai(nguon)
+    ket_qua: dict[str, tuple[int, int]] = {}
+    for khop in _MO_THAN.finditer(van):
+        ten = khop.group("ten")
+        if ten in _KHONG_PHAI_LOI_GOI:
+            continue
+        mo = van.index("{", khop.end() - 1)
+        sau = _quet_den_dong_ngoac(van, mo)
+        if sau is None:
+            continue
+        ket_qua[ten] = (mo + 1, sau)
+    return ket_qua
 
 
 def than_ham(nguon: str) -> dict[str, str]:

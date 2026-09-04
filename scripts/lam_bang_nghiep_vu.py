@@ -805,9 +805,12 @@ DOI_CHIEU = [
  ("N-915", DU, "eaa/llm/base.py là giao diện chung; ba adapter eaa/llm/gemini.py, mock.py và "
   "ReplayClient trong calllog.py — bản phát lại cố ý KHÔNG bịa phản hồi khi trượt băm · TC-11, "
   "TC-15", "", "T4"),
- ("N-908", CHUA, "—",
-  "Chưa có gì. Bốn cổng đo mã CÓ CHẠY KHÔNG, không đo mã có ĐANG ĐO ĐÚNG THỨ nó nhận không. "
-  "Bằng chứng: 3/12 lần từ chối G3 (drv_imu, logic_pid, app_balance) · §3.1", "—"),
+ ("N-908", PHAN,
+  "eaa/instrument.py dò ba DẤU VẾT trên mỗi bản vá: hằng số trong hàm mang // ref: bị đổi; "
+  "mã vừa mọc nhánh nhận đúng con số của bài kiểm; chú thích tự khai. Thấy dấu vết thì DỪNG "
+  "vòng vá và đưa câu hỏi về cho người (SL-171, TC-131, 25 bài)",
+  "Dò DẤU VẾT, không kiểm vật lý. Câu 'con số nào mới đúng' đòi biết bài toán, và chỗ ấy vẫn "
+  "là người phân xử — đúng mức tự chủ T1 mà nghiệp vụ này khai", "T1"),
  ("N-909", PHAN,
   "eaa/sensitivity.py chạy bộ kiểm MỚI trên mã CŨ trong bản sao tạm; kết quả vào nhật ký, "
   "KPI test_sensitivity, và đầu checklist G3 (SL-168, TC-128, 28 bài)",

@@ -6,8 +6,9 @@ ngày 30–31/08, trước khi robot lên bo; từ đó tới nay kho thêm 86 m
 nào bảng đang khai quá lời**, và cái gì phải làm để lấp.
 
 > **Cập nhật 04/09 cuối ngày.** Bốn việc đầu trong §5 đã làm xong (SL-167 →
-> SL-170), sheet Khoảng trống từ 15 xuống **7 dòng**, và bộ test từ 2.395 xanh /
-> 10 đỏ lên **2.494 xanh / 0 đỏ**. Phần thân bài dưới đây giữ nguyên cách nói ở
+> SL-171), sheet Khoảng trống từ 15 xuống **7 dòng**, và bộ test từ 2.395 xanh /
+> 10 đỏ lên **2.519 xanh / 0 đỏ**. Rà soát vòng hai (§7) thêm 4 nghiệp vụ bảng
+> chưa từng đặt tên. Phần thân bài dưới đây giữ nguyên cách nói ở
 > thời điểm rà soát — nó là ảnh chụp, và một ảnh chụp bị sửa lại theo kết quả
 > sau đó thì không còn là bằng chứng của việc rà soát nữa.
 
@@ -176,14 +177,21 @@ phép A/B về chất lượng: hai module demo qua cổng dễ, còn bảy modu
 | 2 | **Ghi lại 10 fixture TC-15** | ✅ ghi bằng `gemini-3.8-flash`, TC-15 13/13 |
 | 3 | **N-909** — phép kiểm độ nhạy cho bài kiểm mới sinh | ✅ SL-168, TC-128 (28 bài) — bắt hạng nhẹ hơn, phần còn lại vẫn cần người đọc ở G3 |
 | 4 | **Nối `installerr` vào `doctor`** — 7 dòng C5 cùng lúc | ✅ SL-169, TC-129 (16 bài) |
-| 5 | **N-908** — đối chiếu hằng số bài kiểm với vật lý trước khi vá | ⬜ điểm yếu lớn nhất còn lại |
+| 5 | **N-908** — mã tự chỉnh cho vừa đồ đo | ✅ SL-171, TC-131 (25 bài) — dò ba DẤU VẾT rồi dừng vòng vá, KHÔNG kiểm vật lý: câu "con số nào mới đúng" vẫn là câu của người |
 | 6 | **Nối `lifecycle` vào một lệnh** (vd `eaa knowledge stale`) | ⬜ N-036 + N-100 cùng lúc |
 | 7 | **N-913** — số đo phần cứng vào lớp ngữ cảnh | ⬜ đắt nhất: đụng bộ ghép prompt và gate tri thức |
 
 N-911 và N-912 để sau — cả hai đều đáng làm nhưng không chặn việc nào đang chạy.
 
-Sheet **Khoảng trống** còn **7 dòng**: N-908, N-909 (phần còn lại), N-036,
-N-100, N-911, N-912, N-913.
+Sheet **Khoảng trống** vẫn **7 dòng**, nhưng thành phần đã đổi: N-908 và N-909
+từ CHƯA lên **MỘT PHẦN**. Cả hai nay có bộ dò chạy được; phần còn thiếu ở cả hai
+là phần đòi biết bài toán, và phần ấy thuộc về người — đúng mức tự chủ T1/T2 mà
+hai nghiệp vụ ấy khai. Bốn dòng còn lại: N-036, N-100, N-911, N-912, N-913.
+
+Một dòng không giảm đi sau khi làm xong việc là chuyện bình thường ở bảng này:
+MỘT PHẦN nghĩa là *"có đường chạy, còn một nhánh chưa có"*, và nó ở lại danh
+sách việc cho tới khi nhánh ấy có — hoặc cho tới khi người chốt rằng nhánh ấy
+thuộc về người và không nên lấp.
 
 Mỗi bộ test ở trên đều đã qua **kiểm đột biến** — cố ý làm hỏng mã rồi xác nhận
 đúng bài kiểm đỏ. Một lần đột biến đi qua được, và đọc lại thì lỗi ở phép đột
