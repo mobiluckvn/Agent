@@ -757,9 +757,11 @@ DOI_CHIEU = [
  ("N-908", CHUA, "—",
   "Chưa có gì. Bốn cổng đo mã CÓ CHẠY KHÔNG, không đo mã có ĐANG ĐO ĐÚNG THỨ nó nhận không. "
   "Bằng chứng: 3/12 lần từ chối G3 (drv_imu, logic_pid, app_balance) · §3.1", "—"),
- ("N-909", CHUA, "—",
-  "Chưa có gì. Cần một phép kiểm ĐỘ NHẠY: chạy lại bài kiểm mới trên bản mã SAI đã biết, "
-  "xanh thì bài kiểm ấy rỗng. Bằng chứng: test_deadband_keeps_setpoint_steady · §3.3, §3.8", "—"),
+ ("N-909", PHAN,
+  "eaa/sensitivity.py chạy bộ kiểm MỚI trên mã CŨ trong bản sao tạm; kết quả vào nhật ký, "
+  "KPI test_sensitivity, và đầu checklist G3 (SL-168, TC-128, 28 bài)",
+  "Bắt được hạng NHẸ HƠN hạng đã sinh ra nó: bài kiểm không phân biệt được gì. Ca deadband vẫn "
+  "đỏ trên mã cũ vì lý do khác nên vẫn QUA được phép đo — phần ấy còn cần người đọc ở G3", "T2"),
  ("N-910", DU,
   "eaa/contract.py: pha_vo_hop_dong so chữ ký header (SL-163, TC-124) + mat_loi_goi so tập "
   "lời gọi LIÊN MODULE của tệp .c với bản đã merge (SL-167, TC-127, 33 bài)",

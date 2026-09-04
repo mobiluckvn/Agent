@@ -36,8 +36,10 @@ chỉ nói "đúng 3 lần thử", và hai cách hiểu cho hai con số khác n
 from __future__ import annotations
 
 import json
+import shutil
+import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -46,6 +48,7 @@ from eaa.composer import Task
 from eaa.contract import khai_bao_ham, mat_loi_goi, pha_vo_hop_dong
 from eaa.gates import APPROVED, REJECTED, GatePayload
 from eaa.policy import PHASE_NAMES, GATE_PURPOSE, Level, check_transition, level
+from eaa.sensitivity import KetQuaDoNhay, bai_kiem_doi, ket_luan
 from eaa.tools.base import CodeArtifact, Severity, ToolError, ToolReport
 from eaa.vcs import MERGE_GATE, MergeNotAuthorized, authorize_merge
 
@@ -284,6 +287,7 @@ class Orchestrator:
         cau_bo = self._cau_bo_tep(bo_ngoai_pham_vi, module_id)
         if cau_bo:
             nhat_ky.append(cau_bo)
+        truoc_khi_va: CodeArtifact | None = None
         canh_bao = self.canh_bao_luoc(prompt)
         if canh_bao:
             nhat_ky.append(canh_bao)
@@ -310,6 +314,11 @@ class Orchestrator:
             hong = [r for r in bao_cao if not r.passed]
             if not hong:
                 break
+
+            # Bản sắp bị vá — giữ lại để đo ĐỘ NHẠY của bài kiểm sau khi vòng vá
+            # kết thúc (N-909). Phải giữ ở đây: `_va_loi` gán đè `artifact`, và
+            # sau vòng lặp thì bản vừa bị cổng đánh đỏ không còn ai cầm.
+            truoc_khi_va = artifact
 
             if any(r.metrics.get("env_error") for r in hong):
                 return self._that_bai(
@@ -389,6 +398,21 @@ class Orchestrator:
                     nhat_ky=nhat_ky,
                 )
 
+        # Độ nhạy của bài kiểm (N-909). Chỉ đo khi vòng vá đã chạy: chưa vá thì
+        # chưa có "bản mã sai đã biết" nào để so, và phép đo mất nghĩa.
+        do_nhay = KetQuaDoNhay()
+        if so_lan_va and truoc_khi_va is not None:
+            do_nhay = self._do_nhay_bai_kiem(truoc_khi_va, artifact, module_id)
+            if do_nhay.bai_kiem_moi or not do_nhay.do_duoc:
+                nhat_ky.append("  " + do_nhay.cau())
+                self._kpi(
+                    "test_sensitivity",
+                    module_id,
+                    retries=so_lan_va,
+                    result="pass" if do_nhay.dat else "fail",
+                    note=do_nhay.cau(),
+                )
+
         # Bước 9: commit + diff.
         commit = self._commit(artifact, module_id)
         tdev = (time.monotonic() - bat_dau) / 60.0
@@ -426,7 +450,7 @@ class Orchestrator:
             )
 
         # Bước 10: gửi diff chờ G3.
-        payload = self._xin_gate(module_id, branch, bao_cao, artifact)
+        payload = self._xin_gate(module_id, branch, bao_cao, artifact, do_nhay)
         self._luu_bang_chung(module_id, bao_cao, payload.content_digest)
         self._dat_trang_thai(module_id, "in_review", retries=so_lan_va)
         self._kpi(
@@ -949,14 +973,74 @@ class Orchestrator:
         write_artifact(artifact, self.repo.root)
         return self.repo.commit_artifact(artifact, module_id=module_id)
 
+    #: Thứ không cần chép sang bản sao đo độ nhạy. Sản phẩm dịch phải bỏ vì
+    #: `.so` của lần chạy trước sẽ được `ctypes` nạp thay cho mã cũ — đúng cái
+    #: bẫy SL-152 đã dựng cổng để chặn, và chép nó sang là dựng lại cái bẫy ấy.
+    _KHONG_CHEP = ("__pycache__", ".git", "build", "*.so", "*.dylib", "*.o", "*.a")
+
+    def _do_nhay_bai_kiem(
+        self, truoc: CodeArtifact, sau: CodeArtifact, module_id: str
+    ) -> KetQuaDoNhay:
+        """Bài kiểm vừa thêm có phân biệt được bản cũ với bản mới không (N-909).
+
+        Chạy bộ kiểm MỚI trên mã CŨ, trong một bản sao tạm. Xanh trên cả hai
+        bản nghĩa là nó không chứng minh được gì về lần sửa vừa rồi.
+
+        KHÔNG chặn. Kết quả đi vào nhật ký và vào hồ sơ G3, vì bài học của
+        chính ca sinh ra phép đo này là *màu của bài kiểm không thay thế được
+        việc đọc mã ở G3* — một bộ đo tự nhận thay được người ở đây sẽ tái lập
+        đúng cái sai nó sinh ra để chặn.
+        """
+        duong_dan = f"tests/test_{module_id}.py"
+        moi = sau.files.get(duong_dan)
+        if moi is None:
+            return KetQuaDoNhay()
+        bai_moi = bai_kiem_doi(truoc.files.get(duong_dan), moi)
+        if not bai_moi:
+            return KetQuaDoNhay()
+
+        cong = next(
+            (g for g in self.gate_chain if getattr(g, "name", "") == "unittests"), None
+        )
+        if cong is None:
+            return ket_luan(
+                bai_moi, "", do_duoc=False, ly_do="chuỗi cổng không có cổng unittests"
+            )
+
+        from eaa.tools.compile import write_artifact
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="eaa-do-nhay-") as tam:
+                goc = Path(tam) / "du_an"
+                shutil.copytree(
+                    Path(cong.work_dir),
+                    goc,
+                    ignore=shutil.ignore_patterns(*self._KHONG_CHEP),
+                )
+                # Mã CŨ trước — kèm cả bộ kiểm cũ của nó — rồi mới đặt đè bộ
+                # kiểm MỚI lên. Ngược thứ tự thì bản vá ghi đè chính thứ đang đo.
+                write_artifact(truoc, goc)
+                (goc / duong_dan).parent.mkdir(parents=True, exist_ok=True)
+                (goc / duong_dan).write_text(moi, encoding="utf-8")
+                bao_cao = replace(cong, tests_dir=goc / "tests", work_dir=goc).run(None)
+        except Exception as exc:  # noqa: BLE001 - đĩa, quyền, cổng tự nổ…
+            return ket_luan(bai_moi, "", do_duoc=False, ly_do=f"{type(exc).__name__}: {exc}")
+        return ket_luan(bai_moi, bao_cao.raw_output)
+
     def _xin_gate(
         self,
         module_id: str,
         branch: str,
         bao_cao: Sequence[ToolReport],
         artifact: CodeArtifact,
+        do_nhay: KetQuaDoNhay | None = None,
     ) -> GatePayload:
         """Bước 10 — đặt hồ sơ lên bàn cho người, kèm checklist từ đồ thị."""
+        # Độ nhạy vào ĐẦU checklist khi có bài kiểm không phân biệt được: nó là
+        # câu duy nhất trong hồ sơ nói rằng một màu xanh ở đây không có nghĩa.
+        muc_do_nhay: tuple[str, ...] = ()
+        if do_nhay is not None and (do_nhay.bai_kiem_moi or not do_nhay.do_duoc):
+            muc_do_nhay = (do_nhay.cau(),)
         payload = GatePayload(
             gate_id=MERGE_GATE,
             title=f"Review diff module {module_id}",
@@ -967,7 +1051,7 @@ class Orchestrator:
                 f"chunk đã dùng: {', '.join(artifact.chunk_ids) or '(không có)'}",
             ),
             details=self.repo.diff(),
-            checklist=tuple(self.graph.review_checklist(module_id)),
+            checklist=muc_do_nhay + tuple(self.graph.review_checklist(module_id)),
             content_digest=self.repo.diff_digest(branch),
         )
         self.gates.request(payload)

@@ -2402,3 +2402,21 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Hai lỗi riêng, không gộp** | Vi phạm chữ ký gắn `src/<m>.h`, lời gọi bị rơi gắn `src/<m>.c`. Gộp một dòng thì lớp quy lỗi về tệp của SL-162 chỉ còn quy được về một chỗ và nửa kia mất địa chỉ |
 | **Ruột chuỗi phải bỏ trước khi đếm ngoặc** | Một dấu `{` trong chuỗi làm phép đếm lệch từ đó tới hết tệp, và hàm sau bị nuốt vào hàm trước — sai im lặng, không ném ngoại lệ nào. Có bài canh riêng |
 | **Bài canh** | `tests/test_tc127_loi_goi_khong_duoc_danh_roi.py`, 33 bài. Chiều bắt: mất lời gọi, mất nhiều lời gọi (thứ tự ổn định), xoá cả hàm chứa nó, chú thích lại một lời gọi. Chiều **đừng kêu nhầm** (nhiều bài hơn, cố ý): dời sang hàm khác cùng tệp, gom vào hàm phụ, mất lời gọi nội bộ, mất lời gọi thư viện C, thêm lời gọi mới, viết lại cả tệp mà giữ đủ việc. Và luật "rỗng khi chưa có gì để so": module sinh lần đầu, kho chưa dựng, kho không đọc được — không cái nào được làm hỏng lượt sinh |
+
+---
+
+## SL-168 · BỔ SUNG · Bài kiểm xanh chưa phải bằng chứng — phép đo độ nhạy (N-909)
+
+| | |
+|---|---|
+| **Cách tìm** | Rà soát bảng năng lực 04/09. Mục N-909 mới thêm, rút từ `DANH_GIA_NANG_LUC_AGENT §3.8` — giới hạn khó thấy nhất trong tám giới hạn |
+| **Chuyện đã xảy ra** | Kỹ sư yêu cầu thêm bài canh *"trong vùng chết, điểm đặt phải đứng yên"*. Agent thêm `test_deadband_keeps_setpoint_steady`, bài ấy **đỏ ở vòng đầu, xanh sau khi sửa** — nhìn từ ngoài đúng hệt một bài kiểm làm đúng việc. Đọc kỹ: nó chạy 10 vòng, điểm đặt trôi 0,015, còn xa ngưỡng 5 của vùng chết. Nó **xanh cả với mã sai** |
+| **Vì sao khó thấy hơn mọi dạng khác** | Khác §3.1 và §3.4: ở đó mô hình chỉnh đồ đo cho vừa mã, và cả hai để lại dấu vết đọc ra được — một hằng số bị đổi, một chú thích tự khai. Ở đây **không có gì bị chỉnh**. Bài kiểm trông đúng, tên đúng, và kết quả đúng ở đúng hai thời điểm cần đúng |
+| **Đã sửa** | `eaa/sensitivity.py` — chạy lại bộ kiểm MỚI trên mã CŨ (bản vừa bị cổng đánh đỏ) trong một bản sao tạm. Xanh trên cả hai bản nghĩa là nó không chứng minh được gì về lần sửa vừa rồi |
+| **Ranh giới, và ranh giới này quan trọng** | Phép đo KHÔNG nói bài kiểm đủ mạnh. Chính ca `deadband` vẫn đỏ trên mã cũ (vì lý do khác) nên nó sẽ QUA được phép đo. Bộ đo bắt hạng nhẹ hơn: bài kiểm hoàn toàn không phân biệt được gì. Nói rõ điều này trong docstring, vì một bộ đo tự nhận thay được người sẽ tái lập đúng cái sai nó sinh ra để chặn |
+| **KHÔNG chặn — vào hồ sơ G3** | Bài học của chính ca ấy là *màu của bài kiểm không thay thế được việc đọc mã ở G3*. Kết quả đi vào nhật ký, vào KPI (`test_sensitivity`), và vào **đầu checklist G3** khi có bài không phân biệt được — nó là câu duy nhất trong hồ sơ nói rằng một màu xanh ở đây không có nghĩa |
+| **Chỉ đo khi vòng vá đã chạy** | Chưa vá thì chưa có "bản mã sai đã biết" nào để so. Và chỉ đo khi có bài kiểm MỚI hoặc ĐỔI — phép đo tốn một lượt chạy pytest, không được tiêu vào lượt không có gì để đo |
+| **Chuẩn hoá bằng cây cú pháp** | "Bài kiểm đã đổi" so bằng `ast.dump`, không bằng chuỗi. Thụt lề đổi, chú thích đổi, xuống dòng đổi — không cái nào đổi việc bài kiểm làm, và so chuỗi thì mọi lượt định dạng lại đều kéo theo một phép đo thừa |
+| **Bản sao KHÔNG mang theo sản phẩm dịch** | `.so`, `.o`, `build/` bị lọc khỏi bản sao. Chép sang là dựng lại đúng cái bẫy SL-152: bộ kiểm dịch mã C thành thư viện rồi nạp bằng `ctypes`, còn thư viện của lần trước thì mã cũ không cần dịch nổi — phép đo sẽ đo nhị phân của bản MỚI trong khi tin rằng mình đang đo bản cũ |
+| **KHÔNG ĐO ĐƯỢC khác ĐO ĐƯỢC VÀ ĐẠT** | Hai trường riêng (`do_duoc`, `khong_phan_biet`). Gộp lại là biến im lặng thành lời khẳng định — đúng hạng lỗi mà `eaa/confidence.py` sinh ra để chặn |
+| **Bài canh** | `tests/test_tc128_do_nhay_bai_kiem.py`, 28 bài. Kèm kiểm ĐỘT BIẾN: bỏ luật lọc sản phẩm dịch → 1 bài đỏ; đảo thứ tự ghi mã cũ / bài kiểm mới → 1 bài đỏ. Và bài canh bản sao là BẢN SAO — thư mục làm việc thật không bị mã cũ ghi đè |
