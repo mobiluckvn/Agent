@@ -760,9 +760,10 @@ DOI_CHIEU = [
  ("N-909", CHUA, "—",
   "Chưa có gì. Cần một phép kiểm ĐỘ NHẠY: chạy lại bài kiểm mới trên bản mã SAI đã biết, "
   "xanh thì bài kiểm ấy rỗng. Bằng chứng: test_deadband_keeps_setpoint_steady · §3.3, §3.8", "—"),
- ("N-910", PHAN, "eaa/contract.py so khai báo header với bản trên main · TC-124 (16 bài)",
-  "Nửa đã có là CHỮ KÝ HÀM (SL-163). Nửa còn thiếu là TẬP LỜI GỌI trong hàm vào — "
-  "mất một lời gọi khởi tạo không cổng nào đỏ. Bằng chứng: app_init() · §3.2", "T4"),
+ ("N-910", DU,
+  "eaa/contract.py: pha_vo_hop_dong so chữ ký header (SL-163, TC-124) + mat_loi_goi so tập "
+  "lời gọi LIÊN MODULE của tệp .c với bản đã merge (SL-167, TC-127, 33 bài)",
+  "", "T4"),
  ("N-911", CHUA, "—",
   "Chưa có gì. Hồ sơ phần cứng đã khai đơn vị của từng đại lượng, nên dữ liệu để làm thì có sẵn. "
   "Bằng chứng: chú thích '4ms / 0.000031s = 129' · §3.4", "—"),

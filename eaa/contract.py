@@ -27,13 +27,47 @@ tên tham số ra. Ngả về phía báo NHẦM ở những chỗ ấy là có c
 
 Nhưng nó KHÔNG được báo nhầm ở chỗ thường: đổi tên tham số là chuyện vô hại và
 xảy ra suốt, nên tên tham số bị bỏ trước khi so.
+
+Nửa thứ hai: lời gọi bị đánh rơi (N-910)
+-----------------------------------------
+
+Phép so chữ ký ở trên canh cái module này HỨA. Nó không canh cái module này
+DÙNG — và đó là nửa đắt hơn.
+
+Chuyện đã xảy ra: một vòng vá làm ``app_init()`` mất bốn lời gọi khởi tạo
+driver. Firmware câm hoàn toàn, **33 bài kiểm vẫn xanh**. Không cổng nào đỏ, vì
+không có gì sai: mã dịch được, mã chạy được, mã chỉ không làm gì cả. Bài kiểm
+đơn vị gọi thẳng hàm cần kiểm nên không đi qua ``app_init()`` lần nào.
+
+Chỗ mất là im lặng theo đúng nghĩa đen. Không có thông báo lỗi nào để đọc.
+
+``mat_loi_goi`` so tập lời gọi LIÊN MODULE của bản đã merge với bản mới. Liên
+module nghĩa là: tên hàm ấy được khai báo trong header của một module KHÁC —
+không phải hàm nội bộ của chính tệp này, không phải hàm thư viện C.
+
+Vì sao so ở tầm TỆP chứ không tầm HÀM
+--------------------------------------
+
+Tách bốn lời gọi ra một hàm phụ rồi gọi hàm phụ ấy là việc tái cấu trúc bình
+thường và ĐÚNG. So ở tầm hàm sẽ kêu ở mỗi lần như thế, và một cổng hay kêu
+nhầm sớm muộn cũng bị tắt đi.
+
+So ở tầm tệp thì lời gọi dời chỗ trong cùng tệp không bị tính là mất — chỉ lời
+gọi **biến khỏi tệp** mới bị tính. Đó đúng là chuyện đã xảy ra, và nó không thể
+là tái cấu trúc: một lời gọi liên module biến mất là một việc không còn ai làm.
 """
 
 from __future__ import annotations
 
 import re
 
-__all__ = ["khai_bao_ham", "pha_vo_hop_dong"]
+__all__ = [
+    "khai_bao_ham",
+    "loi_goi",
+    "mat_loi_goi",
+    "pha_vo_hop_dong",
+    "than_ham",
+]
 
 #: Từ khoá kiểu — một định danh cuối cùng thuộc tập này là KIỂU chứ không phải
 #: tên tham số, và bỏ nó đi sẽ biến ``unsigned int`` thành ``unsigned``.
@@ -108,6 +142,121 @@ def khai_bao_ham(nguon: str) -> dict[str, str]:
         danh_sach = [_kieu_tham_so(t) for t in tham.split(",")] if tham else []
         ket_qua[ten] = f"{tra_ve} {ten}({', '.join(danh_sach)})"
     return ket_qua
+
+
+#: Từ khoá đi liền dấu mở ngoặc mà KHÔNG phải lời gọi hàm. Thiếu một từ ở đây
+#: thì `if` thành một hàm bị mất, và bộ kiểm kêu ở mọi lượt sinh.
+_KHONG_PHAI_LOI_GOI = frozenset(
+    {
+        "if", "while", "for", "switch", "do", "else", "return", "sizeof",
+        "case", "goto", "defined", "_Static_assert", "static_assert",
+        "alignof", "_Alignof", "typeof", "__typeof__", "asm", "__asm__",
+        "catch",
+    }
+)
+
+_CHUOI = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', re.DOTALL)
+_LOI_GOI = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+_MO_THAN = re.compile(
+    # `kiểu tên(tham số) {` — tham số cho phép MỘT tầng ngoặc lồng để con trỏ
+    # hàm không làm hỏng phép khớp.
+    r"\b(?P<ten>[A-Za-z_]\w*)\s*\((?P<tham>[^;{}()]*(?:\([^()]*\)[^;{}()]*)*)\)\s*"
+    r"(?:[A-Za-z_]\w*\s*)*\{"
+)
+
+
+def _lam_sach(nguon: str) -> str:
+    """Bỏ chú thích, tiền xử lý và RUỘT của mọi chuỗi.
+
+    Ruột chuỗi phải đi, không phải vì nó gây nhiễu tên hàm mà vì nó có thể chứa
+    dấu ngoặc nhọn — và một dấu ngoặc nhọn trong chuỗi làm phép đếm ngoặc lệch
+    từ đó tới hết tệp.
+    """
+    van = _CHU_THICH_KHOI.sub(" ", nguon)
+    van = _CHU_THICH_DONG.sub(" ", van)
+    van = _TIEN_XU_LY.sub(" ", van)
+    # Giữ nguyên độ dài không cần thiết; chỉ cần bỏ nội dung.
+    return _CHUOI.sub('""', van)
+
+
+def than_ham(nguon: str) -> dict[str, str]:
+    """Tên hàm → thân hàm, đọc từ một tệp mã C.
+
+    Chỉ lấy ĐỊNH NGHĨA (có thân). Khai báo suông thuộc về ``khai_bao_ham``.
+
+    Dùng để NÊU TÊN chỗ mất trong thông báo lỗi, không dùng để quyết định. Phép
+    quyết định nằm ở tầm tệp — xem docstring đầu mô-đun.
+    """
+    van = _lam_sach(nguon)
+    ket_qua: dict[str, str] = {}
+    for khop in _MO_THAN.finditer(van):
+        ten = khop.group("ten")
+        if ten in _KHONG_PHAI_LOI_GOI:
+            continue
+        mo = van.index("{", khop.end() - 1)
+        sau = _quet_den_dong_ngoac(van, mo)
+        if sau is None:
+            continue
+        ket_qua[ten] = van[mo + 1 : sau]
+    return ket_qua
+
+
+def _quet_den_dong_ngoac(van: str, mo: int) -> int | None:
+    """Vị trí dấu ``}`` khớp với dấu ``{`` ở ``mo``; None nếu tệp cụt."""
+    sau = 1
+    i = mo + 1
+    while i < len(van):
+        if van[i] == "{":
+            sau += 1
+        elif van[i] == "}":
+            sau -= 1
+            if sau == 0:
+                return i
+        i += 1
+    return None
+
+
+def loi_goi(nguon: str) -> set[str]:
+    """Tên mọi hàm được GỌI trong một đoạn mã C.
+
+    Bỏ từ khoá điều khiển (``if (``, ``while (``…) — chúng đi liền dấu mở ngoặc
+    nhưng không phải lời gọi. Bỏ cả ruột chuỗi, để một dòng in ra màn hình có
+    chữ ``foo(`` không bị đếm thành lời gọi.
+    """
+    van = _lam_sach(nguon)
+    return {t for t in _LOI_GOI.findall(van) if t not in _KHONG_PHAI_LOI_GOI}
+
+
+def mat_loi_goi(cu: str, moi: str, quan_tam: frozenset[str] | set[str]) -> list[str]:
+    """Lời gọi liên module có trong bản đã merge mà bản mới không còn.
+
+    ``quan_tam`` là tập hàm công khai của các module KHÁC. Giới hạn vào tập ấy
+    có chủ ý: hàm nội bộ mất đi thường là tái cấu trúc, còn một lời gọi sang
+    module khác mất đi là một việc không còn ai làm.
+
+    Thông báo nêu tên hàm CŨ từng chứa lời gọi ấy, vì "``app_init()`` không còn
+    gọi ``drv_imu_init()``" chỉ đúng chỗ, còn "thiếu ``drv_imu_init``" thì bắt
+    người đọc đi tìm.
+    """
+    if not quan_tam:
+        return []
+    goi_cu = loi_goi(cu) & set(quan_tam)
+    mat = sorted(goi_cu - loi_goi(moi))
+    if not mat:
+        return []
+
+    # Ai từng gọi nó: tra trong thân hàm của bản CŨ. Không tra được thì vẫn báo,
+    # chỉ mất một nửa câu — im lặng vì không nêu được tên là đổi một lỗi thật
+    # lấy một dòng đẹp.
+    than = than_ham(cu)
+    ra: list[str] = []
+    for ten in mat:
+        chu = sorted(h for h, t in than.items() if ten in loi_goi(t))
+        if chu:
+            ra.append(f"MẤT   {', '.join(f'{h}()' for h in chu)} không còn gọi {ten}()")
+        else:
+            ra.append(f"MẤT   không còn chỗ nào gọi {ten}()")
+    return ra
 
 
 def pha_vo_hop_dong(cu: str, moi: str) -> list[str]:

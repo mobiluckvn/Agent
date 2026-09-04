@@ -2385,3 +2385,20 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Không mở thêm quyền** | `recall` là lệnh chỉ đọc. `datasheet add` vẫn **không** có trong danh mục — nạp tri thức và chọn trang vẫn là việc của người (G2, AIS §4.1) |
 | **Sửa kèm: `resolve` khai sai về chính nó** | `resolve` nằm ở nhóm "chỉ đọc" của `TOOLBOX` trong khi bậc 3 của nó dựng chunk đề xuất trên đĩa và ghi sổ đếm vòng tìm. Đã chuyển sang nhóm **có ghi** và nêu rõ `--web` trong mô tả — trước đó mô hình không có cách nào biết bậc 3 tồn tại, nên năng lực tự ra web nạp tài liệu **có trong mã mà không bao giờ được gọi** |
 | **Bài canh** | `tests/test_tc126_recall_kho_tri_thuc.py`, 10 bài: hai tầng đúng thứ tự; tên module khớp theo TỪ chứ không chuỗi con (`drv_i2c` không kéo theo `drv_i2c_mpu6050`); chunk `proposed` không lọt; ngưỡng độ phủ vẫn chặn câu hỏi không liên quan; `recall` đứng trước `research` trong bảng thứ tự; và bài canh chiều ngược — thêm lệnh **không** được thành thêm quyền |
+
+---
+
+## SL-167 · BỔ SUNG · Lời gọi liên module bị đánh rơi — hỏng im lặng theo đúng nghĩa đen (N-910)
+
+| | |
+|---|---|
+| **Cách tìm** | Rà soát bảng năng lực 04/09 (`docs/RA_SOAT_NANG_LUC_04_09.md`). Mục N-910 mới thêm nêu chuyện đã xảy ra: một vòng vá làm `app_init()` mất bốn lời gọi khởi tạo driver, firmware **câm hoàn toàn**, mà **33 bài kiểm vẫn xanh** |
+| **Vì sao không cổng nào đỏ** | Vì không có gì sai. Mã dịch được, phân tích tĩnh sạch, bài kiểm đơn vị gọi thẳng hàm cần kiểm nên không đi qua `app_init()` lần nào. Mã chỉ đơn giản là không làm gì cả — và không có thông báo lỗi nào để đọc |
+| **Nửa còn thiếu của SL-163** | `pha_vo_hop_dong` canh cái module này **HỨA** (chữ ký trong header của nó). Không gì canh cái nó **DÙNG**. Hai thứ hỏng theo hai kiểu và chỉ một kiểu đang có người canh |
+| **Đã sửa** | `eaa/contract.py` thêm `than_ham()`, `loi_goi()`, `mat_loi_goi()`. Orchestrator dựng tập hàm công khai của module KHÁC từ `src/*.h` trên `main`, rồi so tập lời gọi liên module của bản đã merge với bản mới. Đi cùng đường VÁ với hợp đồng chữ ký |
+| **Vì sao so ở tầm TỆP, không tầm HÀM** | Tách mấy lời gọi ra một hàm phụ rồi gọi hàm phụ ấy là tái cấu trúc ĐÚNG, và nó xảy ra thường. So ở tầm hàm sẽ kêu ở mỗi lần như thế — một cổng hay kêu nhầm sớm muộn cũng bị tắt đi, và lúc ấy nó không bảo vệ được gì nữa. Ở tầm tệp thì lời gọi dời chỗ không tính là mất; chỉ lời gọi **biến khỏi tệp** mới tính, và đó đúng là chuyện đã xảy ra |
+| **Vì sao chỉ LIÊN MODULE** | Ba lần giới hạn, mỗi lần một lý do: hàm nội bộ mất đi thường là tái cấu trúc; hàm thư viện C không nằm trong header nào của dự án nên tự rơi ra; hàm công khai của chính module này đã có `pha_vo_hop_dong` canh ở tầng khai báo. Còn lại đúng một hạng — **một việc sang module khác không còn ai làm** |
+| **Thông báo nêu tên chỗ mất** | *"`app_init()` không còn gọi `drv_imu_init()`"* chỉ đúng chỗ; *"thiếu `drv_imu_init`"* bắt người đọc đi tìm. Tra trong thân hàm của bản CŨ. Không tra được thì vẫn báo — im lặng vì thiếu nửa câu là đổi một lỗi thật lấy một dòng đẹp |
+| **Hai lỗi riêng, không gộp** | Vi phạm chữ ký gắn `src/<m>.h`, lời gọi bị rơi gắn `src/<m>.c`. Gộp một dòng thì lớp quy lỗi về tệp của SL-162 chỉ còn quy được về một chỗ và nửa kia mất địa chỉ |
+| **Ruột chuỗi phải bỏ trước khi đếm ngoặc** | Một dấu `{` trong chuỗi làm phép đếm lệch từ đó tới hết tệp, và hàm sau bị nuốt vào hàm trước — sai im lặng, không ném ngoại lệ nào. Có bài canh riêng |
+| **Bài canh** | `tests/test_tc127_loi_goi_khong_duoc_danh_roi.py`, 33 bài. Chiều bắt: mất lời gọi, mất nhiều lời gọi (thứ tự ổn định), xoá cả hàm chứa nó, chú thích lại một lời gọi. Chiều **đừng kêu nhầm** (nhiều bài hơn, cố ý): dời sang hàm khác cùng tệp, gom vào hàm phụ, mất lời gọi nội bộ, mất lời gọi thư viện C, thêm lời gọi mới, viết lại cả tệp mà giữ đủ việc. Và luật "rỗng khi chưa có gì để so": module sinh lần đầu, kho chưa dựng, kho không đọc được — không cái nào được làm hỏng lượt sinh |

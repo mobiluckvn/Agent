@@ -152,7 +152,7 @@ def test_bao_cao_di_vao_duong_VA_chu_khong_chan() -> None:
     """
     from eaa.orchestrator import Orchestrator
 
-    bao_cao = Orchestrator._bao_cao_hop_dong(["MẤT   void f(void);"], "logic_pid")
+    bao_cao = Orchestrator._bao_cao_hop_dong(["MẤT   void f(void);"], [], "logic_pid")
 
     assert bao_cao.passed is False
     assert bao_cao.gate == "contract"
@@ -170,7 +170,7 @@ def test_thong_diep_chi_thang_vao_viec_phai_lam() -> None:
 
     van_ban = str(
         Orchestrator._bao_cao_hop_dong(
-            ["ĐỔI   float pid_compute(float, float, bool);"], "logic_pid"
+            ["ĐỔI   float pid_compute(float, float, bool);"], [], "logic_pid"
         ).errors[0]
     )
     assert "src/logic_pid.h" in van_ban

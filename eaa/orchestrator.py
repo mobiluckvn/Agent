@@ -43,7 +43,7 @@ from typing import Any, Sequence
 
 from eaa import EXIT_ENV_ERROR, EXIT_OK, EXIT_REPAIR_LIMIT, EXIT_WAITING_GATE
 from eaa.composer import Task
-from eaa.contract import pha_vo_hop_dong
+from eaa.contract import khai_bao_ham, mat_loi_goi, pha_vo_hop_dong
 from eaa.gates import APPROVED, REJECTED, GatePayload
 from eaa.policy import PHASE_NAMES, GATE_PURPOSE, Level, check_transition, level
 from eaa.tools.base import CodeArtifact, Severity, ToolError, ToolReport
@@ -299,9 +299,10 @@ class Orchestrator:
             # thông điệp lúc ấy nói về `app_balance.c:125` chứ không nói về
             # cái vừa bị đổi. Cùng một lỗi, hai câu — câu này chỉ đúng chỗ.
             vi_pham = self._pha_vo_hop_dong(artifact, module_id)
+            mat_goi = self._mat_loi_goi(artifact, module_id)
             bao_cao = (
-                [self._bao_cao_hop_dong(vi_pham, module_id)]
-                if vi_pham
+                [self._bao_cao_hop_dong(vi_pham, mat_goi, module_id)]
+                if (vi_pham or mat_goi)
                 else self._chay_chuoi_cong(artifact, module_id)
             )
             nhat_ky.append(self._tom_tat_luot(so_lan_va, bao_cao))
@@ -1127,18 +1128,74 @@ class Orchestrator:
             return []
         return pha_vo_hop_dong(cu, moi)
 
+    def _ham_cong_khai_module_khac(self, module_id: str) -> frozenset[str]:
+        """Tên hàm công khai của MỌI module khác đã merge.
+
+        Đây là tập "quan tâm" của phép so lời gọi (N-910). Giới hạn vào header
+        của module khác có chủ ý ba lần:
+
+        * hàm nội bộ của chính tệp này mất đi thường là tái cấu trúc;
+        * hàm thư viện C không nằm trong header nào của dự án, nên tự rơi ra;
+        * hàm công khai của CHÍNH module này gọi từ chính nó cũng là việc nội
+          bộ — nó đã có `pha_vo_hop_dong` canh ở tầng khai báo rồi.
+
+        Rỗng khi kho chưa có nhánh chính hoặc chưa module nào merge: lúc ấy
+        chưa có việc liên module nào để mà đánh rơi.
+        """
+        rieng = f"src/{module_id}.h"
+        ten: set[str] = set()
+        try:
+            tep = self.repo.files_on_main()
+        except Exception:  # noqa: BLE001 - kho chưa dựng, không quyền đọc…
+            return frozenset()
+        for duong_dan in sorted(tep):
+            if duong_dan == rieng or not duong_dan.endswith(".h"):
+                continue
+            if not duong_dan.startswith("src/"):
+                continue
+            try:
+                nguon = self.repo.read_on_main(duong_dan)
+            except Exception:  # noqa: BLE001
+                continue
+            if nguon:
+                ten.update(khai_bao_ham(nguon))
+        return frozenset(ten)
+
+    def _mat_loi_goi(self, artifact: CodeArtifact, module_id: str) -> list[str]:
+        """Lời gọi liên module có trong bản đã merge mà bản mới đánh rơi.
+
+        Cùng luật "rỗng khi chưa có gì để so" như `_pha_vo_hop_dong`: một phép
+        kiểm phụ trợ không được quyền làm hỏng lượt sinh vì lý do của chính nó.
+        """
+        duong_dan = f"src/{module_id}.c"
+        moi = artifact.files.get(duong_dan)
+        if moi is None:
+            return []
+        try:
+            cu = self.repo.read_on_main(duong_dan)
+        except Exception:  # noqa: BLE001
+            return []
+        if not cu:
+            return []
+        return mat_loi_goi(cu, moi, self._ham_cong_khai_module_khac(module_id))
+
     @staticmethod
-    def _bao_cao_hop_dong(vi_pham: list[str], module_id: str) -> ToolReport:
+    def _bao_cao_hop_dong(
+        vi_pham: list[str], mat_goi: list[str], module_id: str
+    ) -> ToolReport:
         """Vi phạm hợp đồng đi vào ĐƯỜNG VÁ, không vào đường chặn.
 
         Khác SL-162 ở chỗ ấy, và khác vì một lý do: lỗi ngoài phạm vi là thứ
         vòng vá KHÔNG có quyền sửa, còn đây là mã của chính nó và nó sửa được —
         thêm lại tham số đã bỏ là một lượt vá bình thường.
+
+        Hai hạng vi phạm đi thành HAI lỗi riêng, mỗi lỗi gắn đúng tệp của nó
+        (`.h` cho chữ ký, `.c` cho lời gọi). Gộp một dòng thì lớp quy lỗi về tệp
+        của SL-162 chỉ còn quy được về một chỗ, và nửa kia mất địa chỉ.
         """
-        return ToolReport(
-            gate="contract",
-            passed=False,
-            errors=[
+        loi: list[ToolError] = []
+        if vi_pham:
+            loi.append(
                 ToolError(
                     f"Header `src/{module_id}.h` phá hợp đồng của bản ĐÃ MERGE. "
                     "Mã đang gọi những hàm này không dịch được nữa.\n"
@@ -1147,8 +1204,27 @@ class Orchestrator:
                     "mới bên cạnh — mở rộng thì được, thu hẹp hay đổi thì không.",
                     file=f"src/{module_id}.h",
                 )
-            ],
-            metrics={"contract_violations": len(vi_pham)},
+            )
+        if mat_goi:
+            loi.append(
+                ToolError(
+                    f"`src/{module_id}.c` đánh rơi lời gọi sang module khác so "
+                    "với bản ĐÃ MERGE. Mã vẫn dịch được và bài kiểm đơn vị vẫn "
+                    "xanh — việc ấy chỉ đơn giản là KHÔNG CÒN AI LÀM.\n"
+                    + "\n".join(mat_goi)
+                    + "\n\nGọi lại đủ. Nếu cố ý bỏ thì đó là quyết định của "
+                    "người, không phải của một lượt vá.",
+                    file=f"src/{module_id}.c",
+                )
+            )
+        return ToolReport(
+            gate="contract",
+            passed=False,
+            errors=loi,
+            metrics={
+                "contract_violations": len(vi_pham),
+                "lost_calls": len(mat_goi),
+            },
         )
 
     @staticmethod
