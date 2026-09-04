@@ -1,4 +1,7 @@
-# Tiếp tục từ đây — bàn giao phiên 03/09/2026
+# Tiếp tục từ đây — bàn giao phiên 04/09/2026
+
+> Phiên 04/09 nằm ở mục *"Phiên 04/09"* phía dưới. Mục 03/09 ngay sau đây giữ
+> nguyên vì firmware đang chạy trên bo vẫn là bản của phiên ấy.
 
 **Robot đứng được.** Thả tay trên sàn, không đổ. Firmware đang chạy trên bo:
 commit `80ec03d0d4`, băm ảnh `sha256:06797d7673bd…`, đã đọc ngược khớp sau nạp.
@@ -132,29 +135,86 @@ eaa gate approve G1 --actor "Vũ Trí Công" --expect <băm vừa xem>
 * **`docs/DANH_GIA_NANG_LUC_AGENT.md`** — số liệu đếm lại từ dữ liệu, thêm §3.8
   về bài kiểm xanh vì lý do sai.
 
+## Phiên 04/09 — rà soát năng lực, bốn việc, và đổi model nền
+
+Kho **sạch**: `pytest -q` → **2.494 xanh, 0 đỏ**. Lần đầu không còn bài đỏ nào
+kể từ 01/09.
+
+### Rà soát bảng năng lực
+
+`scripts/kiem_bang_nang_luc.py` — kiểm bảng bằng máy, bốn phép. Phép đáng giá
+nhất là phép thứ tư: **mã khai trong bảng có ai gọi không**. Ba phép đầu hỏi
+"thứ này có tồn tại không"; phép thứ tư hỏi "Agent có đường nào chạy tới nó".
+
+Nó tìm ra hai module mồ côi và 9 dòng khai quá lời, cộng 6 nghiệp vụ bảng chưa
+từng có. Sheet Khoảng trống từ 0 → 15 dòng, nay còn **7**. Chi tiết:
+[`docs/RA_SOAT_NANG_LUC_04_09.md`](RA_SOAT_NANG_LUC_04_09.md).
+
+### Bốn việc đã làm
+
+| | Việc | Bài kiểm |
+|---|---|---|
+| **SL-167** | Lời gọi liên module bị đánh rơi — `app_init()` mất 4 lời gọi khởi tạo, firmware câm, 33 bài kiểm vẫn xanh | TC-127, 33 bài |
+| **SL-168** | Đo độ nhạy: chạy bộ kiểm MỚI trên mã vừa bị đánh đỏ | TC-128, 28 bài |
+| **SL-169** | Nối thang gỡ lỗi cài vào `doctor` — 7 dòng C5 lên ĐỦ | TC-129, 16 bài |
+| **SL-170** | Đổi model nền sang `gemini-3.8-flash`, và bộ đếm token ra thiếu phần suy nghĩ | TC-130, 12 bài |
+
+Mỗi bộ đều qua **kiểm đột biến**: cố ý làm hỏng mã rồi xác nhận đúng bài kiểm
+đỏ. Một lần đột biến đi qua được — đọc lại thì lỗi ở phép đột biến, nhưng chính
+lần ấy làm lộ một bài canh yếu ở TC-127 và bài ấy đã được siết.
+
+### Model nền: `gemini-3.8-flash`
+
+Mã model **xác minh thật** bằng ListModels + một lượt `generateContent`, không
+đoán chuỗi. Vào ≤ 1.048.576, ra ≤ 65.536.
+
+Chính lượt gọi thử làm lộ một lỗi thật: nó trả về đúng chữ `OK` mà báo
+`candidatesTokenCount = 1`, `thoughtsTokenCount = 92`. `GeminiClient` chỉ đọc
+`candidatesTokenCount`, nên nó đếm 1 trong khi 93 token đã sinh ra và tính tiền.
+`llm_calls.jsonl` và `TokenBudget` đều đứng trên con số ấy. Với Pro 3.1 khoảng
+lệch không rõ như vậy — lỗi sống được tới đúng ngày đổi model.
+
+**Không sửa lại quá khứ:** `project_state.json`, `llm_calls.jsonl`,
+`kpi_log.csv` và câu README *"robot đứng được trên AVR với
+`gemini-3.1-pro-preview`"* giữ nguyên. Pro 3.1 vẫn trong danh mục, và
+`KHUYEN_NGHI` có mục *"dựng lại số liệu Chương 3"* trỏ về nó.
+
+`.env` cục bộ đã đổi `EAA_LLM_MODEL=gemini-3.8-flash` (tệp này không vào Git).
+
+### Fixture TC-15 đã ghi lại
+
+Chạy `scripts/record_e2e_fixture.py` với mô hình thật. Cố ý làm **sau** khi đổi
+model, nên nó gánh hai việc: trả nợ 10 bài đỏ, và là lượt chạy trọn vòng lặp
+đầu tiên trên Flash 3.8. Cả hai module qua đủ bốn cổng, **0 vòng tự sửa**.
+
+Số token của fixture mới **không so trực tiếp được** với fixture cũ: luật đếm
+vừa đổi ở SL-170. Chưa có phép A/B nào giữa hai model, và không nên nói là có.
+
 ## Việc kế tiếp
 
-**~~1 — Canh hợp đồng gọi cho MỌI module~~ — ĐÃ LÀM** cùng phiên, SL-163 /
-TC-124. `eaa/contract.py` so khai báo header vừa sinh với bản trên `main`; mất
-một hàm hoặc đổi chữ ký là cổng đỏ, kèm câu chỉ thẳng việc phải làm. Nó đi vào
-đường VÁ chứ không đường CHẶN — khác SL-162 có chủ ý, vì đây là mã của chính
-module ấy và nó sửa được. Lời dặn trong `prompts/logic_pid.md` vẫn giữ, nhưng
-giờ nó là hàng rào thứ hai chứ không phải hàng rào duy nhất.
+**1 — N-908: phân biệt "mã tôi sai" với "bài kiểm tôi sai".** Điểm yếu lớn nhất
+còn lại. 3 trong 12 lần từ chối G3 là mã tự chỉnh cho vừa đồ đo của chính nó, và
+cả ba qua sạch bốn cổng.
 
-**2 — Duyệt lại G1 cho hồ sơ phần cứng.** Một lệnh, xem mục cảnh báo ở trên.
-Làm trước khi sinh module tiếp theo, vì mọi lượt sinh sau đây đều đọc hồ sơ ấy.
+**2 — Nối `lifecycle.py` vào một lệnh** (vd `eaa knowledge stale`). Xong cả
+N-036 lẫn N-100. Hiện sửa một datasheet thì không lệnh nào trả lời được "mã nào
+bị ảnh hưởng".
 
-**3 — Ghi lại 10 fixture E2E TC-15.** Nợ từ trước, chưa động tới. Prompt đổi thì
-băm đổi, bộ phát lại cố ý không bịa phản hồi. Chạy
-`scripts/record_e2e_fixture.py` với mô hình thật. Đây là việc **tốn token nhất**
-trong danh sách, nên cân nhắc làm khi có thời gian chạy dài.
+**3 — N-913: số đo phần cứng chảy ngược vào prompt.** Đắt nhất trong ba, vì nó
+đụng bộ ghép prompt và gate tri thức.
 
-**4 — Đo giữ nhịp trên bo.** ISR bước chạy 50 kHz trên AVR 16 MHz — 320 chu kỳ
-mỗi lần. Chưa ai đo nó ăn bao nhiêu CPU. Robot đứng được không chứng minh nhịp
-4 ms được giữ, chỉ chứng minh nó đủ gần. Số này cần cho chương đánh giá.
+**4 — Duyệt lại G1 cho hồ sơ phần cứng.** Cảnh báo TRÔI vẫn đang bật, xem mục
+phiên 03/09 ở trên. Chưa làm.
 
-**5 — `app_init()` không đặt lại `missed_samples`.** Lỗi tiềm ẩn, chưa cắn trên
-bo vì `app_init` chỉ chạy một lần. Sẽ cắn ngay khi có đường khởi động lại mềm.
+**5 — Đo giữ nhịp trên bo.** ISR bước 50 kHz trên AVR 16 MHz, chưa ai đo nó ăn
+bao nhiêu CPU.
+
+**6 — `app_init()` không đặt lại `missed_samples`.** Lỗi tiềm ẩn, chưa cắn vì
+`app_init` chỉ chạy một lần.
+
+**7 — Sinh lại 7 module thật của `robot_balance` bằng Flash 3.8** nếu muốn có
+một phép A/B có nghĩa giữa hai model. Hai module demo qua cổng dễ, không đủ nói
+lên điều gì.
 
 ## Trạng thái
 
@@ -174,7 +234,7 @@ có nghĩa.
 * [`docs/CAI_DAT_VA_CHAY.md`](CAI_DAT_VA_CHAY.md) — máy mới tải kho về thì bắt đầu
   từ đây: cài đặt, công cụ, và trọn luồng tới lúc firmware nằm trên bo.
 
-* `docs/SAI_LECH_THIET_KE.md` — 164 mục, mỗi mục một lỗi và bài kiểm canh nó.
+* `docs/SAI_LECH_THIET_KE.md` — 170 mục, mỗi mục một lỗi và bài kiểm canh nó.
   Đây là dữ liệu gốc của chương đánh giá, không phải phụ lục.
 * `docs/DANH_GIA_NANG_LUC_AGENT.md` — Agent tự làm được gì, bảy giới hạn còn
   lại, và phương pháp huấn luyện rút ra.

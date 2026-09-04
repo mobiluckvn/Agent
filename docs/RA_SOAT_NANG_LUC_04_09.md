@@ -5,6 +5,12 @@ ngày 30–31/08, trước khi robot lên bo; từ đó tới nay kho thêm 86 m
 (SL-81 → SL-166) và 27 bộ test. Bản rà soát này nói **chỗ nào bảng còn đúng, chỗ
 nào bảng đang khai quá lời**, và cái gì phải làm để lấp.
 
+> **Cập nhật 04/09 cuối ngày.** Bốn việc đầu trong §5 đã làm xong (SL-167 →
+> SL-170), sheet Khoảng trống từ 15 xuống **7 dòng**, và bộ test từ 2.395 xanh /
+> 10 đỏ lên **2.494 xanh / 0 đỏ**. Phần thân bài dưới đây giữ nguyên cách nói ở
+> thời điểm rà soát — nó là ảnh chụp, và một ảnh chụp bị sửa lại theo kết quả
+> sau đó thì không còn là bằng chứng của việc rà soát nữa.
+
 Sinh lại kết luận bất cứ lúc nào:
 
 ```bash
@@ -123,40 +129,66 @@ của tệp rồi, thêm phép so tập lời gọi là mở rộng cái đang c
 
 ---
 
-## 4. Một khoản nợ không nằm ở bảng năng lực
+## 4. Một khoản nợ không nằm ở bảng năng lực — ĐÃ TRẢ
 
-Bộ test hiện **2.395 xanh / 10 đỏ**. Cả 10 nằm trong `tests/test_tc15_e2e.py`.
+Lúc rà soát, bộ test là **2.395 xanh / 10 đỏ**, cả 10 nằm trong
+`tests/test_tc15_e2e.py`.
 
 Đã dò mốc: TC-15 còn xanh ở `147d961`, đỏ từ **`c39b064`** (01/09, *"Giao thức
 bíp: hồ sơ, phân rã, và đường kiểm trên máy chủ"*). Nguyên nhân đúng như bàn
 giao đã ghi: prompt đổi → băm đổi → bộ phát lại không tìm thấy bản ghi, và nó
 **cố ý không bịa phản hồi**. Nó đang làm đúng việc của nó.
 
-Nhưng cần nói rõ ảnh hưởng, vì 10 bài ấy không phải 10 bài lẻ — chúng là **bằng
-chứng đầu-cuối** cho: merge sau G3, mã dẫn đúng chunk, commit truy vết về
-prompt và mô hình, KPI đủ cột cho Chương 3, chạy lại không cần khoá API, phong
-hạng G4, quay lui về `known_good`, hồ sơ G4/G5.
+10 bài ấy không phải 10 bài lẻ — chúng là **bằng chứng đầu-cuối** cho: merge
+sau G3, mã dẫn đúng chunk, commit truy vết về prompt và mô hình, KPI đủ cột cho
+Chương 3, chạy lại không cần khoá API, phong hạng G4, quay lui về `known_good`,
+hồ sơ G4/G5. Năng lực thì không mất — TC-01, TC-17, TC-30, TC-45, TC-09 ở tầng
+đơn vị đều xanh. Cái đỏ là **lượt chạy nối tất cả chúng lại**.
 
-Năng lực thì không mất — TC-01, TC-17, TC-30, TC-45, TC-09 ở tầng đơn vị đều
-xanh. Cái đang đỏ là **lượt chạy nối tất cả chúng lại với nhau**, và đó đúng là
-thứ hội đồng sẽ hỏi. Việc phải làm: chạy `scripts/record_e2e_fixture.py` với mô
-hình thật (tốn token, cần một buổi chạy dài).
+**Đã ghi lại ngày 04/09/2026** bằng `scripts/record_e2e_fixture.py` với mô hình
+thật. Bộ test: **2.494 xanh, 0 đỏ**.
+
+Lượt ghi ấy cố ý làm sau khi đổi model (SL-170), nên nó gánh hai việc: trả nợ,
+và là **lượt chạy trọn vòng lặp đầu tiên trên `gemini-3.8-flash`**. Đổi model
+nền mà không có gì chạy thật qua đủ 13 bước là ship một thay đổi chưa kiểm ở
+tầm hệ thống.
+
+Kết quả: cả hai module qua **đủ bốn cổng với 0 vòng tự sửa**.
+
+| Module | Fixture cũ (Pro 3.1) | Fixture mới (Flash 3.8) |
+|---|---|---|
+| `drv_i2c_mpu6050` | vào 1.871 → ra 4.183 | vào 1.871 → ra 8.309 |
+| `pid_controller` | vào 768 → ra 2.477 | vào 1.014 → ra 6.597 |
+
+**Hai cột này KHÔNG so trực tiếp được**, và chỗ ấy phải nói rõ chứ không để
+người đọc tự suy: cột phải đã gồm token suy nghĩ, cột trái thì chưa — luật đếm
+vừa đổi ở SL-170. Đây không phải một phép A/B về chi phí, và cũng chưa phải một
+phép A/B về chất lượng: hai module demo qua cổng dễ, còn bảy module thật của
+`robot_balance` mới là bài đo có nghĩa.
 
 ---
 
-## 5. Việc đề xuất, theo thứ tự
+## 5. Việc đề xuất, theo thứ tự — trạng thái 04/09
 
-| | Việc | Vì sao trước | Ước lượng |
-|---|---|---|---|
-| 1 | **N-910** — `contract.py` so thêm tập lời gọi trong hàm vào | Rẻ nhất, và chặn đúng lỗi đã làm firmware câm | nhỏ |
-| 2 | **Ghi lại 10 fixture TC-15** | Bằng chứng Chương 3 đang đỏ; càng để lâu prompt càng trôi xa | một buổi chạy |
-| 3 | **N-909** — phép kiểm độ nhạy cho bài kiểm mới sinh | Không cần mô hình; chặn dạng hỏng khó thấy nhất | vừa |
-| 4 | **Nối `installerr` vào `doctor`** — 7 dòng C5 cùng lúc | Một chỗ sửa, bảy dòng lên ĐỦ | vừa |
-| 5 | **N-908** — đối chiếu hằng số bài kiểm với vật lý trước khi vá | Điểm yếu lớn nhất, nhưng cần thiết kế kỹ | lớn |
-| 6 | **Nối `lifecycle` vào một lệnh** (vd `eaa knowledge stale`) | N-036 + N-100 cùng lúc | vừa |
-| 7 | **N-913** — số đo phần cứng vào lớp ngữ cảnh | Đắt nhất: đụng bộ ghép prompt và gate tri thức | lớn |
+| | Việc | Trạng thái |
+|---|---|---|
+| 1 | **N-910** — `contract.py` so thêm tập lời gọi trong hàm vào | ✅ SL-167, TC-127 (33 bài) |
+| 2 | **Ghi lại 10 fixture TC-15** | ✅ ghi bằng `gemini-3.8-flash`, TC-15 13/13 |
+| 3 | **N-909** — phép kiểm độ nhạy cho bài kiểm mới sinh | ✅ SL-168, TC-128 (28 bài) — bắt hạng nhẹ hơn, phần còn lại vẫn cần người đọc ở G3 |
+| 4 | **Nối `installerr` vào `doctor`** — 7 dòng C5 cùng lúc | ✅ SL-169, TC-129 (16 bài) |
+| 5 | **N-908** — đối chiếu hằng số bài kiểm với vật lý trước khi vá | ⬜ điểm yếu lớn nhất còn lại |
+| 6 | **Nối `lifecycle` vào một lệnh** (vd `eaa knowledge stale`) | ⬜ N-036 + N-100 cùng lúc |
+| 7 | **N-913** — số đo phần cứng vào lớp ngữ cảnh | ⬜ đắt nhất: đụng bộ ghép prompt và gate tri thức |
 
 N-911 và N-912 để sau — cả hai đều đáng làm nhưng không chặn việc nào đang chạy.
+
+Sheet **Khoảng trống** còn **7 dòng**: N-908, N-909 (phần còn lại), N-036,
+N-100, N-911, N-912, N-913.
+
+Mỗi bộ test ở trên đều đã qua **kiểm đột biến** — cố ý làm hỏng mã rồi xác nhận
+đúng bài kiểm đỏ. Một lần đột biến đi qua được, và đọc lại thì lỗi ở phép đột
+biến chứ không ở bộ test; nhưng chính lần ấy làm lộ một bài canh yếu ở TC-127
+(chỉ kiểm một trong hai chiều hỏng), và bài ấy đã được siết.
 
 ---
 
