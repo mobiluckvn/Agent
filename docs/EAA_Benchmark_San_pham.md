@@ -45,10 +45,10 @@ Bảng: Bảng 2 — 18 số đo, tất cả chạy được lại
   | Cổng kiểm chứng | 5 cổng (4 bắt buộc + regcheck) | OrchestratorConfig().required_gates |
   | Lớp ngữ cảnh prompt | 10 lớp, trần tổng 8.000 token, kiểm TRƯỚC khi gọi | eaa.llm.base.LAYER_BUDGETS |
   | Lớp kết luận mang nhãn tin cậy | 23 lớp | pytest tests/test_tc63_confidence_coverage.py |
-  | Sổ sai lệch thiết kế | 177 mục, mỗi mục một bài kiểm canh | grep -c '^## SL-' docs/SAI_LECH_THIET_KE.md |
+  | Sổ sai lệch thiết kế | 178 mục, mỗi mục một bài kiểm canh | grep -c '^## SL-' docs/SAI_LECH_THIET_KE.md |
   | Độ trễ lệnh đọc | status 0,57s · observe 0,66s · recall 0,66s · knowledge stale 0,76s | đo 3 lần, lấy nhanh nhất |
   | Tính tất định | TC-15 chạy hai lần cho cùng 13/13 xanh, không cần khoá API | pytest tests/test_tc15_e2e.py (×2) |
-  | Thông báo lỗi nêu được lệnh phải gõ | 40/112 — 36% | quét `raise CliError(` trong eaa/cli.py |
+  | Thông báo lỗi nêu được lệnh phải gõ | 150/182 — 82% (mốc trước khi sửa: 25/182 — 14%) | quét `raise CliError(` bằng phép đếm ngoặc cân; TC-145 canh |
   | Lệnh thiếu dòng trợ giúp | 0/103 | duyệt cây argparse |
   | Mã thoát phân biệt | 4 mã: 0 · 2 chờ gate · 3 hết vòng vá · 4 lỗi môi trường | eaa/__init__.py |
 
@@ -116,12 +116,16 @@ Bảng: Bảng 6 — UI/UX
   |---|---|---|---|
   | Mặt tiếp xúc chính | ĐO: CLI 56 lệnh cấp một + tầng hội thoại tiếng Việt `eaa chat` | Embedder KHAI: extension VS Code là mặt chính, kèm CLI và daemon cho terminal/GitHub/Slack/CI. Espressif KHAI: Copilot trong IDE của hãng | THIẾU IDE. Đây là chỗ kỹ sư nhúng ngồi cả ngày. Không đụng lõi: một lớp mỏng gọi CLI |
   | Trợ giúp và khám phá | ĐO: 0/103 lệnh thiếu dòng trợ giúp; `eaa capabilities` bày 4 tầng năng lực | Không nguồn nào công bố | TỐT, và đo được |
-  | Chất lượng thông báo lỗi | ĐO: 40/112 thông báo lỗi (36%) nêu được LỆNH cụ thể phải gõ tiếp | Không nguồn nào công bố | **ĐIỂM YẾU ĐO ĐƯỢC.** Hai phần ba thông báo lỗi nói cái gì sai mà không nói phải làm gì. Đây là việc rẻ và nên làm sớm |
+  | Chất lượng thông báo lỗi | ĐO: 150/182 thông báo lỗi (82%) nói được VIỆC PHẢI LÀM. Mốc trước khi sửa là 25/182 — 14% | Không nguồn nào công bố | **ĐÃ SỬA (SL-178).** Bảng `GOI_Y_KHI_HONG` gắn ở `main()`, nên lỗi ném từ hàm phụ trợ vẫn nhận đúng gợi ý của lệnh đang chạy. TC-145 đối chiếu bảng với cây lệnh thật, hai chiều — một gợi ý trỏ vào lệnh đã bị xoá là đỏ |
   | Nói ra mức tin cậy của mỗi câu trả lời | ĐO: 23 lớp kết luận mang một trong bốn mức ĐÃ KIỂM / SUY RA / GIẢ ĐỊNH / KHÔNG KIỂM ĐƯỢC; TC-63 canh không lớp nào quên | Sidekick KHAI ngược lại: dặn người dùng TỰ đối chiếu tài liệu gốc | **TA HƠN.** Nhưng nói cho đúng: 23 LỚP KẾT LUẬN, không phải mọi dòng đầu ra |
   | Mã thoát cho tự động hoá | ĐO: 4 mã phân biệt — 0 · 2 chờ gate · 3 hết vòng vá · 4 lỗi môi trường | Embedder KHAI: CLI và daemon cho CI | NGANG. Bốn mã ấy là thứ một pipeline CI cần |
   | Ngôn ngữ | ĐO: toàn bộ giao diện, thông báo và tài liệu bằng tiếng Việt | Sidekick KHAI: hỏi được nhiều thứ tiếng, giao diện chính tiếng Anh | KHÁC BIỆT CÓ CHỦ ĐÍCH cho bối cảnh đề án; đồng thời là rào nếu muốn ra ngoài — phải nói ra chứ không giấu |
 
-> [canh_bao] Phép đo tự chỉ ra một điểm yếu mà so sánh với đối thủ không chỉ ra được: chỉ 40 trên 112 thông báo lỗi (36%) nêu được lệnh cụ thể phải gõ tiếp. Hai phần ba còn lại nói cái gì sai mà không nói phải làm gì. Đây là việc rẻ nhất trong cả danh sách §7.
+> Phép đo tự chỉ ra một điểm yếu mà so sánh với đối thủ không chỉ ra được — và bản này phải đính chính chính nó. Bản trước công bố 36% (40/112); con số ấy SAI vì biểu thức quét chỉ bắt được một dạng viết `raise CliError(`, nên nó đếm thiếu cả tử lẫn mẫu. Quét lại bằng phép đếm ngoặc cân cho mốc thật: 25/182 — 14%. Sai số của phép đo chứ không phải của sản phẩm, nhưng nó đã được in ra nên nó được sửa công khai chứ không thay lặng lẽ.
+
+Đã sửa (SL-178): 150/182 — 82%. Cách sửa đáng nói hơn con số. Không viết gợi ý vào 182 chuỗi — mỗi chuỗi như vậy là một bản sao của cây lệnh, và nó lệch khỏi cây lệnh ngay lần đầu ai đó đổi tên một lệnh, mà không gì bắt được. Gom vào một bảng thì bắt được: TC-145 đối chiếu bảng gợi ý với cây lệnh dựng từ argparse, hai chiều.
+
+82% là CẬN DƯỚI. 32 chỗ còn lại nằm trong hàm phụ trợ mà phép quy về lệnh không với tới; lúc chạy thật chúng vẫn có gợi ý, vì bảng gắn ở `main()` — nơi biết người dùng vừa gõ lệnh nào. Báo cả hai con số.
 
 ---
 
@@ -131,7 +135,7 @@ Bảng: Bảng 6 — UI/UX
 Bảng: Bảng 7 — tám việc, xếp theo giá trị trên chi phí
   | Ưu tiên | Việc | Vì sao | Xong thì đo bằng gì |
   |---|---|---|---|
-  | 1 · Cao | Sửa thông báo lỗi: nâng tỉ lệ nêu được lệnh phải gõ từ 36% lên ≥80% | Điểm yếu UI/UX ĐO ĐƯỢC duy nhất trong bảng, và là chỗ rẻ nhất. Hai phần ba thông báo hiện nói cái gì sai mà không nói phải làm gì | Chạy lại phép quét `raise CliError(`; thêm một bài kiểm chặn tỉ lệ tụt |
+  | 1 · XONG | Sửa thông báo lỗi: nâng tỉ lệ nói được việc phải làm lên ≥80% — ĐẠT 82% | Điểm yếu UI/UX ĐO ĐƯỢC duy nhất trong bảng, và là chỗ rẻ nhất. Đo lại bằng phép quét đúng thì mốc thật là 14%, không phải 36% như bản trước công bố — bản này đính chính | ĐÃ ĐO: 150/182 = 82%. TC-145 (11 bài, 4 đột biến đều bị bắt) canh cả tỉ lệ lẫn tính đúng của từng gợi ý. Xem SL-178 |
   | 2 · Cao | Bộ nhiệm vụ cho thước đo, trên ≥2 Platform Pack | Cái thước đã có (GĐ2) nhưng chưa đo gì. Bốn trục đang báo CHƯA ĐO ĐƯỢC — và một đóng góp không có số là một lời khai | `eaa report bench` ra số thật cho cả bốn trục |
   | 3 · Cao | Đo ngược lịch sử dự án bằng bốn bộ dò | 37 commit và 12 lượt chuyển module đã nằm trong Git. Không tốn token API. Nếu bốn bộ dò tìm lại được các lỗi đã biết thì đó là bằng chứng hồi cứu; nếu bỏ sót thì đó là phát hiện còn giá trị hơn | Bảng số cho Chương 3, và danh sách lỗi bộ dò bỏ sót |
   | 4 · Vừa | Kỹ năng phần cứng theo ngoại vi, duyệt qua G2 | Chỗ DUY NHẤT bài arXiv đo được là nâng kết quả lên gần trần. Và nó chặn hạng lỗi đã làm robot ngã: mã đúng mọi dòng, sai ở THỨ TỰ | So pass@k trước/sau khi bật lớp kỹ năng, trên cùng bộ nhiệm vụ |
@@ -146,7 +150,7 @@ Ba việc đầu đều là việc BIẾN LỜI KHAI THÀNH SỐ, không phải 
 ## Điều kiện dừng
 
   · Bốn trục đo mới có số liệu trên ít nhất hai Platform Pack.
-  · Tỉ lệ thông báo lỗi nêu được lệnh phải gõ đạt ≥ 80%, có bài kiểm canh.
+  · ~~Tỉ lệ thông báo lỗi nói được việc phải làm đạt ≥ 80%, có bài kiểm canh.~~ XONG — 82%, TC-145.
   · Bốn bộ dò chạy lại được trên 12 lượt chuyển module của lịch sử dự án, và kết quả — dù tìm ra hay bỏ sót — được ghi vào sổ sai lệch.
 
 Đến đó thì câu “Agent này tốt hơn” thôi là một lời khai; nó thành một bảng số mà người khác kiểm lại được.

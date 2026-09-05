@@ -2584,3 +2584,18 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Một bài kiểm RỖNG tự bắt được** | Bài canh `pass@k` ban đầu chỉ dùng `k=1` và `k=5` — hai chỗ mà công thức chuẩn và "tỉ lệ lượt đúng" TRÙNG NHAU, nên đột biến đổi công thức vẫn xanh. Chỗ chúng tách nhau là `k>1` với đủ lượt trượt: n=5, c=1, k=2 cho 0,4 theo công thức chuẩn và 0,2 theo tỉ lệ. Đã thêm ba mốc ấy |
 | **Bài canh** | `tests/test_tc138_thuoc_do.py`, 22 bài. Đột biến 5 phép, cả 5 bị bắt sau khi vá bài rỗng: gộp HANDOFF/BLOCKED → 1 đỏ; chấm bằng trường tự khai → 2; CHƯA ĐO ĐƯỢC thành 0% → 1; gộp hai hạng bằng chứng → 1; `pass@k` thành tỉ lệ lượt đúng → 1 |
 | **Còn thiếu để đóng E1** | Module này là cái **thước**; bộ **nhiệm vụ** thì chưa có. Đó là việc kế tiếp và nó tốn lượt gọi mô hình thật, nên tách khỏi mục này thay vì làm dở |
+
+---
+
+## SL-178 · BỔ SUNG · Thông báo lỗi phải nói được VIỆC PHẢI LÀM (việc số 1 của bản benchmark)
+
+| | |
+|---|---|
+| **Cách tìm** | `docs/EAA_Benchmark_San_pham.docx` §6, hàng UI/UX. So với đối thủ thì đây là chỗ ta thua rõ nhất mà **không phải vì thiếu tính năng** — chỉ vì thông báo nói *cái gì sai* rồi dừng lại đúng lúc người dùng cần một mũi tên. Với một công cụ có 5 cổng người duyệt, bị bỏ lại giữa quy trình là hỏng nặng hơn ở một công cụ chạy một phát |
+| **MỐC THẬT trước khi sửa: 14%, không phải 36%** | Bản báo cáo đã công bố 36% (40/112). Con số ấy **SAI** — biểu thức quét chỉ bắt được một dạng viết `raise CliError(`, nên nó đếm thiếu **cả tử lẫn mẫu**. Quét lại bằng phép đếm ngoặc cân cho **25/182 = 14%**. Sai số của phép đo chứ không phải của sản phẩm, nhưng nó đã được in ra nên nó phải được **đính chính**, không được lặng lẽ thay. Bài `test_moc_cu_duoc_ghi_lai_de_khong_ai_doc_nham` giữ mốc ấy khỏi bị quên |
+| **KHÔNG đổi định nghĩa phép đo cho dễ đạt** | Cám dỗ ở đây rất cụ thể: đổi "nêu được lệnh cụ thể" thành "có tính hành động" thì 14% lên 60% mà không sửa một dòng nào. Đó đúng là hạng lỗi mà `instrument.py` (SL-171) sinh ra để bắt — vá cái đồ đo thay vì vá cái được đo. Ngưỡng và định nghĩa giữ nguyên từ đầu đến cuối |
+| **Sửa Ở MỘT CHỖ, không sửa 182 chuỗi** | Viết gợi ý vào từng thông báo thì mỗi gợi ý là một bản sao của cây lệnh, và nó lệch khỏi cây lệnh **ngay lần đầu ai đó đổi tên một lệnh** — không gì bắt được chỗ lệch ấy. Gom vào bảng `GOI_Y_KHI_HONG` (56 lệnh cấp một) thì bắt được: `test_MOI_GOI_Y_deu_tro_vao_mot_lenh_CO_THAT` đối chiếu bảng với cây lệnh THẬT dựng từ argparse, hai chiều |
+| **Gắn ở `main()`, không gắn ở chỗ ném** | `main()` biết **người dùng vừa gõ lệnh nào**; hàm ném lỗi chỉ biết chính nó. Nhờ vậy lỗi ném từ hàm phụ trợ (`_doc_so_do`, `_nap_kho`, `_chon_cong`…) vẫn nhận đúng gợi ý của lệnh đang chạy — đây là 32 chỗ mà phép đo tĩnh **không với tới được** |
+| **Không nói hai lần** | Thông báo đã tự nêu một lệnh thì không gắn thêm. Nói hai lần làm loãng lần thứ nhất |
+| **Con số sau khi sửa — báo cả hai** | Phép đo tĩnh: **150/182 = 82%** (25 tự nêu + 125 được bảng phủ). Đây là **cận dưới**, vì 32 chỗ còn lại nằm trong hàm phụ trợ mà phép quy về lệnh không với tới, dù lúc chạy thật chúng vẫn có gợi ý. Báo cả hai con số chứ không báo mỗi con số đẹp |
+| **Bài canh** | `tests/test_tc145_thong_bao_loi_noi_duoc_viec_phai_lam.py`, 11 bài. Đột biến 4 phép, cả 4 bị bắt: gợi ý trỏ vào lệnh không tồn tại → 2 đỏ; xoá một lệnh khỏi bảng → 1; bỏ luật "không nói hai lần" → 1; bỏ gợi ý khỏi đường in lỗi của `main()` → 1 (bài đầu-cuối) |

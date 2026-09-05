@@ -67,15 +67,16 @@ DO: list[tuple[str, str, str]] = [
     ("Lớp ngữ cảnh prompt", "10 lớp, trần tổng 8.000 token, kiểm TRƯỚC khi gọi",
      "eaa.llm.base.LAYER_BUDGETS"),
     ("Lớp kết luận mang nhãn tin cậy", "23 lớp", "pytest tests/test_tc63_confidence_coverage.py"),
-    ("Sổ sai lệch thiết kế", "177 mục, mỗi mục một bài kiểm canh",
+    ("Sổ sai lệch thiết kế", "178 mục, mỗi mục một bài kiểm canh",
      "grep -c '^## SL-' docs/SAI_LECH_THIET_KE.md"),
     ("Độ trễ lệnh đọc",
      "status 0,57s · observe 0,66s · recall 0,66s · knowledge stale 0,76s",
      "đo 3 lần, lấy nhanh nhất"),
     ("Tính tất định", "TC-15 chạy hai lần cho cùng 13/13 xanh, không cần khoá API",
      "pytest tests/test_tc15_e2e.py (×2)"),
-    ("Thông báo lỗi nêu được lệnh phải gõ", "40/112 — 36%",
-     "quét `raise CliError(` trong eaa/cli.py"),
+    ("Thông báo lỗi nêu được lệnh phải gõ",
+     "150/182 — 82% (mốc trước khi sửa: 25/182 — 14%)",
+     "quét `raise CliError(` bằng phép đếm ngoặc cân; TC-145 canh"),
     ("Lệnh thiếu dòng trợ giúp", "0/103", "duyệt cây argparse"),
     ("Mã thoát phân biệt", "4 mã: 0 · 2 chờ gate · 3 hết vòng vá · 4 lỗi môi trường", "eaa/__init__.py"),
 ]
@@ -225,10 +226,13 @@ UI_UX: list[tuple[str, str, str, str]] = [
      "Không nguồn nào công bố",
      "TỐT, và đo được"),
     ("Chất lượng thông báo lỗi",
-     "ĐO: 40/112 thông báo lỗi (36%) nêu được LỆNH cụ thể phải gõ tiếp",
+     "ĐO: 150/182 thông báo lỗi (82%) nói được VIỆC PHẢI LÀM. Mốc trước khi "
+     "sửa là 25/182 — 14%",
      "Không nguồn nào công bố",
-     "**ĐIỂM YẾU ĐO ĐƯỢC.** Hai phần ba thông báo lỗi nói cái gì sai mà không "
-     "nói phải làm gì. Đây là việc rẻ và nên làm sớm"),
+     "**ĐÃ SỬA (SL-178).** Bảng `GOI_Y_KHI_HONG` gắn ở `main()`, nên lỗi ném "
+     "từ hàm phụ trợ vẫn nhận đúng gợi ý của lệnh đang chạy. TC-145 đối chiếu "
+     "bảng với cây lệnh thật, hai chiều — một gợi ý trỏ vào lệnh đã bị xoá là "
+     "đỏ"),
     ("Nói ra mức tin cậy của mỗi câu trả lời",
      "ĐO: 23 lớp kết luận mang một trong bốn mức ĐÃ KIỂM / SUY RA / GIẢ ĐỊNH / "
      "KHÔNG KIỂM ĐƯỢC; TC-63 canh không lớp nào quên",
@@ -247,11 +251,13 @@ UI_UX: list[tuple[str, str, str, str]] = [
 
 VIEC_PHAI_LAM: list[tuple[str, str, str, str]] = [
     # (ưu tiên, việc, vì sao, đo được bằng gì khi xong)
-    ("1 · Cao",
-     "Sửa thông báo lỗi: nâng tỉ lệ nêu được lệnh phải gõ từ 36% lên ≥80%",
-     "Điểm yếu UI/UX ĐO ĐƯỢC duy nhất trong bảng, và là chỗ rẻ nhất. Hai phần ba "
-     "thông báo hiện nói cái gì sai mà không nói phải làm gì",
-     "Chạy lại phép quét `raise CliError(`; thêm một bài kiểm chặn tỉ lệ tụt"),
+    ("1 · XONG",
+     "Sửa thông báo lỗi: nâng tỉ lệ nói được việc phải làm lên ≥80% — ĐẠT 82%",
+     "Điểm yếu UI/UX ĐO ĐƯỢC duy nhất trong bảng, và là chỗ rẻ nhất. Đo lại "
+     "bằng phép quét đúng thì mốc thật là 14%, không phải 36% như bản trước "
+     "công bố — bản này đính chính",
+     "ĐÃ ĐO: 150/182 = 82%. TC-145 (11 bài, 4 đột biến đều bị bắt) canh cả tỉ "
+     "lệ lẫn tính đúng của từng gợi ý. Xem SL-178"),
     ("2 · Cao",
      "Bộ nhiệm vụ cho thước đo, trên ≥2 Platform Pack",
      "Cái thước đã có (GĐ2) nhưng chưa đo gì. Bốn trục đang báo CHƯA ĐO ĐƯỢC — "
@@ -385,10 +391,21 @@ def dung_tai_lieu():
          caption="Bảng 6 — UI/UX")
     b.append(Note(
         "Phép đo tự chỉ ra một điểm yếu mà so sánh với đối thủ không chỉ ra "
-        "được: chỉ 40 trên 112 thông báo lỗi (36%) nêu được lệnh cụ thể phải gõ "
-        "tiếp. Hai phần ba còn lại nói cái gì sai mà không nói phải làm gì. "
-        "Đây là việc rẻ nhất trong cả danh sách §7.",
-        level="canh_bao"))
+        "được — và bản này phải đính chính chính nó. Bản trước công bố 36% "
+        "(40/112); con số ấy SAI vì biểu thức quét chỉ bắt được một dạng viết "
+        "`raise CliError(`, nên nó đếm thiếu cả tử lẫn mẫu. Quét lại bằng phép "
+        "đếm ngoặc cân cho mốc thật: 25/182 — 14%. Sai số của phép đo chứ "
+        "không phải của sản phẩm, nhưng nó đã được in ra nên nó được sửa công "
+        "khai chứ không thay lặng lẽ.\n\n"
+        "Đã sửa (SL-178): 150/182 — 82%. Cách sửa đáng nói hơn con số. Không "
+        "viết gợi ý vào 182 chuỗi — mỗi chuỗi như vậy là một bản sao của cây "
+        "lệnh, và nó lệch khỏi cây lệnh ngay lần đầu ai đó đổi tên một lệnh, "
+        "mà không gì bắt được. Gom vào một bảng thì bắt được: TC-145 đối chiếu "
+        "bảng gợi ý với cây lệnh dựng từ argparse, hai chiều.\n\n"
+        "82% là CẬN DƯỚI. 32 chỗ còn lại nằm trong hàm phụ trợ mà phép quy về "
+        "lệnh không với tới; lúc chạy thật chúng vẫn có gợi ý, vì bảng gắn ở "
+        "`main()` — nơi biết người dùng vừa gõ lệnh nào. Báo cả hai con số.",
+    ))
 
     b.append(PageBreak())
 
@@ -403,7 +420,8 @@ def dung_tai_lieu():
     h("Điều kiện dừng", 2)
     b.append(Bullets([
         "Bốn trục đo mới có số liệu trên ít nhất hai Platform Pack.",
-        "Tỉ lệ thông báo lỗi nêu được lệnh phải gõ đạt ≥ 80%, có bài kiểm canh.",
+        "~~Tỉ lệ thông báo lỗi nói được việc phải làm đạt ≥ 80%, có bài kiểm "
+        "canh.~~ XONG — 82%, TC-145.",
         "Bốn bộ dò chạy lại được trên 12 lượt chuyển module của lịch sử dự án, "
         "và kết quả — dù tìm ra hay bỏ sót — được ghi vào sổ sai lệch.",
     ]))

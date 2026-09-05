@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -59,6 +60,104 @@ class CliError(Exception):
     def __init__(self, message: str, exit_code: int = EXIT_ENV_ERROR) -> None:
         super().__init__(message)
         self.exit_code = exit_code
+
+
+#: Lệnh hỏng → lệnh giúp người dùng ĐI TIẾP. Xem `_goi_y_di_tiep`.
+#:
+#: Bảng nằm ở MỘT chỗ thay vì rải thành 182 chuỗi trong từng thông báo. Lý do
+#: không phải gọn hơn: một gợi ý viết rải rác sẽ lệch với lệnh nó nói tới ngay
+#: lần đầu ai đó đổi tên lệnh, và **không gì bắt được chỗ lệch ấy**. Ở đây thì
+#: có — bài kiểm đối chiếu bảng này với cây argparse thật.
+#:
+#: Nguyên tắc chọn gợi ý: lệnh nào trả lời câu *"giờ tôi đứng ở đâu"* hoặc
+#: *"cái tôi vừa gõ thiếu gì"* cho ĐÚNG việc vừa hỏng. Một gợi ý chung chung
+#: dán vào mọi chỗ thì không phải gợi ý, nó là chữ độn.
+GOI_Y_KHI_HONG: dict[str, tuple[str, ...]] = {
+    # — dựng dự án và trạng thái —
+    "init": ("eaa doctor", "eaa status"),
+    "status": ("eaa focus",),
+    "resume": ("eaa status", "eaa gate show"),
+    "scratch": ("eaa status",),
+    "focus": ("eaa status",),
+    "brief": ("eaa ports", "eaa status"),
+    "policy": ("eaa status",),
+    "capabilities": ("eaa doctor",),
+    "packs": ("eaa capabilities",),
+    "survey": ("eaa capabilities",),
+    "models": ("eaa models",),
+    "environ": ("eaa doctor",),
+    # — kế hoạch và module —
+    "plan": ("eaa plan list", "eaa status"),
+    "propose": ("eaa plan list",),
+    "decide": ("eaa plan list",),
+    "interface": ("eaa plan list",),
+    "ledger": ("eaa ledger list",),
+    "deviations": ("eaa deviations --draft",),
+    # — tri thức —
+    "datasheet": ("eaa datasheet list", "eaa sources need"),
+    "sources": ("eaa sources need",),
+    "errata": ("eaa errata show",),
+    "resolve": ("eaa sources need", "eaa recall '<câu hỏi>'"),
+    "recall": ("eaa datasheet list",),
+    "research": ("eaa environ",),
+    "read": ("eaa research '<câu hỏi>'",),
+    "knowledge": ("eaa knowledge stale '<mã chunk>'", "eaa datasheet list"),
+    "memory": ("eaa memory list",),
+    "playbook": ("eaa playbook list",),
+    # — sinh mã và cổng —
+    "gen": ("eaa focus", "eaa status"),
+    "gate": ("eaa gate show", "eaa status"),
+    "build": ("eaa status", "eaa plan list"),
+    "rollback": ("eaa report versions",),
+    "sim": ("eaa status",),
+    # — môi trường và công cụ —
+    "doctor": ("eaa doctor --plan", "eaa environ"),
+    "tool": ("eaa tool list", "eaa capabilities"),
+    "skill": ("eaa skill list",),
+    "assess": ("eaa environ",),
+    # — phần cứng —
+    "ports": ("eaa environ",),
+    "flash": ("eaa ports", "eaa status"),
+    "telemetry": ("eaa ports",),
+    "diagnose": ("eaa diagnose list", "eaa ports"),
+    "debug": ("eaa debug plan '<kịch bản>'",),
+    "endurance": ("eaa diagnose list",),
+    "scope-image": ("eaa diagnose list",),
+    "tune": ("eaa report versions", "eaa status"),
+    "measured": ("eaa measured list",),
+    "observe": ("eaa observe",),
+    "safety": ("eaa safety show",),
+    "budget": ("eaa budget show",),
+    # — báo cáo và bàn giao —
+    "report": ("eaa report kpi",),
+    "docs": ("eaa docs list",),
+    "design": ("eaa design list",),
+    "handover": ("eaa handover doc",),
+    "field": ("eaa diagnose list",),
+    "suggest": ("eaa report review",),
+    "chat": ("eaa status", "eaa capabilities"),
+}
+
+
+def _goi_y_di_tiep(ten_lenh: str, thong_diep: str) -> str:
+    """Phần "làm tiếp" gắn vào cuối một thông báo lỗi.
+
+    Trả RỖNG khi thông báo ĐÃ tự nêu một lệnh. Nói hai lần thì lần thứ hai làm
+    loãng lần thứ nhất, và người đọc sẽ thôi đọc cả hai.
+
+    Đây là chỗ sửa cho SL-178: đo được rằng chỉ 25/182 thông báo lỗi nêu được
+    việc phải làm tiếp. Hai phần ba còn lại nói CÁI GÌ SAI mà không nói PHẢI
+    LÀM GÌ — và với một công cụ mà người dùng đang đứng giữa một quy trình có
+    gate, đó là bỏ họ lại đúng lúc họ cần một mũi tên.
+    """
+    if re.search(r"\beaa [a-z]", thong_diep):
+        return ""
+    goi_y = GOI_Y_KHI_HONG.get(ten_lenh, ())
+    if not goi_y:
+        return ""
+    if len(goi_y) == 1:
+        return f"\n  Làm tiếp: {goi_y[0]}"
+    return "\n  Làm tiếp:\n" + "\n".join(f"    {g}" for g in goi_y)
 
 
 # --------------------------------------------------------------------------
@@ -7056,19 +7155,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     #: Lỗi nghĩa là "đang chờ người", khác với "hỏng" — mã thoát 2.
     CHO_NGUOI = (GateNotInteractive, GateNotPending, ConfirmationRequired)
 
+    # Tên lệnh người dùng vừa gõ — chỉ chỗ này biết nó, và chỉ chỗ này gắn được
+    # câu "làm tiếp" cho đúng việc vừa hỏng (SL-178).
+    ten_lenh = (argv or sys.argv[1:])
+    ten_lenh = next((a for a in ten_lenh if not a.startswith("-")), "")
+
+    def _bao(nhan: str, exc: BaseException) -> None:
+        print(f"{nhan}: {exc}{_goi_y_di_tiep(ten_lenh, str(exc))}", file=sys.stderr)
+
     try:
         return args.func(args)
     except CliError as exc:
-        print(f"Lỗi: {exc}", file=sys.stderr)
+        _bao("Lỗi", exc)
         return exc.exit_code
     except CHO_NGUOI as exc:
-        print(f"Cần người quyết định: {exc}", file=sys.stderr)
+        _bao("Cần người quyết định", exc)
         return EXIT_WAITING_GATE
     except PolicyViolation as exc:
-        print(f"Bị luật điều phối từ chối: {exc}", file=sys.stderr)
+        _bao("Bị luật điều phối từ chối", exc)
         return EXIT_ENV_ERROR
     except MergeNotAuthorized as exc:
-        print(f"Không được phép merge: {exc}", file=sys.stderr)
+        _bao("Không được phép merge", exc)
         return EXIT_ENV_ERROR
     except (
         GateError,
@@ -7079,7 +7186,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         GitError,
         ToolExecutionError,
     ) as exc:
-        print(f"Lỗi: {exc}", file=sys.stderr)
+        _bao("Lỗi", exc)
         return EXIT_ENV_ERROR
 
 
