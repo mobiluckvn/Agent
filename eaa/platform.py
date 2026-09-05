@@ -406,6 +406,10 @@ class PackManifest:
     #: Trình gỡ lỗi sâu của họ MCU này (N-085). Engine chỉ nhận danh sách và
     #: kiểm sự có mặt; nó không được biết tên nào trong đây (FR-PLT-01).
     debug_tools: tuple[str, ...] = ()
+    #: Bản đồ thanh ghi máy đọc được của hãng: ``{format: svd|atdf, path: ...}``
+    #: (GĐ1, SL-176). Engine biết ĐỊNH DẠNG, không biết trong tệp có tên gì.
+    #: Rỗng là đường chạy bình thường — cổng `regcheck` im và mọi thứ như cũ.
+    regmap: dict[str, str] = field(default_factory=dict)
     #: Khuôn ráp firmware — xem :class:`FirmwareTemplates`.
     firmware: "FirmwareTemplates | None" = None
     #: Bộ khung firmware chẩn đoán — xem :class:`DiagnosticTemplates`.
@@ -509,6 +513,7 @@ def load_manifest(path: str | Path) -> PackManifest:
             str(k): str(v) for k, v in (du_lieu.get("tool_requirements") or {}).items()
         },
         debug_tools=tuple(str(x) for x in (du_lieu.get("debug_tools") or ())),
+        regmap={str(k): str(v) for k, v in (du_lieu.get("regmap") or {}).items()},
     )
 
 

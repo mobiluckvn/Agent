@@ -127,11 +127,14 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str, str, str, str]] = [
      "Ngang. Khác ở chỗ EAA đòi NGƯỜI duyệt từng trích đoạn tại G2; Embedder "
      "khai chỉ mục tự động trên toàn bộ tài liệu", DASH),
     ("A2", "A. Nối đất tri thức", "Nạp SVD / file mô tả thanh ghi của hãng",
-     CO, KHONG_NEU, KHONG_NEU, CHUA,
-     "—",
-     "THIẾU RÕ. SVD là bảng thanh ghi máy đọc được, chính hãng phát hành — nó "
-     "làm được đúng việc mà trích đoạn thủ công đang làm, nhanh hơn nhiều lần "
-     "và ít sai hơn. Đây là khoảng trống đáng lấp nhất của nhóm A", CAO),
+     CO, KHONG_NEU, KHONG_NEU, DU,
+     "eaa/regmap.py mô hình trung tính + regmap_svd.py + regmap_atdf.py; khai "
+     "trong pack.yaml qua trường `regmap` · SL-176, TC-136",
+     "**EAA HƠN Ở PHẦN DÙNG NÓ.** Ngang về việc nạp; hơn ở chỗ cổng `regcheck` "
+     "biến bản đồ thành bốn phép CHẶN (thanh ghi có thật · giá trị lọt vừa độ "
+     "rộng · dịch bit trong tầm · không ghi vào thanh ghi chỉ-đọc) cộng một "
+     "phép cảnh báo trích-dẫn-dán-nhầm-chỗ. Không nguồn nào khảo sát được nêu "
+     "phép kiểm độ rộng trường bit", DASH),
     ("A3", "A. Nối đất tri thức", "Nạp SƠ ĐỒ NGUYÊN LÝ / netlist thành bối cảnh bo",
      CO, KHONG_NEU, KHONG_NEU, CHUA,
      "—",
@@ -140,7 +143,9 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str, str, str, str]] = [
      "hardware_profile.yaml gõ tay — và SL-125 là lần chính chỗ gõ tay ấy sai", CAO),
     ("A4", "A. Nối đất tri thức", "Trích dẫn nguồn cho TỪNG giá trị thanh ghi",
      CO, KHONG_NEU, KHONG_NEU, DU,
-     "Luật `// ref: <mã chunk>` cưỡng chế ở cổng phân tích tĩnh · TC-17",
+     "Luật `// ref: <mã chunk>` cưỡng chế ở cổng phân tích tĩnh · TC-17. Từ "
+     "SL-176 thêm phép kiểm trích dẫn ĐÚNG CHỖ: hàm cấu hình thanh ghi X mà "
+     "trích dẫn chunk không nói về X thì cảnh báo · TC-136",
      "NGANG, và EAA cưỡng chế mạnh hơn: thiếu trích dẫn là cổng ĐỎ, không phải "
      "một ghi chú. Embedder khai 'cites the source', không nêu có chặn hay không", DASH),
     ("A5", "A. Nối đất tri thức", "Nêu giá trị KHÔNG có trong tài liệu để người xem",

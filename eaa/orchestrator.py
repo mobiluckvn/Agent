@@ -1158,6 +1158,16 @@ class Orchestrator:
             moi,
             nguon_test=sau.files.get(f"tests/test_{module_id}.py", ""),
             tep=duong_dan,
+            # Bản đồ thanh ghi, nếu chuỗi cổng có cổng `regcheck` mang nó. Không
+            # có thì bộ dò chạy y như trước GĐ1 (luật 1 của kế hoạch).
+            ban_do=next(
+                (
+                    getattr(g, "regmap", None)
+                    for g in self.gate_chain
+                    if getattr(g, "name", "") == "regcheck"
+                ),
+                None,
+            ),
         )
 
     def _dung_vi_chinh_do_do(

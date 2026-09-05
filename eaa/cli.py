@@ -846,6 +846,26 @@ def _tao_llm(state: Any, project: Path, *, model_override: str = "") -> Any:
     )
 
 
+def _ban_do_thanh_ghi(manifest: Any, project: Path) -> Any:
+    """Bản đồ thanh ghi của pack, hoặc None khi pack chưa khai.
+
+    Nuốt lỗi ở đây là CỐ Ý và có giới hạn: một tệp bản đồ hỏng không được làm
+    `build_context` sập, vì `build_context` là cửa của MỌI lệnh — kể cả những
+    lệnh chẳng liên quan gì tới thanh ghi. Cổng `regcheck` nhận None thì nó im,
+    và thông báo hỏng đi ra qua `eaa doctor` chứ không qua một traceback giữa
+    lúc người dùng đang gõ `eaa status`.
+    """
+    from eaa.regmap import RegmapError, tu_pack
+
+    try:
+        return tu_pack(manifest, project)
+    except RegmapError as exc:
+        import sys as _sys
+
+        print(f"⚠ Bản đồ thanh ghi không nạp được: {exc}", file=_sys.stderr)
+        return None
+
+
 def build_context(project: Path, *, llm: Any = None) -> AppContext:
     """Nối dây toàn bộ một dự án từ thư mục của nó."""
     from eaa.budget import ResourceBudget, TokenBudget
@@ -860,6 +880,7 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
     from eaa.tools.compile import CompileGate, SizeGate
     from eaa.tools.runner import ToolRunner
     from eaa.tools.static import StaticGate
+    from eaa.tools.regcheck import RegCheckGate
     from eaa.tools.unittests import UnitTestGate
     from eaa.vcs import GitRepo
 
@@ -947,6 +968,22 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
             # Nguồn đơn vị THẬT của hằng số, để bắt chú thích gán nhầm đơn vị
             # (N-911). Dùng chung đúng cái sổ mà lớp K8 của prompt đọc.
             measured=composer.measured,
+        ),
+        # Cổng 5 — đối chiếu mã với bản đồ thanh ghi của hãng (GĐ1, SL-176).
+        #
+        # Đứng SAU `static` và TRƯỚC `unittests`: nó cần mã đã qua luật cấm của
+        # dự án, và kết quả của nó có nghĩa hơn khi đọc trước lúc chạy bài kiểm
+        # — một giá trị sai với silicon vẫn hợp lệ trong bộ giả lập trên máy chủ.
+        #
+        # KHÔNG vào `required_gates`: bằng chứng merge của mọi module đã có sẽ
+        # thành thiếu cổng, và dự án chưa có tệp bản đồ sẽ bị ép có. Cổng vẫn
+        # CHẶN được vì chuỗi cổng dừng ở cổng hỏng đầu tiên.
+        RegCheckGate(
+            regmap=_ban_do_thanh_ghi(manifest, project),
+            registers=graph.registers_for(module_hien_tai) if module_hien_tai else [],
+            chunk_registers={
+                c.id: tuple(c.registers) for c in kb.datasheets.active()
+            },
         ),
         UnitTestGate(
             # ĐÚNG thư mục bộ sinh mã ghi vào. Nó ghi `src/` và `tests/` trong

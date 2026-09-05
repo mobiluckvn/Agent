@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from eaa.contract import bo_chu_thich, vung_than_ham
 
@@ -197,8 +198,29 @@ class NghiVan:
         return "\n".join(f"  · {d}" for d in self.dau_vet)
 
 
+def _van_hop_le(gia_tri: str, ban_do: Any) -> bool | None:
+    """Giá trị mới còn lọt vừa thanh ghi nào trong bản đồ không.
+
+    None nghĩa là KHÔNG TRẢ LỜI ĐƯỢC — không có bản đồ, hoặc số không đọc nổi.
+    Ba trạng thái, không hai: *hợp lệ*, *không hợp lệ*, và *không biết*. Gộp
+    trạng thái thứ ba vào một trong hai kia là đúng cái lỗi mà
+    `eaa/confidence.py` sinh ra để chặn.
+    """
+    if ban_do is None:
+        return None
+    try:
+        so = int(gia_tri, 0)
+    except (TypeError, ValueError):
+        return None
+    try:
+        vua = [r for r in ban_do.registers.values() if r.vua(so)]
+    except Exception:  # noqa: BLE001 - bản đồ hỏng không làm hỏng bộ dò
+        return None
+    return bool(vua)
+
+
 def nghi_van_chinh_do_do(
-    ma_cu: str, ma_moi: str, *, nguon_test: str = "", tep: str = ""
+    ma_cu: str, ma_moi: str, *, nguon_test: str = "", tep: str = "", ban_do: Any = None
 ) -> NghiVan:
     """Bản vá có đang chỉnh đồ đo thay vì chỉnh cái bị đo không.
 
@@ -220,12 +242,23 @@ def nghi_van_chinh_do_do(
             continue
         mat = sorted(so_cu - moi[ten])
         if mat:
+            # Bản đồ thanh ghi trả lời được một câu nữa mà trước GĐ1 không ai
+            # trả lời: giá trị MỚI có còn hợp lệ không. Hai lỗi chồng nhau khác
+            # hẳn một lỗi, và người phân xử cần biết mình đang đứng trước cái nào.
+            them: list[str] = []
+            for so_moi in sorted(moi[ten] - so_cu):
+                hop_le = _van_hop_le(so_moi, ban_do)
+                if hop_le is False:
+                    them.append(
+                        f"{so_moi} còn KHÔNG lọt vừa thanh ghi nào trong bản đồ"
+                    )
             dau_vet.append(
                 DauVet(
                     "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI",
                     f"{ten}() mang `// ref:` mà mất hằng số {', '.join(mat)}. "
                     "Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu "
-                    "không đổi vì một bài kiểm đỏ",
+                    "không đổi vì một bài kiểm đỏ"
+                    + ("; " + "; ".join(them) if them else ""),
                 )
             )
 

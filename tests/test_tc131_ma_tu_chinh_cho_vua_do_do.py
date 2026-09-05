@@ -243,15 +243,23 @@ def test_rong_nghia_la_KHONG_THAY_chu_khong_phai_da_chung_minh_trong_sach() -> N
 
 
 class OrchGia:
-    """Mượn đúng hai phương thức đang đo, và không mượn gì thêm."""
+    """Mượn đúng hai phương thức đang đo, và không mượn gì thêm.
+
+    Danh sách thuộc tính dưới đây là một LỜI KHAI: hai phương thức ấy chỉ được
+    đụng tới `gate_chain`. Nó đã làm đúng việc của nó một lần — khi GĐ1 nối bản
+    đồ thanh ghi vào bộ dò, bài kiểm đỏ ngay tại đây thay vì đỏ ở một chỗ xa.
+    """
 
     _nghi_van_do_do = Orchestrator._nghi_van_do_do
     _dung_vi_chinh_do_do = Orchestrator._dung_vi_chinh_do_do
     _dat_trang_thai = staticmethod(lambda *a, **k: None)
     _kpi = staticmethod(lambda *a, **k: None)
 
-    def __init__(self) -> None:
+    def __init__(self, gate_chain: list[Any] | None = None) -> None:
         self.da_dat: list[Any] = []
+        #: Rỗng = không có cổng `regcheck` = không có bản đồ. Đúng đường chạy
+        #: của mọi dự án chưa khai `regmap`.
+        self.gate_chain = gate_chain or []
 
 
 def _artifact(ma_c: str, test: str = PID_TEST) -> CodeArtifact:
