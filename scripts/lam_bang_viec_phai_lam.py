@@ -481,7 +481,7 @@ def main() -> int:
         SR: PatternFill("solid", fgColor="FFC7CE"),
     }
     MAU_TT = {
-        "XONG (SL-178)": PatternFill("solid", fgColor="C6EFCE"),
+        "XONG": PatternFill("solid", fgColor="C6EFCE"),
         "ĐANG LÀM": PatternFill("solid", fgColor="FFF2CC"),
         "CHỜ NGÂN SÁCH": PatternFill("solid", fgColor="E7E6E6"),
         "CHỜ NGƯỜI": PatternFill("solid", fgColor="DDEBF7"),
@@ -548,7 +548,10 @@ def main() -> int:
             o.alignment = GIUA if c in (1, 11, 12) else TREN
             o.border = VIEN
         ws.cell(row=r, column=1).font = Font(bold=True)
-        ws.cell(row=r, column=13).fill = MAU_TT.get(hang[12], PatternFill())
+        # Khớp theo TIỀN TỐ: "XONG (SL-178)" và "XONG (SL-179)" cùng một màu.
+        # Khớp nguyên chuỗi thì mỗi việc xong lại thêm một dòng vào bảng màu.
+        tt = next((k for k in MAU_TT if hang[12].startswith(k)), "")
+        ws.cell(row=r, column=13).fill = MAU_TT.get(tt, PatternFill())
         ws.row_dimensions[r].height = 118
     ws.auto_filter.ref = f"A1:M{len(VIEC) + 1}"
 
@@ -601,8 +604,8 @@ def main() -> int:
         hang_dem[h] = hang_dem.get(h, 0) + 1
     print(f"Đã ghi {RA}  ({RA.stat().st_size:,} byte)")
     print(f"  việc  : {len(VIEC)} — "
-          + " · ".join(f"{t}: {sum(1 for v in VIEC if v[12] == t)}"
-                       for t in ("XONG (SL-178)", "ĐANG LÀM", "CHỜ NGÂN SÁCH",
+          + " · ".join(f"{t}: {sum(1 for v in VIEC if v[12].startswith(t))}"
+                       for t in ("XONG", "ĐANG LÀM", "CHỜ NGÂN SÁCH",
                                  "CHỜ NGƯỜI", "CHƯA")))
     print(f"  sở cứ : {len(SO_CU)} — "
           + " · ".join(f"{k}: {v}" for k, v in hang_dem.items()))
