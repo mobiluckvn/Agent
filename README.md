@@ -626,6 +626,7 @@ việc chép dùng ngay, cùng bốn cách hỏng đã gặp thật.
 | [`docs/RA_SOAT_NANG_LUC_04_09.md`](docs/RA_SOAT_NANG_LUC_04_09.md) | Rà soát 142 dòng bảng năng lực với mã: 125 đủ, 15 còn thiếu, và việc phải làm theo thứ tự |
 | [`docs/KHAO_SAT_AGENT_NHUNG.md`](docs/KHAO_SAT_AGENT_NHUNG.md) | Khảo sát Agent nhúng trên thị trường và đối chiếu: 42 tính năng, 9 nguồn — ta thiếu gì, ta hơn ở đâu |
 | [`docs/KE_HOACH_VUOT_LEN.md`](docs/KE_HOACH_VUOT_LEN.md) | Kế hoạch để tốt hơn chứ không chỉ ngang bằng: 4 giai đoạn, kiến trúc từng phần, và kịch bản kiểm thử TC-136..144 |
+| [`docs/PHAN_TICH_LOI_THE_SAN_PHAM.md`](docs/PHAN_TICH_LOI_THE_SAN_PHAM.md) | Cốt lõi từng sản phẩm trên thị trường cược vào điều gì, và cốt lõi của EAA — ba câu mô tả điểm mạnh, kèm chỗ chúng chưa vững |
 | [`docs/EAA_Bang_nang_luc.xlsx`](docs/EAA_Bang_nang_luc.xlsx) | Bảng gốc — sheet **Khoảng trống** là danh sách việc. Sinh lại: `python scripts/lam_bang_nang_luc.py`; kiểm: `python scripts/kiem_bang_nang_luc.py` |
 | [`docs/SAI_LECH_THIET_KE.md`](docs/SAI_LECH_THIET_KE.md) | 166 mục: mỗi lỗi đã gặp, chỗ sửa thật, và bài kiểm canh nó. Dữ liệu gốc của chương đánh giá |
 | [`docs/NHAT_KY_TEST_BLKLAB.md`](docs/NHAT_KY_TEST_BLKLAB.md) | Nhật ký từng lượt nạp trên bo thật |
