@@ -2639,3 +2639,21 @@ lại, và để bản cập nhật SDD gom một lần:
 | **TC-38 bắt chính tôi** | Bản nháp chú thích trong `eaa/procedure.py` gọi đích danh tên linh kiện để giải thích con số 800. Một tên phần cứng trong engine vẫn là một tên phần cứng trong engine, kể cả khi nó chỉ đứng trong lời giải thích |
 | **Điều V4 CHƯA làm được** | V4 dựng CƠ CHẾ. Con số `pass@k` trước/sau — thứ duy nhất chứng minh thủ tục có tác dụng — cần bộ nhiệm vụ của V2, và V2 đang chờ ngân sách gọi mô hình. Hai thủ tục hiện ở trạng thái `proposed`: **chưa ai duyệt G2, nên chưa dòng nào vào prompt** |
 | **Bài canh** | `tests/test_tc139_thu_tuc_ngoai_vi.py`, 21 bài. Đột biến 5 phép, cả 5 bị bắt sau khi vá bài rỗng |
+
+---
+
+## SL-181 · DỜI CHỖ · Bảng việc phải làm thành backlog tiến hoá
+
+| | |
+|---|---|
+| **Cách tìm** | Yêu cầu rà soát lại danh sách tính năng, và nói riêng: IDE và mô phỏng phải được làm cho đủ chuyên nghiệp, còn bảng phải quản trị được quá trình tiến hoá chứ không chỉ đọc được một lần |
+| **Thay thế, không sửa đè** | `docs/EAA_Viec_phai_lam.xlsx` (14 việc) và `scripts/lam_bang_viec_phai_lam.py` được **rút đi**, thay bằng `docs/EAA_Backlog_Tien_hoa.xlsx` và `scripts/lam_bang_tien_hoa.py` (32 việc, 9 sheet). Mọi mã V1..V14 mang sang nguyên vẹn trong cột *Mã cũ* — kiểm bằng phép đối chiếu lúc sinh bảng. Để hai bảng song song là để hai danh sách việc phải làm cùng tồn tại, và lúc chúng lệch thì không ai biết cái nào đúng |
+| **Mục SL-179 và SL-180 KHÔNG được sửa** | Hai mục ấy trỏ vào tên tệp cũ, và đó là **đúng lịch sử**: lúc viết chúng, tệp ấy là tệp thật. Kho này chạy append-only + supersede cho mọi sổ, và sổ sai lệch không phải ngoại lệ. Mục này là bản ghi thay thế; hai mục kia giữ nguyên |
+| **`docs/CHAN_LY_NEN_V3.md` cũng không sửa** | Tệp ấy bị TC-146 đóng băng theo commit `f8313d9`. Nó nhắc tên tệp cũ ở phần đính chính SC-01, và đụng vào nó sẽ làm đỏ đúng bài kiểm sinh ra để chặn việc sửa chân lý nền sau khi thấy kết quả |
+| **Rà soát MÔ PHỎNG — cái đã có nhiều hơn tôi tưởng** | Kho đã có: bộ điều khiển tham chiếu MiL để quét tham số, cổng SIL chạy **firmware C thật** qua lớp HAL giả lập (không chạy bản Python song song), và mô hình vật lý **đã kiểm chứng bằng nghiệm giải tích** trước khi làm cổng chặn. Chín việc mảng D là phần THIẾU: tiêm lỗi · chu kỳ máy (PIL) · **đo khoảng cách sim↔bo** · mốc hồi quy · độ phủ trạng thái · tất định · Monte-Carlo · lệnh cho người · pack thứ hai |
+| **Bằng chứng ĐO cho việc tiêm lỗi** | Không phải suy đoán: từ chối G3 #12 nguyên văn *"bus chết thì robot giữ nguyên lệnh động cơ cuối cùng và không bao giờ phát hiện mình đã ngã"* — bốn cổng đều xanh, NGƯỜI bắt. Và #11: vòng bơm cảm biến trượt thì *"im lặng dùng góc cũ (bài kiểm không thấy vì nó dùng driver giả)"*. Một kịch bản tiêm lỗi bắt được cả hai, và đo lại được ngược trên 13 ca của V3 mà **không tốn một lượt gọi mô hình nào** |
+| **Rà soát IDE — chỗ chặn rất cụ thể và rất rẻ** | CLI có 103 lệnh, 0 lệnh thiếu trợ giúp, và **0 lệnh nào có đầu ra máy đọc được**. Một extension biên tập không đọc được văn xuôi tiếng Việt. Đổi lại, `ToolError` đã mang sẵn `file`, `line`, `rule_id`, `severity` — đủ cho một chẩn đoán, chỉ thiếu chỗ xuất ra. Nên E1 (`--json` cho lệnh CHỈ ĐỌC) **chặn 7 trong 8 việc của mảng**, mà chỉ tốn 3 ngày |
+| **Luật xuyên suốt mảng IDE** | `--json` CHỈ cho lệnh chỉ đọc. Lệnh đổi trạng thái vẫn đi đúng đường cũ; một `--json` cho lệnh ghi "cho tiện tự động hoá" chính là đường thứ hai tới merge mà bất biến số một cấm (TC-01, TC-02) |
+| **Cột `Chặn việc nào` SUY RA, không khai tay** | Bản đầu khai cả hai chiều, và phép kiểm toàn vẹn tìm ra **15 cạnh không đối xứng** cùng ba cặp vòng tròn (C1↔C4, C3↔D2, D2↔D3). Một đồ thị phụ thuộc tự mâu thuẫn còn tệ hơn không có đồ thị, vì người đọc tin nó. Nay khai một chiều và suy ra chiều kia — đúng hình dạng lỗi V3 tìm ra trong `contract.py` (hai danh sách cho cùng một mục đích sẽ lệch nhau) |
+| **Sheet `Nhật ký tiến hoá`** | Bảng không có nhật ký thì không ai kiểm lại được nó đã đi qua đâu. Mỗi lần đổi trạng thái một việc phải thêm một dòng |
+| **Bài canh** | `tests/test_tc147_backlog_tien_hoa.py` |

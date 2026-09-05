@@ -5,7 +5,8 @@ khái niệm khác hẳn: một chuỗi lệnh CLI gọi được bằng một c
 cùng tên trong một kho là hai thứ sẽ bị nhầm, và lần nhầm đầu tiên đã xảy ra
 ngay khi viết module này — bản nháp đầu ghi đè mất `skills.py`.
 
-Xem `docs/KE_HOACH_VUOT_LEN.md` §4 và `docs/EAA_Viec_phai_lam.xlsx` việc V4.
+Xem `docs/KE_HOACH_VUOT_LEN.md` §4 và `docs/EAA_Backlog_Tien_hoa.xlsx` việc
+B1 (trước là V4 — xem SL-181).
 
 Sở cứ: bài arXiv 2603.19583 — mốc DUY NHẤT trong khảo sát có ablation đo được —
 cho thấy tri thức do NGƯỜI nén theo từng ngoại vi nâng kết quả lên gần trần.
