@@ -2566,3 +2566,21 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Hai bài kiểm RỖNG tự bắt được khi viết** | Bài canh hàng rào tệp Python viết hai lần đều rỗng: lần đầu dùng đoạn C nhúng trong chuỗi Python (bộ bỏ chú thích xoá ruột chuỗi nên vô hình ở **cả hai** tệp); lần hai bỏ dấu chấm phẩy (phép khớp lệnh ghi đòi dấu ấy). Bản dùng được là `CTRL_A = 0x1FF;` — hợp lệ trong cả hai ngôn ngữ — kèm vế ngược, và kèm lời nói thẳng rằng đây là lớp phòng thủ thứ hai |
 | **Một bài kiểm cũ làm đúng việc của nó** | Lớp `OrchGia` của TC-131 khai *"hai phương thức ấy chỉ được đụng tới `self.repo`"*. Khi GĐ1 cho `_nghi_van_do_do` đọc `gate_chain`, bài kiểm đỏ **ngay tại đó** thay vì đỏ ở một chỗ xa |
 | **Bài canh** | `tests/test_tc136_ban_do_thanh_ghi.py` 30 bài · `tests/test_tc137_ban_do_noi_vao_bo_do.py` 8 bài. Đột biến 6 phép, cả 6 bị bắt: bỏ kiểm độ rộng → 3 đỏ; cảnh báo thành lỗi chặn → 1; soi cả tệp Python → 1; ATDF quên đổi byte sang bit → 2; SVD bỏ sót thanh ghi lồng trong cluster → 1; vắng bản đồ mà kết luận "không hợp lệ" → 1 |
+
+---
+
+## SL-177 · BỔ SUNG · Thước đo: chỉ số của văn liệu, cộng bốn trục chưa ai có (GĐ2)
+
+| | |
+|---|---|
+| **Cách tìm** | `docs/KE_HOACH_VUOT_LEN.md` §3. Luật 2 của kế hoạch: *"tốt hơn" phải ĐO ĐƯỢC, không được là một lời khai* — mà muốn đo thì phải có thước |
+| **Nửa A — thước của họ** | `pass@1`, `pass@5`, và các hạng *trượt dịch / sai hành vi / đúng*. Phải có, vì không có thì không đối thoại được với văn liệu: IoT-SkillsBench và mọi benchmark sinh mã đều nói bằng những chữ ấy |
+| **Nửa B — đóng góp** | Bốn trục không benchmark nào trong khảo sát hỏi: **độ nhạy bài kiểm** (bao nhiêu % bài kiểm xanh cả với mã sai) · **vá chỉnh đồ đo** · **mất việc im lặng** · **truy về được**. Chúng đo **chất lượng của quá trình**, không đo chất lượng một lượt sinh. Một hệ đạt `pass@1` cao mà 40% bài kiểm của nó rỗng thì con số ấy không có nghĩa như người đọc tưởng — và không ai nói ra, vì không ai đo |
+| **Không tự đo lại** | Bốn trục lấy số từ các bộ đo **ĐÃ CÓ**: `sensitivity`, `instrument`, `contract`, `regcheck`. `bench.py` chỉ gom. Tự đo là dựng bộ đo thứ hai, và hai bộ đo cùng một thứ là hai bộ lệch nhau được |
+| **Không tự chấm đúng/sai** | Hạng suy từ **báo cáo của chính chuỗi cổng**. Một kết cục khai `status='merged'` mà báo cáo cổng dịch nói trượt thì hạng là **trượt dịch** — báo cáo cổng là thứ đã CHẠY, `status` là thứ được GÁN. Dựng bộ chấm riêng cho benchmark là dựng con đường thứ hai, và con số đi ra nói về con đường ấy chứ không nói về sản phẩm |
+| **Hai hạng thêm vào ba hạng của văn liệu** | **BLOCKED** (lỗi môi trường/cấu hình) — tính vào *sai hành vi* là ghi lỗi của máy tính vào sổ của mô hình. **HANDOFF** (hết vòng vá, hoặc dừng vì dấu vết chỉnh đồ đo) — khác *sai hành vi* ở chỗ hệ đã **chủ động dừng và hỏi người**, và gộp hai cái là xoá mất chính thứ sản phẩm này làm khác |
+| **KHÔNG gộp hai hạng bằng chứng** | Kết quả trên bo thật và trên máy chủ đứng riêng trong mọi bản báo cáo. Trộn rồi báo một con số là nói dối, kể cả khi con số ấy đúng về số học. Đây là bài chống lại chính cám dỗ của đề án |
+| **CHƯA ĐO ĐƯỢC khác BẰNG KHÔNG** | Bộ chuẩn không sinh bài kiểm nào thì tỉ lệ bài kiểm rỗng của nó **không phải 0%** — nó không tồn tại. Báo 0% là khai một thành tích chưa đo. Cùng luật `confidence.py` đã đặt cho mọi đầu ra khác |
+| **Một bài kiểm RỖNG tự bắt được** | Bài canh `pass@k` ban đầu chỉ dùng `k=1` và `k=5` — hai chỗ mà công thức chuẩn và "tỉ lệ lượt đúng" TRÙNG NHAU, nên đột biến đổi công thức vẫn xanh. Chỗ chúng tách nhau là `k>1` với đủ lượt trượt: n=5, c=1, k=2 cho 0,4 theo công thức chuẩn và 0,2 theo tỉ lệ. Đã thêm ba mốc ấy |
+| **Bài canh** | `tests/test_tc138_thuoc_do.py`, 22 bài. Đột biến 5 phép, cả 5 bị bắt sau khi vá bài rỗng: gộp HANDOFF/BLOCKED → 1 đỏ; chấm bằng trường tự khai → 2; CHƯA ĐO ĐƯỢC thành 0% → 1; gộp hai hạng bằng chứng → 1; `pass@k` thành tỉ lệ lượt đúng → 1 |
+| **Còn thiếu để đóng E1** | Module này là cái **thước**; bộ **nhiệm vụ** thì chưa có. Đó là việc kế tiếp và nó tốn lượt gọi mô hình thật, nên tách khỏi mục này thay vì làm dở |

@@ -301,10 +301,14 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str, str, str, str]] = [
      "3 cặp nền tảng, 378 lượt chạy trên phần cứng thật, chỉ số CF/BF/BC và "
      "pass@1/pass@5. EAA có chiều SÂU trên một bài, chưa có chiều RỘNG", CAO),
     ("E2", "E. Đo lường & bằng chứng", "Chỉ số chuẩn: trượt dịch / sai hành vi / đúng, pass@k",
-     KHONG_NEU, CO, KHONG_NEU, CHUA,
-     "kpi_log.csv đếm lượt gọi, vòng vá, quyết định gate — không có pass@k",
-     "THIẾU. Đây là ngôn ngữ mà người đọc luận văn dùng để so EAA với văn "
-     "liệu. Rẻ: bộ dữ liệu đã có trong kpi_log, chỉ thiếu cách tính", CAO),
+     KHONG_NEU, CO, KHONG_NEU, DU,
+     "eaa/bench.py: pass@k theo công thức không chệch của văn liệu + năm hạng "
+     "(ba hạng chuẩn cộng HANDOFF và BLOCKED tách riêng) + lệnh eaa report "
+     "bench · SL-177, TC-138",
+     "**EAA HƠN.** Ngang ở nửa thước của họ; hơn ở bốn trục đo CHẤT LƯỢNG QUÁ "
+     "TRÌNH mà không benchmark nào trong khảo sát hỏi — độ nhạy bài kiểm, vá "
+     "chỉnh đồ đo, mất việc im lặng, truy về được. Và nó không gộp kết quả "
+     "trên bo với kết quả trên máy chủ thành một số", DASH),
     ("E3", "E. Đo lường & bằng chứng", "Đếm token và chi phí từng lượt gọi",
      KHONG_NEU, CO, KHONG_NEU, DU,
      "eaa/budget.py TokenBudget + llm_calls.jsonl; cộng cả token SUY NGHĨ (SL-170) · TC-53e,f, TC-130",

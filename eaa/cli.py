@@ -71,6 +71,9 @@ ENV_FILE = ".env"
 #: Sổ số đo trên bo của một dự án (N-913, SL-173).
 MEASURED_FILE = "board_facts.jsonl"
 
+#: Kết quả bộ chuẩn của một dự án (GĐ2, SL-177).
+BENCH_FILE = "bench_results.jsonl"
+
 
 def load_env_file(root: Path | None = None) -> list[str]:
     """Nạp ``.env`` vào biến môi trường của tiến trình.
@@ -5733,6 +5736,17 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(kho.report())
         return EXIT_OK
 
+    if args.report_kind == "bench":
+        from eaa.bench import doc_bo_chuan
+
+        _in_tieu_de("Thước đo")
+        try:
+            ket_qua = doc_bo_chuan(project / BENCH_FILE)
+        except Exception as exc:  # noqa: BLE001
+            raise CliError(str(exc)) from exc
+        print(ket_qua.render())
+        return EXIT_OK
+
     if args.report_kind == "retrieval":
         from eaa.goldenset import GOLDEN_FILE, GoldenSet, GoldenSetError
 
@@ -6002,12 +6016,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_report = sub.add_parser("report", help="Xuất báo cáo KPI (UC09)")
     p_report.add_argument(
         "report_kind",
-        choices=["kpi", "versions", "review", "retrieval"],
+        choices=["kpi", "versions", "review", "retrieval", "bench"],
         nargs="?",
         default="kpi",
         help=(
             "kpi = số liệu thô · versions = hạng chất lượng · "
-            "review = khâu nào hay hỏng (N-906) · retrieval = bộ chuẩn truy xuất (TC-20)"
+            "review = khâu nào hay hỏng (N-906) · retrieval = bộ chuẩn truy xuất (TC-20) · "
+            "bench = pass@k CỘNG bốn trục chưa benchmark nào hỏi (GĐ2)"
         ),
     )
     p_report.add_argument("--csv", help="Xuất ra tệp CSV")
