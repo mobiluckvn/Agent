@@ -1,0 +1,27 @@
+{
+  "gate_id": "G4",
+  "title": "Nghiệm thu vật lý — drv_buzzer",
+  "module": "drv_buzzer",
+  "summary": [
+    "commit đưa lên thiết bị: 80ec03d0d4",
+    "môi trường công cụ: sha256:5dccf65a84bca76e8412168c980594d736b39c1f99a13f5a7531f2aef4db4e3a",
+    "Dung sai góc: ±1.0°",
+    "Kịch bản: khởi động tĩnh",
+    "Kịch bản: kháng nhiễu",
+    "Kịch bản: hoạt động dài hạn 10–20 phút",
+    "flash_pct_max: 50",
+    "sram_pct_max: 40",
+    "stack_headroom_bytes_min: 128"
+  ],
+  "details": "TIÊU CHÍ NGHIỆM THU (chốt từ công đoạn A1, không thương lượng tại đây)\n  • Dung sai góc: ±1.0°\n  • Kịch bản: khởi động tĩnh\n  • Kịch bản: kháng nhiễu\n  • Kịch bản: hoạt động dài hạn 10–20 phút\n  • flash_pct_max: 50\n  • sram_pct_max: 40\n  • stack_headroom_bytes_min: 128\n\nSau khi duyệt gate này, nhập số đo bằng:\n  eaa tune drv_buzzer --input measures.yaml\n\nKhông đạt thì ghi nhận và quay lui:\n  eaa tune drv_buzzer --reject '<lý do>'\n  eaa rollback drv_buzzer --reason '<lý do>'",
+  "checklist": [
+    "Robot đã kê an toàn trước khi cấp nguồn động lực",
+    "Firmware đang nạp đúng commit ghi ở trên",
+    "Đã chạy đủ ba kịch bản của đề cương, không bỏ kịch bản nào",
+    "Số đo ghi lại từ thiết bị đo, không ước lượng bằng mắt"
+  ],
+  "content_digest": "sha256:80ec03d0d454ac721d257f059b94846c973ce088",
+  "options": null,
+  "digest": "sha256:564fd8793198420d75320db05d80f257dc48b3890c97960438f8e95c7c39108e",
+  "requested_at": "2026-09-05T13:19:30.625371+00:00"
+}

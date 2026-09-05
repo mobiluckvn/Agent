@@ -65,6 +65,22 @@ class GateNotPending(GateError):
     """Không có yêu cầu nào đang chờ ở gate này."""
 
 
+#: Công tắc: không có terminal thì `--expect` thành BẮT BUỘC. Mặc định tắt,
+#: vì bật nó đụng mọi kịch bản đã viết — đó là quyết định của người chủ dự án.
+BIEN_DOI_BAM = "EAA_REQUIRE_GATE_DIGEST"
+
+
+def doi_bam_khi_khong_co_nguoi() -> bool:
+    """Có đang đòi khẳng định băm ở phiên không người không."""
+    if os.environ.get(BIEN_DOI_BAM, "").strip() not in ("1", "true", "yes"):
+        return False
+    try:
+        return not sys.stdin.isatty()
+    except (ValueError, OSError):
+        # stdin đã đóng thì chắc chắn không có người.
+        return True
+
+
 class GateNotInteractive(GateError):
     """Cần xác nhận của người nhưng phiên chạy không có người.
 
@@ -217,6 +233,14 @@ class GateDecision:
     #: Sáu tháng sau, câu hỏi hữu ích không phải "ta đã chọn gì" — Git trả lời
     #: được — mà là "ta đã cân nhắc những gì và vì sao loại chúng".
     options: Any = None
+    #: Người quyết định có KHẲNG ĐỊNH mình đang duyệt đúng nội dung nào không
+    #: (`--expect <băm>`), hay bấm duyệt mà không nói mình đã xem gì (E3, SL-185).
+    #:
+    #: Ba trạng thái, và trạng thái thứ ba không được gộp vào hai cái đầu:
+    #: True — có khẳng định; False — không; **None — KHÔNG KIỂM ĐƯỢC**, tức
+    #: quyết định được ghi trước khi trường này tồn tại. Đọc None thành False
+    #: là khai một điều ta không biết, về những quyết định đã đóng.
+    digest_asserted: bool | None = None
 
     def __post_init__(self) -> None:
         if self.decision not in (APPROVED, REJECTED):
@@ -249,6 +273,7 @@ class GateDecision:
             "reason": self.reason,
             "chosen_option": self.chosen_option,
             "options": self.options.to_dict() if self.options else None,
+            "digest_asserted": self.digest_asserted,
         }
 
     @classmethod
@@ -264,6 +289,8 @@ class GateDecision:
             reason=data.get("reason", ""),
             chosen_option=data.get("chosen_option", ""),
             options=_doc_phuong_an(data.get("options")),
+            # Vắng trường ⇒ None ⇒ KHÔNG KIỂM ĐƯỢC. Không phải False.
+            digest_asserted=data.get("digest_asserted"),
         )
 
 
@@ -429,6 +456,23 @@ class HumanGate:
                 "'eaa gate show' rồi quyết định trên bản mới."
             )
 
+        if not expect_digest and doi_bam_khi_khong_co_nguoi():
+            # Người ngồi ở terminal có hồ sơ trong màn hình; một CHƯƠNG TRÌNH
+            # thì không có gì chứng minh nó từng cho ai xem. Dấu vân tay là
+            # bằng chứng "tôi đã được cho xem đúng nội dung này" — và đó là
+            # thứ duy nhất phân biệt một nút Duyệt với một cú bấm phản xạ.
+            #
+            # Mặc định TẮT: bật nó lên là một quyết định về sản phẩm, không
+            # phải một chi tiết của lớp giao diện (E3, SL-185).
+            raise GateError(
+                f"{gate_id}: phiên này không có terminal và "
+                f"{BIEN_DOI_BAM}=1 đang bật, nên phải khẳng định nội dung đang "
+                "duyệt:\n"
+                f"    eaa gate approve {gate_id} --expect {digest}\n"
+                "Băm ấy lấy từ 'eaa gate show'. Duyệt mà không nói mình đã xem "
+                "gì thì không có gì phân biệt được với một cú bấm nhầm."
+            )
+
         quyet_dinh = GateDecision(
             gate_id=gate_id,
             decision=APPROVED,
@@ -438,6 +482,7 @@ class HumanGate:
             content_digest=yeu_cau.payload.content_digest,
             module=yeu_cau.payload.module,
             chosen_option=da_chon,
+            digest_asserted=bool(expect_digest),
             options=phuong_an,
         )
         self._ghi_quyet_dinh(quyet_dinh)

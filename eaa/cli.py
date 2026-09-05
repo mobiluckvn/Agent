@@ -1753,6 +1753,66 @@ def _ho_so_G5(ctx: AppContext, state: Any) -> Any:
     )
 
 
+def _bang_gate(ctx: AppContext, state: Any) -> list[dict[str, Any]]:
+    """Toàn cảnh 5 gate cho một bảng trong biên tập (E3).
+
+    Mỗi gate mang theo QUYẾT ĐỊNH GẦN NHẤT, và với lần từ chối thì mang cả lý
+    do nguyên văn. Đó là thứ E2 đã đo được: 21 trong 22 phát hiện đang mở là lý
+    do người từ chối tại gate, và chúng không có `file:line` nào — nên bảng
+    gate, chứ không phải gạch đỏ, mới là mặt tiếp xúc chính của sản phẩm này.
+    """
+    ra: list[dict[str, Any]] = []
+    for gate in GATE_ORDER:
+        try:
+            gan_nhat = ctx.gates.latest(gate)
+        except Exception:  # noqa: BLE001 - sổ hỏng không được chặn bản tóm tắt
+            gan_nhat = None
+        muc: dict[str, Any] = {
+            "id": gate,
+            "purpose": GATE_PURPOSE[gate],
+            "status": state.gate_status(gate),
+            "label": _nhan_gate(state, gate),
+            "last_decision": None,
+        }
+        if gan_nhat is not None:
+            muc["last_decision"] = {
+                "decision": gan_nhat.decision,
+                "actor": gan_nhat.actor,
+                "at": gan_nhat.decided_at,
+                "module": gan_nhat.module,
+                "reason": gan_nhat.reason,
+                "payload_digest": gan_nhat.payload_digest,
+                # Ba trạng thái, và None nghĩa là KHÔNG KIỂM ĐƯỢC — quyết định
+                # ghi trước khi trường này tồn tại. Đọc None thành False là
+                # khai một điều ta không biết (SL-185).
+                "digest_asserted": gan_nhat.digest_asserted,
+            }
+        ra.append(muc)
+    return ra
+
+
+def _duyet_mu(ctx: AppContext) -> dict[str, int]:
+    """Đếm quyết định duyệt KHÔNG khẳng định dấu vân tay.
+
+    Không phải lỗi, và không được hiện thành lỗi. Nó là một SỐ ĐO về cách quy
+    trình đang được vận hành, và nó chỉ có nghĩa khi ba trạng thái đứng riêng.
+    """
+    co = khong = khong_biet = 0
+    try:
+        for d in ctx.gates.decisions():
+            if d.decision != "approved":
+                continue
+            if d.digest_asserted is None:
+                khong_biet += 1
+            elif d.digest_asserted:
+                co += 1
+            else:
+                khong += 1
+    except Exception:  # noqa: BLE001
+        pass
+    return {"asserted": co, "blind": khong, "unknown": khong_biet}
+
+
 def _gate_show(ctx: AppContext, args: argparse.Namespace) -> int:
     from eaa import jsonout
 
@@ -1761,7 +1821,9 @@ def _gate_show(ctx: AppContext, args: argparse.Namespace) -> int:
         for yeu_cau in cho_duyet:
             _in_tieu_de(f"Đang chờ quyết định — {yeu_cau.payload.gate_id}")
             print(yeu_cau.payload.render())
-        jsonout.ket_qua(pending=[
+        jsonout.ket_qua(gates=_bang_gate(ctx, ctx.store.load()),
+                        digest_use=_duyet_mu(ctx),
+                        pending=[
             {"gate": y.payload.gate_id, "title": y.payload.title,
              "summary": list(y.payload.summary),
              "checklist": list(y.payload.checklist),
@@ -1776,7 +1838,8 @@ def _gate_show(ctx: AppContext, args: argparse.Namespace) -> int:
         payload = _ho_so_gate(ctx, args.gate)
         _in_tieu_de(f"Hồ sơ dựng từ dữ liệu hiện hành — {args.gate}")
         print(payload.render())
-        jsonout.ket_qua(pending=[], draft={
+        jsonout.ket_qua(gates=_bang_gate(ctx, ctx.store.load()),
+                        digest_use=_duyet_mu(ctx), pending=[], draft={
             "gate": payload.gate_id, "title": payload.title,
             "summary": list(payload.summary),
             "checklist": list(payload.checklist),
@@ -1792,9 +1855,18 @@ def _gate_show(ctx: AppContext, args: argparse.Namespace) -> int:
 
     from eaa import jsonout
 
+    mu = _duyet_mu(ctx)
+    if mu["blind"] or mu["unknown"]:
+        print(f"\nDuyệt có khẳng định nội dung: {mu['asserted']} · "
+              f"không khẳng định: {mu['blind']} · không kiểm được: "
+              f"{mu['unknown']}")
+        print("  (KHÔNG KIỂM ĐƯỢC là quyết định ghi trước khi trường này tồn "
+              "tại — khác với 'không khẳng định'.)")
+
     jsonout.ket_qua(
         pending=[],
-        gates=[{"id": g, "label": _nhan_gate(state, g)} for g in GATE_ORDER],
+        gates=_bang_gate(ctx, state),
+        digest_use=mu,
     )
     return EXIT_OK
 

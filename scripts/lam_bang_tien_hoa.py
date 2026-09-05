@@ -511,17 +511,21 @@ VIEC: list[tuple[str, ...]] = [
     ("E3", "—", E,
      "Bảng TRẠNG THÁI GATE ngay trong biên tập",
      MR, "SC-16",
-     "1) Hiện 5 gate, gate nào đang chờ, lý do từ chối gần nhất. 2) Bấm duyệt "
-     "trong IDE vẫn gọi ĐÚNG `eaa gate approve` với cùng dấu vân tay nội "
-     "dung — không có API riêng, không có đường vòng. 3) IDE không được tự "
-     "bấm bất cứ gate nào.",
-     "tích hợp riêng · eaa/cli.py (chỉ đọc)",
-     "Số bước từ mở dự án tới thấy 'đang mắc ở gate nào'",
-     "TC-01, TC-02 đã canh bất biến; cần TC cho lớp mỏng",
+     "1) `eaa gate show --json` trả 5 gate kèm mục đích, trạng thái và QUYẾT "
+     "ĐỊNH GẦN NHẤT (người, lúc nào, lý do nguyên văn nếu từ chối). 2) Ghi "
+     "lại việc người duyệt có khẳng định dấu vân tay không, ở BA trạng thái. "
+     "3) Cưỡng chế qua công tắc `EAA_REQUIRE_GATE_DIGEST`, mặc định TẮT — bật "
+     "nó là quyết định về sản phẩm, đụng 31 chỗ gọi trong bộ kiểm. 4) Bài "
+     "canh cấu trúc: không chỗ nào ngoài `eaa/gates.py` dựng ra quyết định "
+     "DUYỆT.",
+     "eaa/gates.py · eaa/cli.py `_bang_gate` · `_duyet_mu`",
+     "ĐÃ ĐO: MỘT lệnh (`eaa gate show --json`) đủ biết đang mắc ở gate nào. "
+     "38 quyết định cũ đều ở hạng KHÔNG KIỂM ĐƯỢC, không bị khai thành duyệt mù",
+     "TC-150 (15 bài, 8 đột biến — 1 phép hỏng, 1 phép làm lộ bài kiểm rỗng)",
      "E1", "—",
      "Một nút 'Duyệt' đặt cạnh mã rất dễ bị bấm theo phản xạ. Hồ sơ gate phải "
      "hiện ĐỦ trước khi nút bấm được",
-     "3 ngày", "3", "CHƯA"),
+     "3 ngày", "3", "CƠ CHẾ XONG — công tắc mặc định tắt"),
     ("E4", "—", E,
      "Nhảy từ LÝ DO TỪ CHỐI tới đúng dòng mã",
      MR, "SC-29",
@@ -684,6 +688,10 @@ NHAT_KY: list[tuple[str, str, str, str]] = [
      "Phép kiểm toàn vẹn tìm ra 15 cạnh không đối xứng và 3 cặp vòng tròn "
      "(C1↔C4, C3↔D2, D2↔D3) do khai cả hai chiều bằng tay. Nay khai một "
      "chiều, suy ra chiều kia — cùng hình dạng lỗi V3 tìm ra trong contract.py"),
+    ("05/09/2026", "E3", "CƠ CHẾ XONG — SL-185, TC-150",
+     "Bảng gate trong một lệnh. Tìm ra chỗ hở thật: --expect là tuỳ chọn nên "
+     "một nút bấm duyệt được thứ chưa từng cho ai xem. Cưỡng chế đặt sau một "
+     "công tắc mặc định TẮT — bật nó là quyết định của người chủ dự án"),
     ("05/09/2026", "E2", "CƠ CHẾ XONG — SL-184, TC-149",
      "`eaa problems`. Đo được 87 phát hiện · 65 lịch sử · 22 đang mở · 1/22 "
      "có vị trí. Bản đầu bày cả 66 mục sổ lỗi như lỗi hiện tại — sổ ấy là "

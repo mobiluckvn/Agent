@@ -2710,3 +2710,21 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Không mất mát** | Số phát hiện đi ra phải BẰNG số đọc được trong nguồn (`khop_nguon`), và một hồ sơ bằng chứng hỏng thành một phát hiện chứ không biến mất |
 | **`--all` phải thắng nhánh thoát sớm** | Bản đầu trả câu *"không phát hiện nào đang mở — xem `--all`"* cho chính người vừa gõ `--all`. Bài kiểm bắt được |
 | **Bài canh** | `tests/test_tc149_chan_doan_cho_bien_tap.py`, 19 bài. Đột biến 6 phép, cả 6 bị bắt |
+
+---
+
+## SL-185 · BỔ SUNG · Bảng trạng thái gate cho biên tập (E3)
+
+| | |
+|---|---|
+| **Cách tìm** | Việc E3 của `docs/EAA_Backlog_Tien_hoa.xlsx`. Và một con số của E2 (SL-184) quyết định thứ tự: **21 trong 22 phát hiện đang mở là lý do NGƯỜI từ chối tại gate**, không cái nào có `file:line`. Gạch đỏ trong biên tập hiện đúng 1/22 — nên bảng gate, chứ không phải danh sách lỗi trình dịch, mới là mặt tiếp xúc chính của sản phẩm này |
+| **Chỗ hở dòng "rủi ro" của E3 cảnh báo là chỗ hở THẬT** | `HumanGate.approve` nhận `expect_digest` nhưng nó **tuỳ chọn**: `if expect_digest and expect_digest != digest`. Bỏ nó đi thì duyệt vẫn chạy — nghĩa là một nút bấm có thể duyệt thứ nó chưa từng cho ai xem. Người ngồi ở terminal có hồ sơ trong màn hình; một CHƯƠNG TRÌNH thì không có gì chứng minh nó từng hiện gì |
+| **Vì sao KHÔNG bắt buộc `--expect` cho mọi người** | Đo bán kính trước: **31 chỗ gọi trong 18 tệp kiểm**. Bắt buộc nó là một quyết định về SẢN PHẨM, không phải chi tiết của một bảng giao diện — và nó thuộc về người chủ dự án, không thuộc về một việc mang tên "bảng gate trong biên tập" |
+| **Ba việc làm thay** | (1) **Ghi lại sự thật**: `GateDecision.digest_asserted`. (2) **Phơi ra**: `eaa gate show --json` mang `digest_use` và quyết định gần nhất của từng gate. (3) **Cưỡng chế được**: `EAA_REQUIRE_GATE_DIGEST=1` làm `--expect` thành bắt buộc ở phiên KHÔNG có terminal. Mặc định TẮT, và việc tắt được khai ra chứ không giấu |
+| **BA trạng thái, không phải hai** | `True` có khẳng định · `False` không · **`None` KHÔNG KIỂM ĐƯỢC** — quyết định ghi trước khi trường này tồn tại. Dự án thật có **38 quyết định đều thuộc hạng thứ ba**; đọc chúng thành "duyệt mù" là dựng ra một con số 38 nghe như đã đo. Cùng luật `confidence.py` đặt cho mọi đầu ra khác |
+| **Thông báo phải nêu ĐÚNG băm cần dùng** | Bắt người đi tìm băm là cách nhanh nhất để họ tắt công tắc đi. Cùng luật SL-178 |
+| **Bất biến trung tâm, nay có bài canh cấu trúc** | TC-150 quét cây cú pháp toàn bộ `eaa/` tìm mọi chỗ dựng `GateDecision(decision=APPROVED)` và đòi chúng nằm trong `eaa/gates.py`. Một nút "Duyệt" trong biên tập chỉ an toàn khi nó không có đường riêng để đi |
+| **Nghiệm thu** | `eaa gate show --json` trả 5 gate kèm mục đích, trạng thái, quyết định gần nhất (người, lúc nào, lý do nguyên văn nếu từ chối, có khẳng định băm không) và phép đếm ba trạng thái — trong **MỘT lệnh** |
+| **Một bài kiểm RỖNG tự bắt được** | Bài canh "gate bị từ chối phải mang lý do" đọc dự án mẫu, mà ở đó quyết định gần nhất của MỌI gate đều là `approved` — nên nhánh khẳng định **không bao giờ chạy**, và đột biến xoá lý do đi qua được. Đã đổi sang dựng một lần từ chối thật. Cùng hạng lỗi `sensitivity.py` sinh ra để bắt, và là lần thứ tư nó xuất hiện trong kho này |
+| **Còn lại cho NGƯỜI quyết** | Có bật `EAA_REQUIRE_GATE_DIGEST` làm mặc định không. Bật thì phải sửa 31 chỗ gọi trong bộ kiểm — và những chỗ ấy sẽ mô hình hoá thực tế đúng hơn, vì chúng đang chính là cái bypass ta lo |
+| **Bài canh** | `tests/test_tc150_bang_gate_cho_bien_tap.py`, 15 bài. Đột biến 8 phép; 6 phép bắt ngay, 1 phép là đột biến hỏng (không đổi hành vi), 1 phép làm lộ bài kiểm rỗng đã vá |
