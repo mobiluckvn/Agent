@@ -624,6 +624,7 @@ việc chép dùng ngay, cùng bốn cách hỏng đã gặp thật.
 |---|---|
 | [`docs/DANH_GIA_NANG_LUC_AGENT.md`](docs/DANH_GIA_NANG_LUC_AGENT.md) | Agent tự làm được gì, tám giới hạn còn lại kèm bằng chứng, và phương pháp huấn luyện |
 | [`docs/RA_SOAT_NANG_LUC_04_09.md`](docs/RA_SOAT_NANG_LUC_04_09.md) | Rà soát 142 dòng bảng năng lực với mã: 125 đủ, 15 còn thiếu, và việc phải làm theo thứ tự |
+| [`docs/KHAO_SAT_AGENT_NHUNG.md`](docs/KHAO_SAT_AGENT_NHUNG.md) | Khảo sát Agent nhúng trên thị trường và đối chiếu: 42 tính năng, 9 nguồn — ta thiếu gì, ta hơn ở đâu |
 | [`docs/EAA_Bang_nang_luc.xlsx`](docs/EAA_Bang_nang_luc.xlsx) | Bảng gốc — sheet **Khoảng trống** là danh sách việc. Sinh lại: `python scripts/lam_bang_nang_luc.py`; kiểm: `python scripts/kiem_bang_nang_luc.py` |
 | [`docs/SAI_LECH_THIET_KE.md`](docs/SAI_LECH_THIET_KE.md) | 166 mục: mỗi lỗi đã gặp, chỗ sửa thật, và bài kiểm canh nó. Dữ liệu gốc của chương đánh giá |
 | [`docs/NHAT_KY_TEST_BLKLAB.md`](docs/NHAT_KY_TEST_BLKLAB.md) | Nhật ký từng lượt nạp trên bo thật |
