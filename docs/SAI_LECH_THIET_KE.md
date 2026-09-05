@@ -2657,3 +2657,36 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Cột `Chặn việc nào` SUY RA, không khai tay** | Bản đầu khai cả hai chiều, và phép kiểm toàn vẹn tìm ra **15 cạnh không đối xứng** cùng ba cặp vòng tròn (C1↔C4, C3↔D2, D2↔D3). Một đồ thị phụ thuộc tự mâu thuẫn còn tệ hơn không có đồ thị, vì người đọc tin nó. Nay khai một chiều và suy ra chiều kia — đúng hình dạng lỗi V3 tìm ra trong `contract.py` (hai danh sách cho cùng một mục đích sẽ lệch nhau) |
 | **Sheet `Nhật ký tiến hoá`** | Bảng không có nhật ký thì không ai kiểm lại được nó đã đi qua đâu. Mỗi lần đổi trạng thái một việc phải thêm một dòng |
 | **Bài canh** | `tests/test_tc147_backlog_tien_hoa.py` |
+
+---
+
+## SL-182 · BỔ SUNG · Đầu ra máy đọc được cho lệnh chỉ đọc (E1)
+
+| | |
+|---|---|
+| **Cách tìm** | Việc E1 của `docs/EAA_Backlog_Tien_hoa.xlsx`, sở cứ SC-16: CLI có 103 lệnh, 0 lệnh thiếu dòng trợ giúp, và **0 lệnh nào cho đầu ra máy đọc được**. Bảy trong tám việc mảng IDE chờ đúng chỗ này |
+| **Module mới** | `eaa/jsonout.py` — phong bì đầu ra, mức tin cậy, và nhánh lỗi. Engine giữ hình dạng phong bì; nội dung do từng lệnh nộp vào |
+| **Luật số một: CHỈ lệnh chỉ đọc** | Không phải sự cẩn thận thừa. Một `--json` cho lệnh ghi *"cho tiện tự động hoá"* chính là **con đường thứ hai dẫn tới merge** mà bất biến số một cấm — lúc ấy có hai chỗ cùng có quyền đổi trạng thái mà chỉ một chỗ được canh. TC-148 canh cả hai chiều, và có một bài liệt kê ĐÍCH DANH `gen`, `gate approve`, `flash`, `rollback`… phải KHÔNG nhận cờ |
+| **Gắn cờ ở đúng parser nào** | `eaa gate` có `approve` và `reject` nên **không** được nhận cờ; `eaa gate show` thì được. Gắn ở cha thì `gate approve --json` cũng chạy |
+| **Phân loại khai TAY, phép soi chỉ là hàng rào MỘT CHIỀU** | `LENH_CHI_DOC` khai tường minh vì đây là hợp đồng an toàn. Phép soi cây cú pháp trong TC-148 bắt được lệnh khai chỉ đọc mà thật ra có ghi, nhưng **không chứng minh được chiều ngược**: đo thử thì nó bỏ sót cả `gen` lẫn `build` vì chuỗi gọi sâu hơn hai tầng. Nói ra chỗ nó bỏ sót, chứ không để người đọc tưởng nó là bằng chứng |
+| **Bật `--json` thì văn xuôi bị NUỐT** | Trộn văn xuôi với JSON trên cùng một luồng thì không bên nào đọc được. Nuốt bằng `redirect_stdout` ở `main()` nên **không lệnh nào phải sửa** — chúng cứ in như cũ |
+| **Mức tin cậy phải sống sót qua JSON** | 23 lớp kết luận mang một trong bốn mức (TC-63). Làm phẳng chúng thành chuỗi thì lớp IDE hiện một con số trần, và người nhìn màn hình mất đúng thứ `confidence.py` sinh ra để giữ. Nên mức là một **TRƯỜNG** (`level`), không phải một câu đã trộn |
+| **Dấu vân tay nội dung của gate phải đi ra** | Lớp IDE duyệt gate thì nó duyệt đúng nội dung ấy; không có `content_digest` thì không ai kiểm lại được cái vừa được duyệt là cái gì |
+| **Không có dấu thời gian trong phong bì** | Cố ý: cùng đầu vào cho cùng byte đầu ra, để so được hai lượt chạy — cùng luật tất định TC-15 đặt cho lượt gọi mô hình. Đột biến thêm `at: time()` bị bắt |
+| **Nhánh LỖI cũng ra JSON** | Lệnh hỏng mà không có gì máy đọc được thì lớp IDE chỉ biết *"có chuyện"*. Trường `next` mang chính những câu "làm tiếp" của SL-178, nay ở dạng **danh sách** chứ không còn là văn xuôi đã ghép — lớp IDE dựng nút bấm được từ nó |
+| **E1 làm lộ một lỗi THẬT của SL-178** | Phép rút tên lệnh quét argv tìm đối số đầu không bắt đầu bằng dấu gạch, nên nó nhặt nhầm **giá trị của cờ đứng trước**: `eaa --project x tune` cho `ten_lenh = "x"`, và câu "làm tiếp" mất đi **trong im lặng**. Nay lấy từ `args.command`, tức từ chính argparse |
+| **Tỉ lệ phủ báo thẳng, không thu hẹp mẫu số** | Làm được **5 trên 36** lệnh chỉ đọc: `status`, `policy`, `packs`, `procedure`, `gate show`. Phần còn lại là việc **chưa làm**, không phải việc đã bỏ. Một bài kiểm canh mẫu số không được nhỏ đi — cách dễ nhất để tỉ lệ đẹp lên là xoá bớt mẫu số |
+| **Lược đồ là hợp đồng** | `SCHEMA = 1`. Đổi hình dạng đầu ra mà không tăng số ấy là làm hỏng mọi thứ đang đọc nó, im lặng |
+| **Bài canh** | `tests/test_tc148_dau_ra_may_doc_duoc.py`, 15 bài. Đột biến 6 phép, cả 6 bị bắt |
+
+---
+
+## SL-183 · LỆCH THẬT · Việc D8 của backlog mô tả một lệnh ĐÃ CÓ
+
+| | |
+|---|---|
+| **Cách tìm** | Lúc làm E1, phép liệt kê 57 lệnh cấp một cho thấy `eaa sim` đã tồn tại và đã có cả `run` lẫn `sweep` — trong khi việc D8 vừa viết hôm nay khai *"`SimGate` chỉ chạy trong chuỗi cổng; không lệnh nào cho người chạy thử"* (sở cứ SC-28) |
+| **Lỗi ở đâu** | Phép quét của tôi là `eaa --help` đọc bằng mắt cộng một lần `grep` hỏng. Sở cứ SC-28 vì thế được gán hạng **ĐO** trong khi nó chưa hề được đo — đúng hạng lỗi mà cả bảng sinh ra để chặn, và nó lọt vào chính bảng ấy ngay ngày đầu |
+| **Sửa thế nào** | SC-28 viết lại theo sự thật: `eaa sim run/sweep` đã có; phần còn thiếu là `eaa sim report` và luật *"chạy tay không ghi vào Project State"*. D8 thu lại đúng phần còn thiếu, và công ước lượng giảm theo |
+| **Vì sao ghi thành một mục riêng** | Bảng backlog là công cụ quản trị; một dòng sai trong nó dẫn việc đi sai. Sửa lặng lẽ thì lần sau không ai biết bảng ấy từng sai ở đâu và vì sao |
+| **Bài canh** | TC-147 đã canh tính toàn vẹn cấu trúc của bảng, nhưng **không canh được nội dung sở cứ có đúng thực tế không** — không bài kiểm nào làm được việc ấy. Đó là việc của người đọc, và mục này là bản ghi cho người đọc ấy |

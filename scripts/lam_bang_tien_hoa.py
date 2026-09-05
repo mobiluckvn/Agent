@@ -481,13 +481,15 @@ VIEC: list[tuple[str, ...]] = [
      "không extension nào làm được gì. 2) CHỈ lệnh chỉ đọc. Lệnh đổi trạng "
      "thái vẫn đi đúng đường cũ — không có đường thứ hai tới merge (TC-01, "
      "TC-02). 3) Lược đồ đầu ra là HỢP ĐỒNG: đổi nó phải qua một mục sai lệch.",
-     "eaa/cli.py · eaa/jsonout.py (mới)",
-     "Số lệnh chỉ đọc có `--json`, trên tổng số lệnh chỉ đọc",
-     "cần TC mới — canh cả việc lệnh GHI không có `--json`",
+     "eaa/cli.py · eaa/jsonout.py",
+     "ĐÃ ĐO: 5/36 lệnh chỉ đọc có `--json` (status · policy · packs · "
+     "procedure · gate show). Phần còn lại là việc CHƯA LÀM, không phải đã bỏ",
+     "TC-148 (15 bài, 6 đột biến đều bị bắt) — canh cả việc lệnh GHI "
+     "không có `--json`",
      "—", "—",
      "Cám dỗ thêm `--json` cho lệnh ghi 'cho tiện tự động hoá'. Đó chính là "
      "đường thứ hai tới merge mà bất biến số một cấm",
-     "3 ngày", "1", "CHƯA"),
+     "3 ngày", "1", "CƠ CHẾ XONG — 5/36 lệnh"),
     ("E2", "—", E,
      "Lỗi cổng thành CHẨN ĐOÁN CÓ VỊ TRÍ trong biên tập",
      MR, "SC-18",
@@ -678,6 +680,13 @@ NHAT_KY: list[tuple[str, str, str, str]] = [
      "Phép kiểm toàn vẹn tìm ra 15 cạnh không đối xứng và 3 cặp vòng tròn "
      "(C1↔C4, C3↔D2, D2↔D3) do khai cả hai chiều bằng tay. Nay khai một "
      "chiều, suy ra chiều kia — cùng hình dạng lỗi V3 tìm ra trong contract.py"),
+    ("05/09/2026", "E1", "CƠ CHẾ XONG — SL-182, TC-148",
+     "5/36 lệnh chỉ đọc có --json. Làm lộ một lỗi thật của SL-178: phép rút "
+     "tên lệnh nhặt nhầm giá trị của --project, nên câu 'làm tiếp' mất trong "
+     "im lặng"),
+    ("05/09/2026", "D8 · SC-28", "SỬA — bản đầu mô tả một lệnh ĐÃ CÓ",
+     "`eaa sim run/sweep` vốn đã tồn tại; sở cứ SC-28 được gán hạng ĐO trong "
+     "khi chưa hề được đo. Xem SL-183"),
     ("05/09/2026", "toàn bảng", "THIẾT KẾ LẠI thành backlog tiến hoá",
      "14 việc → 32 việc, chia sáu mảng. Mảng D (mô phỏng) và E (IDE) dựng "
      "mới sau khi rà soát: kho đã có MiL + SIL chạy firmware thật, còn IDE "

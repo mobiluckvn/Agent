@@ -174,6 +174,33 @@ MEASURED_FILE = "board_facts.jsonl"
 #: khiển thuộc Platform Pack, linh kiện ngoài gắn trên mạch thuộc dự án.
 PROCEDURE_DIR = "procedures"
 
+from eaa.jsonout import SCHEMA as _SCHEMA_JSON  # noqa: E402
+
+#: Lệnh KHÔNG đổi trạng thái gì — phân loại tường minh, vì đây là một hợp đồng
+#: an toàn chứ không phải một tiện nghi (E1, SL-182). Dạng "a b" là lệnh con.
+#:
+#: Phép soi cây cú pháp trong TC-148 là HÀNG RÀO MỘT CHIỀU: nó bắt được lệnh
+#: khai chỉ đọc mà thật ra có ghi, nhưng nó KHÔNG chứng minh được chiều ngược.
+#: Chuỗi gọi sâu quá hai tầng thì nó bỏ sót — đo thử trên `gen` và `build` đều
+#: lọt. Nên danh sách này khai tay, và phép soi chỉ canh nó khỏi trôi.
+LENH_CHI_DOC: frozenset[str] = frozenset({
+    "capabilities", "deviations", "environ", "field", "interface", "models",
+    "packs", "policy", "procedure", "recall", "report", "status", "suggest",
+    "ports", "read",
+    "gate show", "docs list", "docs get", "design list", "knowledge stale",
+    "measured list", "ledger list", "datasheet list", "plan list",
+    "budget show", "budget tokens", "safety show", "errata show",
+    "errata lookup", "sources need", "sources pages", "diagnose list",
+    "skill list", "tool list", "playbook list", "memory list",
+})
+
+#: Lệnh ĐÃ có `--json`. Tập con thật sự của `LENH_CHI_DOC`; phần còn lại là
+#: việc chưa làm chứ không phải việc đã bỏ, và tỉ lệ được báo ra chứ không
+#: được giấu bằng cách thu hẹp mẫu số.
+LENH_CO_JSON: tuple[str, ...] = (
+    "status", "policy", "packs", "procedure", "gate show",
+)
+
 #: Kết quả bộ chuẩn của một dự án (GĐ2, SL-177).
 BENCH_FILE = "bench_results.jsonl"
 
@@ -529,6 +556,27 @@ def _in_tom_tat(state: ProjectState, project: Path) -> int:
     _in_tieu_de("Bước kế tiếp")
     thong_diep, ma_thoat = _buoc_ke_tiep(state)
     print(f"  {thong_diep}")
+
+    # Dữ liệu có cấu trúc cho lớp IDE (E1). Gọi vô điều kiện: không bật
+    # `--json` thì đây là lệnh rỗng, nên không ai phải viết `if` quanh nó.
+    from eaa import jsonout
+
+    jsonout.ket_qua(
+        project={"name": project.name, "path": str(project)},
+        phase={"id": state.phase, "name": PHASE_NAMES[state.phase],
+               "level": str(level(state.phase))},
+        constraints_version=state.constraints_version,
+        llm=dict(state.llm or {}),
+        env_hash=state.env_hash,
+        updated_at=state.updated_at,
+        gates=[{"id": g, "label": _nhan_gate(state, g)} for g in GATE_ORDER],
+        backlog=[
+            {"id": m.id, "status": m.status, "retries": m.retries,
+             "uses": list(m.uses), "current": m.id == state.current_module}
+            for m in state.backlog
+        ],
+        next_step={"message": thong_diep, "exit_code": ma_thoat},
+    )
     return ma_thoat
 
 
@@ -708,6 +756,24 @@ def cmd_policy(args: argparse.Namespace) -> int:
         nhan = f"cần {gate} ({GATE_PURPOSE[gate]})" if gate else "không gate"
         print(f"  {pha} → {ten_dich:<9} {nhan}")
     print("  E → D         vòng lùi tinh chỉnh (luôn đi qua con người)")
+
+    from eaa import jsonout
+
+    jsonout.ket_qua(
+        stages=[
+            {"id": ma, "phase": cd.phase, "level": str(cd.level),
+             "human_share": cd.human_share, "ai_share": cd.ai_share,
+             "name": cd.name}
+            for ma, cd in STAGES.items()
+        ],
+        transitions=[
+            {"from": pha,
+             "to": PHASE_ORDER[i + 1] if i + 1 < len(PHASE_ORDER) else None,
+             "gate": gate_for_transition(
+                 pha, PHASE_ORDER[i + 1] if i + 1 < len(PHASE_ORDER) else None)}
+            for i, pha in enumerate(PHASE_ORDER)
+        ],
+    )
     return EXIT_OK
 
 
@@ -845,6 +911,19 @@ def cmd_packs(args: argparse.Namespace) -> int:
             goi = manifest.invocation(ten)
             ghi_chu = " [cần người xác nhận]" if goi.requires_confirmation else ""
             print(f"      {ten:<8} {goi.command[0]}{ghi_chu}")
+
+    from eaa import jsonout
+
+    jsonout.ket_qua(packs=[
+        {"name": m.name, "version": m.version, "targets": list(m.targets),
+         "capabilities": [
+             {"name": ten,
+              "command": m.invocation(ten).command[0],
+              "requires_confirmation": m.invocation(ten).requires_confirmation}
+             for ten in sorted(m.capabilities)
+         ]}
+        for m in packs.values()
+    ])
     return EXIT_OK
 
 
@@ -1674,17 +1753,34 @@ def _ho_so_G5(ctx: AppContext, state: Any) -> Any:
 
 
 def _gate_show(ctx: AppContext, args: argparse.Namespace) -> int:
+    from eaa import jsonout
+
     cho_duyet = ctx.gates.pending(args.gate)
     if cho_duyet:
         for yeu_cau in cho_duyet:
             _in_tieu_de(f"Đang chờ quyết định — {yeu_cau.payload.gate_id}")
             print(yeu_cau.payload.render())
+        jsonout.ket_qua(pending=[
+            {"gate": y.payload.gate_id, "title": y.payload.title,
+             "summary": list(y.payload.summary),
+             "checklist": list(y.payload.checklist),
+             # Dấu vân tay nội dung PHẢI đi ra: lớp IDE duyệt gate thì nó duyệt
+             # đúng nội dung này, và không có dấu vân tay thì không kiểm được.
+             "content_digest": y.payload.content_digest}
+            for y in cho_duyet
+        ])
         return EXIT_WAITING_GATE
 
     if args.gate:
         payload = _ho_so_gate(ctx, args.gate)
         _in_tieu_de(f"Hồ sơ dựng từ dữ liệu hiện hành — {args.gate}")
         print(payload.render())
+        jsonout.ket_qua(pending=[], draft={
+            "gate": payload.gate_id, "title": payload.title,
+            "summary": list(payload.summary),
+            "checklist": list(payload.checklist),
+            "content_digest": payload.content_digest,
+        })
         return EXIT_WAITING_GATE
 
     state = ctx.store.load()
@@ -1692,6 +1788,13 @@ def _gate_show(ctx: AppContext, args: argparse.Namespace) -> int:
     for gate in GATE_ORDER:
         print("  " + _nhan_gate(state, gate))
     print("\nKhông có hồ sơ nào đang chờ quyết định.")
+
+    from eaa import jsonout
+
+    jsonout.ket_qua(
+        pending=[],
+        gates=[{"id": g, "label": _nhan_gate(state, g)} for g in GATE_ORDER],
+    )
     return EXIT_OK
 
 
@@ -2528,6 +2631,22 @@ def cmd_procedure(args: argparse.Namespace) -> int:
     if cho:
         print(f"\n{len(cho)} thủ tục chờ duyệt — `eaa gate show G2` để đọc, "
               "rồi `eaa gate approve G2`.")
+
+    from eaa import jsonout
+
+    jsonout.ket_qua(procedures=[
+        {"id": k.id, "peripheral": k.peripheral, "status": k.status,
+         "approved": k.da_duyet, "steps": list(k.thu_tu),
+         "source": k.source,
+         # Mức tin cậy đi qua `muc()` thành TRƯỜNG RIÊNG, không trộn vào câu.
+         # Làm phẳng nó ở đây là bỏ mất đúng thứ `confidence.py` giữ (SL-182).
+         "traps": [
+             {"wrong": b.mo_ta, "right": b.dung_la, "source": b.xuat_xu,
+              "level": b.muc}
+             for b in k.bay
+         ]}
+        for k in muc
+    ], pending_g2=[k.id for k in cho])
     return EXIT_OK
 
 
@@ -7240,7 +7359,33 @@ def build_parser() -> argparse.ArgumentParser:
             # Lệnh đã tự khai --model với nghĩa riêng — 'init' ghim vào state.
             pass
 
+    _gan_co_json(sub)
     return parser
+
+
+def _gan_co_json(sub: argparse._SubParsersAction) -> None:
+    """Gắn `--json` cho ĐÚNG những parser trong `LENH_CO_JSON`.
+
+    Gắn ở parser nào là chuyện quan trọng: `eaa gate` có `approve` và `reject`
+    nên KHÔNG được nhận cờ, còn `eaa gate show` thì được. Gắn ở cha thì
+    `gate approve --json` cũng chạy, và lúc ấy có hai đường cùng đổi trạng thái
+    mà chỉ một đường được canh.
+    """
+    for duong in LENH_CO_JSON:
+        phan = duong.split()
+        pr = sub.choices.get(phan[0])
+        for ten in phan[1:]:
+            con = next(
+                (a for a in (pr._actions if pr else [])
+                 if isinstance(a, argparse._SubParsersAction)), None
+            )
+            pr = con.choices.get(ten) if con else None
+        if pr is None:
+            raise RuntimeError(f"LENH_CO_JSON nhắc lệnh không có: {duong!r}")
+        pr.add_argument(
+            "--json", action="store_true",
+            help="Đầu ra máy đọc được (lược đồ v%d)" % _SCHEMA_JSON,
+        )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -7275,14 +7420,50 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Tên lệnh người dùng vừa gõ — chỉ chỗ này biết nó, và chỉ chỗ này gắn được
     # câu "làm tiếp" cho đúng việc vừa hỏng (SL-178).
-    ten_lenh = (argv or sys.argv[1:])
-    ten_lenh = next((a for a in ten_lenh if not a.startswith("-")), "")
+    #
+    # Lấy từ `args.command`, tức từ chính argparse. Bản đầu quét argv tìm đối
+    # số đầu không bắt đầu bằng dấu gạch, và nó nhặt nhầm GIÁ TRỊ của cờ đứng
+    # trước: `eaa --project x tune` cho ten_lenh = "x", nên câu "làm tiếp" mất
+    # đi trong im lặng. Việc E1 làm lộ chỗ này (SL-182).
+    ten_lenh = getattr(args, "command", "") or ""
+
+    # Chế độ máy đọc (E1). Bật thì văn xuôi bị NUỐT: trộn văn xuôi với JSON
+    # trên cùng một luồng thì không bên nào đọc được. Lệnh không phải sửa gì —
+    # chúng cứ in như cũ, chỉ có điều không ai nghe.
+    from eaa import jsonout
+
+    che_do_json = bool(getattr(args, "json", False))
+    if che_do_json:
+        con = next(
+            (v for k, v in vars(args).items()
+             if k.endswith("_action") and isinstance(v, str) and v),
+            "",
+        )
+        jsonout.bat(f"{ten_lenh} {con}".strip())
 
     def _bao(nhan: str, exc: BaseException) -> None:
+        if che_do_json:
+            jsonout.in_loi(
+                getattr(exc, "exit_code", EXIT_ENV_ERROR),
+                str(exc),
+                GOI_Y_KHI_HONG.get(ten_lenh, ()),
+            )
+            return
         print(f"{nhan}: {exc}{_goi_y_di_tiep(ten_lenh, str(exc))}", file=sys.stderr)
 
+    def _chay() -> int:
+        if not che_do_json:
+            return args.func(args)
+        import contextlib
+        import io
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            ma = args.func(args)
+        jsonout.in_ket_qua(ma)
+        return ma
+
     try:
-        return args.func(args)
+        return _chay()
     except CliError as exc:
         _bao("Lỗi", exc)
         return exc.exit_code
