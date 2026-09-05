@@ -2527,3 +2527,21 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Không áp lên tệp kiểm viết bằng Python** | Cùng hàng rào SL-150 đã dựng |
 | **Một bài kiểm RỖNG tự bắt được trong lúc viết** | Bài canh hàng rào Python ban đầu dùng chú thích `#`, mà bộ soi chỉ đọc chú thích C — nên nó xanh dù có hàng rào hay không. Kiểm đột biến lộ ra: bỏ hàng rào mà bài vẫn xanh. Đã sửa thành đoạn C **nhúng trong chuỗi Python** — ca thật, vì bài kiểm trên máy chủ ở kho này dịch mã C từ trong chính tệp test — và thêm vế ngược: cùng nội dung ấy trong tệp `.c` thì PHẢI kêu. Đúng dạng hỏng mà N-909 sinh ra để chặn, lần này bắt được ở chính bài kiểm của mình |
 | **Bài canh** | `tests/test_tc134_chu_thich_sai_thu_nguyen.py`, 20 bài. Đột biến 4 phép, cả 4 bị bắt sau khi sửa bài rỗng: bỏ quy đổi tiền tố → 1 đỏ; coi ms và s là hai đại lượng → 2; cho cảnh báo thành lỗi chặn → 2; bỏ hàng rào tệp Python → 1 |
+
+---
+
+## SL-175 · BỔ SUNG · Làm cho lỗi KÊU LÊN ĐƯỢC (N-912)
+
+| | |
+|---|---|
+| **Ca thật** | Ba lượt nạp đầu tiên, robot chỉ **im** hoặc **ngã**. Hai trạng thái ấy không phân biệt được với chip chết, với nguồn tụt, hay với mã chạy sai — và cũng không phân biệt được với nhau. Mỗi lần gỡ phải bắt đầu bằng câu *"nó có chạy không"*, thứ lẽ ra mạch tự trả lời được |
+| **Điều đáng chú ý hơn** | Mọi đường báo hiệu về sau — nhịp bíp khởi động, nút thoát, cảnh báo mất mẫu — đều do **người** nghĩ ra và thêm vào. **Không bản phân rã nào tự đề nghị lấy một cái.** Đây không phải lỗi mã; nó là một khoảng trống trong THIẾT KẾ, và không có gì trong quy trình hỏi tới nó |
+| **Đã sửa** | `eaa/observability.py` + hai trường `dau_hieu_song` / `dau_hieu_hong` trong mục backlog + lệnh `eaa observe` (báo cáo) và `eaa observe set` (khai) + một dòng checklist ở hồ sơ G3 |
+| **Hai câu, và chúng là hai câu khác nhau** | *Người nhận ra module này ĐANG CHẠY bằng cách nào, không cần máy đo?* và *Khi nó HỎNG, người nhận ra bằng cách nào?* Trả lời một câu không phải trả lời cả hai — báo cáo nêu riêng từng cái còn thiếu |
+| **Ranh giới engine, và nó chặt ở đây** | Engine **không biết** thứ gì kêu được, thứ gì sáng được, thứ gì người nghe được. Nó đọc cờ `observable` mà hồ sơ dự án gắn cho linh kiện và coi giá trị là **chuỗi mờ** — đúng cách nó đối xử với `uses` (SDD §3.2). Dự án nói cái gì quan sát được; engine chỉ đếm xem có cái nào không. Biết "còi thì kêu" là đã thành công cụ cho đúng một cái bo, và TC-38 quét chuyện ấy mỗi commit |
+| **Phát hiện to nhất được tách riêng** | *"Bo không có kênh quan sát nào"* là hạng khác hẳn *"module này chưa khai"*: thiếu dấu hiệu ở một module còn sửa được bằng cách khai thêm; không có kênh nào thì **không module nào khai được gì**, và mọi lần gỡ lỗi về sau đều bắt đầu từ con số không. Khai đủ dấu hiệu mà bo không nói được gì thì báo cáo vẫn KHÔNG đạt |
+| **Báo cáo, không phải cổng** | `eaa observe` luôn thoát 0. Chặn đường merge vì thiếu dấu hiệu sẽ biến một câu hỏi hay thành một thủ tục người ta tìm cách đi vòng. Chỗ nó xuất hiện là **checklist G3** — lúc người đang đọc mã của đúng module ấy, và là lúc cuối trước khi nó vào `main` |
+| **Ai chốt** | `observe set` **không** có trong danh mục Agent: dấu hiệu nào đủ rõ trên bo cụ thể là quyết định của người (N-912 ở mức tự chủ T1). Agent đọc được báo cáo, và chỉ thế |
+| **Đo trên dự án thật** | `eaa observe` trên `robot_balance`: **9/9 module chưa khai**, và **không kênh quan sát nào**. Hồ sơ phần cứng có ghi *"kênh báo hiệu DUY NHẤT người dùng nghe được"* — nhưng bằng lời **chú thích**, thứ engine không đọc được. Đúng hình dạng SL-125: một sự thật có trong đầu người mà không có trong dữ liệu |
+| **Chưa sửa hồ sơ dự án** | Thêm `observable:` vào `hardware_profile.yaml` là sửa dữ liệu dự án và phải duyệt lại G1 — việc của kỹ sư, không của máy. Cảnh báo TRÔI hồ sơ đang bật sẵn từ phiên 03/09 nên càng không được thêm lặng lẽ |
+| **Bài canh** | `tests/test_tc135_loi_phai_keu_len_duoc.py`, 23 bài. Đột biến 4 phép, cả 4 bị bắt: coi bo không kênh là ĐẠT → 1 đỏ; hỏi cả module đã bỏ → 1; quên ghi trường mới ra đĩa → 2; cho Agent tự chốt dấu hiệu → 1 |

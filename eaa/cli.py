@@ -2286,6 +2286,56 @@ def _ghi_env_hash_vao_state(project: Path, env_hash: str) -> None:
 # --------------------------------------------------------------------------
 
 
+def cmd_observe(args: argparse.Namespace) -> int:
+    """Module nào chưa nói được nó sống hay chết — N-912.
+
+    Chỉ đọc và chỉ NÊU RA. Hai câu phải trả lời đều là câu của người: engine
+    không biết thứ gì trên bo này người nghe được hay nhìn được, và nó không
+    được phép đoán.
+    """
+    from eaa.confidence import DA_KIEM, header
+    from eaa.observability import soi_quan_sat
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+
+    if getattr(args, "observe_action", None) == "set":
+        if not (args.song or args.hong):
+            raise CliError(
+                "Phải nêu ít nhất một trong --song / --hong. Hai câu ấy là hai "
+                "câu khác nhau: 'nó đang chạy' và 'nó vừa hỏng' không nhận ra "
+                "bằng cùng một dấu hiệu."
+            )
+        with ctx.store.with_lock():
+            state = ctx.store.load()
+            muc = state.module(args.module_id)
+            if muc is None:
+                raise CliError(f"Không có module {args.module_id!r} trong backlog.")
+            if args.song:
+                muc.dau_hieu_song = args.song.strip()
+            if args.hong:
+                muc.dau_hieu_hong = args.hong.strip()
+            ctx.store.save(state)
+        _in_tieu_de(f"Đã khai dấu hiệu cho {args.module_id}")
+        print(f"  sống: {muc.dau_hieu_song or '(chưa khai)'}")
+        print(f"  hỏng: {muc.dau_hieu_hong or '(chưa khai)'}")
+        return EXIT_OK
+
+    bao_cao = soi_quan_sat(ctx.store.load().backlog, getattr(ctx.kb, "hardware", None))
+
+    _in_tieu_de("Lỗi có kêu lên được không")
+    # ĐÃ KIỂM: đây là phép đếm trên dữ liệu đã khai, không phải một suy đoán.
+    # Cái nó KHÔNG nói là dấu hiệu ấy có đủ rõ trên bo hay không — câu ấy thuộc
+    # về người, và bản báo cáo nói thẳng như vậy ở cuối.
+    print(header(DA_KIEM))
+    print()
+    print(bao_cao.render())
+    # Luôn thoát 0. Đây là một BÁO CÁO, không phải một cổng: thiếu dấu hiệu là
+    # khoảng trống thiết kế, và chặn đường merge vì nó sẽ biến một câu hỏi hay
+    # thành một thủ tục người ta tìm cách đi vòng.
+    return EXIT_OK
+
+
 def cmd_measured(args: argparse.Namespace) -> int:
     """Sổ số đo trên chính bo này — N-913.
 
@@ -6010,6 +6060,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor.set_defaults(func=cmd_doctor)
 
     # AIS §8.5 — kho phẩm xuất
+    # Lỗi có kêu lên được không — N-912 (SL-175)
+    p_ob = sub.add_parser(
+        "observe", help="Module nào chưa nói được nó sống hay chết (N-912)"
+    )
+    ob_sub = p_ob.add_subparsers(
+        dest="observe_action", required=False, metavar="<hành động>"
+    )
+    ob_set = ob_sub.add_parser("set", help="Khai dấu hiệu sống / dấu hiệu hỏng")
+    ob_set.add_argument("module_id")
+    ob_set.add_argument("--song", help="Người nhận ra nó ĐANG CHẠY bằng cách nào")
+    ob_set.add_argument("--hong", help="Khi nó HỎNG, người nhận ra bằng cách nào")
+    p_ob.set_defaults(func=cmd_observe, observe_action=None)
+
     # Số đo trên chính bo này — N-913 (SL-173)
     p_me = sub.add_parser(
         "measured", help="Sổ số đo trên bo: list/add/approve (N-913)"

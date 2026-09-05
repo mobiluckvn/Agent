@@ -1036,6 +1036,37 @@ class Orchestrator:
             return ket_luan(bai_moi, "", do_duoc=False, ly_do=f"{type(exc).__name__}: {exc}")
         return ket_luan(bai_moi, bao_cao.raw_output)
 
+    def _muc_quan_sat(self, module_id: str) -> tuple[str, ...]:
+        """Dòng checklist G3 khi module chưa nói được nó sống hay chết (N-912).
+
+        Ở G3 người đang đọc mã của đúng module ấy — đó là lúc rẻ nhất để hỏi
+        *"khi cái này hỏng thì ai biết"*, và cũng là lúc cuối trước khi nó vào
+        `main` và không ai hỏi nữa.
+
+        Chỉ THÊM một dòng, không chặn: thiếu dấu hiệu là khoảng trống thiết kế,
+        không phải lỗi mã.
+        """
+        try:
+            muc = self.state_store.load().module(module_id)
+        except Exception:  # noqa: BLE001
+            return ()
+        if muc is None:
+            return ()
+        thieu = [
+            ten
+            for ten, gia_tri in (
+                ("dấu hiệu sống", getattr(muc, "dau_hieu_song", "")),
+                ("dấu hiệu hỏng", getattr(muc, "dau_hieu_hong", "")),
+            )
+            if not str(gia_tri or "").strip()
+        ]
+        if not thieu:
+            return ()
+        return (
+            f"{module_id} chưa khai {', '.join(thieu)} — khi module này hỏng, "
+            "người nhận ra bằng cách nào? (eaa observe)",
+        )
+
     def _xin_gate(
         self,
         module_id: str,
@@ -1050,6 +1081,7 @@ class Orchestrator:
         muc_do_nhay: tuple[str, ...] = ()
         if do_nhay is not None and (do_nhay.bai_kiem_moi or not do_nhay.do_duoc):
             muc_do_nhay = (do_nhay.cau(),)
+        muc_do_nhay += self._muc_quan_sat(module_id)
         payload = GatePayload(
             gate_id=MERGE_GATE,
             title=f"Review diff module {module_id}",

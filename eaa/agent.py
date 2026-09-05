@@ -215,6 +215,9 @@ TOOLBOX: tuple[Tool, ...] = (
         takes="mã trích đoạn",
     ),
     Tool(("measured", "list"), "Số đo trên bo: đã chốt và còn chờ"),
+    # Chỉ nhánh báo cáo. `observe set` là một quyết định THIẾT KẾ (N-912 ở
+    # mức T1) nên nó không có ở đây: người chốt dấu hiệu nào đủ rõ trên bo.
+    Tool(("observe",), "Module nào chưa nói được nó sống hay chết"),
     # Agent ĐỀ XUẤT số đo được — nó là bên chạy chẩn đoán và đọc telemetry, nên
     # bắt người chép tay lại con số máy vừa đọc là bỏ phí đúng chỗ máy làm tốt.
     # Bản đề xuất KHÔNG vào prompt; `measured approve` mới vào, và lệnh ấy là

@@ -142,6 +142,14 @@ class BacklogItem:
     #: Engine chỉ coi đây là chuỗi mờ — ý nghĩa do Platform Pack và Project định.
     uses: list[str] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)
+    #: Người nhận ra module này ĐANG CHẠY bằng cách nào, không cần máy đo — và
+    #: khi nó HỎNG thì nhận ra bằng cách nào (N-912).
+    #:
+    #: Rỗng là hợp lệ về mặt dữ liệu và KHÔNG chặn gì: đây là khoảng trống
+    #: thiết kế, không phải lỗi mã. `eaa observe` nêu ra, người quyết. Engine
+    #: coi nội dung là chuỗi mờ — nó không biết thứ gì kêu được hay sáng được.
+    dau_hieu_song: str = ""
+    dau_hieu_hong: str = ""
     updated_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -153,6 +161,8 @@ class BacklogItem:
             "provides": list(self.provides),
             "uses": list(self.uses),
             "depends_on": list(self.depends_on),
+            "dau_hieu_song": self.dau_hieu_song,
+            "dau_hieu_hong": self.dau_hieu_hong,
             "updated_at": self.updated_at,
         }
 
@@ -185,6 +195,8 @@ class BacklogItem:
             provides=[str(x) for x in (data.get("provides") or [])],
             uses=list(data.get("uses", [])),
             depends_on=list(data.get("depends_on", [])),
+            dau_hieu_song=str(data.get("dau_hieu_song", "")),
+            dau_hieu_hong=str(data.get("dau_hieu_hong", "")),
             updated_at=data.get("updated_at", ""),
         )
 

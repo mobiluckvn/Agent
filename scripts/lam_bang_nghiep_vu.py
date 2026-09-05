@@ -826,9 +826,10 @@ DOI_CHIEU = [
   "eaa/dimension.py, nối vào StaticGate ở mức CẢNH BÁO. Hai phép soi: đơn vị khai trong chú thích "
   "chọi với đơn vị trong sổ số đo (cần N-913), và phép tính không ra kết quả nó khai (tự chứa, "
   "có quy đổi tiền tố) · SL-174, TC-134, 20 bài", "", "T4"),
- ("N-912", CHUA, "—",
-  "Chưa có gì. eaa/decompose.py chưa đòi module khai dấu hiệu sống/hỏng; "
-  "eaa/propose.py AcceptanceProposal chưa sinh tiêu chí quan sát được bằng mắt/tai · §3.6", "—"),
+ ("N-912", DU,
+  "eaa/observability.py + hai trường dau_hieu_song/dau_hieu_hong trong mục backlog + lệnh "
+  "eaa observe (báo cáo) và observe set (khai) + một dòng checklist ở hồ sơ G3. Kênh quan sát "
+  "đọc từ cờ observable của hồ sơ dự án — engine coi là chuỗi mờ · SL-175, TC-135, 23 bài", "", "T1"),
  ("N-913", DU,
   "eaa/measured.py — sổ nối tiếp board_facts.jsonl + lớp ngữ cảnh K8 board_facts trong "
   "eaa/composer.py (đứng TRƯỚC lớp trích đoạn tài liệu) + lệnh eaa measured list/add/approve. "
