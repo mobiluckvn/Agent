@@ -344,6 +344,116 @@ TINH_NANG: list[tuple[str, str, str, str, str, str, str, str, str, str]] = [
 ]
 
 
+# --------------------------------------------------------------------------
+# Kế hoạch vượt lên — xem docs/KE_HOACH_VUOT_LEN.md
+# --------------------------------------------------------------------------
+
+# (giai đoạn, việc, lấp mã nào, nuôi chiều sâu thế nào, chỗ đặt trong ba tầng,
+#  mã TC, nặng)
+KE_HOACH: list[tuple[str, str, str, str, str, str, str]] = [
+    ("GĐ1 · Bản đồ thanh ghi máy đọc được",
+     "Bộ đọc CMSIS-SVD và ATDF về MỘT mô hình trung tính",
+     "A2",
+     "Cho `// ref:` một nguồn để đối chiếu — hôm nay cổng chỉ kiểm CÓ trích "
+     "dẫn, không kiểm trích dẫn ĐÚNG",
+     "ENGINE eaa/regmap.py + regmap_svd.py + regmap_atdf.py (đọc ĐỊNH DẠNG, "
+     "không biết tên thanh ghi nào); PACK khai đường dẫn; PROJECT giữ tệp",
+     "TC-136", "vừa"),
+    ("GĐ1 · Bản đồ thanh ghi máy đọc được",
+     "Cổng thứ năm `regcheck`: thanh ghi có thật, trường có thật, giá trị lọt "
+     "vừa độ rộng, không ghi vào thanh ghi chỉ-đọc",
+     "A2",
+     "Chặn được hạng lỗi mà bốn cổng hiện tại không thấy: giá trị hợp cú pháp "
+     "mà sai với silicon",
+     "ENGINE eaa/tools/regcheck.py, đứng sau `static` trước `unittests`",
+     "TC-136", "vừa"),
+    ("GĐ1 · Bản đồ thanh ghi máy đọc được",
+     "Nối bản đồ vào N-908 và N-911",
+     "A2",
+     "instrument.py biết giá trị mới có CÒN HỢP LỆ không, không chỉ biết nó đã "
+     "đổi; dimension.py có nguồn thứ hai cho độ rộng và thang",
+     "ENGINE — sửa eaa/instrument.py và eaa/dimension.py",
+     "TC-137", "nhẹ"),
+
+    ("GĐ2 · Thước đo mới",
+     "Chỉ số của văn liệu: pass@1, pass@5, trượt dịch / sai hành vi / đúng",
+     "E1, E2",
+     "Không có nó thì không đối thoại được với văn liệu. Dữ liệu đã có trong "
+     "kpi_log.csv và llm_calls.jsonl — thiếu cách tính, không thiếu số",
+     "ENGINE eaa/bench.py; bộ nhiệm vụ nằm ở bench/<bo>/<task>/",
+     "TC-138", "vừa"),
+    ("GĐ2 · Thước đo mới",
+     "BỐN TRỤC ĐO KHÔNG AI CÓ: độ nhạy bài kiểm · vá chỉnh đồ đo · mất việc im "
+     "lặng · truy về được",
+     "E1, E2",
+     "Đây là đóng góp nghiên cứu: không đua trên thước của họ mà đề xuất thước "
+     "mới. Bốn bộ đo đã có sẵn (sensitivity, instrument, contract, regcheck)",
+     "ENGINE eaa/bench.py đọc kết quả của bốn module đã có",
+     "TC-138", "vừa"),
+
+    ("GĐ3 · Kỹ năng phần cứng",
+     "Kỹ năng theo ngoại vi: mẫu khởi tạo, THỨ TỰ bắt buộc, cách hỏng đã biết",
+     "B3, C8",
+     "Chỗ DUY NHẤT bài arXiv đo được là nâng kết quả lên gần trần (41-42/42). "
+     "Và nó chặn hạng lỗi đã làm robot ngã: mã đúng mọi dòng, sai ở THỨ TỰ",
+     "PACK packs/<pack>/skills/<ngoại vi>.md — tri thức của một họ chip, không "
+     "phải của engine; ENGINE chỉ chọn theo `uses`",
+     "TC-139", "vừa"),
+    ("GĐ3 · Kỹ năng phần cứng",
+     "Lớp K9 trong bộ ghép prompt, chỉ nhận kỹ năng ĐÃ DUYỆT G2",
+     "B3",
+     "Bài arXiv đo được: kỹ năng LLM tự sinh cho lợi ích THẤT THƯỜNG. Cửa duyệt "
+     "là chỗ chặn đúng điều ấy",
+     "ENGINE eaa/composer.py; ngân sách lấy từ `repair` (SÀN, không phải trần)",
+     "TC-139", "nhẹ"),
+
+    ("GĐ4 · Bối cảnh bo từ sơ đồ",
+     "Đọc netlist KiCad → linh kiện, chân, net",
+     "A3",
+     "hardware_profile.yaml gõ tay là chỗ SL-125 sai, và giá phải trả là robot "
+     "lao thẳng một phía",
+     "ENGINE eaa/netlist.py (đọc ĐỊNH DẠNG mở); PROJECT giữ tệp",
+     "TC-140", "nặng"),
+    ("GĐ4 · Bối cảnh bo từ sơ đồ",
+     "ĐỐI CHIẾU netlist với hồ sơ ở G1 — không sinh đè",
+     "A3",
+     "Hồ sơ mang thứ netlist không có: mức tích cực, pull-up nội, lý do chọn bộ "
+     "đếm. Sinh đè là mất phần đắt nhất",
+     "ENGINE — lệch chân thì ĐỎ ở G1; linh kiện hồ sơ thiếu thì cảnh báo (ca "
+     "SL-143: còi và nút có trên bo mà hồ sơ chưa bao giờ khai)",
+     "TC-140", "vừa"),
+
+    ("Xen kẽ · rẻ, đáng làm, không nuôi chiều sâu",
+     "Trọng tài phần cứng: khoá cổng nối tiếp",
+     "D5",
+     "Không nuôi chiều sâu, nhưng thành lỗi THẬT ngay khi có người thứ hai chạy "
+     "cùng bo — nên làm sớm nhất trong ba",
+     "ENGINE eaa/serialport.py — một khoá tệp",
+     "TC-141", "nhẹ"),
+    ("Xen kẽ · rẻ, đáng làm, không nuôi chiều sâu",
+     "Truy vết hai chiều: tiêu chí nghiệm thu ↔ bài kiểm",
+     "E4",
+     "ISO 26262 đòi yêu cầu ↔ mã ↔ kiểm chứng. EAA mạnh ở nhánh tri thức ↔ mã, "
+     "chưa nối tiêu chí xuống từng bài kiểm",
+     "ENGINE eaa/acceptance.py + eaa/tools/unittests.py",
+     "TC-142", "vừa"),
+    ("Xen kẽ · rẻ, đáng làm, không nuôi chiều sâu",
+     "Lớp mỏng tích hợp IDE",
+     "F1",
+     "Mặt tiếp xúc kỹ sư nhúng ngồi trong đó cả ngày. Không đụng lõi: gọi CLI",
+     "NGOÀI engine — một extension gọi `eaa` qua dòng lệnh",
+     "TC-143", "vừa"),
+
+    ("Sau cùng · tốn thiết bị",
+     "Điều khiển máy đo, và phiên gỡ lỗi tự động",
+     "C5, C6",
+     "Chỉ có nghĩa khi đã có benchmark để chứng minh chúng cải thiện được gì — "
+     "tức là sau GĐ2",
+     "PACK khai tên máy đo và lệnh; ENGINE chỉ chuyển tiếp (đúng luật FR-PLT-01)",
+     "TC-144", "nặng"),
+]
+
+
 def main() -> int:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -521,6 +631,30 @@ def main() -> int:
             o.border = VIEN
     ws.auto_filter.ref = f"A1:D{len(hon) + 1}"
 
+    # ══════════════════════════════════════════ 6. Kế hoạch vượt lên ═══
+    ws = wb.create_sheet("Kế hoạch vượt lên")
+    tieu_de(ws, [("Giai đoạn", 30), ("Việc", 46), ("Lấp mã", 9),
+                 ("Nuôi chiều sâu thế nào", 60), ("Chỗ đặt trong ba tầng", 56),
+                 ("Mã TC", 9), ("Nặng", 8)])
+    r = 2
+    gd_truoc = ""
+    for hang in KE_HOACH:
+        if hang[0] != gd_truoc:
+            gd_truoc = hang[0]
+            for c in range(1, 8):
+                ws.cell(row=r, column=c).fill = NEN_NHOM
+            ws.cell(row=r, column=1, value=gd_truoc).font = Font(bold=True)
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=7)
+            r += 1
+        for c, v in enumerate(hang, start=1):
+            o = ws.cell(row=r, column=c, value=v)
+            o.alignment = TREN
+            o.border = VIEN
+        for c in (3, 6, 7):
+            ws.cell(row=r, column=c).alignment = GIUA
+        r += 1
+    ws.auto_filter.ref = f"A1:G{r - 1}"
+
     RA.parent.mkdir(parents=True, exist_ok=True)
     wb.save(RA)
 
@@ -533,6 +667,8 @@ def main() -> int:
     print(f"  Việc phải làm  : {len(thieu)} dòng "
           f"({sum(1 for h in thieu if h[9] == CAO)} ưu tiên Cao)")
     print(f"  EAA hơn        : {len(hon)} dòng")
+    print(f"  Kế hoạch       : {len(KE_HOACH)} việc / "
+          f"{len({k[0] for k in KE_HOACH})} giai đoạn — xem docs/KE_HOACH_VUOT_LEN.md")
     return 0
 
 
