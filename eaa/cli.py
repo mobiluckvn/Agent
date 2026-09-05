@@ -127,6 +127,7 @@ GOI_Y_KHI_HONG: dict[str, tuple[str, ...]] = {
     "measured": ("eaa measured list",),
     "observe": ("eaa observe",),
     "procedure": ("eaa procedure lint", "eaa gate show G2"),
+    "problems": ("eaa status", "eaa gate show"),
     "safety": ("eaa safety show",),
     "budget": ("eaa budget show",),
     # — báo cáo và bàn giao —
@@ -185,8 +186,8 @@ from eaa.jsonout import SCHEMA as _SCHEMA_JSON  # noqa: E402
 #: lọt. Nên danh sách này khai tay, và phép soi chỉ canh nó khỏi trôi.
 LENH_CHI_DOC: frozenset[str] = frozenset({
     "capabilities", "deviations", "environ", "field", "interface", "models",
-    "packs", "policy", "procedure", "recall", "report", "status", "suggest",
-    "ports", "read",
+    "packs", "policy", "problems", "procedure", "recall", "report", "status",
+    "suggest", "ports", "read",
     "gate show", "docs list", "docs get", "design list", "knowledge stale",
     "measured list", "ledger list", "datasheet list", "plan list",
     "budget show", "budget tokens", "safety show", "errata show",
@@ -198,7 +199,7 @@ LENH_CHI_DOC: frozenset[str] = frozenset({
 #: việc chưa làm chứ không phải việc đã bỏ, và tỉ lệ được báo ra chứ không
 #: được giấu bằng cách thu hẹp mẫu số.
 LENH_CO_JSON: tuple[str, ...] = (
-    "status", "policy", "packs", "procedure", "gate show",
+    "status", "policy", "packs", "procedure", "problems", "gate show",
 )
 
 #: Kết quả bộ chuẩn của một dự án (GĐ2, SL-177).
@@ -2581,6 +2582,53 @@ def _thu_muc_pack(project: Path) -> Path | None:
         return None
     d = Path("packs") / str(ten)
     return d if d.is_dir() else None
+
+
+def cmd_problems(args: argparse.Namespace) -> int:
+    """Mọi phát hiện của quy trình, ở dạng bảng lỗi của biên tập (E2).
+
+    CHỈ ĐỌC: nó đọc bằng chứng cổng đã cất và nhật ký quyết định gate, không
+    chạy lại cổng nào. Chạy cổng là việc của `eaa gen`, và nó đổi trạng thái.
+    """
+    from eaa.confidence import DA_KIEM, header
+    from eaa.diagnostic import bang_chu, gom
+    from eaa import jsonout
+
+    project = resolve_project(args.project)
+    kq = gom(project, module=[args.module] if getattr(args, "module", "") else None)
+
+    print(header(DA_KIEM, "Phát hiện của quy trình"))
+    print()
+    print(bang_chu(kq, tran=getattr(args, "limit", 0) or 0,
+                   tat_ca=bool(getattr(args, "all", False))))
+
+    ti_le = kq.ti_le_co_vi_tri
+    print()
+    if ti_le is None:
+        # CHƯA ĐO ĐƯỢC khác BẰNG KHÔNG: chưa phát hiện nào thì tỉ lệ ấy không
+        # tồn tại, và in 0% là khai một con số chưa đo.
+        print("  Tỉ lệ có vị trí: CHƯA ĐO ĐƯỢC (chưa phát hiện nào)")
+    else:
+        print(f"  {len(kq.co_vi_tri)}/{len(kq.hien_tai)} phát hiện ĐANG MỞ vẽ được "
+              f"gạch đỏ "
+              f"đúng dòng ({ti_le:.0%})")
+        print("  Số còn lại KHÔNG có vị trí — phần lớn là lỗi thiết kế người "
+              "bắt ở gate,")
+        print("  và đó đúng là hạng lỗi làm robot ngã. Chúng vẫn hiện, neo vào "
+              "tệp trạng thái.")
+
+    jsonout.ket_qua(
+        diagnostics=[c.to_dict() for c in kq.muc],
+        modules_read=list(kq.module_da_doc),
+        counts={
+            "total": len(kq.muc),
+            "current": len(kq.hien_tai),
+            "historical": len(kq.muc) - len(kq.hien_tai),
+            "with_position": len(kq.co_vi_tri),
+            "in_source": kq.so_trong_nguon,
+        },
+    )
+    return EXIT_OK
 
 
 def cmd_procedure(args: argparse.Namespace) -> int:
@@ -6434,6 +6482,18 @@ def build_parser() -> argparse.ArgumentParser:
              "hai thẻ công cụ đòi cùng một thứ ở hai phiên bản đá nhau",
     )
     p_doctor.set_defaults(func=cmd_doctor)
+
+    # Phát hiện của quy trình ở dạng bảng lỗi biên tập — E2 (SL-184)
+    p_pb = sub.add_parser(
+        "problems",
+        help="Mọi phát hiện của quy trình, dạng bảng lỗi cho biên tập (E2)",
+    )
+    p_pb.add_argument("--module", default="", help="Chỉ một module")
+    p_pb.add_argument("--all", action="store_true",
+                      help="Kể cả phát hiện thuộc lịch sử đã khép")
+    p_pb.add_argument("--limit", type=int, default=0,
+                      help="Chỉ in N phát hiện đầu (dạng chữ)")
+    p_pb.set_defaults(func=cmd_problems)
 
     # Thủ tục theo ngoại vi — V4 (SL-180)
     p_pr = sub.add_parser(

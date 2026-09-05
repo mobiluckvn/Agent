@@ -2690,3 +2690,23 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Sửa thế nào** | SC-28 viết lại theo sự thật: `eaa sim run/sweep` đã có; phần còn thiếu là `eaa sim report` và luật *"chạy tay không ghi vào Project State"*. D8 thu lại đúng phần còn thiếu, và công ước lượng giảm theo |
 | **Vì sao ghi thành một mục riêng** | Bảng backlog là công cụ quản trị; một dòng sai trong nó dẫn việc đi sai. Sửa lặng lẽ thì lần sau không ai biết bảng ấy từng sai ở đâu và vì sao |
 | **Bài canh** | TC-147 đã canh tính toàn vẹn cấu trúc của bảng, nhưng **không canh được nội dung sở cứ có đúng thực tế không** — không bài kiểm nào làm được việc ấy. Đó là việc của người đọc, và mục này là bản ghi cho người đọc ấy |
+
+---
+
+## SL-184 · BỔ SUNG · Phát hiện của quy trình thành chẩn đoán cho biên tập (E2)
+
+| | |
+|---|---|
+| **Cách tìm** | Việc E2 của `docs/EAA_Backlog_Tien_hoa.xlsx`, sở cứ SC-18: `ToolError` đã mang sẵn `file`, `line`, `rule_id`, `severity`, và hồ sơ kiểm chứng cất trong `.eaa/runs/` giữ nguyên cả bốn trường qua vòng ghi–đọc. Thiếu duy nhất chỗ để đi ra |
+| **Module mới** | `eaa/diagnostic.py` + lệnh `eaa problems`, chỉ đọc, có `--json` (nối vào E1). Tên `problems` theo đúng khái niệm bảng lỗi của biên tập |
+| **`eaa verify` mà E2 nhắc tới KHÔNG tồn tại** | Lại một chỗ tôi viết theo phỏng đoán, đúng hạng lỗi SL-183 vừa ghi hôm nay. Không có lệnh nào chạy lại cổng mà chỉ đọc — chạy cổng là việc của `eaa gen` và nó đổi trạng thái. Nên E2 đọc thứ ĐÃ CẤT, không chạy lại gì |
+| **Luật trung tâm, và nó đến từ một con số ĐO ĐƯỢC** | V3 (SL-179) đo được **8 trong 13 lần từ chối G3 là lỗi thiết kế hoặc vật lý** — sai trục cảm biến, sai hệ số tích phân, sai thứ tự vùng chết, một lời gọi thừa giết hẳn chức năng. Không cái nào có `file:line`. Một bảng lỗi chỉ hiện thứ có vị trí sẽ hiện **0 trong 8** phát hiện ấy, và nó dạy người dùng câu sai nhất với sản phẩm này: *"không gạch đỏ nghĩa là ổn"*. Nên phát hiện KHÔNG có vị trí **vẫn phải đi ra**, neo vào tệp cấp dự án kèm cờ `anchored` |
+| **Một phát hiện cấu trúc: bằng chứng chỉ cất khi ĐÃ ĐẠT** | `_luu_bang_chung` chỉ được gọi ở bước 10, tức chỉ khi mã đã qua hết cổng. Lỗi có vị trí sinh ra ở lượt TRƯỢT không bao giờ tới đó. Đọc riêng `.eaa/runs/` thì bảng lỗi có đúng **0** gạch đỏ, và con số 0 ấy nói về **chỗ cất** chứ không nói về chất lượng mã |
+| **Nguồn thứ ba cứu con số ấy** | `error_ledger.jsonl` — 66 mục, và mô tả có nhúng vị trí dạng `src/drv_x.c:7:`. Đó là nguồn DUY NHẤT còn giữ chẩn đoán của lượt trượt |
+| **Rút vị trí từ CHỮ phải nói ra là rút từ chữ** | `jsonout.py` đã đặt đúng luật này: dò chữ thì sớm muộn cũng sai. Nên phép khớp chặt (đường dẫn tương đối, đuôi mã nguồn, số dòng DƯƠNG), và mọi vị trí rút được mang cờ `position_parsed` để lớp IDE biết nó khác hạng với vị trí có cấu trúc. Rút hỏng thì phát hiện vẫn đi ra, chỉ mất phần vị trí — bỏ nó đi mới là hỏng |
+| **Một lỗi NGỮ NGHĨA soi đầu ra mới thấy** | Bản đầu bày cả 66 mục sổ lỗi như lỗi HIỆN TẠI. Sổ lỗi là sổ append-only, nên phần lớn là chuyện đã sửa xong — bày chúng như lỗi đang mở là để bảng lỗi nói dối, và một bảng lỗi nói dối tệ hơn một bảng lỗi trống. Nay mục của module ĐÃ QUA HẾT CỔNG bị xếp `historical`, và số bị ẩn được **nói ra** chứ không lược trong im lặng |
+| **Con số nghiệm thu của E2, đo trên dự án thật** | **87 phát hiện · 65 thuộc lịch sử đã khép · 22 đang mở · và chỉ 1 trong 22 vẽ được gạch đỏ (5%)**. Con số ấy nhỏ, và nó PHẢI nhỏ: phần lớn phát hiện đang mở là lý do NGƯỜI từ chối tại gate. Một bảng lỗi chỉ vẽ gạch đỏ sẽ hiện 1 trên 22 cái đang thật sự sai |
+| **Không tự chấm lại, không tự xếp hạng** | Module chỉ ĐỌC những gì cổng và người đã ghi: không chạy cổng, không suy ra mức nghiêm trọng mới, không gộp hai phát hiện thành một. Dựng bộ chấm thứ hai ở đây là dựng con đường thứ hai, và con số đi ra sẽ nói về con đường ấy |
+| **Không mất mát** | Số phát hiện đi ra phải BẰNG số đọc được trong nguồn (`khop_nguon`), và một hồ sơ bằng chứng hỏng thành một phát hiện chứ không biến mất |
+| **`--all` phải thắng nhánh thoát sớm** | Bản đầu trả câu *"không phát hiện nào đang mở — xem `--all`"* cho chính người vừa gõ `--all`. Bài kiểm bắt được |
+| **Bài canh** | `tests/test_tc149_chan_doan_cho_bien_tap.py`, 19 bài. Đột biến 6 phép, cả 6 bị bắt |

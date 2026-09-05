@@ -125,9 +125,11 @@ SO_CU: list[tuple[str, str, str, str]] = [
      "miền chính chủ hiện nghiêng về pack thứ nhất",
      "eaa/web.py · pytest tests/test_tc65*.py"),
     ("SC-18", DO,
-     "`ToolError` đã mang sẵn `file`, `line`, `rule_id`, `severity` — đủ cho một "
-     "chẩn đoán trong biên tập. Chỉ thiếu chỗ xuất ra",
-     "eaa/tools/base.py:40-59"),
+     "`ToolError` mang sẵn `file`/`line`/`rule_id`/`severity`, và hồ sơ trong "
+     "`.eaa/runs/` giữ nguyên cả bốn qua vòng ghi–đọc. NHƯNG hồ sơ chỉ được "
+     "cất khi mã ĐÃ ĐẠT — lỗi có vị trí của lượt trượt chỉ còn trong "
+     "`error_ledger.jsonl`, dạng văn xuôi",
+     "eaa/tools/base.py:40-59 · eaa/orchestrator.py:463 · eaa problems"),
     ("SC-19", DO,
      "Từ chối G3 #12: *'bus chết thì robot giữ nguyên lệnh động cơ cuối cùng và "
      "không bao giờ phát hiện mình đã ngã'* — cả bốn cổng đều xanh, NGƯỜI bắt",
@@ -493,17 +495,19 @@ VIEC: list[tuple[str, ...]] = [
     ("E2", "—", E,
      "Lỗi cổng thành CHẨN ĐOÁN CÓ VỊ TRÍ trong biên tập",
      MR, "SC-18",
-     "1) `ToolError` đã mang sẵn `file`, `line`, `rule_id`, `severity` — việc "
-     "này gần như chỉ là xuất ra. 2) `eaa verify --json` trả danh sách chẩn "
-     "đoán. 3) Lỗi KHÔNG có vị trí vẫn phải xuất, gắn vào tệp dự án — nuốt "
-     "chúng đi là giấu đúng những lỗi khó nhất.",
-     "eaa/cli.py · eaa/tools/base.py",
-     "Phần trăm lỗi cổng có `file`+`line` dùng được để vẽ gạch đỏ",
-     "cần TC mới",
+     "1) KHÔNG có lệnh nào chạy lại cổng mà chỉ đọc — `eaa verify` mà bản "
+     "đầu của việc này nhắc tới không tồn tại (SL-184). Nên đọc thứ ĐÃ CẤT. "
+     "2) Ba nguồn: bằng chứng cổng, lý do NGƯỜI từ chối gate, và sổ lỗi. "
+     "3) Lỗi KHÔNG có vị trí vẫn phải xuất — 8/13 lần từ chối là lỗi thiết kế "
+     "không có vị trí nào. 4) Tách LỊCH SỬ đã khép khỏi cái đang mở.",
+     "eaa/diagnostic.py · eaa/cli.py `cmd_problems`",
+     "ĐÃ ĐO trên dự án thật: 87 phát hiện · 65 lịch sử · 22 đang mở · "
+     "1/22 (5%) vẽ được gạch đỏ",
+     "TC-149 (19 bài, 6 đột biến đều bị bắt)",
      "E1", "—",
      "Chỉ hiện lỗi có vị trí thì lỗi thiết kế — hạng chiếm 8/13 lần từ chối — "
      "biến mất khỏi màn hình",
-     "1–2 ngày", "2", "CHƯA"),
+     "1–2 ngày", "2", "CƠ CHẾ XONG — 1/22 có vị trí"),
     ("E3", "—", E,
      "Bảng TRẠNG THÁI GATE ngay trong biên tập",
      MR, "SC-16",
@@ -680,6 +684,10 @@ NHAT_KY: list[tuple[str, str, str, str]] = [
      "Phép kiểm toàn vẹn tìm ra 15 cạnh không đối xứng và 3 cặp vòng tròn "
      "(C1↔C4, C3↔D2, D2↔D3) do khai cả hai chiều bằng tay. Nay khai một "
      "chiều, suy ra chiều kia — cùng hình dạng lỗi V3 tìm ra trong contract.py"),
+    ("05/09/2026", "E2", "CƠ CHẾ XONG — SL-184, TC-149",
+     "`eaa problems`. Đo được 87 phát hiện · 65 lịch sử · 22 đang mở · 1/22 "
+     "có vị trí. Bản đầu bày cả 66 mục sổ lỗi như lỗi hiện tại — sổ ấy là "
+     "append-only nên phần lớn đã sửa xong"),
     ("05/09/2026", "E1", "CƠ CHẾ XONG — SL-182, TC-148",
      "5/36 lệnh chỉ đọc có --json. Làm lộ một lỗi thật của SL-178: phép rút "
      "tên lệnh nhặt nhầm giá trị của --project, nên câu 'làm tiếp' mất trong "
