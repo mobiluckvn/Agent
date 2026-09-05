@@ -2618,3 +2618,24 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Ba con số tách riêng, không gộp** | BẮT ĐƯỢC · **BỎ SÓT** (trong tầm, đủ dữ liệu, mà im — con số duy nhất tính là thất bại) · KHÔNG CHẠY ĐƯỢC/NGOÀI TẦM. Gộp hai cái sau là cách dễ nhất để bảng nói dối, và nó nói dối theo cả hai hướng |
 | **Điều V3 KHÔNG chứng minh** | Tám trong mười ba lần từ chối là lỗi thiết kế hoặc vật lý — sai trục cảm biến, sai hệ số tích phân, sai thứ tự vùng chết, một lời gọi thừa giết hẳn chức năng. Không bộ dò tĩnh nào bắt được, và điều ấy đã chốt trước khi chạy. **Gate người duyệt không thay thế được** |
 | **Bài canh** | `tests/test_tc146_do_nguoc_lich_su.py` |
+
+---
+
+## SL-180 · BỔ SUNG · Thủ tục theo ngoại vi — lớp K9 (V4)
+
+| | |
+|---|---|
+| **Cách tìm** | Việc V4 của `docs/EAA_Viec_phai_lam.xlsx`, sở cứ SC-05: arXiv 2603.19583 là mốc DUY NHẤT trong khảo sát có ablation đo được, và nó đo tri thức do NGƯỜI nén theo từng ngoại vi |
+| **Module `eaa/procedure.py`, KHÔNG phải `skills.py`** | Cái tên `skills` đã thuộc về một khái niệm khác hẳn — chuỗi lệnh CLI gọi được bằng một câu (TC-71). Lần nhầm đầu tiên xảy ra ngay khi viết module này: bản nháp **ghi đè mất** `eaa/skills.py`, và tôi đọc nhầm chữ "updated" của công cụ ghi tệp thành "created". Khôi phục từ Git, đổi tên, và ghi lại đây vì hai thứ cùng tên trong một kho là hai thứ sẽ bị nhầm tiếp |
+| **Thủ tục khác trích đoạn ở đâu** | Chunk là TRÍCH ĐOẠN nguyên văn của hãng — nó trả lời *"thanh ghi này có bit nào"*. Thủ tục là cái NGƯỜI nén: thứ tự thao tác bắt buộc và chỗ dễ ngã — nó trả lời *"làm theo thứ tự nào, đã có ai ngã ở đâu"*. Tài liệu hãng gần như không bao giờ viết ra thứ tự; nó tả từng thanh ghi, còn thứ tự nằm trong đầu người đã làm rồi |
+| **Ngân sách MƯỢN của lớp trích đoạn, không cộng thêm** | Quyết định quan trọng nhất, và nó là quyết định về PHÉP ĐO. Bật thủ tục mà prompt dài thêm thì mọi cải thiện đo được sau đó đều có thể chỉ là *"nhiều ngữ cảnh hơn"*, và ablation không kết luận được gì. Tổng giữ đúng 8.000 ở cả hai nhánh bật/tắt |
+| **Con số 800 là một CANH BẠC, không phải một phép đo** | Đo trên thủ tục dài nhất của dự án mẫu: trần 400 lược sạch mọi bẫy — lớp còn mỗi thứ tự, tức mất nửa giá trị; 800 là chỗ mọi bẫy vừa đủ. Đổi lại lớp trích đoạn còn 700/1.500. Đó đúng là điều luận điểm arXiv khẳng định, nên đây cũng là chỗ luận điểm ấy bị đem ra cược. **Ablation thua thì con số phải giảm, không phải phép đo bị giải thích lại** |
+| **Dữ liệu rút từ V3, không phải nghĩ ra** | Cả 8 bẫy của hai thủ tục đầu tiên đều rút NGUYÊN VĂN từ `gates/decisions.jsonl` — tức chúng ĐÃ XẢY RA. Mỗi bẫy mang mức tin cậy: ĐÃ KIỂM cho bẫy rút từ một lần từ chối có thật, GIẢ ĐỊNH cho bẫy người soạn nghĩ ra. Trộn hai hạng là bỏ mất chính thứ làm kho này khác một tập lời khuyên |
+| **Ba tầng giữ nguyên** | Ngoại vi của VI ĐIỀU KHIỂN (bus TWI) thuộc `packs/avr/procedures/`; LINH KIỆN NGOÀI gắn trên mạch thuộc `projects/*/procedures/`. Trùng `id` giữa hai nguồn là LỖI chứ không phải nguồn sau đè nguồn trước — cái nào vào prompt không được là chuyện của thứ tự đối số |
+| **Không có cửa sau** | `eaa procedure approve` KHÔNG tồn tại, và TC-139 canh điều ấy. Thủ tục là tri thức, tri thức vào kho qua G2, và hồ sơ G2 nay trình cả thủ tục chờ duyệt cùng dấu vân tay của chúng |
+| **Lược thì lược NGUYÊN MỤC và nói ra** | Một thủ tục bị cắt giữa câu vẫn trông như thủ tục đầy đủ, và nhát cắt có thể rơi đúng vào bẫy quan trọng nhất. Thứ tự bỏ: GIẢ ĐỊNH → SUY RA → ĐÃ KIỂM |
+| **Một khiếm khuyết bài kiểm tìm ra** | Ghi chú "ĐÃ LƯỢC" bản đầu ghi MỘT DÒNG cho mỗi bẫy bị bỏ, nên chính nó dài thêm mỗi vòng và ăn hết chỗ vừa giải phóng — vòng lược không hội tụ và nó lược luôn cả bẫy ĐÃ KIỂM đáng lẽ giữ lại. Đã gom thành số đếm |
+| **Một bài kiểm RỖNG tự bắt được** | Bài canh thứ tự lược ban đầu tìm chuỗi `[ĐÃ KIỂM]` ở BẤT KỲ ĐÂU trong lớp — mà phần đầu lớp vốn đã có sẵn chuỗi ấy trong câu giải thích nhãn. Bài xanh bất kể thứ tự, và đột biến đảo thứ tự đi qua được. Đã sửa thành soi riêng các DÒNG BẪY |
+| **TC-38 bắt chính tôi** | Bản nháp chú thích trong `eaa/procedure.py` gọi đích danh tên linh kiện để giải thích con số 800. Một tên phần cứng trong engine vẫn là một tên phần cứng trong engine, kể cả khi nó chỉ đứng trong lời giải thích |
+| **Điều V4 CHƯA làm được** | V4 dựng CƠ CHẾ. Con số `pass@k` trước/sau — thứ duy nhất chứng minh thủ tục có tác dụng — cần bộ nhiệm vụ của V2, và V2 đang chờ ngân sách gọi mô hình. Hai thủ tục hiện ở trạng thái `proposed`: **chưa ai duyệt G2, nên chưa dòng nào vào prompt** |
+| **Bài canh** | `tests/test_tc139_thu_tuc_ngoai_vi.py`, 21 bài. Đột biến 5 phép, cả 5 bị bắt sau khi vá bài rỗng |

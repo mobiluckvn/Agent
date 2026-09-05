@@ -1,0 +1,35 @@
+# Thủ tục cho bus TWI (I2C phần cứng) của họ AVR.
+#
+# Mọi bẫy dưới đây rút từ NGUYÊN VĂN các lần từ chối G3 ghi trong
+# projects/robot_balance/gates/decisions.jsonl — tức chúng ĐÃ XẢY RA, không
+# phải chuyện người soạn nghĩ ra. Xem docs/V3_KET_QUA.md.
+
+id: proc-avr-twi-01
+peripheral: TWI
+status: proposed
+source: "rút từ gates/decisions.jsonl, 13 lần từ chối G3 ngày 01-03/09/2026"
+note: >-
+  Thủ tục nói THỨ TỰ và chỗ dễ ngã. Bit của từng thanh ghi nằm ở trích đoạn
+  tài liệu, không lặp lại ở đây.
+
+thu_tu:
+  - "Driver bus tự khởi tạo phần cứng bus. Module dùng bus KHÔNG chạm thanh ghi bus."
+  - "Module dùng bus gọi hàm init của driver bus trong hàm init của chính nó."
+  - "Mỗi nhịp vòng điều khiển bơm máy trạng thái bus đúng một lần."
+  - "Lỗi bus phải có đường báo lên trên; nuốt lỗi thì tầng trên dùng số cũ mà không biết."
+
+bay:
+  - de_sai: "Module cảm biến tự ghi TWSR/TWBR/TWCR/TWDR để tự dựng bus"
+    dung_la: "Chỉ gọi i2c_init(); thanh ghi bus là việc của driver bus"
+    xuat_xu: "quyết định G3 #5 (2026-09-01T14:51) và #6 (2026-09-02T00:41)"
+    muc: "ĐÃ KIỂM"
+  - de_sai: "Để thứ tự khởi tạo thành luật bất thành văn trong tầng ứng dụng"
+    dung_la: "Mỗi module tự lo điều kiện chạy của nó — init của nó gọi init của bus"
+    xuat_xu: "quyết định G3 #6 (2026-09-02T00:41), nguyên văn"
+    muc: "ĐÃ KIỂM"
+  - de_sai: "Vòng bơm bus dùng một trần lặp gõ tay, và khi trượt thì im lặng dùng số cũ"
+    dung_la: >-
+      Trần là hằng số khai ở đầu tệp KÈM cách tính từ tốc độ bus và số byte;
+      bơm hết trần mà chưa có mẫu thì BỎ QUA nhịp, không tính toán với số cũ
+    xuat_xu: "quyết định G3 #11 (2026-09-02T03:03)"
+    muc: "ĐÃ KIỂM"

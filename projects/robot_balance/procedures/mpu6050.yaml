@@ -1,0 +1,53 @@
+# Thủ tục cho cảm biến MPU6050 trên chính bo của dự án này.
+#
+# Nằm ở DỰ ÁN chứ không ở Platform Pack: MPU6050 là linh kiện ngoài gắn trên
+# mạch, không phải ngoại vi của vi điều khiển. Bẫy về TRỤC và về CHU KỲ chỉ
+# đúng với cách gá và cách chạy của bo này.
+
+id: proc-mpu6050-01
+peripheral: MPU6050
+status: proposed
+source: "rút từ gates/decisions.jsonl, 5 lần từ chối G3 của drv_imu"
+
+thu_tu:
+  - "Gọi init của driver bus trước mọi giao dịch."
+  - "Đọc thanh ghi định danh chip để xác nhận đúng linh kiện trước khi cấu hình."
+  - "Đánh thức chip, rồi đặt dải đo con quay, dải đo gia tốc, và bộ lọc — theo hồ sơ dự án."
+  - "Hiệu chỉnh: gom mẫu ở tư thế mốc, tính độ trôi con quay và mốc gia tốc."
+  - "Chốt hiệu chỉnh: đặt góc hợp nhất về KHÔNG."
+  - "Vòng đọc: trừ độ trôi TRƯỚC khi tích phân, trừ mốc gia tốc TRƯỚC khi tính góc."
+  - "Báo lên trên khi vừa tích phân một mẫu MỚI, để tầng trên biết nhịp."
+
+bay:
+  - de_sai: "Đọc trục gia tốc suy từ tài liệu chip"
+    dung_la: >-
+      Trục nào đo được góc nghiêng là chuyện GÁ cảm biến trên mạch, không suy
+      ra được từ tài liệu chip — phải đọc trục khai trong hồ sơ phần cứng
+    xuat_xu: "quyết định G3 #5 (2026-09-01T14:51), nguyên văn"
+    muc: "ĐÃ KIỂM"
+  - de_sai: "Hệ số tích phân con quay ngầm giả định một chu kỳ vòng lặp tròn trịa"
+    dung_la: >-
+      Hệ số phải tính từ chu kỳ THẬT của vòng điều khiển dự án; sai chu kỳ thì
+      góc trôi sai đúng bằng tỉ số, và trên bàn nó hiện ra như 'PID chưa đúng'
+    xuat_xu: "quyết định G3 #5 (2026-09-01T14:51) và #8 (2026-09-02T01:11)"
+    muc: "ĐÃ KIỂM"
+  - de_sai: "Chốt hiệu chỉnh xong đặt góc theo số gia tốc THÔ vừa gom được"
+    dung_la: >-
+      Tư thế lúc gom mẫu LÀ mốc không, nên góc ngay sau khi chốt phải bằng 0
+      kể cả khi số thô lệch xa 0
+    xuat_xu: "quyết định G3 #7 (2026-09-02T00:55), nguyên văn"
+    muc: "ĐÃ KIỂM"
+  - de_sai: "Sửa hằng số vật lý cho vừa một bài kiểm đang đỏ"
+    dung_la: >-
+      Bài kiểm phải TÍNH kỳ vọng từ công thức, hoặc chạy đủ vòng để hội tụ.
+      Hằng số vật lý gắn với chu kỳ và với bộ tham số đã chỉnh — đổi nó thì
+      triệu chứng trên bo dẫn việc chỉnh đi sai hướng
+    xuat_xu: "quyết định G3 #8 (2026-09-02T01:11), nguyên văn"
+    muc: "ĐÃ KIỂM"
+  - de_sai: "Tự phát lượt đọc mới mà không có cách nào báo cho người gọi biết có mẫu mới"
+    dung_la: >-
+      Hàm cập nhật trả về true ĐÚNG ở lượt gọi vừa tích phân một mẫu mới;
+      không có tín hiệu ấy thì số lần tích phân mỗi nhịp là chuyện may rủi và
+      không cổng phần mềm nào bắt được
+    xuat_xu: "quyết định G3 #9 (2026-09-02T02:06)"
+    muc: "ĐÃ KIỂM"

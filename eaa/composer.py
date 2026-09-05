@@ -312,6 +312,11 @@ class PromptComposer:
         #: y như trước — nối sổ là một việc của CLI, không phải điều kiện để
         #: composer chạy được.
         self.measured: Any = None
+        #: Kho THỦ TỤC theo ngoại vi của Platform Pack (V4, K9) — `eaa/
+        #: procedure.py`, KHÔNG phải `eaa/skills.py`. None thì lớp
+        #: K9 rỗng và ngân sách của nó về 0 — tức trở lại đúng hành vi trước
+        #: khi có kỹ năng, để phép ablation có một nhánh ĐỐI CHỨNG thật.
+        self.procedures: Any = None
 
     # ----------------------------------------------------------------------
     # Lắp ráp
@@ -328,6 +333,16 @@ class PromptComposer:
         dem = counter or estimate_tokens
         ngan_sach = self.config.layer_budgets
 
+        # Lớp kỹ năng MƯỢN ngân sách của lớp trích đoạn chứ không cộng thêm.
+        # Nếu bật kỹ năng làm prompt dài thêm thì mọi chênh lệch đo được sau đó
+        # đều có thể chỉ là "nhiều ngữ cảnh hơn", và ablation không kết luận
+        # được gì (V4, SL-180).
+        van_ban_ky_nang = self._lop_ky_nang(task)
+        if van_ban_ky_nang:
+            from eaa.procedure import ngan_sach_co_ky_nang
+
+            ngan_sach = ngan_sach_co_ky_nang(ngan_sach, bat=True)
+
         chunks = self._chon_chunk(task)
         lop = [
             PromptLayer(
@@ -343,6 +358,15 @@ class PromptComposer:
                 "board_facts",
                 self._lop_so_do_tren_bo(),
                 budget=ngan_sach.get("board_facts", 0),
+            ),
+            # NGAY TRƯỚC lớp trích đoạn, có chủ ý: thủ tục nói THỨ TỰ, trích
+            # đoạn nói BIT. Đọc thứ tự trước thì đọc bit mới đúng chỗ; đảo lại
+            # thì mô hình đã dựng xong trình tự của riêng nó trước khi gặp thủ
+            # tục đã đúc kết.
+            PromptLayer(
+                "skills",
+                van_ban_ky_nang,
+                budget=ngan_sach.get("skills", 0),
             ),
             PromptLayer(
                 "datasheet_chunks",
@@ -486,6 +510,35 @@ class PromptComposer:
         try:
             return lop_so_do(self.measured.active())
         except Exception:  # noqa: BLE001 - sổ hỏng không được làm hỏng lượt sinh
+            return ""
+
+    def _lop_ky_nang(self, task: Task) -> str:
+        """K9 — thủ tục đã đúc kết cho các ngoại vi của module này (V4).
+
+        Rỗng khi chưa nối kho, chưa kỹ năng nào qua G2, hoặc module không đụng
+        ngoại vi nào có kỹ năng. Rỗng là đúng, và rỗng còn làm nhánh ĐỐI CHỨNG
+        của phép ablation trở thành hành vi mặc định — nhánh đối chứng phải là
+        thứ chạy được mà không cần dựng thêm gì.
+        """
+        if self.procedures is None:
+            return ""
+        from eaa.procedure import lop_ky_nang
+
+        try:
+            ngoai_vi = {
+                c.peripheral for c in self.kb.datasheets.all()
+                if c.is_active and c.peripheral
+            }
+            ngoai_vi |= set(self.graph.peripherals_for(task.module_id)) if hasattr(
+                self.graph, "peripherals_for") else set()
+            from eaa.llm.base import estimate_tokens
+            from eaa.procedure import MUON_TU_CHUNK
+
+            return lop_ky_nang(
+                self.procedures.cho_ngoai_vi(ngoai_vi),
+                tran=MUON_TU_CHUNK, dem=estimate_tokens,
+            )
+        except Exception:  # noqa: BLE001 - kho hỏng không được làm hỏng lượt sinh
             return ""
 
     def _chon_chunk(self, task: Task) -> list[Chunk]:

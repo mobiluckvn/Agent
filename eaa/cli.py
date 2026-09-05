@@ -126,6 +126,7 @@ GOI_Y_KHI_HONG: dict[str, tuple[str, ...]] = {
     "tune": ("eaa report versions", "eaa status"),
     "measured": ("eaa measured list",),
     "observe": ("eaa observe",),
+    "procedure": ("eaa procedure lint", "eaa gate show G2"),
     "safety": ("eaa safety show",),
     "budget": ("eaa budget show",),
     # — báo cáo và bàn giao —
@@ -169,6 +170,9 @@ ENV_FILE = ".env"
 
 #: Sổ số đo trên bo của một dự án (N-913, SL-173).
 MEASURED_FILE = "board_facts.jsonl"
+#: Thư mục thủ tục theo ngoại vi (V4, K9). Hai nguồn: ngoại vi của vi điều
+#: khiển thuộc Platform Pack, linh kiện ngoài gắn trên mạch thuộc dự án.
+PROCEDURE_DIR = "procedures"
 
 #: Kết quả bộ chuẩn của một dự án (GĐ2, SL-177).
 BENCH_FILE = "bench_results.jsonl"
@@ -1006,6 +1010,7 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
     from eaa.measured import MeasuredStore
 
     composer.measured = MeasuredStore(project / MEASURED_FILE)
+    composer.procedures = _kho_thu_tuc(project)
     # Cách kiểm trên máy chủ đến từ pack; engine chỉ ghép vào đúng chỗ.
     try:
         import yaml as _yaml
@@ -1536,8 +1541,19 @@ def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
             for dx in cong_cu
         ]
 
+        # Thủ tục theo ngoại vi cũng là TRI THỨC, nên nó lên đúng cửa này
+        # chứ không có lệnh duyệt riêng (V4). Người duyệt thấy đủ thứ sắp được
+        # ghi vào kho, trong một hồ sơ.
+        thu_tuc = _kho_thu_tuc(ctx.project).cho_duyet()
+        tom_tat += [
+            f"thủ tục {k.id} · {k.peripheral} · {len(k.thu_tu)} bước · "
+            f"{len(k.bay)} bẫy · {k.status}"
+            for k in thu_tuc
+        ]
+
         chi_tiet = [f"### {c.id}\n{c.body}" for c in de_xuat]
         chi_tiet += [dx.render() for dx in cong_cu]
+        chi_tiet += [k.render() for k in thu_tuc]
 
         return GatePayload(
             gate_id="G2",
@@ -1550,6 +1566,7 @@ def _ho_so_gate(ctx: AppContext, gate_id: str) -> Any:
                 "|".join(
                     sorted(c.id + c.status for c in ctx.kb.datasheets.all())
                     + sorted(dx.digest_line for dx in cong_cu)
+                    + sorted(k.id + k.status for k in thu_tuc)
                 ).encode()
             ).hexdigest(),
         )
@@ -2423,6 +2440,95 @@ def _ghi_env_hash_vao_state(project: Path, env_hash: str) -> None:
 # --------------------------------------------------------------------------
 # AIS §8.5 — kho phẩm xuất
 # --------------------------------------------------------------------------
+
+
+def _kho_thu_tuc(project: Path) -> Any:
+    """Kho thủ tục gộp từ Platform Pack và dự án (V4).
+
+    Hỏng thì trả kho RỖNG chứ không ném: một tệp thủ tục viết sai không được
+    chặn đường sinh mã, nó chỉ được làm lớp K9 vắng mặt. `eaa procedure lint`
+    là chỗ nói ra tệp nào sai.
+    """
+    from eaa.procedure import KhoKyNang
+
+    nguon = [project / PROCEDURE_DIR]
+    pack = _thu_muc_pack(project)
+    if pack:
+        nguon.insert(0, pack / PROCEDURE_DIR)
+    try:
+        return KhoKyNang.nap_nhieu(*nguon)
+    except Exception:  # noqa: BLE001
+        return KhoKyNang()
+
+
+def _thu_muc_pack(project: Path) -> Path | None:
+    """Thư mục Platform Pack của dự án, nếu tra được."""
+    import yaml
+
+    try:
+        d = yaml.safe_load((project / CONSTRAINTS_FILE).read_text()) or {}
+        # Khoá là `platform` (constraints.yaml dòng 33), không phải
+        # `platform_pack`. Nhận cả hai vì đọc sai khoá ở đây thì kho thủ tục
+        # của pack lặng lẽ rỗng — và một nguồn tri thức vắng mặt trong im lặng
+        # là chỗ khó lần nhất.
+        ten = d.get("platform") or d.get("platform_pack")
+    except Exception:  # noqa: BLE001
+        return None
+    if not ten:
+        return None
+    d = Path("packs") / str(ten)
+    return d if d.is_dir() else None
+
+
+def cmd_procedure(args: argparse.Namespace) -> int:
+    """Thủ tục theo ngoại vi — xem và soi (V4, K9).
+
+    KHÔNG có `eaa procedure approve`. Thủ tục là tri thức, và tri thức vào kho
+    qua đúng một cửa: G2. Một lệnh duyệt riêng ở đây là một cửa sau, và cửa sau
+    thì không ai nhớ nó tồn tại cho tới lúc có người đi qua.
+    """
+    from eaa.confidence import DA_KIEM, header
+
+    project = resolve_project(args.project)
+    ctx = build_context(project)
+    kho = _kho_thu_tuc(project)
+    muc = kho.tat_ca()
+    if not muc:
+        print("Chưa có thủ tục nào. Đặt tệp YAML vào "
+              f"packs/<pack>/{PROCEDURE_DIR}/ hoặc <dự án>/{PROCEDURE_DIR}/.")
+        return EXIT_OK
+
+    if getattr(args, "procedure_action", None) == "lint":
+        co_that = {c.id for c in ctx.kb.datasheets.all()}
+        thieu = kho.chunk_thieu(co_that)
+        khong_bang_chung = [k.id for k in muc if not k.co_bang_chung_that]
+        if thieu:
+            print("Thủ tục trỏ vào trích đoạn KHÔNG có trong kho:")
+            for d in thieu:
+                print(f"  - {d}")
+        if khong_bang_chung:
+            print("Thủ tục chưa có bẫy nào rút từ chuyện ĐÃ XẢY RA "
+                  f"(mức {DA_KIEM}): {', '.join(khong_bang_chung)}")
+            print("  Không phải lỗi — nhưng một thủ tục toàn bẫy nghĩ ra thì "
+                  "nó là lời khuyên, không phải bằng chứng.")
+        if not thieu and not khong_bang_chung:
+            print("Không thấy chỗ nào đáng ngờ.")
+        return EXIT_OK
+
+    print(header(DA_KIEM, "Thủ tục theo ngoại vi (lớp K9)"))
+    for k in muc:
+        nhan = "đã duyệt G2" if k.da_duyet else "CHỜ DUYỆT G2 — chưa vào prompt"
+        that = sum(1 for b in k.bay if b.muc == DA_KIEM)
+        print(f"\n{k.id} · {k.peripheral} · {nhan}")
+        print(f"  {len(k.thu_tu)} bước · {len(k.bay)} bẫy "
+              f"({that} rút từ chuyện đã xảy ra)")
+        if k.source:
+            print(f"  nguồn: {k.source}")
+    cho = kho.cho_duyet()
+    if cho:
+        print(f"\n{len(cho)} thủ tục chờ duyệt — `eaa gate show G2` để đọc, "
+              "rồi `eaa gate approve G2`.")
+    return EXIT_OK
 
 
 def cmd_observe(args: argparse.Namespace) -> int:
@@ -6209,6 +6315,18 @@ def build_parser() -> argparse.ArgumentParser:
              "hai thẻ công cụ đòi cùng một thứ ở hai phiên bản đá nhau",
     )
     p_doctor.set_defaults(func=cmd_doctor)
+
+    # Thủ tục theo ngoại vi — V4 (SL-180)
+    p_pr = sub.add_parser(
+        "procedure", help="Thủ tục đã đúc kết cho từng ngoại vi (lớp K9, V4)"
+    )
+    pr_sub = p_pr.add_subparsers(
+        dest="procedure_action", required=False, metavar="<hành động>"
+    )
+    pr_sub.add_parser(
+        "lint", help="Soi thủ tục: trích dẫn có thật không, bẫy có bằng chứng không"
+    )
+    p_pr.set_defaults(func=cmd_procedure)
 
     # AIS §8.5 — kho phẩm xuất
     # Lỗi có kêu lên được không — N-912 (SL-175)

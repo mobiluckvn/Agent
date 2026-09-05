@@ -200,15 +200,19 @@ VIEC: list[tuple[str, ...]] = [
      "trích đoạn, kỹ năng là thủ tục đã được người nén. 3) Vào kho qua G2 như "
      "mọi tri thức khác — không có cửa sau. 4) Bật/tắt được, để còn so trước "
      "sau trên cùng bộ nhiệm vụ.",
-     "eaa/skills.py (mới) · eaa/composer.py · packs/*/",
-     "So pass@k TRƯỚC và SAU khi bật lớp kỹ năng, trên cùng bộ nhiệm vụ V2",
-     "TC-139 (đã đặt chỗ trong kế hoạch, chưa viết)",
-     "V2 — không có bộ nhiệm vụ thì không so được trước/sau",
+     "eaa/procedure.py · eaa/composer.py · packs/avr/procedures/ · "
+     "projects/*/procedures/",
+     "So pass@k TRƯỚC và SAU khi bật lớp thủ tục, trên cùng bộ nhiệm vụ V2. "
+     "CƠ CHẾ ĐÃ XONG; con số CHƯA ĐO ĐƯỢC",
+     "TC-139 (21 bài, 5 đột biến đều bị bắt) — canh cơ chế; con số ablation "
+     "vẫn chờ V2",
+     "V2 — cơ chế đã có (SL-180), nhưng không có bộ nhiệm vụ thì không so "
+     "được trước/sau",
      "Kỹ năng viết tay dễ thành hằng số phần cứng lẻn vào `eaa/`. TC-38 phải "
      "chặn: kỹ năng thuộc pack, không thuộc engine",
      "3–4 ngày",
      "4",
-     "CHƯA"),
+     "XONG CƠ CHẾ — số chờ V2"),
 
     ("V5",
      "Đọc netlist và ĐỐI CHIẾU với hồ sơ phần cứng tại G1",
