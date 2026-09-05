@@ -128,8 +128,21 @@ class StaticGate:
     registers: Sequence[str] = ()
     #: Chunk đã nạp vào prompt — trích dẫn phải trỏ về một trong số này.
     allowed_chunk_ids: Sequence[str] = ()
+    #: Sổ số đo trên bo (N-913). Nguồn đơn vị THẬT của các hằng số, để bắt
+    #: chú thích gán nhầm đơn vị (N-911). None thì phép soi ấy im — và im vì
+    #: thiếu dữ liệu khác hẳn im vì không có gì sai.
+    measured: Any = None
     name: str = "static"
     _rules: dict[str, Rule] | None = None
+
+    def _don_vi_da_dang_ky(self) -> dict[str, str]:
+        """Giá trị số → đơn vị thật, dựng từ sổ số đo đã duyệt."""
+        if self.measured is None:
+            return {}
+        try:
+            return {f.value: f.unit for f in self.measured.active() if f.unit}
+        except Exception:  # noqa: BLE001 - sổ hỏng không được làm hỏng cổng
+            return {}
 
     def rules(self) -> dict[str, Rule]:
         if self._rules is None:
@@ -240,6 +253,22 @@ class StaticGate:
         # có từ Sprint 2 và chưa bao giờ được hỏi "áp lên tệp nào".
         if not duong_dan.endswith(self.DUOI_MA_NGUON):
             return phat_hien
+
+        # Chú thích số học sai thứ nguyên — CẢNH BÁO, không chặn (N-911).
+        # Chú thích là văn xuôi tự do; một bộ đọc văn xuôi mà chặn được đường
+        # merge sẽ chặn nhầm, và một cổng chặn nhầm sớm muộn cũng bị tắt đi.
+        from eaa.dimension import soi_chu_thich_so_hoc
+
+        for dau in soi_chu_thich_so_hoc(noi_dung, self._don_vi_da_dang_ky()):
+            phat_hien.append(
+                ToolError(
+                    message=f"{duong_dan}:{dau.dong}: {dau.loai} — {dau.chi_tiet}",
+                    severity=Severity.WARNING,
+                    file=duong_dan,
+                    line=dau.dong,
+                    rule_id="dimension",
+                )
+            )
 
         for luat in self._luat_ap_dung():
             if luat.kind == "regex":

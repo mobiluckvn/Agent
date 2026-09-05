@@ -944,6 +944,9 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
             limits=kb.constraints.limits,
             registers=graph.registers_for(module_hien_tai) if module_hien_tai else [],
             allowed_chunk_ids=[c.id for c in kb.datasheets.active()],
+            # Nguồn đơn vị THẬT của hằng số, để bắt chú thích gán nhầm đơn vị
+            # (N-911). Dùng chung đúng cái sổ mà lớp K8 của prompt đọc.
+            measured=composer.measured,
         ),
         UnitTestGate(
             # ĐÚNG thư mục bộ sinh mã ghi vào. Nó ghi `src/` và `tests/` trong

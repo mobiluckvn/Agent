@@ -822,9 +822,10 @@ DOI_CHIEU = [
   "eaa/contract.py: pha_vo_hop_dong so chữ ký header (SL-163, TC-124) + mat_loi_goi so tập "
   "lời gọi LIÊN MODULE của tệp .c với bản đã merge (SL-167, TC-127, 33 bài)",
   "", "T4"),
- ("N-911", CHUA, "—",
-  "Chưa có gì. Hồ sơ phần cứng đã khai đơn vị của từng đại lượng, nên dữ liệu để làm thì có sẵn. "
-  "Bằng chứng: chú thích '4ms / 0.000031s = 129' · §3.4", "—"),
+ ("N-911", DU,
+  "eaa/dimension.py, nối vào StaticGate ở mức CẢNH BÁO. Hai phép soi: đơn vị khai trong chú thích "
+  "chọi với đơn vị trong sổ số đo (cần N-913), và phép tính không ra kết quả nó khai (tự chứa, "
+  "có quy đổi tiền tố) · SL-174, TC-134, 20 bài", "", "T4"),
  ("N-912", CHUA, "—",
   "Chưa có gì. eaa/decompose.py chưa đòi module khai dấu hiệu sống/hỏng; "
   "eaa/propose.py AcceptanceProposal chưa sinh tiêu chí quan sát được bằng mắt/tai · §3.6", "—"),

@@ -6,8 +6,8 @@ ngày 30–31/08, trước khi robot lên bo; từ đó tới nay kho thêm 86 m
 nào bảng đang khai quá lời**, và cái gì phải làm để lấp.
 
 > **Cập nhật 04/09 cuối ngày.** Bốn việc đầu trong §5 đã làm xong (SL-167 →
-> SL-173), sheet Khoảng trống từ 15 xuống **4 dòng**, và bộ test từ 2.395 xanh /
-> 10 đỏ lên **2.553 xanh / 0 đỏ**. Rà soát vòng hai (§7) thêm 4 nghiệp vụ bảng
+> SL-174), sheet Khoảng trống từ 15 xuống **3 dòng**, và bộ test từ 2.395 xanh /
+> 10 đỏ lên **2.573 xanh / 0 đỏ**. Rà soát vòng hai (§7) thêm 4 nghiệp vụ bảng
 > chưa từng đặt tên. Phần thân bài dưới đây giữ nguyên cách nói ở
 > thời điểm rà soát — nó là ảnh chụp, và một ảnh chụp bị sửa lại theo kết quả
 > sau đó thì không còn là bằng chứng của việc rà soát nữa.
@@ -181,7 +181,9 @@ phép A/B về chất lượng: hai module demo qua cổng dễ, còn bảy modu
 | 6 | **Nối `lifecycle` vào một lệnh** | ✅ SL-172, TC-132 (13 bài) — `eaa knowledge stale/supersede/deprecate` |
 | 7 | **N-913** — số đo phần cứng vào lớp ngữ cảnh | ✅ SL-173, TC-133 (21 bài) — lớp K8 `board_facts`, chỉ số ĐÃ DUYỆT mới vào |
 
-N-911 và N-912 để sau — cả hai đều đáng làm nhưng không chặn việc nào đang chạy.
+**N-911 đã làm** (SL-174, TC-134) — và nó rẻ đi hẳn nhờ N-913 làm trước: sổ số
+đo mang sẵn trường đơn vị, nên phép soi thứ nguyên có nguồn để tra. N-912 để
+sau: đáng làm, nhưng không chặn việc nào đang chạy.
 
 Sheet **Khoảng trống** vẫn **7 dòng**, nhưng thành phần đã đổi: N-908 và N-909
 từ CHƯA lên **MỘT PHẦN**. Cả hai nay có bộ dò chạy được; phần còn thiếu ở cả hai

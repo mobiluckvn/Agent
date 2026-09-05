@@ -2510,3 +2510,20 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Ngân sách: DỜI, không NỚI** | Lớp mới lấy 300 token **từ `repair`** (1.800 → 1.500), tổng vẫn đúng 8.000. Lấy từ đúng lớp ấy là có căn cứ: SL-147 đã đổi phần của `repair` thành **SÀN chứ không phải trần** — nó dùng chỗ trống thật còn lại, nên con số danh nghĩa là sổ sách chứ không phải cái chặn nó. Có bài kiểm ghim ba lớp còn lại để lần sửa sau không lặng lẽ đổi chỗ lấy |
 | **Đo trên dự án thật** | Trên `robot_balance`: đề xuất `ACCEL_BALANCE_OFFSET = -535 LSB (DS-02)` → lớp K8 **rỗng**; duyệt xong → lớp K8 có 115 token kèm đủ xuất xứ. Bản ghi thử đã xoá khỏi dự án thật — duyệt là quyết định của kỹ sư, và máy không được ký thay |
 | **Bài canh** | `tests/test_tc133_so_do_tren_bo_vao_prompt.py`, 21 bài. Đột biến 4 phép, cả 4 bị bắt: cho số chờ duyệt vào prompt → 2 bài đỏ; bỏ câu "số đo thắng tài liệu" → 2; đặt lớp sau lớp tài liệu → 1; cho Agent tự duyệt → 1 |
+
+---
+
+## SL-174 · BỔ SUNG · Chú thích số học sai thứ nguyên (N-911)
+
+| | |
+|---|---|
+| **Ca thật** | Mã sinh ra mang chú thích `// 4ms per step / 0.000031s per sample = 129`. Phép chia ấy **đúng số học**: 0,004 / 0,000031 = 129,03. Nó sai ở chỗ khác — `0.000031` không phải *giây trên mẫu*, nó là hệ số thang con quay, đơn vị **độ trên LSB**. Chú thích tự gán cho hằng số một đơn vị nó không có, con số ra vô nghĩa, và đó là nguyên nhân robot không lấy đủ mẫu |
+| **Vì sao không cổng nào bắt được** | Mã dịch được, phân tích tĩnh sạch, và chú thích nghe hợp lý. Người đọc lướt qua thấy một phép chia có đơn vị hai bên thì tin |
+| **Đã sửa** | `eaa/dimension.py`, nối vào `StaticGate._quet_tep` ở mức **CẢNH BÁO**. Hai phép soi, và chúng bắt hai chuyện khác nhau |
+| **Phép soi 1 — đơn vị khai chọi với đơn vị đã đăng ký** | Bắt đúng ca trên, nhưng CHỈ khi hằng số ấy có trong sổ số đo với đơn vị thật. Đây là lý do N-913 phải làm trước N-911: **phép kiểm chỉ mạnh bằng cái sổ đứng sau nó**, và tài liệu của hàm nói thẳng điều ấy thay vì im lặng tỏ ra chắc chắn |
+| **Phép soi 2 — phép tính không ra kết quả nó khai** | Tự chứa, không cần sổ nào. Có quy đổi tiền tố thời gian, nên chính ca thật **KHÔNG** bị phép này kêu — và đó là đúng, nó đúng số học. Phép này bắt hạng khác: chú thích dựng một dẫn giải nghe được nhưng cộng trừ sai |
+| **Không quy đổi giữa hai đại lượng khác nhau** | `4ms / 2V` giữ nguyên số. Quy đổi bừa giữa giây và vôn là làm đúng cái sai mà bộ này sinh ra để tìm |
+| **CẢNH BÁO chứ không chặn** | Chú thích là văn xuôi tự do. Một bộ đọc văn xuôi mà chặn được đường merge sẽ chặn nhầm, và một cổng chặn nhầm sớm muộn cũng bị tắt đi. Cảnh báo đi vào `ToolReport.warnings` → hồ sơ G3 |
+| **Không áp lên tệp kiểm viết bằng Python** | Cùng hàng rào SL-150 đã dựng |
+| **Một bài kiểm RỖNG tự bắt được trong lúc viết** | Bài canh hàng rào Python ban đầu dùng chú thích `#`, mà bộ soi chỉ đọc chú thích C — nên nó xanh dù có hàng rào hay không. Kiểm đột biến lộ ra: bỏ hàng rào mà bài vẫn xanh. Đã sửa thành đoạn C **nhúng trong chuỗi Python** — ca thật, vì bài kiểm trên máy chủ ở kho này dịch mã C từ trong chính tệp test — và thêm vế ngược: cùng nội dung ấy trong tệp `.c` thì PHẢI kêu. Đúng dạng hỏng mà N-909 sinh ra để chặn, lần này bắt được ở chính bài kiểm của mình |
+| **Bài canh** | `tests/test_tc134_chu_thich_sai_thu_nguyen.py`, 20 bài. Đột biến 4 phép, cả 4 bị bắt sau khi sửa bài rỗng: bỏ quy đổi tiền tố → 1 đỏ; coi ms và s là hai đại lượng → 2; cho cảnh báo thành lỗi chặn → 2; bỏ hàng rào tệp Python → 1 |
