@@ -61,8 +61,13 @@ LAYER_BUDGETS: dict[str, int] = {
     "project_rules": 1_200,      # Luật thiết kế riêng của dự án (NFR-05)
     "host_test": 700,            # Hợp đồng bài kiểm trên máy chủ, từ pack
     "task": 500,                 # Nhiệm vụ + tiêu chí nghiệm thu
-    "repair": 1_800,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
+    "board_facts": 300,          # Số đo trên chính bo này (K8, N-913)
+    "repair": 1_500,             # Dự phòng cho vòng tự sửa dạng vá (K, §3.2)
 }
+# `board_facts` lấy 300 token TỪ `repair` để tổng vẫn đúng 8.000 (SL-173), và
+# lấy từ đúng lớp ấy là có căn cứ chứ không phải tiện tay: SL-147 đã đổi phần
+# của `repair` thành SÀN chứ không phải trần — nó dùng chỗ trống thật còn lại,
+# nên con số danh nghĩa ở đây là sổ sách, không phải cái chặn nó.
 # `project_rules` và `host_test` tách ra khỏi `task`, phần ngân sách lấy từ
 # `repair` để tổng vẫn đúng 8.000 (SL-135). Hai lý do, và lý do thứ hai mới là
 # lý do thật:
@@ -109,6 +114,10 @@ _LOI_KHUYEN_LOP: dict[str, str] = {
     "task": "  → rút gọn trách nhiệm/tiêu chí nghiệm thu của module trong backlog",
     "hardware_facts": "  → bớt tài nguyên `uses` của module, hoặc gộp sự kiện trong đồ thị",
     "repair": "  → lỗi cổng quá dài hoặc hàm liên quan quá lớn; tách hàm ra nhỏ hơn",
+    # KHÔNG khuyên "bớt số đo đi": mọi số trong lớp này đều đã qua tay người
+    # duyệt, nên bỏ bớt là bỏ đúng thứ vừa được chốt là đáng tin. Chỗ rút gọn
+    # đúng là phần ghi chú — nó dài tuỳ ý người gõ, còn con số thì không.
+    "board_facts": "  → rút gọn --note của số đo, hoặc gộp số đo trùng nghĩa: eaa measured list",
     # Lớp K1 mang tên `role_constraints` trong bảng ngân sách nhưng đi trong
     # prompt dưới tên `system_instruction` — tra bằng khóa của bảng ngân sách.
     "role_constraints": "  → rút gọn bảng ràng buộc trong constraints.yaml",

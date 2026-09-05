@@ -6,8 +6,8 @@ ngày 30–31/08, trước khi robot lên bo; từ đó tới nay kho thêm 86 m
 nào bảng đang khai quá lời**, và cái gì phải làm để lấp.
 
 > **Cập nhật 04/09 cuối ngày.** Bốn việc đầu trong §5 đã làm xong (SL-167 →
-> SL-171), sheet Khoảng trống từ 15 xuống **7 dòng**, và bộ test từ 2.395 xanh /
-> 10 đỏ lên **2.519 xanh / 0 đỏ**. Rà soát vòng hai (§7) thêm 4 nghiệp vụ bảng
+> SL-173), sheet Khoảng trống từ 15 xuống **4 dòng**, và bộ test từ 2.395 xanh /
+> 10 đỏ lên **2.553 xanh / 0 đỏ**. Rà soát vòng hai (§7) thêm 4 nghiệp vụ bảng
 > chưa từng đặt tên. Phần thân bài dưới đây giữ nguyên cách nói ở
 > thời điểm rà soát — nó là ảnh chụp, và một ảnh chụp bị sửa lại theo kết quả
 > sau đó thì không còn là bằng chứng của việc rà soát nữa.
@@ -178,8 +178,8 @@ phép A/B về chất lượng: hai module demo qua cổng dễ, còn bảy modu
 | 3 | **N-909** — phép kiểm độ nhạy cho bài kiểm mới sinh | ✅ SL-168, TC-128 (28 bài) — bắt hạng nhẹ hơn, phần còn lại vẫn cần người đọc ở G3 |
 | 4 | **Nối `installerr` vào `doctor`** — 7 dòng C5 cùng lúc | ✅ SL-169, TC-129 (16 bài) |
 | 5 | **N-908** — mã tự chỉnh cho vừa đồ đo | ✅ SL-171, TC-131 (25 bài) — dò ba DẤU VẾT rồi dừng vòng vá, KHÔNG kiểm vật lý: câu "con số nào mới đúng" vẫn là câu của người |
-| 6 | **Nối `lifecycle` vào một lệnh** (vd `eaa knowledge stale`) | ⬜ N-036 + N-100 cùng lúc |
-| 7 | **N-913** — số đo phần cứng vào lớp ngữ cảnh | ⬜ đắt nhất: đụng bộ ghép prompt và gate tri thức |
+| 6 | **Nối `lifecycle` vào một lệnh** | ✅ SL-172, TC-132 (13 bài) — `eaa knowledge stale/supersede/deprecate` |
+| 7 | **N-913** — số đo phần cứng vào lớp ngữ cảnh | ✅ SL-173, TC-133 (21 bài) — lớp K8 `board_facts`, chỉ số ĐÃ DUYỆT mới vào |
 
 N-911 và N-912 để sau — cả hai đều đáng làm nhưng không chặn việc nào đang chạy.
 

@@ -308,6 +308,10 @@ class PromptComposer:
         #: Khối `host_test` của Platform Pack — cách kiểm một module trên máy
         #: chủ. Không có thì prompt không nói gì về nó, và mô hình đoán (SL-134).
         self.host_test: Any = None
+        #: Sổ số đo trên bo (N-913). None thì lớp K8 rỗng và mọi thứ khác chạy
+        #: y như trước — nối sổ là một việc của CLI, không phải điều kiện để
+        #: composer chạy được.
+        self.measured: Any = None
 
     # ----------------------------------------------------------------------
     # Lắp ráp
@@ -330,6 +334,15 @@ class PromptComposer:
                 "hardware_facts",
                 self._lop_su_kien_phan_cung(task),
                 budget=ngan_sach.get("hardware_facts", 0),
+            ),
+            # Đứng NGAY TRƯỚC lớp trích đoạn tài liệu, có chủ ý: câu "số đo
+            # thắng tài liệu khi hai bên lệch" chỉ có nghĩa ở chỗ hai bên gặp
+            # nhau. Đặt nó tận cuối prompt thì mô hình đã đọc xong tài liệu và
+            # đã tin tài liệu trước khi gặp số đo (N-913).
+            PromptLayer(
+                "board_facts",
+                self._lop_so_do_tren_bo(),
+                budget=ngan_sach.get("board_facts", 0),
             ),
             PromptLayer(
                 "datasheet_chunks",
@@ -454,6 +467,26 @@ class PromptComposer:
         if not su_kien:
             return ""
         return "## PHẦN CỨNG LIÊN QUAN\n" + "\n".join(f"- {d}" for d in su_kien)
+
+    def _lop_so_do_tren_bo(self) -> str:
+        """K8 — số đo ĐÃ DUYỆT của chính bo này (N-913).
+
+        Rỗng khi chưa nối sổ hoặc chưa số đo nào được duyệt. Rỗng là đúng: một
+        lớp nói "chưa có số đo nào" chỉ tốn token mà không đổi được việc gì mô
+        hình làm.
+
+        Chỉ lấy bản ĐÃ DUYỆT. Số Agent tự đo rồi tự tin là đúng mà đi thẳng vào
+        prompt sẽ đi tiếp vào mã của mọi module sau đó — và lúc ấy không còn ai
+        đứng giữa để hỏi "đo bằng gì".
+        """
+        if self.measured is None:
+            return ""
+        from eaa.measured import lop_so_do
+
+        try:
+            return lop_so_do(self.measured.active())
+        except Exception:  # noqa: BLE001 - sổ hỏng không được làm hỏng lượt sinh
+            return ""
 
     def _chon_chunk(self, task: Task) -> list[Chunk]:
         """K7 — Graph-RAG chọn chunk, BM25 bổ trợ khi quan hệ chưa lấp đủ.

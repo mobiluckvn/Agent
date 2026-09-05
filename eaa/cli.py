@@ -68,6 +68,9 @@ class CliError(Exception):
 
 ENV_FILE = ".env"
 
+#: Sổ số đo trên bo của một dự án (N-913, SL-173).
+MEASURED_FILE = "board_facts.jsonl"
+
 
 def load_env_file(root: Path | None = None) -> list[str]:
     """Nạp ``.env`` vào biến môi trường của tiến trình.
@@ -875,6 +878,11 @@ def build_context(project: Path, *, llm: Any = None) -> AppContext:
     kb.ledger = ledger
     kpi = KpiLogger(project / "kpi_log.csv", env_hash=state.env_hash)
     composer = PromptComposer(kb, graph, ledger)
+    # Số đo trên chính bo này — lớp K8 (N-913). Nối ở đây vì CLI là composition
+    # root; composer không tự đi tìm sổ nào cả.
+    from eaa.measured import MeasuredStore
+
+    composer.measured = MeasuredStore(project / MEASURED_FILE)
     # Cách kiểm trên máy chủ đến từ pack; engine chỉ ghép vào đúng chỗ.
     try:
         import yaml as _yaml
@@ -2273,6 +2281,55 @@ def _ghi_env_hash_vao_state(project: Path, env_hash: str) -> None:
 # --------------------------------------------------------------------------
 # AIS §8.5 — kho phẩm xuất
 # --------------------------------------------------------------------------
+
+
+def cmd_measured(args: argparse.Namespace) -> int:
+    """Sổ số đo trên chính bo này — N-913.
+
+    Trước SL-173, bài học từ bo chỉ tới mô hình qua LÝ DO TỪ CHỐI kỹ sư gõ tay
+    ở G3: mất một lần gõ là mất hẳn. Sổ này là đường thứ hai, và là đường không
+    phụ thuộc trí nhớ của ai.
+    """
+    from eaa.measured import MeasuredError, MeasuredStore
+
+    project = resolve_project(args.project)
+    so = MeasuredStore(project / MEASURED_FILE)
+
+    try:
+        if args.measured_action == "list":
+            _in_tieu_de("Số đo trên bo")
+            print(so.render())
+            return EXIT_OK
+
+        if args.measured_action == "add":
+            f = so.propose(
+                args.name,
+                args.value,
+                unit=args.unit or "",
+                source=args.source or "",
+                note=args.note or "",
+            )
+            _in_tieu_de(f"Đã ghi ĐỀ XUẤT: {f.name}")
+            print(f"  {f.mot_dong()}")
+            print()
+            print(
+                "Số đo này CHƯA vào prompt. Nó chỉ vào sau khi một người chốt:\n"
+                f"  eaa measured approve {f.name} --actor '<tên bạn>'"
+            )
+            return EXIT_OK
+
+        f = so.approve(args.name, actor=args.actor)
+    except MeasuredError as exc:
+        raise CliError(str(exc)) from exc
+
+    _in_tieu_de(f"Đã duyệt: {f.name}")
+    print(f"  {f.mot_dong()}   [{f.approved_by}]")
+    print()
+    print(
+        "Từ lượt sinh mã kế tiếp, số này nằm trong prompt kèm câu: khi số đo và\n"
+        "tài liệu lệch nhau thì SỐ ĐO thắng."
+    )
+    return EXIT_OK
 
 
 def cmd_knowledge(args: argparse.Namespace) -> int:
@@ -5950,6 +6007,29 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor.set_defaults(func=cmd_doctor)
 
     # AIS §8.5 — kho phẩm xuất
+    # Số đo trên chính bo này — N-913 (SL-173)
+    p_me = sub.add_parser(
+        "measured", help="Sổ số đo trên bo: list/add/approve (N-913)"
+    )
+    me_sub = p_me.add_subparsers(
+        dest="measured_action", required=True, metavar="<hành động>"
+    )
+    me_sub.add_parser("list", help="Số đo đã duyệt và số đo còn chờ")
+    me_a = me_sub.add_parser(
+        "add", help="ĐỀ XUẤT một số đo — chưa vào prompt tới khi có người chốt"
+    )
+    me_a.add_argument("name", help="Tên số đo, ví dụ ACCEL_BALANCE_OFFSET")
+    me_a.add_argument("value", help="Giá trị đọc được")
+    me_a.add_argument("--unit", help="Đơn vị, ví dụ LSB, Hz, baud")
+    me_a.add_argument("--source", help="Đo bằng gì: DS-02, eaa telemetry, tay…")
+    me_a.add_argument("--note", help="Điều kiện đo, dải đo, thứ cần biết để đo lại")
+    me_ap = me_sub.add_parser(
+        "approve", help="CHỐT một số đo — từ đây nó vào prompt sinh mã"
+    )
+    me_ap.add_argument("name")
+    me_ap.add_argument("--actor", required=True, help="Tên người chốt")
+    p_me.set_defaults(func=cmd_measured)
+
     # Vòng đời tri thức — AIS §8.1–8.3, quy trình P9 (SL-172)
     p_kn = sub.add_parser(
         "knowledge",

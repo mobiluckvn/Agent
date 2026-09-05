@@ -2491,3 +2491,22 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Đo trên dự án thật** | `eaa knowledge stale ds-021` trong `robot_balance` trả về 2 module: `drv_i2c` bị **cả ba** đường bắt, `drv_imu` chỉ bị hai — nó không trích dẫn `// ref:` trong mã, đúng ca mà đường thứ ba (chunk-ids của commit) sinh ra để bắt |
 | **Sửa kèm: ngân sách lớp danh mục** | Thêm một mục vào `TOOLBOX` làm lớp danh mục chạm 2.810/2.800, và TC-78 đỏ đúng lúc phải đỏ — bài ấy sinh ra để *"bắt được ngay lần thêm công cụ làm tràn lớp"*. Xử lý theo hai bước: rút mô tả của mục mới cho gọn, rồi **DỜI** 100 token từ lớp vai trò sang lớp danh mục — dời chứ không NỚI, nên tổng ba lớp giữ nguyên 7.600 và trần 8.000 không bị đụng. Căn cứ là một phép đo: lớp vai trò dùng thật 1.018/1.400 |
 | **Bài canh** | `tests/test_tc132_vong_doi_tri_thuc_co_cua_vao.py`, 13 bài chạy qua CLI thật. Kiểm ĐỘT BIẾN 4 phép, cả 4 đều bị bắt: tự cấp quyết định G2 → 6 bài đỏ; bỏ `apply` → 3; khai `stale` là ĐÃ KIỂM → 1; cho Agent gọi `supersede` → 1 |
+
+---
+
+## SL-173 · BỔ SUNG · Số đo trên bo chảy ngược vào prompt — lớp K8 (N-913)
+
+| | |
+|---|---|
+| **Cách tìm** | Rà soát bảng năng lực 04/09, mục N-913. Dữ liệu gốc: `DANH_GIA_NANG_LUC_AGENT §3.7` — *"số đo từ phần cứng không tự chảy ngược vào prompt"* |
+| **Chỗ hở** | Ba nơi giữ số đo — `measurements.jsonl` (phán quyết DS-xx), `flash_log.jsonl` (tốc độ nạp), `hardware_profile.yaml` (hằng số ai đó chép tay) — và **không nơi nào có đường chạm tới bộ ghép prompt**. Bài học từ bo chỉ tới mô hình qua LÝ DO TỪ CHỐI kỹ sư gõ tay ở G3; mất một lần gõ là mất hẳn |
+| **Đo được** | Mốc gia tốc `-535` phải một người đo bằng DS-02 rồi tự tay chép vào hồ sơ phần cứng. Tốc độ bootloader `57600` (không phải 115200) phải một người phát hiện rồi tự nhớ. Lượt sinh mã kế tiếp không biết gì về cả hai |
+| **Đã sửa** | `eaa/measured.py` — sổ nối tiếp `board_facts.jsonl` cho số đo của CHÍNH bo này, cộng lớp ngữ cảnh **K8 `board_facts`** trong `eaa/composer.py`, cộng lệnh `eaa measured list/add/approve` |
+| **Vì sao tách khỏi hồ sơ phần cứng** | `hardware_profile.yaml` tả một **thiết kế**: chân nối vào đâu, chip gì, thạch anh bao nhiêu. Sổ này tả **cái bo trên bàn**: số đọc được từ chính nó, hôm nào, bằng kịch bản nào. SL-125 là lần hai thứ ấy bị lẫn, và cái giá là robot lao thẳng một phía. Hai loại sự thật hỏng theo hai kiểu và sửa bằng hai cách, nên chúng đứng riêng — kể cả khi cùng chảy vào một prompt |
+| **Chỉ số ĐÃ DUYỆT mới vào prompt** | Agent chạy chẩn đoán và đọc telemetry nên nó ĐỀ XUẤT được (`measured add`, có trong danh mục, khai đúng là CÓ GHI). `measured approve` là lệnh DUYỆT nên **không** có trong danh mục — cùng luật SL-164. Một con số máy tự đo rồi tự tin là đúng sẽ đi thẳng vào mã của mọi module sau đó, và lúc ấy không còn ai đứng giữa để hỏi *"đo bằng gì"* |
+| **Append-only + supersede** | Duyệt là GHI THÊM một bản ghi, không sửa bản cũ. Đo lại cho số khác thì bản sau thắng theo **thứ tự ghi**, không theo mốc thời gian — sổ nối tiếp nên thứ tự ghi là thứ tự thật, còn mốc thời gian là thứ người gõ vào và gõ sai được. Số cũ vẫn nằm nguyên trong sổ: hôm ấy bo đọc ra thế, và đó là dữ liệu của chương đánh giá |
+| **Lớp nói thẳng thứ tự ưu tiên** | *"Khi số đo và tài liệu lệch nhau thì SỐ ĐO THẮNG: tài liệu tả một dòng sản phẩm, số đo tả đúng cái bo trên bàn."* Câu ấy nằm TRONG lớp, không nằm trong lời dặn chung |
+| **Vị trí lớp là một quyết định** | K8 đứng **ngay trước** lớp trích đoạn tài liệu. Đặt sau thì mô hình đã đọc xong tài liệu và đã tin tài liệu trước khi gặp số đo. Có bài kiểm canh đúng thứ tự ấy |
+| **Ngân sách: DỜI, không NỚI** | Lớp mới lấy 300 token **từ `repair`** (1.800 → 1.500), tổng vẫn đúng 8.000. Lấy từ đúng lớp ấy là có căn cứ: SL-147 đã đổi phần của `repair` thành **SÀN chứ không phải trần** — nó dùng chỗ trống thật còn lại, nên con số danh nghĩa là sổ sách chứ không phải cái chặn nó. Có bài kiểm ghim ba lớp còn lại để lần sửa sau không lặng lẽ đổi chỗ lấy |
+| **Đo trên dự án thật** | Trên `robot_balance`: đề xuất `ACCEL_BALANCE_OFFSET = -535 LSB (DS-02)` → lớp K8 **rỗng**; duyệt xong → lớp K8 có 115 token kèm đủ xuất xứ. Bản ghi thử đã xoá khỏi dự án thật — duyệt là quyết định của kỹ sư, và máy không được ký thay |
+| **Bài canh** | `tests/test_tc133_so_do_tren_bo_vao_prompt.py`, 21 bài. Đột biến 4 phép, cả 4 bị bắt: cho số chờ duyệt vào prompt → 2 bài đỏ; bỏ câu "số đo thắng tài liệu" → 2; đặt lớp sau lớp tài liệu → 1; cho Agent tự duyệt → 1 |

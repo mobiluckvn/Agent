@@ -214,6 +214,17 @@ TOOLBOX: tuple[Tool, ...] = (
         "Module nào dựa trên một trích đoạn tài liệu",
         takes="mã trích đoạn",
     ),
+    Tool(("measured", "list"), "Số đo trên bo: đã chốt và còn chờ"),
+    # Agent ĐỀ XUẤT số đo được — nó là bên chạy chẩn đoán và đọc telemetry, nên
+    # bắt người chép tay lại con số máy vừa đọc là bỏ phí đúng chỗ máy làm tốt.
+    # Bản đề xuất KHÔNG vào prompt; `measured approve` mới vào, và lệnh ấy là
+    # lệnh DUYỆT nên nó không có trong danh mục này (cùng luật SL-164).
+    Tool(
+        ("measured", "add"),
+        "Đề xuất một số đo trên bo (chưa vào prompt, chờ người chốt)",
+        takes="tên, giá trị, --unit, --source",
+        writes=True,
+    ),
     Tool(("docs", "list"), "Phẩm xuất đã đăng ký"),
     Tool(("design", "list"), "Khuôn mẫu tài liệu thiết kế và định dạng xuất được"),
     # Dựng tài liệu chỉ đọc hồ sơ dự án rồi ghi ra artifacts/ — không đụng gate,

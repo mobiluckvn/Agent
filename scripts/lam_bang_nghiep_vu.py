@@ -828,9 +828,10 @@ DOI_CHIEU = [
  ("N-912", CHUA, "—",
   "Chưa có gì. eaa/decompose.py chưa đòi module khai dấu hiệu sống/hỏng; "
   "eaa/propose.py AcceptanceProposal chưa sinh tiêu chí quan sát được bằng mắt/tai · §3.6", "—"),
- ("N-913", CHUA, "—",
-  "Chưa có gì. measurements.jsonl và kết quả DS-xx nằm NGOÀI eaa/composer.py. "
-  "Đây là mục đắt nhất trong sáu mục, vì nó đụng vào bộ ghép prompt và vào gate tri thức · §3.7", "—"),
+ ("N-913", DU,
+  "eaa/measured.py — sổ nối tiếp board_facts.jsonl + lớp ngữ cảnh K8 board_facts trong "
+  "eaa/composer.py (đứng TRƯỚC lớp trích đoạn tài liệu) + lệnh eaa measured list/add/approve. "
+  "Agent đề xuất, người chốt; chỉ số ĐÃ DUYỆT mới vào prompt · SL-173, TC-133, 21 bài", "", "T3"),
 ]
 
 
