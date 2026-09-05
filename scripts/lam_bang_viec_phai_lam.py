@@ -45,7 +45,7 @@ SR = "SUY RA"
 
 SO_CU: list[tuple[str, str, str, str]] = [
     ("SC-01", DO,
-     "3 trên 12 lần từ chối tại G3 là mã TỰ CHỈNH CHO VỪA ĐỒ ĐO của chính nó, "
+     "3 trên 12 lần từ chối tại G3 (đếm lại nhật ký được 13 — xem SL-179) là mã TỰ CHỈNH CHO VỪA ĐỒ ĐO của chính nó, "
      "và cả ba qua sạch bốn cổng máy. Ghi ngày 03/09, trước khi bộ dò nào tồn tại",
      "docs/TIEP_TUC_TU_DAY.md §'1 — N-908'"),
     ("SC-02", DO,
@@ -180,15 +180,16 @@ VIEC: list[tuple[str, ...]] = [
      "5) Ghi cả phần bỏ sót vào sổ sai lệch, vì đó mới là phần có giá trị.",
      "scripts/do_nguoc_lich_su.py (mới) · eaa/contract.py · eaa/sensitivity.py "
      "· eaa/instrument.py · eaa/tools/regcheck.py",
-     "Bảng 12 dòng cho Chương 3, kèm danh sách lỗi bộ dò BỎ SÓT",
-     "Cần một bài canh để bảng không cũ đi khi lịch sử dài thêm",
+     "ĐÃ ĐO: bắt được 3/13 · trúng một phần 1 · kêu trật 7 · BỎ SÓT 0. "
+     "Và contract kêu sớm hơn người 54 phút ở ca imu_start_read",
+     "TC-146 (8 bài) — canh cả việc chân lý nền KHÔNG bị sửa sau khi chốt",
      "Không tốn token API",
      "Tôi vừa làm bộ dò vừa chấm bộ dò. Nếu chân lý nền được chọn SAU khi "
      "thấy kết quả thì con số đi ra vô nghĩa — nên nó phải được chốt trước "
      "và ghi ra tệp trước",
      "2 ngày",
      "3",
-     "ĐANG LÀM"),
+     "XONG (SL-179)"),
 
     ("V4",
      "Kỹ năng phần cứng theo từng NGOẠI VI, nạp vào prompt và duyệt qua G2",

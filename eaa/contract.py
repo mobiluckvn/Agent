@@ -118,6 +118,25 @@ def _kieu_tham_so(tham: str) -> str:
     return _gon(khop.group("dau"))
 
 
+#: Từ khoá đi liền dấu mở ngoặc mà KHÔNG phải lời gọi hàm. Thiếu một từ ở đây
+#: thì `if` thành một hàm bị mất, và bộ kiểm kêu ở mọi lượt sinh.
+#:
+#: MỘT bộ dùng cho CẢ HAI phép — đọc khai báo và đọc lời gọi. Trước đây mỗi
+#: phép giữ một danh sách riêng, và danh sách của `khai_bao_ham` thiếu `else`,
+#: `do`, `case`, `goto`. Phép đo ngược lịch sử (V3, SL-179) làm lộ chỗ ấy: một
+#: câu lệnh `else if(...) buzzer_beep_async(...);` bị đọc thành khai báo hàm,
+#: và ở bản sau nó thành một "hàm bị mất" hoàn toàn bịa ra. Hai danh sách cùng
+#: một mục đích là hai danh sách sẽ lệch nhau.
+_KHONG_PHAI_LOI_GOI = frozenset(
+    {
+        "if", "while", "for", "switch", "do", "else", "return", "sizeof",
+        "case", "goto", "defined", "_Static_assert", "static_assert",
+        "alignof", "_Alignof", "typeof", "__typeof__", "asm", "__asm__",
+        "catch", "typedef",
+    }
+)
+
+
 def khai_bao_ham(nguon: str) -> dict[str, str]:
     """Tên hàm → chữ ký đã chuẩn hoá, đọc từ một tệp header.
 
@@ -138,24 +157,13 @@ def khai_bao_ham(nguon: str) -> dict[str, str]:
         ten = khop.group("ten")
         # `typedef` và các từ khoá mở đầu khác không phải kiểu trả về.
         tra_ve = _gon(khop.group("ret"))
-        if tra_ve.split()[0] in {"typedef", "return", "if", "while", "for", "switch"}:
+        if set(tra_ve.split()) & _KHONG_PHAI_LOI_GOI:
             continue
         tham = khop.group("tham").strip()
         danh_sach = [_kieu_tham_so(t) for t in tham.split(",")] if tham else []
         ket_qua[ten] = f"{tra_ve} {ten}({', '.join(danh_sach)})"
     return ket_qua
 
-
-#: Từ khoá đi liền dấu mở ngoặc mà KHÔNG phải lời gọi hàm. Thiếu một từ ở đây
-#: thì `if` thành một hàm bị mất, và bộ kiểm kêu ở mọi lượt sinh.
-_KHONG_PHAI_LOI_GOI = frozenset(
-    {
-        "if", "while", "for", "switch", "do", "else", "return", "sizeof",
-        "case", "goto", "defined", "_Static_assert", "static_assert",
-        "alignof", "_Alignof", "typeof", "__typeof__", "asm", "__asm__",
-        "catch",
-    }
-)
 
 _CHUOI = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', re.DOTALL)
 _LOI_GOI = re.compile(r"\b([A-Za-z_]\w*)\s*\(")

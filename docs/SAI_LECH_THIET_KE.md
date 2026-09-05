@@ -2599,3 +2599,22 @@ lại, và để bản cập nhật SDD gom một lần:
 | **Không nói hai lần** | Thông báo đã tự nêu một lệnh thì không gắn thêm. Nói hai lần làm loãng lần thứ nhất |
 | **Con số sau khi sửa — báo cả hai** | Phép đo tĩnh: **150/182 = 82%** (25 tự nêu + 125 được bảng phủ). Đây là **cận dưới**, vì 32 chỗ còn lại nằm trong hàm phụ trợ mà phép quy về lệnh không với tới, dù lúc chạy thật chúng vẫn có gợi ý. Báo cả hai con số chứ không báo mỗi con số đẹp |
 | **Bài canh** | `tests/test_tc145_thong_bao_loi_noi_duoc_viec_phai_lam.py`, 11 bài. Đột biến 4 phép, cả 4 bị bắt: gợi ý trỏ vào lệnh không tồn tại → 2 đỏ; xoá một lệnh khỏi bảng → 1; bỏ luật "không nói hai lần" → 1; bỏ gợi ý khỏi đường in lỗi của `main()` → 1 (bài đầu-cuối) |
+
+---
+
+## SL-179 · BỔ SUNG · Đo ngược lịch sử dự án bằng bốn bộ dò (V3)
+
+| | |
+|---|---|
+| **Cách tìm** | Việc số 3 của `docs/EAA_Viec_phai_lam.xlsx`. Bốn bộ dò ra đời 04/09; toàn bộ 19 lượt sinh module diễn ra 01–03/09. Một phép thử hồi cứu **sạch** — dữ liệu không thể bị chính bộ dò làm nhiễu — và tính sạch ấy chỉ có đúng một lần |
+| **Chốt chân lý nền TRƯỚC, commit riêng** | `docs/CHAN_LY_NEN_V3.md`, commit `f8313d9`, đứng trước bộ chạy. V3 là phép tự chấm: nếu danh sách "lỗi đã biết" được chọn SAU khi thấy bộ dò tìm ra gì thì con số chỉ nói rằng tôi biết chọn ví dụ. Kèm **dự đoán 4–5/13** viết ra trước |
+| **Nguồn** | `gates/decisions.jsonl` — 13 lần từ chối G3 kèm **lý do nguyên văn** người viết lúc từ chối. Mã ứng viên bị từ chối không nằm trong kho firmware (kho ấy chỉ giữ bản đã merge) mà trong `llm_calls.jsonl`, 214 lượt gọi đủ phản hồi |
+| **Kết quả** | **BẮT ĐƯỢC 3/13** (#3 `sensitivity`, #6 `contract`, #10 `instrument`) · trúng một phần 1 · **kêu trật lý do 7** · im đúng 2 · **BỎ SÓT 0**. Chấm chặt 23%, tính cả ca trúng một phần 31% — mép dưới của dải đã dự đoán |
+| **Ba chỗ dự đoán SAI, công bố nguyên vẹn** | (a) #8 `instrument` CÓ kêu nhưng **trật lý do** — trace 1 im vì hai hằng số vật lý nằm trong hàm không mang `// ref:`; (b) #9 `contract` im vì `imu_start_read()` **đã mất từ trước**, không mất ở lượt ấy; (c) #6 `contract` bắt được mà tôi **không** dự đoán, và khớp nguyên văn |
+| **Kết quả đáng giá nhất, và nó đòi bỏ cách đếm ban đầu** | 13 điểm từ chối là chỗ NGƯỜI dừng lại đọc, không phải chỗ khuyết tật LỌT VÀO. Quét **mọi lượt vá**: `imu_start_read()` biến mất lúc 01:00:49, người phát hiện lúc 01:55:07 — **`contract` kêu sớm hơn người 54 phút** |
+| **Cái giá phải mang ra bàn** | **7/13 là kêu trật lý do**, và 67 lượt kêu trên toàn lịch sử. Ba nguồn nhiễu tách được: chữ ký còn đang chảy ở lượt đầu của module · `instrument` trace 2 quá rộng (một số nhỏ trùng nhau là chuyện thường) · trace 1 đếm hằng số DI CHUYỂN thành hằng số BỊ ĐỔI. Một bộ dò hay báo nhầm sớm muộn cũng bị tắt đi |
+| **`regcheck` 0/13 — đã chốt trước là KHÔNG ĐO ĐƯỢC** | Dự án chưa bao giờ khai `regmap` nên cổng ĐẠT và im. Số 0 ấy nói cổng ra đời sau dữ liệu, không nói cổng vô dụng. Ghi trước khi chạy, đúng để không ai đọc nhầm theo cả hai hướng |
+| **Một chỗ lệch trong `contract.py`, trách nhiệm nói cho đúng** | Bộ chạy cho `khai_bao_ham` ăn tệp `.c` trong khi nó tự khai là đọc header — **dùng sai là của bộ chạy**. Nhưng nó phơi ra chỗ lệch thật: cùng một module giữ HAI danh sách từ khoá cho cùng một mục đích, và danh sách trong `khai_bao_ham` thiếu `else`, `do`, `case`, `goto`. Một câu lệnh `else if(...) f(...);` thành khai báo, rồi thành "hàm bị mất" bịa ra. Đã gộp về một bộ dùng chung |
+| **Ba con số tách riêng, không gộp** | BẮT ĐƯỢC · **BỎ SÓT** (trong tầm, đủ dữ liệu, mà im — con số duy nhất tính là thất bại) · KHÔNG CHẠY ĐƯỢC/NGOÀI TẦM. Gộp hai cái sau là cách dễ nhất để bảng nói dối, và nó nói dối theo cả hai hướng |
+| **Điều V3 KHÔNG chứng minh** | Tám trong mười ba lần từ chối là lỗi thiết kế hoặc vật lý — sai trục cảm biến, sai hệ số tích phân, sai thứ tự vùng chết, một lời gọi thừa giết hẳn chức năng. Không bộ dò tĩnh nào bắt được, và điều ấy đã chốt trước khi chạy. **Gate người duyệt không thay thế được** |
+| **Bài canh** | `tests/test_tc146_do_nguoc_lich_su.py` |

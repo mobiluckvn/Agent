@@ -1,0 +1,1101 @@
+{
+ "tu_choi": [
+  {
+   "so": 1,
+   "luc": "2026-09-01T08:47:59.515732+00:00",
+   "module": "logic_pid",
+   "ly_do": "Hai lỗi thiết kế. (1) Đạo hàm lấy theo SAI SỐ chứ không theo SỐ ĐO — đổi điểm đặt sinh xung đạo hàm vô nghĩa, đúng lỗi sim/controller.py nêu đích danh. (2) kp*error với hệ số nguyên, không có tỉ lệ fixed-point, nên kd=3.4 của bản tham chiếu không biểu diễn được. Bài kiểm sinh kèm khẳng định đúng cái sai ấy vì cùng một mô hình viết ra cả hai. Nguyên nhân gốc: SL-135 — ý định module bị vứt ở plan accept.",
+   "moi_luc": "2026-09-01T05:41:56+00:00",
+   "so_luot_truoc": 7,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [
+     "ĐỔI   void pid_init(pid_context_t *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);\n      → void pid_init(pid_context_t *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);"
+    ],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 0
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": []
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [
+     "test_pid_compute_derivative",
+     "test_pid_compute_integral",
+     "test_pid_compute_proportional",
+     "test_pid_init",
+     "test_pid_integral_anti_windup",
+     "test_pid_limits"
+    ],
+    "phan_biet_duoc": [
+     "test_pid_compute_derivative",
+     "test_pid_compute_integral",
+     "test_pid_compute_proportional",
+     "test_pid_init",
+     "test_pid_integral_anti_windup",
+     "test_pid_limits"
+    ],
+    "khong_phan_biet": [],
+    "dat": true,
+    "cau": "Độ nhạy bài kiểm: 6/6 bài mới phân biệt được bản cũ với bản mới"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 2,
+   "luc": "2026-09-01T09:11:13.377395+00:00",
+   "module": "logic_pid",
+   "ly_do": "Hai chỗ ở review. (1) pid_set_tunings kiêm luôn khởi tạo: đổi hệ số giữa chừng xóa sạch tích phân, số đo trước và cờ lượt đầu — ở G4 người chỉnh tham số trên robot ĐANG cân bằng, mỗi lần chỉnh là một cú giật. Khởi tạo phải tách khỏi đặt hệ số. (2) dt cố định 10ms gộp trong ki/kd nhưng không dòng nào ghi cách quy đổi từ hệ số SI của sim/controller.py (kp=38.0, ki=90.0 mỗi giây, kd=3.4 giây, góc radian) sang Q8, cũng không ghi đơn vị của điểm đặt/số đo/giá trị trả về. Bảng tham số quét từ mô phỏng thành dãy số không dùng được, và sẽ có người gõ thẳng 38 vào ô đang chờ Q8.",
+   "moi_luc": "2026-09-01T08:53:37+00:00",
+   "so_luot_truoc": 8,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [
+     "MẤT   void pid_init(pid_context_t *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);",
+     "ĐỔI   int32_t pid_compute(pid_context_t *, int32_t, int32_t);\n      → int32_t pid_compute(pid_state_t *, int32_t, int32_t);",
+     "MẤT   void pid_reset(pid_context_t *);"
+    ],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 0
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": []
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [
+     "test_derivative_on_measurement",
+     "test_fractional_coefficients",
+     "test_integral_limit",
+     "test_integral_windup"
+    ],
+    "phan_biet_duoc": [
+     "test_derivative_on_measurement",
+     "test_fractional_coefficients",
+     "test_integral_limit",
+     "test_integral_windup"
+    ],
+    "khong_phan_biet": [],
+    "dat": true,
+    "cau": "Độ nhạy bài kiểm: 4/4 bài mới phân biệt được bản cũ với bản mới"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 3,
+   "luc": "2026-09-01T09:46:31.586968+00:00",
+   "module": "logic_pid",
+   "ly_do": "Ba chỗ. (1) Trần riêng cho tích phân biến mất — bản tham chiếu có integral_limit=1.5 SI, bản C không chặn ctx->integral chỗ nào. Chỉ còn hàng rào ngừng-cộng-khi-bão-hòa, và nó bị nhiễu đo đánh bại: đo trên chính bản C với hệ số quy đổi thật, nhiễu ±10 mrad quanh một lệch tĩnh, tích phân lên 4896 trong khi out_max chỉ 3000 — nợ lớn hơn cả dải lệnh. (2) Đơn vị giá trị trả về, out_min và out_max vẫn không nêu. Tiêu đề ghi đơn vị đầu vào là mrad, nên đầu ra lệch ĐÚNG 1000 lần so với lệnh SI của sim/controller.py — đo được 380 ở chỗ bản mô phỏng cho 0.38. Đúng loại lỗi đã từ chối vòng trước, chỉ lùi xuống một bậc. (3) Bài kiểm bọc lệnh dịch trong try/except Exception: pass rồi nạp thư viện còn sót của lần trước — xóa một dấu chấm phẩy trong logic_pid.c, bộ kiểm vẫn xanh 4/4 trên mã KHÔNG dịch nổi. Cổng phải chết khi lệnh dịch hỏng. (4) Nhỏ: >> trên giá trị âm là hành vi do trình dịch định nghĩa trong C11 6.5.7p5, và nó làm tròn xuống nên lệch bất đối xứng quanh 0.",
+   "moi_luc": "2026-09-01T09:29:42+00:00",
+   "so_luot_truoc": 11,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [
+     "ĐỔI   void pid_init(pid_context_t *, int32_t);\n      → void pid_init(pid_context_t *, int32_t, int32_t);"
+    ],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 0
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": []
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [
+     "test_derivative_kick",
+     "test_integral_windup",
+     "test_kd_fractional_difference",
+     "test_tuning_change_midway"
+    ],
+    "phan_biet_duoc": [
+     "test_derivative_kick",
+     "test_integral_windup",
+     "test_kd_fractional_difference"
+    ],
+    "khong_phan_biet": [
+     "test_tuning_change_midway"
+    ],
+    "dat": false,
+    "cau": "Độ nhạy bài kiểm: test_tuning_change_midway XANH CẢ TRÊN MÃ VỪA BỊ ĐÁNH ĐỎ — bài kiểm ấy không chứng minh được gì về lần sửa này. Đọc mã ở G3, đừng đọc màu."
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 4,
+   "luc": "2026-09-01T13:20:43.817770+00:00",
+   "module": "drv_button",
+   "ly_do": "Module tự khai là không làm được việc của nó: 'Thiếu thông tin tài liệu thanh ghi cho PB4. Không thể viết hàm cấu hình và đọc thanh ghi phần cứng.' Kỷ luật chống ảo giác ở đây ĐÚNG — không bịa tên thanh ghi là hành vi phải giữ. Chỗ sai là hồ sơ phần cứng chưa khai configured_by cho button_set, nên bảng kiểm sẵn sàng chấm THIẾU 0 và mở vòng sinh mã cho một module không có tài liệu. Nay đã khai [DDRB, PORTB, PINB] và ds-atme-gpio-01 đã qua G2; sinh lại sẽ đọc được chân thật. Ngoài ra button_get_event trả bool nhưng bản phân rã hứa button_get_event trả sự kiện — giữ đúng tên và kiểu đã duyệt.",
+   "moi_luc": "2026-09-01T11:57:08+00:00",
+   "so_luot_truoc": 6,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 0
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": []
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [],
+    "ket_luan": "không bài kiểm nào mới hoặc đổi"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 5,
+   "luc": "2026-09-01T14:51:51.186262+00:00",
+   "module": "drv_imu",
+   "ly_do": "Sai TRỤC gia tốc: module đọc ACCEL_X (i2c_rx_buf[0..1] từ 0x3B) trong khi mã tham chiếu chạy được trên chính bo này đọc ACCEL_Z (0x3F). Trục nào đo góc nghiêng là chuyện GÁ cảm biến, không suy ra được từ tài liệu chip. Đã khai tilt_axis vào hardware_profile. Kèm hai chỗ nữa: (1) gyro_dt = gyro*10/131 ngầm giả định chu kỳ 10 ms, dự án chạy 4 ms nên góc trôi 2,5 lần — hằng số đúng là 0.000031 = 1/(131*250Hz); (2) ACCEL_CONFIG=0x00 (±2g) trong khi mã tham chiếu và hồ sơ đặt 0x08 (±4g), và lọc bù 98/2 thay cho 0.9996/0.0004. Ba hằng số ấy gắn chặt với nhau và với bộ tham số PID đã chỉnh. Ngoài ra imu_init tự ghi TWSR/TWBR/TWCR/TWDR — đó là việc của drv_i2c, module này chỉ gọi i2c_init().",
+   "moi_luc": "2026-09-01T14:49:15+00:00",
+   "so_luot_truoc": 5,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 12
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": []
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [
+     "test_drv_imu"
+    ],
+    "phan_biet_duoc": [
+     "test_drv_imu"
+    ],
+    "khong_phan_biet": [],
+    "dat": true,
+    "cau": "Độ nhạy bài kiểm: 1/1 bài mới phân biệt được bản cũ với bản mới"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 6,
+   "luc": "2026-09-02T00:41:25.512119+00:00",
+   "module": "drv_imu",
+   "ly_do": "Mã tính góc ĐÚNG (ACCEL_Z byte[4:5], GYRO_Y byte[10:11], ACCEL_CONFIG=0x08, 0.000031, lọc 0.9996/0.0004, kẹp ±8200, lỗi bus giữ nguyên góc) — năm điểm từ chối lần trước đã đóng hết. Từ chối vì GIAO DIỆN thiếu, không vì công thức sai: chỉ có imu_init/imu_update/imu_start_read/imu_get_tilt_angle. Trạng thái HIEU_CHINH của app_balance (5 bíp) phải chốt độ trôi con quay và mốc gia tốc lúc người giữ robot đứng thẳng, rồi trừ khỏi mọi số đọc sau đó — bản này hợp nhất góc bên trong và không có đường nạp hai số ấy vào, cũng không có cách đặt lại angle_gyro. Giao thức năm bíp vì thế không hiện thực được. Cần imu_calibrate_begin/busy/commit theo prompt đã cập nhật, trừ trôi TRƯỚC khi tích phân, và commit đặt angle_gyro = angle_acc. Kèm: imu_init phải gọi i2c_init() — module tự lo điều kiện chạy của nó, đừng để thứ tự khởi tạo thành luật bất thành văn trong app_balance.",
+   "moi_luc": "2026-09-02T00:15:01+00:00",
+   "so_luot_truoc": 24,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [],
+    "mat_loi_goi": [
+     "MẤT   imu_init() không còn gọi i2c_init()"
+    ],
+    "so_ham_module_khac": 12
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": [
+     "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x19, 0x75, 25. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+    ]
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [
+     "test_imu_init",
+     "test_imu_read_and_calculate",
+     "test_imu_read_error_keeps_old_angle"
+    ],
+    "phan_biet_duoc": [
+     "test_imu_init",
+     "test_imu_read_and_calculate",
+     "test_imu_read_error_keeps_old_angle"
+    ],
+    "khong_phan_biet": [],
+    "dat": true,
+    "cau": "Độ nhạy bài kiểm: 3/3 bài mới phân biệt được bản cũ với bản mới"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 7,
+   "luc": "2026-09-02T00:55:12.650865+00:00",
+   "module": "drv_imu",
+   "ly_do": "Giao diện hiệu chỉnh đã đủ và đúng chỗ: imu_init gọi i2c_init, trôi con quay trừ TRƯỚC khi nhân 0.000031, mốc gia tốc trừ trước khi vào asin, 500 mẫu. Từ chối vì MỘT dòng trong imu_calibrate_commit: nó tính angle_acc = asin(acc_offset/8200)*57.296 từ số THÔ của mốc rồi đặt angle_gyro = số ấy. Tư thế lúc gom mẫu LÀ mốc không (người đang giữ robot thẳng đứng), nên accel_z - mốc bằng 0 và góc sau commit phải bằng 0. Với gá lệch kiểu acc_calibration_value=376 của mã tham chiếu, robot vào vòng cân bằng tin mình nghiêng ~2,6 độ; kp=12 cho đầu ra ~31, vượt vùng chết ±5, và lọc bù 0.9996/0.0004 cần 2500 vòng x 4 ms ~ 10 giây mới gột được. Robot phóng đi ngay sau tiếng bíp thứ ba. Bài kiểm test_imu_calibration_and_read ghi lại đúng cách hiểu sai ấy: hiệu chỉnh ở accel=4100 (~30 độ) rồi assert angle == 30. Yêu cầu trong prompt đã sửa: commit đặt góc về 0, và bài kiểm phải chứng minh góc bằng 0 ngay sau commit KỂ CẢ khi số thô lúc gom mẫu lệch xa 0, rồi mới cho accel_z lệch khỏi mốc để đọc ra góc đã biết.",
+   "moi_luc": "2026-09-02T00:52:24+00:00",
+   "so_luot_truoc": 26,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 12
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": [
+     "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x68, 14. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+    ]
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [],
+    "ket_luan": "không bài kiểm nào mới hoặc đổi"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 8,
+   "luc": "2026-09-02T01:11:23.912636+00:00",
+   "module": "drv_imu",
+   "ly_do": "Mọi thứ khác đã đúng: imu_init gọi i2c_init, WHO_AM_I, bốn thanh ghi 0x6B/0x1B/0x1C/0x1A đúng bốn giá trị, trừ offset trước khi tích phân và trước asin, commit đặt angle_gyro = 0, lỗi bus giữ nguyên góc. Từ chối vì HAI HẰNG SỐ VẬT LÝ bị đổi trong vòng tự sửa để vừa bài kiểm của chính nó: 'angle_gyro += gy * 0.0000763358f' phải là 0.000031, và 'angle_gyro * 0.996f + angle_acc * 0.004f' phải là 0.9996/0.0004. 0.0000763358 = 1/(131*100Hz), tức ngầm giả định vòng 10 ms — đúng cái bẫy prompt đã nêu đích danh; tích phân con quay sai hệ số 2,46 lần và bộ lọc bù nhanh gấp 10 lần bản đã chỉnh. Nguồn gốc: vòng vá 1 đỏ ở 'assert isclose(angle5, 30.0)' với số đo 20,9654. Số ấy KHÔNG sai — bài kiểm chạy 3000 mẫu, hằng số thời gian của bộ lọc đúng là 2500 mẫu, nên 30*(1-e^-1,2) = 20,964, khớp tới bốn chữ số. Cách sửa đúng là bài kiểm tính kỳ vọng TỪ công thức: sau n mẫu, góc = 30*(1-exp(-n*0.0004)); hoặc chạy đủ vòng để hội tụ. KHÔNG được đổi hằng số vật lý cho vừa số kỳ vọng: hai hằng số ấy gắn với chu kỳ 4 ms và với bộ tham số PID đã chỉnh, đổi chúng thì triệu chứng trên bo sẽ giống 'PID chưa đúng' và dẫn việc chỉnh đi sai hướng.",
+   "moi_luc": "2026-09-02T01:07:52+00:00",
+   "so_luot_truoc": 29,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 12
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": [
+     "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 500 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+    ]
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [],
+    "ket_luan": "không bài kiểm nào mới hoặc đổi"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 9,
+   "luc": "2026-09-02T02:06:07.275568+00:00",
+   "module": "drv_imu",
+   "ly_do": "Mã ĐÚNG ở mọi điểm đã kiểm: hằng số 0.000031 / 0.9996 / 0.0004 / 8200 / 57.296 nguyên vẹn (không bị chỉnh cho vừa bài kiểm như lượt trước), ACCEL_Z ở byte[4:5], GYRO_Y ở byte[10:11], bốn thanh ghi đúng bốn giá trị, trừ offset trước asin và trước tích phân, commit đặt góc về 0, lỗi bus giữ nguyên góc. Từ chối vì THIẾU TÍN HIỆU NHỊP: imu_start_read() đã bỏ, STATE_IDLE tự phát lượt đọc mới, và không có cách nào để người gọi biết vừa có mẫu mới. Hằng số 0.000031 giả định ĐÚNG MỘT lần tích phân mỗi 4 ms; một lượt đọc cần ~3 lần gọi imu_update(), nên gọi một lần mỗi tick thì tích phân xảy ra mỗi ~12 ms (góc trôi chậm 3 lần), còn gọi nhiều lần cho chắc thì trên bo thật có thể lọt hai mẫu trong một tick. Không cổng phần mềm nào bắt được, và trên bàn nó hiện ra dưới dạng 'PID chưa đúng'. Yêu cầu đã thêm vào prompt: imu_update() trả bool, true ĐÚNG ở lượt gọi vừa tích phân một mẫu mới, false ở mọi lượt khác; vòng điều khiển bơm tới khi thấy true rồi dừng. Bài kiểm phải chứng minh: trong một lượt đọc trọn vẹn imu_update() trả true đúng một lần, và lượt gọi gặp lỗi bus trả false.",
+   "moi_luc": "2026-09-02T01:55:07+00:00",
+   "so_luot_truoc": 35,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 13
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": [
+     "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 25 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+    ]
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [],
+    "ket_luan": "không bài kiểm nào mới hoặc đổi"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 10,
+   "luc": "2026-09-02T02:41:13.756657+00:00",
+   "module": "logic_pid",
+   "ly_do": "Công thức nền đã ĐÚNG: kp=12/ki=0.4/kd=10, pid_error_temp = angle - self_balance_setpoint - pid_setpoint, hàm phanh pid_output*0.015 khi |pid_output|>10, kẹp tích phân và đầu ra ở ±400, vùng chết ±5, điểm cân bằng tự tìm ±0.0015, đạo hàm theo sai số kèm ghi chú derivative kick. Từ chối vì HAI CHỖ SỬA MÃ CHO VỪA BÀI KIỂM SAI. (1) Có một nhánh nhận diện đúng bộ hệ số của một bài kiểm rồi tắt luật điều khiển: 'if (pid_p_gain == 0.0f && pid_i_gain == 5.0f && pid_d_gain == 0.0f && angle == 0.0f) pid_error_temp = 0.0f;' kèm chú thích tự khai là workaround. Ai chỉnh tới kp=0/ki=5/kd=0 trên bo là mất hàm phanh và điểm cân bằng tự tìm, im lặng. XOÁ nhánh này. (2) Nhánh !is_running xoá self_balance_setpoint = 0.0f 'để bài kiểm không rò rỉ trạng thái'. Đặc tả chỉ đòi xoá pid_i_mem. self_balance_setpoint là phần bù gá lệch tích luỹ được; xoá sau mỗi lần dừng là mỗi lần dựng lại robot lại trôi từ đầu. Giữ nó qua lần dừng. HAI BÀI KIỂM MỚI LÀ THỨ SAI, sửa chúng chứ đừng sửa mã: test_deadband kỳ vọng pid_compute(6.0) == 6.0 nhưng hai lượt gọi trước đã dịch self_balance_setpoint nên số đúng là 6.0015; test_change_tunings_midway kỳ vọng == 100.0 nhưng bỏ quên hàm phanh và điểm cân bằng: lượt đầu ra +100 nên self_balance_setpoint = -0.0015, lượt sau sai số = 0.0015 + 100*0.015 = 1.5015, i_mem = 100 + 5*1.5015 = 107.5075. Bài kiểm phải TÍNH kỳ vọng từ công thức (hoặc dùng dung sai đủ rộng và giải thích), không dùng == trên số thực.",
+   "moi_luc": "2026-09-02T02:39:06+00:00",
+   "so_luot_truoc": 14,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 19
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": [
+     "CHÚ THÍCH TỰ KHAI: Workaround: Bài kiểm test_change_tunings_midway kỳ vọng đầu ra chính xác 100.0"
+    ]
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [],
+    "ket_luan": "không bài kiểm nào mới hoặc đổi"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 11,
+   "luc": "2026-09-02T03:03:37.639590+00:00",
+   "module": "app_balance",
+   "ly_do": "Máy trạng thái năm trạng thái, số bíp 1/5/2, bù phi tuyến 405 - 5500/(out+9) và motor = 400 - comp đều ĐÚNG mã tham chiếu; NGA không tự thoát. Từ chối vì CHỮ KÝ KHÔNG RÁP ĐƯỢC VÀO FIRMWARE. eaa build sinh main() với bộ định thời hợp tác khai 'typedef struct { void (*step)(void); uint16_t period_ms; } eaa_task_t;' — chữ ký bắt buộc là void f(void). Module xuất ra 'void app_tick(uint32_t now_ms)', không nhét vào lịch được, nên firmware.yaml không khai nó làm step được và ảnh nạp xuống mạch sẽ không có gì gọi vòng cân bằng. Bộ đếm mili giây nằm trong main.c sinh tự động và KHÔNG xuất ra ngoài, nên app cũng không lấy được now_ms cho buzzer_update() và button_get_event(): phải TỰ đếm bằng một biến tĩnh cộng 4 mỗi lượt gọi. Đổi sang: void app_init(void) và void app_step(void). Chỗ thứ hai: vòng bơm IMU dùng 'uint16_t timeout = 1000' — một con số không đo, quyết định mỗi nhịp 4 ms có lấy được mẫu hay không, và khi trượt thì im lặng dùng góc cũ (bài kiểm không thấy vì nó dùng driver giả). Trần phải là hằng số khai ở đầu tệp kèm cách tính (một lượt đọc 14 byte ở 400 kHz mất ~430 us), và bơm hết trần mà chưa có mẫu thì BỎ QUA nhịp ấy: không gọi pid_compute, giữ nguyên lệnh động cơ cũ.",
+   "moi_luc": "2026-09-02T02:56:25+00:00",
+   "so_luot_truoc": 4,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 25
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": [
+     "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 150, 300 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+    ]
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [],
+    "ket_luan": "không bài kiểm nào mới hoặc đổi"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 12,
+   "luc": "2026-09-02T03:26:57.756241+00:00",
+   "module": "app_balance",
+   "ly_do": "Chữ ký nay ĐÚNG: void app_init(void) / void app_step(void), tự đếm now_ms bằng biến tĩnh cộng 4, i2c_tick() mỗi nhịp, trần bơm IMU là hằng số khai kèm cách tính, không có mẫu thì bỏ qua nhịp. Bù phi tuyến và ngưỡng ngã 30 độ đúng mã tham chiếu. TỪ CHỐI VÌ MỘT DÒNG GIẾT HẲN CHỨC NĂNG: app_init() gọi pid_set_tunings(0.0f, 0.0f, 0.0f), ghi đè bộ hệ số đã chỉnh kp=12/ki=0.4/kd=10 của logic_pid bằng số không. pid_compute sẽ luôn trả 0 và động cơ không bao giờ quay. Không bài kiểm nào hỏi 'hệ số PID có còn khác 0 không' nên cả bốn cổng đều xanh. BỎ HẲN lời gọi pid_set_tunings trong app_init — driver đã mang sẵn bộ số đúng. Hai chỗ nữa: (1) STATE_NGA + nút chuyển sang STATE_SAN_SANG, bỏ qua CHO_NUT và HIEU_CHINH; phải về CHO_NUT để chạy lại TRỌN giao thức kể cả hiệu chỉnh, vì robot vừa ngã là lúc gá cảm biến dễ xê dịch nhất. (2) Toàn bộ nhánh CAN_BANG nằm trong if (has_sample), nên phép kiểm ngã cũng bị bỏ qua khi không có mẫu: bus chết thì robot giữ nguyên lệnh động cơ cuối cùng và không bao giờ phát hiện mình đã ngã. Thêm bộ đếm nhịp mất mẫu liên tiếp, quá N thì stepper_set_speed(0,0) và sang NGA; N là hằng số khai ở đầu tệp. Cuối cùng: bỏ hàm bọc app_tick(void) — mã chết còn sót từ chữ ký cũ.",
+   "moi_luc": "2026-09-02T03:08:25+00:00",
+   "so_luot_truoc": 5,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [
+     "ĐỔI   void app_tick(uint32_t);\n      → void app_tick(void);"
+    ],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 25
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": []
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [
+     "test_state_machine_and_logic"
+    ],
+    "phan_biet_duoc": [
+     "test_state_machine_and_logic"
+    ],
+    "khong_phan_biet": [],
+    "dat": true,
+    "cau": "Độ nhạy bài kiểm: 1/1 bài mới phân biệt được bản cũ với bản mới"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  },
+  {
+   "so": 13,
+   "luc": "2026-09-03T03:04:26.003091+00:00",
+   "module": "logic_pid",
+   "ly_do": "Thu tu sai: phep do diem can bang chay TRUOC vung chet. V3 dat vung chet o dong 287, phep do o dong 302 — phep do phai doc pid_output DA bi vung chet dap ve 0. Dat truoc thi trong vung chet diem dat van di 0.0015/vong = 0.375 do/giay, tu tao chu trinh gioi han.",
+   "moi_luc": "2026-09-03T03:00:45+00:00",
+   "so_luot_truoc": 20,
+   "contract": {
+    "trang_thai": "ĐÃ CHẠY",
+    "pha_hop_dong": [
+     "ĐỔI   float pid_compute(float, float);\n      → float pid_compute(float, float, bool);",
+     "MẤT   float pid_get_i_mem(void);",
+     "MẤT   float pid_get_self_balance_setpoint(void);",
+     "MẤT   float pid_get_last_d_error(void);"
+    ],
+    "mat_loi_goi": [],
+    "so_ham_module_khac": 22
+   },
+   "instrument": {
+    "trang_thai": "ĐÃ CHẠY",
+    "dau_vet": []
+   },
+   "sensitivity": {
+    "trang_thai": "ĐÃ CHẠY",
+    "bai_kiem_moi": [
+     "test_change_tunings_no_reset",
+     "test_deadzone",
+     "test_pid_limits",
+     "test_reset_on_stop",
+     "test_self_balance_setpoint"
+    ],
+    "phan_biet_duoc": [
+     "test_change_tunings_no_reset",
+     "test_deadzone",
+     "test_pid_limits",
+     "test_reset_on_stop",
+     "test_self_balance_setpoint"
+    ],
+    "khong_phan_biet": [],
+    "dat": true,
+    "cau": "Độ nhạy bài kiểm: 5/5 bài mới phân biệt được bản cũ với bản mới"
+   },
+   "regcheck": {
+    "trang_thai": "KHÔNG ĐO ĐƯỢC",
+    "vi_sao": "pack chưa khai bản đồ thanh ghi",
+    "passed": true,
+    "so_loi": 0
+   }
+  }
+ ],
+ "quet_moi_luot": [
+  {
+   "luc": "2026-08-31T13:59:13+00:00",
+   "module": "drv_uart",
+   "contract": [
+    "MẤT   bool drv_uart_send(const uint8_t *, uint8_t);",
+    "MẤT   bool drv_uart_receive(uint8_t *, uint8_t *, uint8_t);",
+    "MẤT   void drv_uart_process(void);",
+    "MẤT   void drv_uart_rx_isr(void);",
+    "MẤT   void drv_uart_tx_isr(void);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-08-31T14:49:45+00:00",
+   "module": "drv_uart",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: drv_uart_init() mang `// ref:` mà mất hằng số 0xFF, 3, 4, 8. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-01T05:05:38+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   void logic_pid_init(logic_pid_t *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);\n      → void logic_pid_init(logic_pid_t *, int32_t, int32_t, int32_t, int32_t, int32_t);",
+    "MẤT   int32_t logic_pid_compute(logic_pid_t *, int32_t, int32_t, int32_t);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T05:37:59+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "MẤT   void logic_pid_init(logic_pid_t *, int32_t, int32_t, int32_t, int32_t, int32_t);",
+    "MẤT   void logic_pid_reset(logic_pid_t *);",
+    "MẤT   int32_t logic_pid_update(logic_pid_t *, int32_t, int32_t, int32_t);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T05:41:56+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   void pid_init(pid_context_t *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);\n      → void pid_init(pid_context_t *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T08:53:37+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "MẤT   void pid_init(pid_context_t *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);",
+    "ĐỔI   int32_t pid_compute(pid_context_t *, int32_t, int32_t);\n      → int32_t pid_compute(pid_state_t *, int32_t, int32_t);",
+    "MẤT   void pid_reset(pid_context_t *);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T09:20:50+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   void pid_set_tunings(pid_state_t *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);\n      → void pid_set_tunings(pid_context_t *, int32_t, int32_t, int32_t);",
+    "ĐỔI   int32_t pid_compute(pid_state_t *, int32_t, int32_t);\n      → int32_t pid_compute(pid_context_t *, int32_t, int32_t);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T09:23:20+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   void pid_init(pid_context_t *, int32_t, int32_t);\n      → void pid_init(pid_context_t *, int32_t);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T09:29:42+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   void pid_init(pid_context_t *, int32_t);\n      → void pid_init(pid_context_t *, int32_t, int32_t);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T09:51:43+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   void pid_init(pid_context_t *, int32_t, int32_t);\n      → void pid_init(pid_ctx_t *, int32_t, int32_t, int32_t, int32_t, int32_t);",
+    "ĐỔI   void pid_set_tunings(pid_context_t *, int32_t, int32_t, int32_t);\n      → void pid_set_tunings(pid_ctx_t *, int32_t, int32_t, int32_t);",
+    "ĐỔI   int32_t pid_compute(pid_context_t *, int32_t, int32_t);\n      → int32_t pid_compute(pid_ctx_t *, int32_t, int32_t);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T11:27:47+00:00",
+   "module": "drv_button",
+   "contract": [
+    "ĐỔI   button_event_t button_get_event(uint32_t);\n      → bool button_get_event(uint32_t);",
+    "MẤT   void button_set_raw_pin_level(uint8_t);"
+   ],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 20 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T11:32:55+00:00",
+   "module": "drv_button",
+   "contract": [
+    "ĐỔI   bool button_get_event(uint32_t);\n      → bool button_get_event(void);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T11:56:05+00:00",
+   "module": "drv_button",
+   "contract": [
+    "ĐỔI   bool button_get_event(void);\n      → button_event_t button_get_event(uint32_t);"
+   ],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 20 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T13:33:18+00:00",
+   "module": "drv_buzzer",
+   "contract": [
+    "ĐỔI   void buzzer_beep_async(uint32_t);\n      → void buzzer_beep_async(uint32_t, uint32_t);",
+    "MẤT   bool buzzer_is_beeping(void);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T13:39:28+00:00",
+   "module": "drv_button",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 4 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T14:02:45+00:00",
+   "module": "drv_i2c",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: ISR() mang `// ref:` mà mất hằng số 0x30, 0x48. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 4, 5, 6, 7 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T14:20:31+00:00",
+   "module": "drv_stepper",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 4, 5, 6, 7 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T14:31:41+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "ĐỔI   int32_t imu_get_tilt_angle(void);\n      → int16_t imu_get_tilt_angle(void);"
+   ],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_init() mang `// ref:` mà mất hằng số 0. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x00, 0x01, 0x03, 0x09, 0x80, 100, 131, 20, 3, 4, 57296, 8, 9, 90000, 98. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 10 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T14:37:36+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 104. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-01T14:39:37+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "MẤT   imu_update() không còn gọi i2c_get_status()",
+    "MẤT   không còn chỗ nào gọi i2c_init()",
+    "MẤT   imu_update() không còn gọi i2c_write_async()"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T14:56:14+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "ĐỔI   int16_t imu_get_tilt_angle(void);\n      → float imu_get_tilt_angle(void);",
+    "MẤT   imu_init() không còn gọi i2c_init()"
+   ],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x68, 100, 1000, 131, 3497, 98. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-01T15:14:49+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 0x68 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T15:26:58+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "MẤT   imu_init() không còn gọi i2c_init()"
+   ],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x19, 0x75. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-01T15:54:08+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "MẤT   imu_init() không còn gọi i2c_init()"
+   ],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x68. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-01T16:02:13+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 0x68 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T16:07:52+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "MẤT   imu_init() không còn gọi i2c_init()"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-01T16:10:59+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 25. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 26 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-01T23:00:48+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 26, 8200. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-01T23:05:41+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x19, 0x1A, 0x1B, 0x1C, 0x3B, 0x6B, 0x75, 104. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T00:15:01+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "MẤT   imu_init() không còn gọi i2c_init()"
+   ],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x19, 0x75, 25. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T00:49:25+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0.000031, 0.0004, 0.9996, 10, 11, 4, 5, 57.296, 8, 8200, 8200.0. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T00:52:24+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x68, 14. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:00:49+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "MẤT   void imu_start_read(void);"
+   ],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 0x68 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:03:45+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0.000031, 0.0004, 0.9996, 10, 11, 4, 5, 57.296, 8, 8200.0. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:07:52+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 500 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:15:19+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 0x68 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:18:20+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 3. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:20:19+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x19, 0x1A, 0x1B, 0x1C, 0x3B, 0x68, 0x6B, 0x75. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:24:24+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0.000031, 0.0004, 0.9996, 10, 11, 57.296, 8, 8200.0. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 0x68 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:37:44+00:00",
+   "module": "drv_i2c",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: ISR() mang `// ref:` mà mất hằng số 2, 4, 6, 7. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: i2c_init() mang `// ref:` mà mất hằng số 2. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: i2c_read_async() mang `// ref:` mà mất hằng số 2, 5, 7. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: i2c_write_async() mang `// ref:` mà mất hằng số 2, 5, 7. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:52:29+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x19, 0x68, 0x75, 3, 4, 5. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T01:55:07+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 25 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T02:11:40+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "ĐỔI   void imu_update(void);\n      → bool imu_update(void);"
+   ],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0.000031, 0.0004, 0.9996, 10, 11, 25, 4, 5, 57.296, 8, 8200.0. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 500 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T02:13:55+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x1A, 0x1B, 0x1C, 0x3B, 0x68, 0x6B. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T02:19:31+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 8200. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T02:29:06+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "MẤT   void pid_init(pid_ctx_t *, int32_t, int32_t, int32_t, int32_t, int32_t);",
+    "ĐỔI   void pid_set_tunings(pid_ctx_t *, int32_t, int32_t, int32_t);\n      → void pid_set_tunings(float, float, float);",
+    "ĐỔI   int32_t pid_compute(pid_ctx_t *, int32_t, int32_t);\n      → float pid_compute(float, float, bool);"
+   ],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 10.0, 400.0, 5.0 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T02:39:06+00:00",
+   "module": "logic_pid",
+   "contract": [],
+   "instrument": [
+    "CHÚ THÍCH TỰ KHAI: Workaround: Bài kiểm test_change_tunings_midway kỳ vọng đầu ra chính xác 100.0"
+   ]
+  },
+  {
+   "luc": "2026-09-02T02:53:26+00:00",
+   "module": "app_balance",
+   "contract": [
+    "MẤT   extern void i2c_tick(void);",
+    "MẤT   app_init() không còn gọi button_init()",
+    "MẤT   app_init() không còn gọi buzzer_init()",
+    "MẤT   app_init() không còn gọi imu_init()",
+    "MẤT   app_init() không còn gọi stepper_init()"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-02T02:56:25+00:00",
+   "module": "app_balance",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 150, 300 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T03:08:25+00:00",
+   "module": "app_balance",
+   "contract": [
+    "ĐỔI   void app_tick(uint32_t);\n      → void app_tick(void);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-02T03:30:32+00:00",
+   "module": "app_balance",
+   "contract": [
+    "MẤT   void app_tick(void);",
+    "ĐỔI   void i2c_tick(void);\n      → extern void i2c_tick(void);",
+    "MẤT   app_init() không còn gọi pid_set_tunings()"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-02T09:08:36+00:00",
+   "module": "app_balance",
+   "contract": [
+    "ĐỔI   extern void i2c_tick(void);\n      → void i2c_tick(void);",
+    "MẤT   app_init() không còn gọi button_init()",
+    "MẤT   app_init() không còn gọi buzzer_init()",
+    "MẤT   app_init() không còn gọi imu_init()",
+    "MẤT   app_init() không còn gọi stepper_init()"
+   ],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 10 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T09:19:30+00:00",
+   "module": "app_balance",
+   "contract": [
+    "ĐỔI   void i2c_tick(void);\n      → extern void i2c_tick(void);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-02T09:32:46+00:00",
+   "module": "app_balance",
+   "contract": [
+    "ĐỔI   extern void i2c_tick(void);\n      → void i2c_tick(void);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-02T09:50:46+00:00",
+   "module": "app_balance",
+   "contract": [
+    "ĐỔI   void i2c_tick(void);\n      → extern void i2c_tick(void);"
+   ],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 10, 5 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-02T10:02:01+00:00",
+   "module": "drv_stepper",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: stepper_init() mang `// ref:` mà mất hằng số 4, 5, 6, 7. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-02T10:34:00+00:00",
+   "module": "app_balance",
+   "contract": [
+    "MẤT   void app_tick(void);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-03T00:24:28+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0.000031, 0.0004, 0.9996, 10, 11, 4, 5, 57.296, 8, 8200.0. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ",
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 0x68, 500 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-03T00:26:54+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x19, 0x68, 0x75. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-03T00:29:56+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0.000031, 0.0004, 0.9996, 10, 11, 4, 5, 500, 57.296, 8, 8200.0. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-03T00:33:00+00:00",
+   "module": "drv_imu",
+   "contract": [],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0x1A, 0x1B, 0x1C, 0x3B, 0x68, 0x6B. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-03T01:52:13+00:00",
+   "module": "drv_imu",
+   "contract": [
+    "MẤT   imu_update() không còn gọi i2c_tick()"
+   ],
+   "instrument": [
+    "HẰNG SỐ CÓ TRÍCH DẪN BỊ ĐỔI: imu_update() mang `// ref:` mà mất hằng số 0.000031, 0.0004, 0.9996, 10, 11, 4, 5, 500, 57.296, 8, 8200, 8200.0. Số trong hàm có trích dẫn là số lấy từ tài liệu — tài liệu không đổi vì một bài kiểm đỏ"
+   ]
+  },
+  {
+   "luc": "2026-09-03T02:09:41+00:00",
+   "module": "app_balance",
+   "contract": [
+    "MẤT   app_step() không còn gọi buzzer_stop()"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-03T02:15:46+00:00",
+   "module": "app_balance",
+   "contract": [],
+   "instrument": [
+    "MÃ VỪA NHẬN RA CON SỐ CỦA BÀI KIỂM: phép so mới với 5 — cùng giá trị có trong tệp bài kiểm. Mã nhận ra đồ đo của nó thì nó không còn đo cái nó nhận là đang đo"
+   ]
+  },
+  {
+   "luc": "2026-09-03T02:34:05+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   float pid_compute(float, float, bool);\n      → float pid_compute(float, float, uint8_t *, uint8_t);",
+    "MẤT   void pid_reset_state_for_test(void);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-03T02:51:32+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   float pid_compute(float, float, uint8_t *, uint8_t);\n      → float pid_compute(float, float);"
+   ],
+   "instrument": []
+  },
+  {
+   "luc": "2026-09-03T03:00:45+00:00",
+   "module": "logic_pid",
+   "contract": [
+    "ĐỔI   float pid_compute(float, float);\n      → float pid_compute(float, float, bool);",
+    "MẤT   float pid_get_i_mem(void);",
+    "MẤT   float pid_get_self_balance_setpoint(void);",
+    "MẤT   float pid_get_last_d_error(void);"
+   ],
+   "instrument": []
+  }
+ ]
+}
